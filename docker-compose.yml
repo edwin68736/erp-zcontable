@@ -1,0 +1,41 @@
+services:
+
+  mysql:
+    image: mysql:8
+
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: sistema
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: sistema
+      DB_USER: root
+      DB_PASSWORD: 123456
+
+    depends_on:
+      - mysql
+
+  frontend:
+    build:
+      context: ./frontend
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
