@@ -1,3 +1,49 @@
+.construction-banner {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 24px 16px;
+  text-align: center;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--accent-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px 10px;
+  row-gap: 6px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--text-h);
+
+  strong {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  @media (max-width: 1024px) {
+    padding-inline: 16px;
+    font-size: 14px;
+  }
+}
+
+.construction-banner__sep {
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.construction-banner__sub {
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  max-width: 42em;
+  margin-inline: auto;
+
+  @media (max-width: 1024px) {
+    font-size: 12px;
+  }
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;

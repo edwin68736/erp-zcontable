@@ -6,7 +6,7 @@ import (
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "API ZContables funcionando")
+	fmt.Fprintf(w, "API ZContable · Servicio disponible. El ERP está activo y escuchando.")
 }
 
 func main() {

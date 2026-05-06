@@ -9,6 +9,18 @@ function App() {
 
   return (
     <>
+      <aside className="construction-banner" role="status" aria-live="polite">
+        <strong>ZContable ERP</strong>
+        <span className="construction-banner__sep" aria-hidden="true">
+          ·
+        </span>
+        <span>Sistema en construcción y despliegue activo</span>
+        <span className="construction-banner__sub">
+          ERP completo para el estudio contable ZContable — funcionalidades en
+          desarrollo.
+        </span>
+      </aside>
+
       <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
@@ -16,9 +28,10 @@ function App() {
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
         <div>
-          <h1>Get started</h1>
+          <h1>ZContable</h1>
           <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
+            Portal del ERP contable — entorno de desarrollo con{' '}
+            <code>HMR</code> (Vite + React).
           </p>
         </div>
         <button
