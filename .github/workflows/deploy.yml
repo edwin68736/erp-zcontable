@@ -24,7 +24,7 @@ jobs:
 
             git reset --hard
 
-            git pull
+            git pull origin main
 
             docker compose down
 
