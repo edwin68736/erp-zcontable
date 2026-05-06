@@ -1,0 +1,72 @@
+# =========================
+# ENV
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# NODE / FRONTEND
+# =========================
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# GO / BACKEND
+# =========================
+backend/bin
+backend/tmp
+backend/vendor
+
+# Binarios Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# DOCKER
+# =========================
+docker-data/
+*.pid
+
+# =========================
+# LOGS
+# =========================
+logs/
+*.log
+
+# =========================
+# BUILD FILES
+# =========================
+dist/
+build/
+
+# =========================
+# CACHE
+# =========================
+.cache/
+tmp/
+temp/
