@@ -60,8 +60,8 @@ services:
 
       STORAGE_PATH: /app/storage
 
-      volumes:
-        - backend_storage:/app/storage
+    volumes:
+      - backend_storage:/app/storage
 
     depends_on:
       - mysql
