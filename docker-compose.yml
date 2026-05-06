@@ -1,7 +1,39 @@
 services:
 
+  traefik:
+    image: traefik:latest
+
+    restart: unless-stopped
+
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+
+      - --certificatesresolvers.letsencrypt.acme.email=TU_CORREO@gmail.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - traefik-letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   mysql:
     image: mysql:8
+
+    restart: unless-stopped
 
     environment:
       MYSQL_ROOT_PASSWORD: 123456
@@ -13,6 +45,8 @@ services:
   backend:
     build:
       context: ./backend
+
+    restart: unless-stopped
 
     expose:
       - "8080"
@@ -30,15 +64,18 @@ services:
     labels:
       - traefik.enable=true
 
-      # API GO
+      # GO API
       - traefik.http.routers.backend.rule=Host(`api.zcontables.net`)
       - traefik.http.routers.backend.entrypoints=websecure
-      - traefik.http.routers.backend.tls=true
+      - traefik.http.routers.backend.tls.certresolver=letsencrypt
+
       - traefik.http.services.backend.loadbalancer.server.port=8080
 
   frontend:
     build:
       context: ./frontend
+
+    restart: unless-stopped
 
     expose:
       - "3000"
@@ -49,11 +86,13 @@ services:
     labels:
       - traefik.enable=true
 
-      # FRONTEND REACT
+      # REACT FRONTEND
       - traefik.http.routers.frontend.rule=Host(`zcontables.net`)
       - traefik.http.routers.frontend.entrypoints=websecure
-      - traefik.http.routers.frontend.tls=true
+      - traefik.http.routers.frontend.tls.certresolver=letsencrypt
+
       - traefik.http.services.frontend.loadbalancer.server.port=3000
 
 volumes:
   mysql_data:
+  traefik-letsencrypt:
