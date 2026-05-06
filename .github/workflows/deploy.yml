@@ -22,6 +22,8 @@ jobs:
           script: |
             cd /docker/erp-zcontable
 
+            git reset --hard
+
             git pull
 
             docker compose down
