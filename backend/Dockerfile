@@ -6,6 +6,8 @@ COPY . .
 
 RUN go mod tidy
 
+RUN echo "rebuild"
+
 RUN go build -o main .
 
 EXPOSE 8080
