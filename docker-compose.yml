@@ -58,6 +58,11 @@ services:
       DB_USER: root
       DB_PASSWORD: 123456
 
+      STORAGE_PATH: /app/storage
+
+      volumes:
+        - backend_storage:/app/storage
+
     depends_on:
       - mysql
 
@@ -96,3 +101,4 @@ services:
 volumes:
   mysql_data:
   traefik-letsencrypt:
+  backend_storage:
