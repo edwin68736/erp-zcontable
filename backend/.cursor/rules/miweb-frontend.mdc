@@ -1,0 +1,21 @@
+---
+description: Convenciones React (Vite, Tailwind, API client, UI consistente)
+globs: "frontend-react/**/*.{tsx,ts,css}"
+alwaysApply: false
+---
+
+# Frontend (frontend-react)
+
+## Estructura
+
+- Páginas: `src/pages/`. API por dominio: `src/services/*.ts`. Cliente Axios: `src/api/client.ts` (token, 401 → login).
+- Rutas: `src/App.tsx`; layout: `src/layouts/`; piezas reutilizables: `src/components/`.
+
+## UI/UX
+
+- Mantener **consistencia visual** con lo existente: Tailwind, sidebar/header (gradientes, verdes tipo esmeralda, `rounded-2xl`), Font Awesome donde ya se usa.
+- No introducir estilos o tipografías incongruentes; reutilizar componentes y patrones de listados/formularios actuales.
+
+## Integración API
+
+- Preferir extender `src/services/` existentes antes de duplicar llamadas. `VITE_BACKEND_URL` o proxy `/api` en desarrollo (`vite.config.ts`).

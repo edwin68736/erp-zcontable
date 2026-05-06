@@ -1,0 +1,37 @@
+---
+description: Principios globales del proyecto miweb (comprensión, arquitectura, SOLID, integridad)
+alwaysApply: true
+---
+
+# miweb — reglas globales
+
+## Stack
+
+- **Backend**: Go (Fiber v3, GORM, MySQL), módulo `miappfiber`, raíz del repo.
+- **Frontend**: React 18 + TypeScript + Vite + Tailwind en `frontend-react/`.
+- API REST bajo `/api`; JWT y roles; alcance por empresa vía `AccessService` (no administradores).
+
+## Antes de implementar (obligatorio)
+
+1. **Entender** el flujo actual del módulo (rutas → controlador → servicio → modelos / páginas → `src/services/`).
+2. **Explicar** en breve qué hace hoy el sistema o módulo y **describir el plan** antes de cambiar código.
+3. **Priorizar extender** lo existente; no reemplazar ni duplicar sin necesidad.
+
+## Arquitectura y código
+
+- Respetar la **estructura actual**: no introducir capas o patrones nuevos innecesarios.
+- **SOLID**: separación de responsabilidades; lógica de negocio en `services/` (Go) y llamadas API en `src/services/` (React).
+- **Sin duplicidad**: buscar funciones, endpoints, hooks y componentes similares antes de crear nuevos; reutilizar.
+
+## Base de datos
+
+- Esquema vía **GORM AutoMigrate** en `database/database.go`. Antes de tocar modelos: verificar si tabla/campo/relación ya existe; **no** migraciones redundantes.
+
+## Integridad
+
+- Comprobar impacto en módulos relacionados (permisos, `company_id`, listados filtrados por acceso).
+- Nomenclatura **consistente** con el proyecto; código claro y mantenible.
+
+## Idioma
+
+- Respuestas al usuario en **español** salvo que pida otro idioma.

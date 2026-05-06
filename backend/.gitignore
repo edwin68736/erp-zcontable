@@ -1,0 +1,26 @@
+# Binaries
+*.exe
+*.exe~
+miweb
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js / frontend (Vite + React)
+frontend-react/node_modules/
+frontend-react/dist/
+
+# Variables de entorno del frontend (no subir secretos ni rutas locales)
+frontend-react/.env
+frontend-react/.env.*
+!frontend-react/.env.example

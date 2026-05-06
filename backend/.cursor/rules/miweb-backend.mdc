@@ -1,0 +1,23 @@
+---
+description: Convenciones backend Go (Fiber, rutas, servicios, acceso por empresa)
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Backend Go (miappfiber)
+
+## Ubicación de cambios
+
+- Rutas y permisos: `routes/routes.go` (`JWTProtected`, `RequireRole`).
+- HTTP: `controllers/*_controller.go` — delgados; usar `getUserID`, `getUserRole`, `isAdmin` de `api_context.go`.
+- Negocio: `services/*.go`; persistencia con `database.DB` y modelos en `models/`.
+- Nuevos endpoints: mismo patrón `NewXController()` + registro en `routes.Setup`.
+
+## Acceso a datos
+
+- Usuarios no admin: filtrar con `AccessService` (`GetAllowedCompanyIDs`, `CanAccessCompany`) donde aplique `company_id`.
+- Config y Tukifac: `config/config.go` y variables de entorno documentadas en `.env` de ejemplo si existe.
+
+## Migraciones
+
+- Modelos en `models/` + `AutoMigrate` en `database/database.go`. Evitar duplicar columnas/tablas; alinear con modelos existentes.

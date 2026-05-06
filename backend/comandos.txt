@@ -1,0 +1,32 @@
+compilar linux
+GOOS=linux GOARCH=amd64 go build -o zcontable main.go
+
+
+
+crear servicio en cloudpanel
+nano /etc/systemd/system/zcontable.service
+
+
+[Unit]
+Description=ZContable Backend GO
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/gestionweb-zcontable/htdocs/zcontable.gestionweb.cloud
+ExecStart=/home/gestionweb-zcontable/htdocs/zcontable.gestionweb.cloud/zcontable
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+chmod +x zcontable
+
+
+systemctl daemon-reload
+systemctl restart zcontable
