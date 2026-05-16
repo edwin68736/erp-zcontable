@@ -171,7 +171,37 @@ func receptorMapFromCompany(c *models.Company) map[string]interface{} {
 	}
 }
 
-func buildSUNATDocumentItem(codigoInterno, descripcion string, cantidad float64, totalConIGV float64, unidadMedida string, codigoTipoItem string) map[string]interface{} {
+func representativeProductForDebtDocument(doc *models.Document) *models.Product {
+	if doc == nil || len(doc.Items) == 0 {
+		return nil
+	}
+	items := append([]models.DocumentItem(nil), doc.Items...)
+	sort.Slice(items, func(i, j int) bool { return items[i].SortOrder < items[j].SortOrder })
+	for i := range items {
+		if items[i].Product != nil {
+			return items[i].Product
+		}
+	}
+	return nil
+}
+
+func tukifacCodigoInternoForDebt(doc *models.Document) string {
+	p := representativeProductForDebtDocument(doc)
+	if p != nil {
+		if s := strings.TrimSpace(p.TukifacItemID); s != "" {
+			return s
+		}
+		if s := strings.TrimSpace(p.InternalID); s != "" {
+			return s
+		}
+	}
+	if doc != nil {
+		return fmt.Sprintf("DEU-%d", doc.ID)
+	}
+	return "MANUAL"
+}
+
+func buildSUNATDocumentItem(codigoInterno, descripcion string, cantidad float64, totalConIGV float64, unidadMedida string, codigoTipoItem string, actualizarDescripcion bool) map[string]interface{} {
 	if codigoTipoItem != tukifacCodigoTipoItemProducto && codigoTipoItem != tukifacCodigoTipoItemServicio {
 		codigoTipoItem = tukifacCodigoTipoItemServicio
 	}
@@ -224,7 +254,7 @@ func buildSUNATDocumentItem(codigoInterno, descripcion string, cantidad float64,
 		"cargos":                         []interface{}{},
 		"informacion_adicional":          nil,
 		"lots":                           []interface{}{},
-		"actualizar_descripcion":         true,
+		"actualizar_descripcion":         actualizarDescripcion,
 		"nombre_producto_pdf":            nil,
 		"nombre_producto_xml":            nil,
 		"dato_adicional":                 nil,
@@ -388,11 +418,13 @@ func (s *TukifacService) IssueComprobanteFromPayment(paymentID uint, in PaymentT
 		for _, a := range pay.Allocations {
 			desc := documentLineDescription(a.Document)
 			um := tukifacUnidadMedidaFromDocument(a.Document)
-			cod := fmt.Sprintf("DEU-%d", a.DocumentID)
+			tipo := tukifacCodigoTipoItemForDocumentDebt(a.Document)
 			t := roundMoney2(a.Amount)
 			b := roundMoney2(t / 1.18)
 			g := roundMoney2(t - b)
-			items = append(items, buildSaleNoteItemForceCreate(cod, desc, a.Amount, um, tukifacCodigoTipoItemForDocumentDebt(a.Document)))
+			cod := tukifacCodigoInternoForDebt(a.Document)
+			line := buildSaleNoteItemForceCreate(cod, desc, a.Amount, um, tipo)
+			items = append(items, line)
 			totalVenta += t
 			totalTaxed += b
 			totalIGV += g
@@ -501,9 +533,11 @@ func (s *TukifacService) IssueComprobanteFromPayment(paymentID uint, in PaymentT
 	var totVenta float64
 	for _, a := range pay.Allocations {
 		desc := documentLineDescription(a.Document)
-		cod := fmt.Sprintf("DEU-%d", a.DocumentID)
+		cod := tukifacCodigoInternoForDebt(a.Document)
 		um := tukifacUnidadMedidaFromDocument(a.Document)
-		it := buildSUNATDocumentItem(cod, desc, 1, a.Amount, um, tukifacCodigoTipoItemForDocumentDebt(a.Document))
+		prod := representativeProductForDebtDocument(a.Document)
+		updDesc := prod == nil || (strings.TrimSpace(prod.TukifacItemID) == "" && strings.TrimSpace(prod.InternalID) == "")
+		it := buildSUNATDocumentItem(cod, desc, 1, a.Amount, um, tukifacCodigoTipoItemForDocumentDebt(a.Document), updDesc)
 		items = append(items, it)
 		t := roundMoney2(a.Amount)
 		b := roundMoney2(t / 1.18)

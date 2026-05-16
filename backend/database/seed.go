@@ -14,7 +14,6 @@ func Seed() error {
 			Name:     "Admin",
 			Username: "admin",
 			Email:    &email,
-			Role:     "Administrador",
 		}
 		if err := admin.SetPassword("123456"); err != nil {
 			return err

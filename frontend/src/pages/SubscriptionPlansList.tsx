@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { subscriptionPlansService } from '../services/subscriptionPlans';
 import type { SubscriptionPlan } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 
 const SubscriptionPlansList = () => {
-  const role = auth.getRole() ?? '';
-  const canEdit = role === 'Administrador' || role === 'Supervisor';
-  const canLiquidate = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const canEdit = useMemo(
+    () => auth.hasPermission(P.subscriptionPlansCreate) || auth.hasPermission(P.subscriptionPlansUpdate),
+    [],
+  );
+  const canLiquidate = useMemo(() => auth.hasPermission(P.liquidationRun), []);
 
   const [list, setList] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);

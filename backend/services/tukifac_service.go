@@ -441,6 +441,7 @@ type ReceiptPaymentInput struct {
 	Method          string                   `json:"method"`
 	Reference       string                   `json:"reference"`
 	Attachment      string                   `json:"attachment"`
+	Description     string                   `json:"description"`
 	Notes           string                   `json:"notes"`
 	TaxSettlementID *uint                    `json:"tax_settlement_id"`
 }
@@ -464,6 +465,7 @@ func (s *TukifacService) CreatePaymentFromReceipt(receiptID uint, in ReceiptPaym
 		Method:                    in.Method,
 		Reference:                 in.Reference,
 		Attachment:                in.Attachment,
+		Description:               in.Description,
 		Notes:                     in.Notes,
 		AllocationMode:            strings.TrimSpace(in.AllocationMode),
 		Allocations:               in.Allocations,

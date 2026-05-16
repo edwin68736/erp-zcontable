@@ -46,6 +46,12 @@ const Layout = () => {
   }, []);
 
   useEffect(() => {
+    if (!auth.getToken()) return;
+    if (auth.hasStoredPermissions()) return;
+    void auth.refreshPermissions().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     try {
       window.localStorage.setItem('sidebarCollapsed', isSidebarCollapsed ? '1' : '0');
     } catch {

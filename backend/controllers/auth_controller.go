@@ -34,6 +34,7 @@ func (ctrl *AuthController) LoginAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
 	}
+	services.Authz().InvalidateUser(user.ID)
 
 	token, err := ctrl.authService.GenerateToken(user)
 	if err != nil {

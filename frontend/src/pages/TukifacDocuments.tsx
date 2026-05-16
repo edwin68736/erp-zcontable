@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { documentsService } from '../services/documents';
 import SearchableSelect from '../components/SearchableSelect';
 
@@ -68,11 +69,7 @@ function DownloadLinks({ doc, compact }: { doc: TukifacDocument; compact?: boole
 type TukifacSourceTab = 'invoices' | 'sale_notes';
 
 const TukifacDocuments = () => {
-  const role = auth.getRole() ?? '';
-  const canView = useMemo(
-    () => role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente',
-    [role],
-  );
+  const canView = useMemo(() => auth.hasPermission(P.tukifacDocumentsList), []);
   const [documents, setDocuments] = useState<TukifacDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

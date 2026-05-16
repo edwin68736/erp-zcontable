@@ -8,6 +8,7 @@ import { paymentsService } from '../services/payments';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Company, Document, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 
@@ -28,8 +29,7 @@ const FiscalReceipts = () => {
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 20);
 
-  const role = auth.getRole() ?? '';
-  const canAct = ['Administrador', 'Supervisor', 'Contador', 'Asistente'].includes(role);
+  const canAct = useMemo(() => auth.hasPermission(P.tukifacFiscalReceiptsList), []);
 
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +55,7 @@ const FiscalReceipts = () => {
 
   const [payMethod, setPayMethod] = useState('');
   const [payReference, setPayReference] = useState('');
+  const [payDescription, setPayDescription] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [payAttachmentFile, setPayAttachmentFile] = useState<File | null>(null);
   const [payAttachmentName, setPayAttachmentName] = useState('');
@@ -186,6 +187,7 @@ const FiscalReceipts = () => {
     setManualLines([{ document_id: '', amount: '' }]);
     setPayMethod('');
     setPayReference('');
+    setPayDescription('');
     setPayNotes('');
     setPayAttachmentFile(null);
     setPayAttachmentName('');
@@ -238,6 +240,7 @@ const FiscalReceipts = () => {
       allocation_mode: allocMode,
       method: payMethod.trim(),
       reference: payReference.trim() || undefined,
+      description: payDescription.trim() || undefined,
       notes: payNotes.trim() || undefined,
     };
     if (payTaxSettlementId.trim()) {
@@ -416,6 +419,20 @@ const FiscalReceipts = () => {
                   />
                 </div>
               </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Descripción del pago (estado de cuenta)
+                  </label>
+                  <textarea
+                    value={payDescription}
+                    onChange={(ev) => setPayDescription(ev.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none min-h-[72px]"
+                    placeholder="Concepto visible para el cliente en el estado de cuenta."
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Comprobante / captura</label>
@@ -461,12 +478,12 @@ const FiscalReceipts = () => {
                   ) : null}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas adicionales</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas internas</label>
                   <textarea
                     value={payNotes}
                     onChange={(ev) => setPayNotes(ev.target.value)}
                     className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none min-h-[88px]"
-                    placeholder="Opcional"
+                    placeholder="Opcional; solo en «ver más» en estado de cuenta."
                   />
                 </div>
               </div>

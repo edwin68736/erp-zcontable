@@ -41,6 +41,8 @@ type AccountLedgerMovement struct {
 	Cargo          float64 `json:"cargo"`
 	Abono          float64 `json:"abono"`
 	Balance        float64 `json:"balance"`
+	PaymentID      *uint   `json:"payment_id,omitempty"`
+	PaymentNotes   string  `json:"payment_notes,omitempty"`
 }
 
 // AccountLedger resumen y movimientos de un mes calendario o de un rango de fechas (zona America/Lima).
@@ -68,8 +70,12 @@ type ledgerEntry struct {
 	detail    string
 	payMethod string
 	opCode    string
-	cargo     float64
-	abono     float64
+	cargo        float64
+	abono        float64
+	paymentNotes string
+	paymentID    *uint
+	// Clave estable para ordenar (evita colisión id pago vs id ítem y ordena líneas del mismo documento).
+	tieKey string
 }
 
 func statementDocumentTypeCode(d models.Document) string {
@@ -272,9 +278,32 @@ func statementDocumentDetail(d models.Document) string {
 	return strings.TrimSpace(d.Description)
 }
 
+// ledgerItemDetail texto de una línea de deuda en el extracto (descripción del ítem + periodo como en el cargo único).
+func ledgerItemDetail(d models.Document, itemDescription string) string {
+	base := strings.TrimSpace(itemDescription)
+	if base == "" {
+		base = strings.TrimSpace(d.Description)
+	}
+	ym := normalizeDebtPeriodYM(d.AccountingPeriod, d.ServiceMonth)
+	if ym == "" {
+		if base != "" {
+			return base
+		}
+		return "—"
+	}
+	ymHuman := formatDebtPeriodHumanES(ym)
+	if ymHuman == "" {
+		ymHuman = ym
+	}
+	if base != "" {
+		return base + " (" + ymHuman + ")"
+	}
+	return "(" + ymHuman + ")"
+}
+
 func paymentLedgerDetail(p models.Payment) string {
-	if strings.TrimSpace(p.Notes) != "" {
-		return strings.TrimSpace(p.Notes)
+	if s := strings.TrimSpace(p.Description); s != "" {
+		return s
 	}
 	if p.Document != nil && strings.TrimSpace(p.Document.Number) != "" {
 		return fmt.Sprintf("Abono a deuda %s", strings.TrimSpace(p.Document.Number))
@@ -288,8 +317,235 @@ func paymentLedgerDetail(p models.Payment) string {
 	return "Abono / pago registrado"
 }
 
+func paymentDisplayTypeAndDocNumber(p models.Payment) (typeDisp, docNum string) {
+	refDoc := ""
+	if p.Document != nil {
+		refDoc = strings.TrimSpace(p.Document.Number)
+	}
+	if refDoc == "" {
+		refDoc = fmt.Sprintf("P-%d", p.ID)
+	}
+	typeDisp = fmt.Sprintf("AB%06d", p.ID)
+	docNum = refDoc
+	if p.TukifacFiscalReceipt != nil {
+		if tc := tukifacReceiptTypeDisplay(p.TukifacFiscalReceipt); tc != "" {
+			typeDisp = tc
+		}
+		if n := strings.TrimSpace(p.TukifacFiscalReceipt.Number); n != "" {
+			docNum = n
+		}
+	}
+	return typeDisp, docNum
+}
+
+type paymentAllocLine struct {
+	docID  uint
+	amount float64
+}
+
+// orderedPaymentAllocations conserva el orden de las filas de imputación y fusiona montos si hubiera duplicados por documento.
+func orderedPaymentAllocations(p models.Payment) []paymentAllocLine {
+	var out []paymentAllocLine
+	indexOf := make(map[uint]int)
+	if len(p.Allocations) > 0 {
+		for _, a := range p.Allocations {
+			if a.DocumentID == 0 || a.Amount < 0.005 {
+				continue
+			}
+			if j, ok := indexOf[a.DocumentID]; ok {
+				out[j].amount += math.Round(a.Amount*100) / 100
+				continue
+			}
+			indexOf[a.DocumentID] = len(out)
+			out = append(out, paymentAllocLine{a.DocumentID, math.Round(a.Amount*100) / 100})
+		}
+		return out
+	}
+	if p.DocumentID != nil && *p.DocumentID != 0 && p.Amount >= 0.005 {
+		return []paymentAllocLine{{*p.DocumentID, math.Round(p.Amount*100) / 100}}
+	}
+	return nil
+}
+
+func ledgerEntriesForPayment(p models.Payment, docsByID map[uint]*models.Document) []ledgerEntry {
+	op := dateInLima(p.Date)
+	if op.IsZero() {
+		op = dateInLima(p.CreatedAt)
+	}
+	proc := p.CreatedAt
+	if proc.IsZero() {
+		proc = p.Date
+	}
+	typeDisp, docNum := paymentDisplayTypeAndDocNumber(p)
+	pid := p.ID
+	base := ledgerEntry{
+		opDate:       op,
+		processAt:    proc,
+		isPayment:    true,
+		uid:          p.ID,
+		typeCode:     typeDisp,
+		docNumber:    docNum,
+		payMethod:    strings.TrimSpace(p.Method),
+		opCode:       strings.TrimSpace(p.Reference),
+		paymentNotes: strings.TrimSpace(p.Notes),
+		paymentID:    &pid,
+	}
+
+	allocs := orderedPaymentAllocations(p)
+	if len(allocs) == 0 {
+		return []ledgerEntry{{
+			opDate:       base.opDate,
+			processAt:    base.processAt,
+			isPayment:    true,
+			uid:          base.uid,
+			typeCode:     base.typeCode,
+			docNumber:    base.docNumber,
+			detail:       paymentLedgerDetail(p),
+			payMethod:    base.payMethod,
+			opCode:       base.opCode,
+			cargo:        0,
+			abono:        math.Round(p.Amount*100) / 100,
+			paymentNotes: base.paymentNotes,
+			paymentID:    base.paymentID,
+			tieKey:       fmt.Sprintf("P:%d", p.ID),
+		}}
+	}
+
+	var entries []ledgerEntry
+	for _, al := range allocs {
+		doc := docsByID[al.docID]
+		remaining := math.Round(al.amount*100) / 100
+		if remaining < 0.005 {
+			continue
+		}
+		if doc == nil {
+			entries = append(entries, ledgerEntry{
+				opDate:       base.opDate,
+				processAt:    base.processAt,
+				isPayment:    true,
+				uid:          base.uid,
+				typeCode:     base.typeCode,
+				docNumber:    base.docNumber,
+				detail:       paymentLedgerDetail(p),
+				payMethod:    base.payMethod,
+				opCode:       base.opCode,
+				cargo:        0,
+				abono:        remaining,
+				paymentNotes: base.paymentNotes,
+				paymentID:    base.paymentID,
+				tieKey:       fmt.Sprintf("P:%d:D:%d:X", p.ID, al.docID),
+			})
+			continue
+		}
+
+		if len(doc.Items) == 0 {
+			detail := statementDocumentDetailWithPeriod(*doc)
+			entries = append(entries, ledgerEntry{
+				opDate:       base.opDate,
+				processAt:    base.processAt,
+				isPayment:    true,
+				uid:          base.uid,
+				typeCode:     base.typeCode,
+				docNumber:    base.docNumber,
+				detail:       detail,
+				payMethod:    base.payMethod,
+				opCode:       base.opCode,
+				cargo:        0,
+				abono:        remaining,
+				paymentNotes: base.paymentNotes,
+				paymentID:    base.paymentID,
+				tieKey:       fmt.Sprintf("P:%d:D:%d", p.ID, al.docID),
+			})
+			continue
+		}
+
+		for _, it := range doc.Items {
+			itemAmt := math.Round(it.Amount*100) / 100
+			if itemAmt < 0.005 {
+				continue
+			}
+			take := itemAmt
+			if take > remaining {
+				take = remaining
+			}
+			take = math.Round(take*100) / 100
+			if take < 0.005 {
+				continue
+			}
+			entries = append(entries, ledgerEntry{
+				opDate:       base.opDate,
+				processAt:    base.processAt,
+				isPayment:    true,
+				uid:          base.uid,
+				typeCode:     base.typeCode,
+				docNumber:    base.docNumber,
+				detail:       ledgerItemDetail(*doc, it.Description),
+				payMethod:    base.payMethod,
+				opCode:       base.opCode,
+				cargo:        0,
+				abono:        take,
+				paymentNotes: base.paymentNotes,
+				paymentID:    base.paymentID,
+				tieKey:       fmt.Sprintf("P:%d:D:%d:I:%d", p.ID, doc.ID, it.ID),
+			})
+			remaining = math.Round((remaining-take)*100) / 100
+			if remaining < 0.005 {
+				break
+			}
+		}
+		if remaining >= 0.005 {
+			entries = append(entries, ledgerEntry{
+				opDate:       base.opDate,
+				processAt:    base.processAt,
+				isPayment:    true,
+				uid:          base.uid,
+				typeCode:     base.typeCode,
+				docNumber:    base.docNumber,
+				detail:       paymentLedgerDetail(p),
+				payMethod:    base.payMethod,
+				opCode:       base.opCode,
+				cargo:        0,
+				abono:        remaining,
+				paymentNotes: base.paymentNotes,
+				paymentID:    base.paymentID,
+				tieKey:       fmt.Sprintf("P:%d:D:%d:R", p.ID, al.docID),
+			})
+		}
+	}
+
+	if len(entries) == 0 {
+		return []ledgerEntry{{
+			opDate:       base.opDate,
+			processAt:    base.processAt,
+			isPayment:    true,
+			uid:          base.uid,
+			typeCode:     base.typeCode,
+			docNumber:    base.docNumber,
+			detail:       paymentLedgerDetail(p),
+			payMethod:    base.payMethod,
+			opCode:       base.opCode,
+			cargo:        0,
+			abono:        math.Round(p.Amount*100) / 100,
+			paymentNotes: base.paymentNotes,
+			paymentID:    base.paymentID,
+			tieKey:       fmt.Sprintf("P:%d", p.ID),
+		}}
+	}
+	return entries
+}
+
+func buildDocsByID(docs []models.Document) map[uint]*models.Document {
+	m := make(map[uint]*models.Document, len(docs))
+	for i := range docs {
+		d := &docs[i]
+		m[d.ID] = d
+	}
+	return m
+}
+
 func collectSortedLedgerEntries(docs []models.Document, pays []models.Payment) []ledgerEntry {
-	entries := make([]ledgerEntry, 0, len(docs)+len(pays))
+	docsByID := buildDocsByID(docs)
+	entries := make([]ledgerEntry, 0, len(docs)+len(pays)*4)
 	settlementNums := collectSettlementNumbersForDebtDocs(docs)
 
 	for _, d := range docs {
@@ -306,58 +562,60 @@ func collectSortedLedgerEntries(docs []models.Document, pays []models.Payment) [
 		}
 		typeDisp := ledgerCargoTypeDisplay(d)
 		docNum := ledgerCargoDocNumber(d, settlementNums)
-		entries = append(entries, ledgerEntry{
-			opDate:    op,
-			processAt: proc,
-			isPayment: false,
-			uid:       d.ID,
-			typeCode:  typeDisp,
-			docNumber: docNum,
-			detail:    statementDocumentDetailWithPeriod(d),
-			cargo:     math.Round(d.TotalAmount*100) / 100,
-			abono:     0,
-		})
+
+		if len(d.Items) > 0 {
+			itemRows := 0
+			for _, it := range d.Items {
+				amt := math.Round(it.Amount*100) / 100
+				if amt < 0.005 {
+					continue
+				}
+				itemRows++
+				entries = append(entries, ledgerEntry{
+					opDate:    op,
+					processAt: proc,
+					isPayment: false,
+					uid:       d.ID,
+					typeCode:  typeDisp,
+					docNumber: docNum,
+					detail:    ledgerItemDetail(d, it.Description),
+					cargo:     amt,
+					abono:     0,
+					tieKey:    fmt.Sprintf("D:%d:I:%d", d.ID, it.ID),
+				})
+			}
+			if itemRows == 0 {
+				entries = append(entries, ledgerEntry{
+					opDate:    op,
+					processAt: proc,
+					isPayment: false,
+					uid:       d.ID,
+					typeCode:  typeDisp,
+					docNumber: docNum,
+					detail:    statementDocumentDetailWithPeriod(d),
+					cargo:     math.Round(d.TotalAmount*100) / 100,
+					abono:     0,
+					tieKey:    fmt.Sprintf("D:%d", d.ID),
+				})
+			}
+		} else {
+			entries = append(entries, ledgerEntry{
+				opDate:    op,
+				processAt: proc,
+				isPayment: false,
+				uid:       d.ID,
+				typeCode:  typeDisp,
+				docNumber: docNum,
+				detail:    statementDocumentDetailWithPeriod(d),
+				cargo:     math.Round(d.TotalAmount*100) / 100,
+				abono:     0,
+				tieKey:    fmt.Sprintf("D:%d", d.ID),
+			})
+		}
 	}
 
 	for _, p := range pays {
-		op := dateInLima(p.Date)
-		if op.IsZero() {
-			op = dateInLima(p.CreatedAt)
-		}
-		proc := p.CreatedAt
-		if proc.IsZero() {
-			proc = p.Date
-		}
-		refDoc := ""
-		if p.Document != nil {
-			refDoc = strings.TrimSpace(p.Document.Number)
-		}
-		if refDoc == "" {
-			refDoc = fmt.Sprintf("P-%d", p.ID)
-		}
-		typeDisp := fmt.Sprintf("AB%06d", p.ID)
-		docNum := refDoc
-		if p.TukifacFiscalReceipt != nil {
-			if tc := tukifacReceiptTypeDisplay(p.TukifacFiscalReceipt); tc != "" {
-				typeDisp = tc
-			}
-			if n := strings.TrimSpace(p.TukifacFiscalReceipt.Number); n != "" {
-				docNum = n
-			}
-		}
-		entries = append(entries, ledgerEntry{
-			opDate:    op,
-			processAt: proc,
-			isPayment: true,
-			uid:       p.ID,
-			typeCode:  typeDisp,
-			docNumber: docNum,
-			detail:    paymentLedgerDetail(p),
-			payMethod: strings.TrimSpace(p.Method),
-			opCode:    strings.TrimSpace(p.Reference),
-			cargo:     0,
-			abono:     math.Round(p.Amount*100) / 100,
-		})
+		entries = append(entries, ledgerEntriesForPayment(p, docsByID)...)
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
@@ -370,6 +628,9 @@ func collectSortedLedgerEntries(docs []models.Document, pays []models.Payment) [
 		}
 		if a.isPayment != b.isPayment {
 			return !a.isPayment
+		}
+		if a.tieKey != "" || b.tieKey != "" {
+			return a.tieKey < b.tieKey
 		}
 		return a.uid < b.uid
 	})
@@ -415,7 +676,7 @@ func ledgerFromSortedEntries(
 			procStr = opStr
 		}
 
-		movements = append(movements, AccountLedgerMovement{
+		mv := AccountLedgerMovement{
 			OperationDate:  opStr,
 			ProcessDate:    procStr,
 			TypeCode:       e.typeCode,
@@ -426,7 +687,12 @@ func ledgerFromSortedEntries(
 			Cargo:          e.cargo,
 			Abono:          e.abono,
 			Balance:        running,
-		})
+		}
+		if e.isPayment {
+			mv.PaymentID = e.paymentID
+			mv.PaymentNotes = e.paymentNotes
+		}
+		movements = append(movements, mv)
 	}
 
 	sumCargos = math.Round(sumCargos*100) / 100

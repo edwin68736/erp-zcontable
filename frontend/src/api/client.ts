@@ -59,12 +59,14 @@ client.interceptors.response.use(
       try {
         window.sessionStorage.removeItem('token');
         window.sessionStorage.removeItem('user');
+        window.sessionStorage.removeItem('permissions');
       } catch {
         return Promise.reject(error);
       }
       try {
         window.localStorage.removeItem('token');
         window.localStorage.removeItem('user');
+        window.localStorage.removeItem('permissions');
       } catch {
         return Promise.reject(error);
       }

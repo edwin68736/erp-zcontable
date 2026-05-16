@@ -194,12 +194,20 @@ func normalizeProductKind(k string) string {
 }
 
 func (s *ProductService) Create(input *models.Product) error {
-	input.TukifacItemID = nil
 	input.ProductKind = normalizeProductKind(input.ProductKind)
 	input.Description = strings.TrimSpace(input.Description)
 	if input.Description == "" {
 		return errors.New("la descripción es requerida")
 	}
+	codTuki := strings.TrimSpace(input.TukifacItemID)
+	if codTuki != "" {
+		var dup int64
+		database.DB.Model(&models.Product{}).Where("tukifac_item_id = ?", codTuki).Count(&dup)
+		if dup > 0 {
+			return errors.New("ya existe un producto con ese código interno Tukifac (tukifac_item_id)")
+		}
+	}
+	input.TukifacItemID = codTuki
 	input.ImageURL = ""
 	if err := validateProductCategoryFK(input.ProductCategoryID); err != nil {
 		return err
@@ -228,7 +236,7 @@ func (s *ProductService) Update(id uint, input *models.Product) error {
 		u := strings.TrimSpace(strings.ToUpper(input.UnitTypeID))
 		if u == "ZZ" || u == "NIU" {
 			p.UnitTypeID = u
-		} else if p.TukifacItemID != nil && u != "" {
+		} else if strings.TrimSpace(p.TukifacItemID) != "" && u != "" {
 			p.UnitTypeID = u
 		} else {
 			p.UnitTypeID = "ZZ"
@@ -270,7 +278,19 @@ func (s *ProductService) Update(id uint, input *models.Product) error {
 	if p.SaleUnitPrice == "" {
 		p.SaleUnitPrice = formatSaleUnitPriceString(p.Price, p.CurrencyTypeSymbol)
 	}
-	if p.TukifacItemID != nil {
+	codTuki := strings.TrimSpace(input.TukifacItemID)
+	if codTuki != "" {
+		var dup int64
+		database.DB.Model(&models.Product{}).
+			Where("tukifac_item_id = ? AND id <> ?", codTuki, id).
+			Count(&dup)
+		if dup > 0 {
+			return errors.New("ya existe otro producto con ese código interno Tukifac (tukifac_item_id)")
+		}
+	}
+	p.TukifacItemID = codTuki
+
+	if p.TukifacCreatedAt != nil {
 		p.ImageURL = origImage
 	} else {
 		p.ImageURL = ""
@@ -287,8 +307,6 @@ func (s *ProductService) Delete(id uint) error {
 }
 
 func mapSellnowItemOntoProduct(item TukifacSellnowItem, target *models.Product) {
-	rid := uint(item.ID.Int())
-	target.TukifacItemID = &rid
 	if item.ItemTypeID != nil {
 		if v := item.ItemTypeID.Int(); v > 0 {
 			u := uint(v)
@@ -304,7 +322,9 @@ func mapSellnowItemOntoProduct(item TukifacSellnowItem, target *models.Product) 
 	target.Name = item.Name
 	target.SecondName = item.SecondName
 	target.WarehouseID = item.WarehouseID.Int()
-	target.InternalID = strings.TrimSpace(item.InternalID.String())
+	intern := strings.TrimSpace(item.InternalID.String())
+	target.InternalID = intern
+	target.TukifacItemID = intern
 	target.Barcode = strings.TrimSpace(item.Barcode.String())
 	target.ItemCode = item.ItemCode
 	target.ItemCodeGS1 = item.ItemCodeGS1
@@ -335,7 +355,7 @@ func mapSellnowItemOntoProduct(item TukifacSellnowItem, target *models.Product) 
 	}
 }
 
-// SyncFromTukifac crea o actualiza por tukifac_item_id; asigna categoría local por defecto si falta.
+// SyncFromTukifac crea o actualiza por codigo interno (internal_id / tukifac_item_id) o por código de barras si falta interno.
 func (s *ProductService) SyncFromTukifac(tukifac *TukifacService) (created int, updated int, err error) {
 	items, err := tukifac.FetchSellnowItems()
 	if err != nil {
@@ -346,10 +366,32 @@ func (s *ProductService) SyncFromTukifac(tukifac *TukifacService) (created int, 
 		if item.ID.Int() <= 0 {
 			continue
 		}
-		remote := uint(item.ID.Int())
+		intern := strings.TrimSpace(item.InternalID.String())
+		bc := strings.TrimSpace(item.Barcode.String())
+
 		var existing models.Product
-		q := database.DB.Unscoped().Where("tukifac_item_id = ?", remote).First(&existing)
-		if q.Error == nil {
+		var findErr error
+		if intern != "" {
+			findErr = database.DB.Unscoped().
+				Where("tukifac_item_id = ? OR internal_id = ?", intern, intern).
+				First(&existing).Error
+		} else if bc != "" {
+			findErr = database.DB.Unscoped().Where("barcode = ?", bc).First(&existing).Error
+		} else {
+			var p models.Product
+			p.ProductKind = "product"
+			mapSellnowItemOntoProduct(item, &p)
+			if defCat != nil {
+				p.ProductCategoryID = defCat
+			}
+			if err := database.DB.Create(&p).Error; err != nil {
+				continue
+			}
+			created++
+			continue
+		}
+
+		if findErr == nil {
 			kind := existing.ProductKind
 			if kind == "" {
 				kind = "product"
@@ -368,7 +410,7 @@ func (s *ProductService) SyncFromTukifac(tukifac *TukifacService) (created int, 
 			updated++
 			continue
 		}
-		if !errors.Is(q.Error, gorm.ErrRecordNotFound) {
+		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
 			continue
 		}
 		var p models.Product

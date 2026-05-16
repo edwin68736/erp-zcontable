@@ -7,6 +7,7 @@ import { documentsService } from '../services/documents';
 import { paymentsService, type PaymentTukifacIssuePayload, type PaymentUpsertInput } from '../services/payments';
 import { taxSettlementsService, type SettlementPaymentSuggestion } from '../services/taxSettlements';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import {
   ensureTukifacSeriesCached,
   getCachedDocumentSeries,
@@ -53,36 +54,74 @@ function truncateText(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
+/** Periodo contable / servicio YYYY-MM para mostrar en selects de deuda. */
+function debtPeriodLabel(d: Document): string {
+  return ((d.accounting_period ?? '').trim() || (d.service_month ?? '').trim()) || '';
+}
+
 /**
- * Etiqueta en selects de deuda: descripción, monto y estado (pendiente/parcial, etc.).
- * No incluye número ni external_id (códigos); esos sí entran en searchText para buscar.
+ * Quita sufijos de cantidad duplicados en el texto del concepto (si el monto va aparte en la UI).
  */
-function debtSelectLabel(d: Document): string {
-  const descRaw = (d.description ?? '').trim();
-  const desc = descRaw ? truncateText(descRaw, 80) : 'Sin descripción';
-  const amt = Number.isFinite(d.total_amount) ? d.total_amount.toFixed(2) : '0.00';
-  const status = (d.status ?? '').trim();
-  const vcto = d.due_date && d.due_date.length >= 10 ? d.due_date.slice(0, 10) : '';
-  const parts: string[] = [desc, `S/ ${amt}`];
-  if (status) parts.push(status);
-  if (vcto) parts.push(`vcto ${vcto}`);
-  return parts.join(' · ');
+function stripConceptQuantityNoise(s: string): string {
+  let t = s.trim();
+  t = t.replace(/\s*[·•]\s*[Cc]ant\.?\s*:?\s*\d+([.,]\d+)?\s*$/u, '');
+  t = t.replace(/\s*\(\s*[Cc]ant\.?\s*:?\s*\d+([.,]\d+)?\s*\)\s*$/u, '');
+  t = t.replace(/\s*[×x]\s*\d+([.,]\d+)?\s*$/u, '');
+  return t.trim();
+}
+
+/** Descripción + período YYYY-MM solo separados por " - " (sin la palabra «período»). */
+function joinDebtDescAndPeriod(description: string, periodYm: string): string {
+  const d = description.trim();
+  const p = periodYm.trim();
+  if (d && p) return `${d} - ${p}`;
+  if (d) return d;
+  if (p) return p;
+  return 'Sin descripción';
+}
+
+/**
+ * Etiqueta en selects de deuda: «descripción - YYYY-MM»; en modo una sola deuda añade « · S/ …» (sin estado ni vencimiento).
+ * Número / external_id siguen en searchText para buscar.
+ */
+function debtSelectLabel(d: Document, opts?: { omitAmount?: boolean }): string {
+  const omitAmount = opts?.omitAmount ?? false;
+  const descRaw = stripConceptQuantityNoise((d.description ?? '').trim());
+  const desc = descRaw ? truncateText(descRaw, 80) : '';
+  const period = debtPeriodLabel(d);
+  let label = joinDebtDescAndPeriod(desc || 'Sin descripción', period);
+  if (!omitAmount) {
+    const amt = Number.isFinite(d.total_amount) ? d.total_amount.toFixed(2) : '0.00';
+    label = `${label} · S/ ${amt}`;
+  }
+  return label;
 }
 
 function debtSelectSearchText(d: Document): string {
-  return [d.number, d.external_id, d.description, d.type, d.status, d.due_date].filter(Boolean).join(' ');
+  return [
+    d.number,
+    d.external_id,
+    d.description,
+    d.accounting_period,
+    d.service_month,
+    d.type,
+    d.status,
+    d.due_date,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
-/** Misma idea que `debtSelectLabel`, para filas sugeridas antes de que el documento aparezca en `documents`. */
-function debtSelectLabelFromSuggestion(l: Pick<SettlementPaymentSuggestion, 'concept' | 'amount'>): string {
-  const descRaw = (l.concept ?? '').trim();
-  const desc = descRaw ? truncateText(descRaw, 80) : 'Sin descripción';
-  const amt = Number.isFinite(l.amount) ? l.amount.toFixed(2) : '0.00';
-  return [desc, `S/ ${amt}`, 'pendiente'].join(' · ');
+/** Sugerencia desde liquidación: misma regla «concepto - YYYY-MM»; el monto va en el campo numérico. */
+function debtSelectLabelFromSuggestion(l: SettlementPaymentSuggestion): string {
+  const descRaw = stripConceptQuantityNoise((l.concept ?? '').trim());
+  const desc = descRaw ? truncateText(descRaw, 80) : '';
+  const py = (l.period_ym ?? '').trim();
+  return joinDebtDescAndPeriod(desc || 'Sin descripción', py);
 }
 
 function debtSelectSearchTextFromSuggestion(l: SettlementPaymentSuggestion): string {
-  return [l.document_number, l.concept, String(l.document_id)].filter(Boolean).join(' ');
+  return [l.document_number, l.concept, l.period_ym, String(l.document_id)].filter(Boolean).join(' ');
 }
 
 type ManualAllocRow = { key: string; doc: string; amt: string };
@@ -110,17 +149,10 @@ const PaymentForm = () => {
   const isEdit = Boolean(paymentId);
   const taxSettlementIdFromUrl = searchParams.get('tax_settlement_id');
 
-  const role = auth.getRole() ?? '';
-  const canCreate = useMemo(
-    () => role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente',
-    [role],
-  );
-  const canEdit = useMemo(() => role === 'Administrador' || role === 'Supervisor' || role === 'Contador', [role]);
+  const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
   const canUpsert = isEdit ? canEdit : canCreate;
-  const canIssueTukifac = useMemo(
-    () => role === 'Administrador' || role === 'Supervisor' || role === 'Contador',
-    [role],
-  );
+  const canIssueTukifac = useMemo(() => auth.hasPermission(P.paymentsIssueTukifac), []);
 
   const peruvianToday = useMemo(() => formatInTimeZone(new Date(), 'America/Lima', 'yyyy-MM-dd'), []);
 
@@ -141,6 +173,7 @@ const PaymentForm = () => {
   const [method, setMethod] = useState('');
   const [reference, setReference] = useState('');
   const [attachment, setAttachment] = useState('');
+  const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [applyMode, setApplyMode] = useState<'single' | 'fifo' | 'manual'>('single');
   const [manualAlloc, setManualAlloc] = useState<ManualAllocRow[]>([{ key: newManualAllocKey(), doc: '', amt: '' }]);
@@ -197,7 +230,7 @@ const PaymentForm = () => {
   const manualDebtSelectOptions = useMemo(() => {
     const fromDocs = documents.map((d) => ({
       value: String(d.id),
-      label: debtSelectLabel(d),
+      label: debtSelectLabel(d, { omitAmount: true }),
       searchText: debtSelectSearchText(d),
     }));
     const seen = new Set(fromDocs.map((o) => o.value));
@@ -298,6 +331,7 @@ const PaymentForm = () => {
           setMethod(pay.method ?? '');
           setReference(pay.reference ?? '');
           setAttachment(pay.attachment ?? '');
+          setDescription(pay.description ?? '');
           setNotes(pay.notes ?? '');
         }
       } catch (e) {
@@ -409,7 +443,7 @@ const PaymentForm = () => {
           );
         }
         const refLabel = sug.settlement_number?.trim() ? `Liquidación ${sug.settlement_number.trim()}` : `Liquidación #${sid}`;
-        setNotes((n) => (n.trim() ? n : refLabel));
+        setDescription((d) => (d.trim() ? d : refLabel));
       } catch {
         if (!cancelled) {
           setAllocDocHints([]);
@@ -557,6 +591,7 @@ const PaymentForm = () => {
       method: method.trim() ? method.trim() : undefined,
       reference: reference.trim() ? reference.trim() : undefined,
       attachment: attachment.trim() ? attachment.trim() : undefined,
+      description: description.trim() ? description.trim() : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
     };
 
@@ -1044,19 +1079,41 @@ const PaymentForm = () => {
         </div>
 
         <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-3 py-4 sm:p-5">
-            <label htmlFor="notes" className="sr-only">
-              Notas
-            </label>
-            <textarea
-              id="notes"
-              name="notes"
-              rows={3}
-              value={notes}
-              onChange={(ev) => setNotes(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[5.5rem]"
-              placeholder="Notas sobre el pago…"
-            />
+          <div className="px-3 py-4 sm:p-5 space-y-4">
+            <div>
+              <label htmlFor="payment_description" className="block text-sm font-medium text-slate-700 mb-1">
+                Descripción del pago
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Concepto que verá el cliente en el estado de cuenta (ej. nombre del servicio o mes liquidado).
+              </p>
+              <textarea
+                id="payment_description"
+                name="description"
+                rows={2}
+                value={description}
+                onChange={(ev) => setDescription(ev.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[4.5rem]"
+                placeholder="Ej. Honorarios marzo 2026, Plan contable…"
+              />
+            </div>
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">
+                Notas internas
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Uso interno; no se muestra en la columna principal del estado de cuenta (solo en «ver más» si hay texto).
+              </p>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                value={notes}
+                onChange={(ev) => setNotes(ev.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[5.5rem]"
+                placeholder="Observaciones internas sobre el pago…"
+              />
+            </div>
           </div>
         </section>
 

@@ -67,7 +67,7 @@ func (ctrl *PaymentController) ListAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rango de fechas inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -133,7 +133,7 @@ func (ctrl *PaymentController) GetAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pago no encontrado"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -161,6 +161,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Method           string                            `json:"method"`
 		Reference        string                            `json:"reference"`
 		Attachment       string                            `json:"attachment"`
+		Description      string                            `json:"description"`
 		Notes            string                            `json:"notes"`
 		FiscalStatus     string                            `json:"fiscal_status"`
 		AllocationMode   string                            `json:"allocation_mode"`
@@ -170,7 +171,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -206,6 +207,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Method:          body.Method,
 		Reference:       body.Reference,
 		Attachment:      body.Attachment,
+		Description:     body.Description,
 		Notes:           body.Notes,
 		FiscalStatus:    body.FiscalStatus,
 		AllocationMode:  body.AllocationMode,
@@ -233,7 +235,7 @@ func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pago no encontrado"})
 	}
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -269,7 +271,7 @@ func (ctrl *PaymentController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -304,7 +306,7 @@ func (ctrl *PaymentController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Solo el administrador puede eliminar pagos"})
 	}
 

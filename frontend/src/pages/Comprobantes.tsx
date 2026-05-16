@@ -5,6 +5,7 @@ import { companiesService } from '../services/companies';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Company, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 
@@ -45,9 +46,8 @@ const Comprobantes = () => {
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 25);
 
-  const role = auth.getRole() ?? '';
-  const canView = ['Administrador', 'Supervisor', 'Contador', 'Asistente'].includes(role);
-  const canLinkSettlement = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const canView = auth.hasPermission(P.tukifacFiscalReceiptsList);
+  const canLinkSettlement = auth.hasPermission(P.tukifacFiscalPatchTax);
 
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);
   const [loading, setLoading] = useState(true);

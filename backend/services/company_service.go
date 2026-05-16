@@ -8,6 +8,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	"miappfiber/rbac"
 
 	"gorm.io/gorm"
 )
@@ -124,8 +125,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("contador general inactivo")
 			}
-			if u.Role != "Contador" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Contador")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
 			}
 		}
 	}
@@ -140,8 +142,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("supervisor inactivo")
 			}
-			if u.Role != "Supervisor" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Supervisor")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
 			}
 		}
 	}
@@ -156,8 +159,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("asistente inactivo")
 			}
-			if u.Role != "Asistente" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Asistente")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
 			}
 		}
 	}
@@ -267,8 +271,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("contador general inactivo")
 			}
-			if u.Role != "Contador" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Contador")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
 			}
 			c.AccountantUserID = input.AccountantUserID
 		}
@@ -284,8 +289,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("supervisor inactivo")
 			}
-			if u.Role != "Supervisor" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Supervisor")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
 			}
 			c.SupervisorUserID = input.SupervisorUserID
 		}
@@ -301,8 +307,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("asistente inactivo")
 			}
-			if u.Role != "Asistente" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Asistente")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
 			}
 			c.AssistantUserID = input.AssistantUserID
 		}

@@ -25,6 +25,7 @@ export interface PaymentUpsertInput {
   method?: string;
   reference?: string;
   attachment?: string;
+  description?: string;
   notes?: string;
   fiscal_status?: string;
   allocation_mode?: string;

@@ -42,7 +42,7 @@ func (ctrl *CompanyController) ListAPI(c fiber.Ctx) error {
 	perPageStr := c.Query("per_page", "")
 
 	var allowedIDs []uint
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -117,7 +117,7 @@ func (ctrl *CompanyController) GetAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -155,7 +155,7 @@ func (ctrl *CompanyController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -186,7 +186,7 @@ func (ctrl *CompanyController) PatchStatusAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -314,7 +314,7 @@ func (ctrl *CompanyController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -341,7 +341,7 @@ func (ctrl *CompanyController) StatementAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})

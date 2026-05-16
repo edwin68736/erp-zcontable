@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { reportsService, type FinancialCompanyRow, type FinancialReportQuery } from '../services/reports';
 import { companiesService } from '../services/companies';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { configService } from '../services/config';
 import type { Company, FirmConfig } from '../types/dashboard';
 import { resolveBackendUrl } from '../api/client';
@@ -19,8 +20,7 @@ import {
 } from '../utils/periodDebtScore';
 
 const Reports = () => {
-  const role = auth.getRole() ?? '';
-  const isAdmin = role === 'Administrador';
+  const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

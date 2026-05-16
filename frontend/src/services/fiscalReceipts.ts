@@ -7,6 +7,7 @@ export interface CreatePaymentFromReceiptInput {
   method?: string;
   reference?: string;
   attachment?: string;
+  description?: string;
   notes?: string;
   /** Liquidación emitida a la que se asocia el pago generado desde Tukifac */
   tax_settlement_id?: number;

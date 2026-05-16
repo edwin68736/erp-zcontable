@@ -51,6 +51,8 @@ export interface SettlementPaymentSuggestion {
   concept: string;
   settlement_line_amount: number;
   document_number: string;
+  /** Periodo contable YYYY-MM de la línea en la liquidación. */
+  period_ym?: string;
 }
 
 export interface PaymentSuggestionsResponse {

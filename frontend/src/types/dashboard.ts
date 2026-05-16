@@ -115,6 +115,8 @@ export interface Document {
   /** Periodo contable YYYY-MM (independiente de issue_date). */
   accounting_period?: string;
   items?: DocumentItem[];
+  /** Presente en API de listado/detalle: si existen filas en `document_items`. */
+  has_items?: boolean;
 }
 
 export interface PaymentAllocation {
@@ -136,6 +138,8 @@ export interface Payment {
   method: string;
   reference: string;
   attachment: string;
+  /** Detalle visible en estado de cuenta (ej. servicio o concepto cobrado). */
+  description?: string;
   notes: string;
   fiscal_status?: string;
   company?: Company;
@@ -264,12 +268,21 @@ export interface FirmConfig {
   updated_at?: string;
 }
 
+export interface UserRoleBrief {
+  id: number;
+  code: string;
+  name: string;
+}
+
 export interface User {
   id: number;
   name: string;
   username: string;
   email?: string;
-  role: string;
+  /** Roles RBAC asignados (API). */
+  roles?: UserRoleBrief[];
+  /** Permisos efectivos (API list/get usuario). */
+  permission_codes?: string[];
   active?: boolean;
   dni?: string;
   phone?: string;
@@ -295,6 +308,10 @@ export interface AccountLedgerMovement {
   cargo: number;
   abono: number;
   balance: number;
+  /** Solo abonos: id del pago en sistema. */
+  payment_id?: number;
+  /** Notas internas del pago; no se muestran en la columna Detalle (modal). */
+  payment_notes?: string;
 }
 
 export interface AccountLedger {

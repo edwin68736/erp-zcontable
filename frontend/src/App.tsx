@@ -27,8 +27,10 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import UserForm from './pages/UserForm';
+import RolePermissions from './pages/RolePermissions';
 import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
+import ModuleComingSoon from './pages/ModuleComingSoon';
 import ProtectedRoute from './components/ProtectedRoute';
 import { auth } from './services/auth';
 
@@ -55,6 +57,7 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="logout" element={<Logout />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="m/:slug" element={<ModuleComingSoon />} />
             <Route path="companies" element={<Companies />} />
             <Route path="companies/new" element={<CompanyForm />} />
             <Route path="companies/:id/edit" element={<CompanyForm />} />
@@ -88,6 +91,7 @@ function App() {
             <Route path="reports/financial" element={<Reports />} />
             <Route path="settings/firm" element={<Settings />} />
             <Route path="users" element={<Users />} />
+            <Route path="users/roles" element={<RolePermissions />} />
             <Route path="users/new" element={<UserForm />} />
             <Route path="users/:id/edit" element={<UserForm />} />
             

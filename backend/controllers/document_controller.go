@@ -73,7 +73,12 @@ func (ctrl *DocumentController) ListAPI(c fiber.Ctx) error {
 		params.DateFrom == nil && params.DateTo == nil &&
 		params.Status == "" && !params.Overdue && !params.ExplicitAllStatuses
 
-	if !isAdmin(c) {
+
+
+	incItems := strings.TrimSpace(c.Query("include_items", ""))
+	params.IncludeItems = incItems == "1" || strings.EqualFold(incItems, "true")
+
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -164,7 +169,7 @@ func (ctrl *DocumentController) GetAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Documento no encontrado"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -187,7 +192,7 @@ func (ctrl *DocumentController) CreateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -213,7 +218,7 @@ func (ctrl *DocumentController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -248,7 +253,7 @@ func (ctrl *DocumentController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})

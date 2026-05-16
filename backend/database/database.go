@@ -36,6 +36,12 @@ func Connect() error {
 
 func AutoMigrate() error {
 	return DB.AutoMigrate(
+		&models.Module{},
+		&models.Permission{},
+		&models.Role{},
+		&models.SchemaMigration{},
+		&models.RolePermission{},
+		&models.UserRole{},
 		&models.User{},
 		&models.Company{},
 		&models.CompanyAssignment{},

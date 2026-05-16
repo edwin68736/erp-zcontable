@@ -15,6 +15,12 @@ export function productUnitPrice(p: Product): number {
   return 0;
 }
 
+export function sortProductsAlphabetically(list: Product[]): Product[] {
+  return [...list].sort((a, b) =>
+    productLabel(a).localeCompare(productLabel(b), 'es', { sensitivity: 'base' }),
+  );
+}
+
 type ProductPickerModalProps = {
   open: boolean;
   onClose: () => void;
@@ -53,9 +59,9 @@ const ProductPickerModal = ({ open, onClose, onPick, title = 'Catálogo de produ
         kind: kind === 'all' ? undefined : kind,
         active: '1',
         page,
-        per_page: 12,
+        per_page: 200,
       });
-      setItems(res.items);
+      setItems(sortProductsAlphabetically(res.items));
       setTotalPages(res.pagination.total_pages || 0);
     } catch {
       setItems([]);

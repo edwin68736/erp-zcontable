@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// taxLinePeriodYMCanonical periodo de línea en formato AAAA-MM (selector mes).
+var taxLinePeriodYMCanonical = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
 type TaxSettlementService struct{}
 
@@ -180,14 +184,20 @@ func normalizeLinePeriodYM(li TaxSettlementLineInput, settlementYM string) (peri
 	if py == "" {
 		py = settlementYM
 	}
-	if err := validatePeriodYM(py); err != nil {
-		return "", nil, err
+	if taxLinePeriodYMCanonical.MatchString(py) {
+		if err := validatePeriodYM(py); err != nil {
+			return "", nil, err
+		}
+		first, e := time.ParseInLocation("2006-01-02", py+"-01", time.Local)
+		if e != nil {
+			return "", nil, e
+		}
+		return py, &first, nil
 	}
-	first, e := time.ParseInLocation("2006-01-02", py+"-01", time.Local)
-	if e != nil {
-		return "", nil, e
+	if len(py) > 64 {
+		py = py[:64]
 	}
-	return py, &first, nil
+	return py, nil, nil
 }
 
 func (s *TaxSettlementService) validateLine(in TaxSettlementLineInput) error {
@@ -515,17 +525,22 @@ func createDebtDocumentsForManualLines(tx *gorm.DB, ts *models.TaxSettlement, li
 		if len(desc) > 900 {
 			desc = desc[:900] + "…"
 		}
+		acct := periodYM
+		if len(acct) > 64 {
+			acct = acct[:64]
+		}
+		svc := acct
 		doc := models.Document{
-			CompanyID:          ts.CompanyID,
-			Type:               models.DocumentTypeLiquidacion,
-			Number:             fmt.Sprintf("DEU-LIQ-%d-%d", ts.ID, ln.ID),
-			IssueDate:          issue,
-			TotalAmount:        math.Round(ln.Amount*100) / 100,
-			Description:        desc,
-			ServiceMonth:       periodYM,
-			AccountingPeriod:   periodYM,
-			Status:             "pendiente",
-			Source:             "liquidacion",
+			CompanyID:        ts.CompanyID,
+			Type:             models.DocumentTypeLiquidacion,
+			Number:           fmt.Sprintf("DEU-LIQ-%d-%d", ts.ID, ln.ID),
+			IssueDate:        issue,
+			TotalAmount:      math.Round(ln.Amount*100) / 100,
+			Description:      desc,
+			ServiceMonth:     svc,
+			AccountingPeriod: acct,
+			Status:           "pendiente",
+			Source:           "liquidacion",
 		}
 		if err := tx.Omit("Company", "Payments", "Allocations", "Items").Create(&doc).Error; err != nil {
 			return err
@@ -605,6 +620,8 @@ type PaymentSuggestionLine struct {
 	Concept              string  `json:"concept"`
 	SettlementLineAmount float64 `json:"settlement_line_amount"`
 	DocumentNumber       string  `json:"document_number"`
+	/** Periodo contable YYYY-MM de la línea de liquidación. */
+	PeriodYM             string  `json:"period_ym,omitempty"`
 }
 
 // PaymentSuggestionsResult respuesta para precargar el formulario de pago.
@@ -670,12 +687,17 @@ func (s *TaxSettlementService) PaymentSuggestions(settlementID uint) (*PaymentSu
 			continue
 		}
 		sug = math.Round(sug*100) / 100
+		pYM := strings.TrimSpace(ln.PeriodYM)
+		if pYM == "" && ln.PeriodDate != nil && !ln.PeriodDate.IsZero() {
+			pYM = ln.PeriodDate.Format("2006-01")
+		}
 		out.Lines = append(out.Lines, PaymentSuggestionLine{
 			DocumentID:           *ln.DocumentID,
 			Amount:               sug,
 			Concept:              strings.TrimSpace(ln.Concept),
 			SettlementLineAmount: ln.Amount,
 			DocumentNumber:       strings.TrimSpace(d.Number),
+			PeriodYM:             pYM,
 		})
 		out.SuggestedTotal += sug
 	}

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { configService } from '../services/config';
 import type { FirmConfig } from '../types/dashboard';
 import { resolveBackendUrl } from '../api/client';
 
 const Settings = () => {
-  const role = auth.getRole() ?? '';
-  const isAdmin = useMemo(() => role === 'Administrador', [role]);
-  const canEdit = isAdmin;
+  const canViewSettings = useMemo(() => auth.hasPermission(P.settingsFirmView), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.settingsFirmUpdate), []);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,7 +18,7 @@ const Settings = () => {
   const [config, setConfig] = useState<FirmConfig | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canViewSettings) {
       setLoading(false);
       setConfig(null);
       return;
@@ -38,7 +38,7 @@ const Settings = () => {
       }
     };
     run();
-  }, [isAdmin]);
+  }, [canViewSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!config) return;
@@ -169,7 +169,7 @@ const Settings = () => {
         <p className="text-sm text-slate-500">Datos generales utilizados en reportes y encabezados.</p>
       </div>
 
-      {!isAdmin ? (
+      {!canViewSettings ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           No tienes permisos para acceder a esta pantalla
         </div>

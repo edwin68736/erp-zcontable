@@ -25,7 +25,7 @@ func (ctrl *TukifacController) ensureCompanyAccess(c fiber.Ctx, companyID uint) 
 	if companyID == 0 {
 		return fiber.NewError(fiber.StatusBadRequest, "empresa inválida")
 	}
-	if isAdmin(c) {
+	if hasStudioScope(c) {
 		return nil
 	}
 	uid, err := getUserID(c)

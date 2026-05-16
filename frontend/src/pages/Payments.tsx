@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Payment, Company } from '../types/dashboard';
@@ -6,6 +6,7 @@ import { paymentsService } from '../services/payments';
 import type { PaginationMeta as ApiPaginationMeta } from '../services/payments';
 import { companiesService } from '../services/companies';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -233,10 +234,9 @@ const Payments = () => {
     });
   };
 
-  const role = auth.getRole() ?? '';
-  const canCreate = role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente';
-  const canEdit = role === 'Administrador' || role === 'Supervisor' || role === 'Contador';
-  const canDeletePayment = role === 'Administrador';
+  const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
+  const canDeletePayment = useMemo(() => auth.hasPermission(P.paymentsDelete), []);
 
   const closePreview = () => setPreviewUrl(null);
   const isPdf = (url: string) => url.toLowerCase().split('?')[0].endsWith('.pdf');

@@ -36,7 +36,7 @@ func Load() error {
 		DBPort:                   getEnv("DB_PORT", "3306"),
 		DBUser:                   getEnv("DB_USER", "root"),
 		DBPassword:               getEnv("DB_PASSWORD", ""),
-		DBName:                   getEnv("DB_NAME", "miweb_db"),
+		DBName:                   getEnv("DB_NAME", "erp_zcontable"),
 		JWTSecret:                getEnv("JWT_SECRET", "your-super-secret-key-change-in-production"),
 		ServerPort:               getEnv("PORT", "3000"),
 		StoragePath:              getEnv("STORAGE_PATH", "./storage"),

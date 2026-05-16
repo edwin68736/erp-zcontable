@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { TaxSettlement, TaxSettlementLine } from '../types/dashboard';
 import Pagination from '../components/Pagination';
-import SearchableSelect from '../components/SearchableSelect';
+import CompanySearchInput from '../components/CompanySearchInput';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { companiesService } from '../services/companies';
-import type { Company } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -62,12 +61,10 @@ const TaxSettlements = () => {
   const page = parsePositiveInt(searchParams.get('page'), 1);
   const perPage = parsePositiveInt(searchParams.get('per_page'), 20);
 
-  const role = auth.getRole() ?? '';
-  const canCreate = ['Administrador', 'Supervisor', 'Contador'].includes(role);
-  const canRegisterPayment = ['Administrador', 'Supervisor', 'Contador', 'Asistente'].includes(role);
+  const canCreate = useMemo(() => auth.hasPermission(P.taxSettlementsCreate), []);
+  const canRegisterPayment = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
 
   const [list, setList] = useState<TaxSettlement[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<TaxSettlement | null>(null);
@@ -82,8 +79,8 @@ const TaxSettlements = () => {
   });
 
   useEffect(() => {
-    void companiesService.list().then(setCompanies).catch(() => setCompanies([]));
-  }, []);
+    setFilterCompanyId(initialCompanyId);
+  }, [initialCompanyId]);
 
   const fetchList = useCallback(async () => {
     try {
@@ -206,13 +203,7 @@ const TaxSettlements = () => {
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <div className="flex-1 min-w-[200px]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Empresa</label>
-          <SearchableSelect
-            value={filterCompanyId}
-            onChange={setFilterCompanyId}
-            placeholder="Todas"
-            searchPlaceholder="Buscar…"
-            options={[{ value: '', label: 'Todas' }, ...companies.map((c) => ({ value: String(c.id), label: c.business_name }))]}
-          />
+          <CompanySearchInput value={filterCompanyId} onChange={setFilterCompanyId} className="w-full" />
         </div>
       </div>
 

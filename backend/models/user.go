@@ -16,11 +16,15 @@ type User struct {
 	Phone     string         `gorm:"size:50" json:"phone"`
 	Address   string         `gorm:"size:255" json:"address"`
 	Password  string         `gorm:"size:255;not null" json:"-"`
-	Role      string         `gorm:"size:50;not null;default:'Administrador'" json:"role"`
 	Active    bool           `gorm:"not null;default:true" json:"active"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Roles RBAC (N:M) — única fuente de roles del usuario.
+	Roles []Role `gorm:"many2many:user_roles;" json:"roles,omitempty"`
+	// PermissionCodes permisos efectivos (unión de roles); solo listados / detalle, no persistido.
+	PermissionCodes []string `json:"permission_codes,omitempty" gorm:"-"`
 }
 
 func (u *User) SetPassword(password string) error {

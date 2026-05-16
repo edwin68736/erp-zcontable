@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { DashboardData } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { PeriodScoreMini, periodDebtMoraBadge } from '../utils/periodDebtScore';
 
 const Dashboard = () => {
@@ -13,6 +14,7 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [debtOverdueFilter, setDebtOverdueFilter] = useState<string>('');
   const dashboardLoadedOnceRef = useRef(false);
+  const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,8 +65,6 @@ const Dashboard = () => {
     );
   }
 
-  const role = auth.getRole() ?? '';
-  const isAdmin = role === 'Administrador';
   const yearPercent = Math.max(0, Math.min(100, Number(data.YearCollectionPercent) || 0));
   const yearPercentText = `${data.YearCollectionPercentStr}%`;
 

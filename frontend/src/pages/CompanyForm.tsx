@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { companiesService, type CompanyUpsertInput } from '../services/companies';
 import { usersService } from '../services/users';
@@ -6,6 +6,12 @@ import { contactsService, type ContactUpsertInput } from '../services/contacts';
 import { subscriptionPlansService } from '../services/subscriptionPlans';
 import { auth } from '../services/auth';
 import type { Contact, SubscriptionPlan, User } from '../types/dashboard';
+import { P } from '../rbac/codes';
+import {
+  userIsTeamAccountantOrAdmin,
+  userIsTeamAssistantOrAdmin,
+  userIsTeamSupervisorOrAdmin,
+} from '../rbac/userRoles';
 import SearchableSelect from '../components/SearchableSelect';
 import { dateInputToRFC3339MidnightPeru, todayDateInputInPeru } from '../utils/peruDates';
 import { formatUserPickLabel } from '../utils/userLabel';
@@ -26,9 +32,11 @@ const CompanyForm = () => {
   const companyId = params.id ? Number(params.id) : null;
   const isEdit = Boolean(companyId);
 
-  const role = auth.getRole() ?? '';
-  const isAdmin = role === 'Administrador';
-  const canUpsert = role === 'Administrador' || role === 'Supervisor';
+  const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.companiesCreate) || auth.hasPermission(P.companiesUpdate),
+    [],
+  );
 
   const [loading, setLoading] = useState(isEdit);
   const [error, setError] = useState('');
@@ -712,7 +720,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Supervisor' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamSupervisorOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
@@ -734,7 +742,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Asistente' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamAssistantOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
@@ -756,7 +764,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Contador' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamAccountantOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
