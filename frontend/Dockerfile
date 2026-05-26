@@ -2,9 +2,15 @@ FROM node:22
 
 WORKDIR /app
 
-COPY . .
+# Invalida caché de build cuando cambia el commit (deploy pasa BUILD_COMMIT).
+ARG BUILD_COMMIT=dev
+RUN echo "build commit: ${BUILD_COMMIT}"
+
+COPY package.json package-lock.json* ./
 
 RUN npm install
+
+COPY . .
 
 RUN npm run build
 
