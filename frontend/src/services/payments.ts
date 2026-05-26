@@ -25,6 +25,7 @@ export interface PaymentUpsertInput {
   method?: string;
   reference?: string;
   attachment?: string;
+  description?: string;
   notes?: string;
   fiscal_status?: string;
   allocation_mode?: string;
@@ -33,17 +34,17 @@ export interface PaymentUpsertInput {
   tax_settlement_id?: number;
 }
 
-/** Cuerpo para POST /payments/:id/issue-tukifac (emisión Tukifac desde pago de liquidación). */
-export interface PaymentTukifacIssuePayload {
+/** Cuerpo para POST /payments/:id/issue-comprobante (emisión local). */
+export interface PaymentComprobanteIssuePayload {
   kind: 'boleta' | 'factura' | 'sale_note';
-  serie_documento?: string;
-  sale_note_series_id?: number;
-  /** Nota de venta: ID establecimiento en Tukifac; si no se envía, usa TUKIFAC_ESTABLISHMENT_ID en el servidor (por defecto 1). */
-  establishment_id?: number;
+  series_id: number;
   payment_method_type_id?: string;
   payment_destination_id?: string;
   payment_reference?: string;
 }
+
+/** @deprecated usar PaymentComprobanteIssuePayload */
+export type PaymentTukifacIssuePayload = PaymentComprobanteIssuePayload;
 
 export const paymentsService = {
   async list(params: PaymentsListParams = {}): Promise<Payment[]> {
@@ -72,15 +73,17 @@ export const paymentsService = {
     return res.data;
   },
 
-  async issueTukifacFromPayment(
+  async issueComprobanteFromPayment(
     id: number,
-    body: PaymentTukifacIssuePayload,
-  ): Promise<{ receipt: TukifacFiscalReceipt; tukifac_response: unknown }> {
-    const res = await client.post<{ receipt: TukifacFiscalReceipt; tukifac_response: unknown }>(
-      `/payments/${id}/issue-tukifac`,
-      body,
-    );
+    body: PaymentComprobanteIssuePayload,
+  ): Promise<{ receipt: TukifacFiscalReceipt }> {
+    const res = await client.post<{ receipt: TukifacFiscalReceipt }>(`/payments/${id}/issue-comprobante`, body);
     return res.data;
+  },
+
+  /** @deprecated alias */
+  async issueTukifacFromPayment(id: number, body: PaymentComprobanteIssuePayload) {
+    return this.issueComprobanteFromPayment(id, body);
   },
 
   async update(id: number, input: PaymentUpsertInput): Promise<Payment> {

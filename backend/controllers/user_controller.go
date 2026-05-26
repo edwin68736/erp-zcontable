@@ -52,7 +52,7 @@ func (ctrl *UserController) CreateAPI(c fiber.Ctx) error {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
-		Role     string `json:"role"`
+		RoleID   uint   `json:"role_id"`
 		Active   *bool  `json:"active"`
 		DNI      string `json:"dni"`
 		Phone    string `json:"phone"`
@@ -65,15 +65,16 @@ func (ctrl *UserController) CreateAPI(c fiber.Ctx) error {
 	if body.Active != nil {
 		active = *body.Active
 	}
-	u, generated, err := ctrl.userService.Create(body.Username, body.Name, body.Email, body.Password, body.Role, body.DNI, body.Phone, body.Address, active)
+	u, generated, err := ctrl.userService.Create(body.Username, body.Name, body.Email, body.Password, body.RoleID, body.DNI, body.Phone, body.Address, active)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	u, _ = ctrl.userService.GetByID(u.ID)
 	resp := fiber.Map{
 		"id":         u.ID,
 		"name":       u.Name,
 		"username":   u.Username,
-		"role":       u.Role,
+		"roles":      u.Roles,
 		"active":     u.Active,
 		"dni":        u.DNI,
 		"phone":      u.Phone,
@@ -100,7 +101,7 @@ func (ctrl *UserController) UpdateAPI(c fiber.Ctx) error {
 		Name     string  `json:"name"`
 		Email    string  `json:"email"`
 		Password string  `json:"password"`
-		Role     string  `json:"role"`
+		RoleID   *uint   `json:"role_id"`
 		Active   *bool   `json:"active"`
 		DNI      *string `json:"dni"`
 		Phone    *string `json:"phone"`
@@ -109,7 +110,7 @@ func (ctrl *UserController) UpdateAPI(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
-	u, err := ctrl.userService.Update(uint(id), body.Username, body.Name, body.Email, body.Password, body.Role, body.Active, body.DNI, body.Phone, body.Address)
+	u, err := ctrl.userService.Update(uint(id), body.Username, body.Name, body.Email, body.Password, body.RoleID, body.Active, body.DNI, body.Phone, body.Address)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

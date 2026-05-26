@@ -6,7 +6,11 @@ import { saveAs } from 'file-saver';
 import { resolveBackendUrl } from '../api/client';
 import { companiesService } from '../services/companies';
 import { configService } from '../services/config';
-import type { CompanyStatement as CompanyStatementData, FirmConfig } from '../types/dashboard';
+import type {
+  AccountLedgerMovement,
+  CompanyStatement as CompanyStatementData,
+  FirmConfig,
+} from '../types/dashboard';
 import { formatLedgerDateDisplay } from '../utils/ledgerDates';
 import { truncateDocumentNumberDisplay } from '../utils/statementDisplay';
 import {
@@ -157,6 +161,7 @@ export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Tipo</th>
+                  <th className="px-4 py-3">Concepto</th>
                   <th className="px-4 py-3">Deuda</th>
                   <th className="px-4 py-3">Método</th>
                   <th className="px-4 py-3 text-right">Monto</th>
@@ -177,6 +182,9 @@ export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
                           );
                         })()}
                       </td>
+                      <td className="px-4 py-3 text-slate-700 max-w-[14rem] whitespace-normal break-words">
+                        {(p.description ?? '').trim() || '—'}
+                      </td>
                       <td className="px-4 py-3 text-slate-700">{p.document ? p.document.number : '—'}</td>
                       <td className="px-4 py-3 text-slate-700">{p.method}</td>
                       <td className="px-4 py-3 text-right text-slate-800">{formatPEN(p.amount)}</td>
@@ -184,7 +192,7 @@ export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-500 text-sm">
+                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500 text-sm">
                       No hay pagos aplicados registrados para esta empresa.
                     </td>
                   </tr>
@@ -204,6 +212,7 @@ export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Tipo</th>
+                  <th className="px-4 py-3">Concepto</th>
                   <th className="px-4 py-3">Método</th>
                   <th className="px-4 py-3 text-right">Monto</th>
                 </tr>
@@ -223,13 +232,16 @@ export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
                           );
                         })()}
                       </td>
+                      <td className="px-4 py-3 text-slate-700 max-w-[14rem] whitespace-normal break-words">
+                        {(p.description ?? '').trim() || '—'}
+                      </td>
                       <td className="px-4 py-3 text-slate-700">{p.method}</td>
                       <td className="px-4 py-3 text-right text-slate-800">{formatPEN(p.amount)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500 text-sm">
+                    <td colSpan={5} className="px-4 py-6 text-center text-slate-500 text-sm">
                       No hay pagos a cuenta registrados para esta empresa.
                     </td>
                   </tr>
@@ -276,6 +288,7 @@ function BankStatementView({
   const c = data.Company;
 
   const rows = useMemo(() => ledger?.movements ?? [], [ledger]);
+  const [ledgerNotesModal, setLedgerNotesModal] = useState<AccountLedgerMovement | null>(null);
 
   if (!ledger) {
     return (
@@ -496,7 +509,18 @@ function BankStatementView({
                       {truncateDocumentNumberDisplay(row.document_number, 24)}
                     </td>
                     <td className="px-2 py-2 text-slate-700 align-top whitespace-normal break-words min-w-0 hyphens-auto">
-                      {row.detail || '—'}
+                      <div className="flex flex-col gap-1">
+                        <span>{row.detail || '—'}</span>
+                        {(row.payment_notes ?? '').trim() ? (
+                          <button
+                            type="button"
+                            onClick={() => setLedgerNotesModal(row)}
+                            className="self-start text-left text-[11px] font-semibold text-primary-700 hover:text-primary-900 underline-offset-2 hover:underline"
+                          >
+                            Ver notas internas
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-1 py-2 text-slate-600 align-top whitespace-normal break-words text-[10px] leading-tight min-w-0">
                       {row.payment_method || '—'}
@@ -581,6 +605,45 @@ function BankStatementView({
           </div>
         ) : null}
       </div>
+
+      {ledgerNotesModal
+        ? createPortal(
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-slate-900/50"
+                aria-label="Cerrar"
+                onClick={() => setLedgerNotesModal(null)}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ledger-payment-notes-title"
+                className="relative z-[1] w-full max-w-lg rounded-2xl bg-white shadow-xl border border-slate-200 p-5 sm:p-6 max-h-[min(90vh,520px)] overflow-y-auto"
+              >
+                <h3 id="ledger-payment-notes-title" className="text-lg font-semibold text-slate-900">
+                  Notas internas del pago
+                </h3>
+                {ledgerNotesModal.payment_id ? (
+                  <p className="mt-1 text-xs text-slate-500 font-mono">Pago #{ledgerNotesModal.payment_id}</p>
+                ) : null}
+                <p className="mt-3 text-sm text-slate-700 whitespace-pre-wrap break-words">
+                  {(ledgerNotesModal.payment_notes ?? '').trim() || '—'}
+                </p>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerNotesModal(null)}
+                    className="inline-flex items-center px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-medium hover:bg-slate-900"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

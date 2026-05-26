@@ -6,9 +6,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// Tipos de cliente (client_type en BD / JSON).
+const (
+	CompanyClientTypeEstudio = "estudio" // Cliente contable del estudio
+	CompanyClientTypeExterno = "externo" // Registro rápido desde POS (solo ventas)
+)
+
 // Company representa una empresa cliente del estudio
 type Company struct {
 	ID             uint           `gorm:"primaryKey" json:"id"`
+	ClientType     string         `gorm:"size:20;not null;default:'estudio';index" json:"client_type"`
 	RUC            string         `gorm:"size:20;not null;index" json:"ruc"`
 	BusinessName   string         `gorm:"size:255;not null" json:"business_name"`          // Razón social
 	InternalCode   string         `gorm:"size:50;not null;uniqueIndex" json:"code"`        // Código interno del estudio

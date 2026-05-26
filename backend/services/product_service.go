@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -37,30 +36,6 @@ func buildProductListQuery(params ProductListParams) *gorm.DB {
 		q = q.Where("active = ?", false)
 	}
 	return q
-}
-
-func parseTukifacProductDateTime(raw string) (time.Time, bool) {
-	s := strings.TrimSpace(raw)
-	if s == "" {
-		return time.Time{}, false
-	}
-	layouts := []string{
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05Z07:00",
-		time.RFC3339,
-		"2006-01-02",
-	}
-	for _, layout := range layouts {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
-			return t, true
-		}
-	}
-	if len(s) >= 10 {
-		if t, err := time.ParseInLocation("2006-01-02", s[:10], time.Local); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
 }
 
 func formatSaleUnitPriceString(price float64, symbol string) string {
@@ -194,12 +169,20 @@ func normalizeProductKind(k string) string {
 }
 
 func (s *ProductService) Create(input *models.Product) error {
-	input.TukifacItemID = nil
 	input.ProductKind = normalizeProductKind(input.ProductKind)
 	input.Description = strings.TrimSpace(input.Description)
 	if input.Description == "" {
 		return errors.New("la descripción es requerida")
 	}
+	codTuki := strings.TrimSpace(input.TukifacItemID)
+	if codTuki != "" {
+		var dup int64
+		database.DB.Model(&models.Product{}).Where("tukifac_item_id = ?", codTuki).Count(&dup)
+		if dup > 0 {
+			return errors.New("ya existe un producto con ese código interno Tukifac (tukifac_item_id)")
+		}
+	}
+	input.TukifacItemID = codTuki
 	input.ImageURL = ""
 	if err := validateProductCategoryFK(input.ProductCategoryID); err != nil {
 		return err
@@ -228,7 +211,7 @@ func (s *ProductService) Update(id uint, input *models.Product) error {
 		u := strings.TrimSpace(strings.ToUpper(input.UnitTypeID))
 		if u == "ZZ" || u == "NIU" {
 			p.UnitTypeID = u
-		} else if p.TukifacItemID != nil && u != "" {
+		} else if strings.TrimSpace(p.TukifacItemID) != "" && u != "" {
 			p.UnitTypeID = u
 		} else {
 			p.UnitTypeID = "ZZ"
@@ -270,7 +253,19 @@ func (s *ProductService) Update(id uint, input *models.Product) error {
 	if p.SaleUnitPrice == "" {
 		p.SaleUnitPrice = formatSaleUnitPriceString(p.Price, p.CurrencyTypeSymbol)
 	}
-	if p.TukifacItemID != nil {
+	codTuki := strings.TrimSpace(input.TukifacItemID)
+	if codTuki != "" {
+		var dup int64
+		database.DB.Model(&models.Product{}).
+			Where("tukifac_item_id = ? AND id <> ?", codTuki, id).
+			Count(&dup)
+		if dup > 0 {
+			return errors.New("ya existe otro producto con ese código interno Tukifac (tukifac_item_id)")
+		}
+	}
+	p.TukifacItemID = codTuki
+
+	if p.TukifacCreatedAt != nil {
 		p.ImageURL = origImage
 	} else {
 		p.ImageURL = ""
@@ -284,103 +279,4 @@ func (s *ProductService) Delete(id uint) error {
 		return gorm.ErrRecordNotFound
 	}
 	return res.Error
-}
-
-func mapSellnowItemOntoProduct(item TukifacSellnowItem, target *models.Product) {
-	rid := uint(item.ID.Int())
-	target.TukifacItemID = &rid
-	if item.ItemTypeID != nil {
-		if v := item.ItemTypeID.Int(); v > 0 {
-			u := uint(v)
-			target.TukifacItemTypeID = &u
-		}
-	}
-	target.UnitTypeID = strings.TrimSpace(item.UnitTypeID)
-	target.CategoryID = int64(item.CategoryID.Int())
-	target.Description = strings.TrimSpace(item.Description)
-	if target.Description == "" {
-		target.Description = "(sin descripción)"
-	}
-	target.Name = item.Name
-	target.SecondName = item.SecondName
-	target.WarehouseID = item.WarehouseID.Int()
-	target.InternalID = strings.TrimSpace(item.InternalID.String())
-	target.Barcode = strings.TrimSpace(item.Barcode.String())
-	target.ItemCode = item.ItemCode
-	target.ItemCodeGS1 = item.ItemCodeGS1
-	target.Stock = strings.TrimSpace(item.Stock.String())
-	target.StockMin = strings.TrimSpace(item.StockMin.String())
-	target.CurrencyTypeID = strings.TrimSpace(item.CurrencyTypeID)
-	target.CurrencyTypeSymbol = strings.TrimSpace(item.CurrencyTypeSymbol)
-	target.SaleAffectationIGVTypeID = strings.TrimSpace(item.SaleAffectationIGVTypeID)
-	target.Price = item.Price.Float64()
-	target.CalculateQuantity = item.CalculateQuantity
-	target.HasIGV = item.HasIGV
-	target.Active = item.Active
-	target.SaleUnitPrice = strings.TrimSpace(item.SaleUnitPrice.String())
-	target.PurchaseUnitPrice = strings.TrimSpace(item.PurchaseUnitPrice.String())
-	target.ApplyStore = item.ApplyStore
-	target.ImageURL = strings.TrimSpace(item.ImageURL)
-	target.TrackInventory = true
-	target.PriceIncludesIGV = target.HasIGV && strings.TrimSpace(target.SaleAffectationIGVTypeID) == "10"
-	if t, ok := parseTukifacProductDateTime(item.CreatedAt); ok {
-		target.TukifacCreatedAt = &t
-	} else {
-		target.TukifacCreatedAt = nil
-	}
-	if t, ok := parseTukifacProductDateTime(item.UpdatedAt); ok {
-		target.TukifacUpdatedAt = &t
-	} else {
-		target.TukifacUpdatedAt = nil
-	}
-}
-
-// SyncFromTukifac crea o actualiza por tukifac_item_id; asigna categoría local por defecto si falta.
-func (s *ProductService) SyncFromTukifac(tukifac *TukifacService) (created int, updated int, err error) {
-	items, err := tukifac.FetchSellnowItems()
-	if err != nil {
-		return 0, 0, err
-	}
-	defCat := DefaultProductCategoryIDForSync()
-	for _, item := range items {
-		if item.ID.Int() <= 0 {
-			continue
-		}
-		remote := uint(item.ID.Int())
-		var existing models.Product
-		q := database.DB.Unscoped().Where("tukifac_item_id = ?", remote).First(&existing)
-		if q.Error == nil {
-			kind := existing.ProductKind
-			if kind == "" {
-				kind = "product"
-			}
-			mapSellnowItemOntoProduct(item, &existing)
-			existing.ProductKind = kind
-			if existing.ProductCategoryID == nil && defCat != nil {
-				existing.ProductCategoryID = defCat
-			}
-			if existing.DeletedAt.Valid {
-				existing.DeletedAt = gorm.DeletedAt{}
-			}
-			if err := database.DB.Unscoped().Save(&existing).Error; err != nil {
-				continue
-			}
-			updated++
-			continue
-		}
-		if !errors.Is(q.Error, gorm.ErrRecordNotFound) {
-			continue
-		}
-		var p models.Product
-		p.ProductKind = "product"
-		mapSellnowItemOntoProduct(item, &p)
-		if defCat != nil {
-			p.ProductCategoryID = defCat
-		}
-		if err := database.DB.Create(&p).Error; err != nil {
-			continue
-		}
-		created++
-	}
-	return created, updated, nil
 }

@@ -5,6 +5,7 @@ import { companiesService } from '../services/companies';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Company, SettlementPreviewLine } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
 import type { Product } from '../services/products';
 
@@ -15,6 +16,29 @@ const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1
 function previousMonthYMFromDate(d: Date): string {
   const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   return `${prev.getFullYear()}-${pad2(prev.getMonth() + 1)}`;
+}
+
+/** Mes calendario siguiente a `YYYY-MM`. Ej.: 2026-05 → 2026-06; 2026-12 → 2027-01. */
+function nextMonthYM(ym: string): string {
+  if (!/^\d{4}-\d{2}$/.test(ym)) return ym;
+  const y = Number(ym.slice(0, 4));
+  const m = Number(ym.slice(5, 7));
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return ym;
+  const d = new Date(y, m - 1 + 1, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+/**
+ * Periodo sugerido por línea (productos / conceptos) según ciclo de cobro de la empresa.
+ * - fin de mes (`end_month`): mismo mes que el periodo de liquidación (comportamiento histórico).
+ * - inicio de mes (`start_month`): mes siguiente al periodo liquidado (servicio facturado corresponde al mes entrante).
+ */
+function defaultLinePeriodForLiquidation(liquidationYM: string, billingCycle?: string): string {
+  const c = (billingCycle ?? '').trim().toLowerCase();
+  if (c === 'start_month') {
+    return nextMonthYM(liquidationYM);
+  }
+  return liquidationYM;
 }
 
 const MONTH_NAMES_ES = [
@@ -45,9 +69,41 @@ function formatPEN(n: number): string {
   return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Solo dígitos y un separador decimal (. o ,). */
+function sanitizeAmountInput(raw: string): string {
+  let out = '';
+  let hasSep = false;
+  for (const ch of raw) {
+    if (ch >= '0' && ch <= '9') {
+      out += ch;
+      continue;
+    }
+    if ((ch === '.' || ch === ',') && !hasSep) {
+      out += ch;
+      hasSep = true;
+    }
+  }
+  return out;
+}
+
 function parseLineAmount(raw: string): number {
-  const n = Number(raw);
+  const normalized = raw.trim().replace(',', '.');
+  if (!normalized) return 0;
+  const n = Number(normalized);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+
+function formatAmountOnBlur(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  return parseLineAmount(t).toFixed(2);
+}
+const CANONICAL_PERIOD_YM = /^\d{4}-\d{2}$/;
+
+function isCanonicalPeriodYm(s: string): boolean {
+  return CANONICAL_PERIOD_YM.test((s ?? '').trim());
+
 }
 
 type LineRow = {
@@ -57,15 +113,16 @@ type LineRow = {
   product_id?: number;
   concept: string;
   amount: string;
-  /** Periodo contable de la línea solo año-mes (YYYY-MM). */
+  /** En modo mes: `AAAA-MM`. En modo manual: texto libre (ej. año). */
   period_ym: string;
+  /** false = selector mes; true = texto libre (no usar input type="month"). */
+  period_manual?: boolean;
 };
 
 const TaxSettlementNew = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const role = auth.getRole() ?? '';
-  const allowed = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const allowed = useMemo(() => auth.hasPermission(P.taxSettlementsCreate), []);
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState('');
@@ -86,6 +143,11 @@ const TaxSettlementNew = () => {
     void companiesService.list().then(setCompanies).catch(() => setCompanies([]));
   }, []);
 
+  const selectedCompany = useMemo(
+    () => companies.find((c) => String(c.id) === companyId.trim()),
+    [companies, companyId],
+  );
+
   /** Al cambiar la fecha de emisión, sugerir el mes calendario anterior al de esa fecha como periodo liquidado (si el usuario no lo fijó a mano). */
   useEffect(() => {
     if (liquidationPeriodManualRef.current) return;
@@ -96,18 +158,27 @@ const TaxSettlementNew = () => {
     setLiquidationPeriod(previousMonthYMFromDate(d));
   }, [issueDate]);
 
-  /** Si cambia el periodo cabecera, propagar a líneas que aún coincidían con el periodo anterior. */
+  /** Si cambia el periodo cabecera, propagar a líneas que aún coincidían con el periodo sugerido anterior (según ciclo de cobro). */
   useEffect(() => {
     const prev = prevLiquidationPeriodRef.current;
     if (prev === liquidationPeriod) {
       prevLiquidationPeriodRef.current = liquidationPeriod;
       return;
     }
+    const bc = selectedCompany?.billing_cycle;
+    const prevDefault = defaultLinePeriodForLiquidation(prev, bc);
+    const newDefault = defaultLinePeriodForLiquidation(liquidationPeriod, bc);
     setLines((rows) =>
-      rows.map((l) => (!l.period_ym || l.period_ym === prev ? { ...l, period_ym: liquidationPeriod } : l)),
+      rows.map((l) => {
+        if (l.period_manual) return l;
+        if (!l.period_ym || l.period_ym === prevDefault) {
+          return { ...l, period_ym: newDefault };
+        }
+        return l;
+      }),
     );
     prevLiquidationPeriodRef.current = liquidationPeriod;
-  }, [liquidationPeriod]);
+  }, [liquidationPeriod, selectedCompany?.billing_cycle]);
 
   useEffect(() => {
     const cid = searchParams.get('company_id')?.trim() ?? '';
@@ -120,11 +191,21 @@ const TaxSettlementNew = () => {
     setLoadingPreview(true);
     try {
       const data: SettlementPreviewLine[] = await taxSettlementsService.preview(id);
-      const ymFallback = liquidationPeriodRef.current;
+      const co = companies.find((c) => c.id === id);
+      const ymFallback = defaultLinePeriodForLiquidation(liquidationPeriodRef.current, co?.billing_cycle);
       setLines(
         data.map((row, i) => {
           const ap = (row.accounting_period ?? '').trim();
-          const lineYm = /^\d{4}-\d{2}$/.test(ap) ? ap : ymFallback;
+          let lineYm: string;
+          let period_manual = false;
+          if (isCanonicalPeriodYm(ap)) {
+            lineYm = ap;
+          } else if (ap) {
+            lineYm = ap;
+            period_manual = true;
+          } else {
+            lineYm = ymFallback;
+          }
           return {
             key: `d-${row.document_id}-${i}`,
             line_type: 'document_ref' as const,
@@ -132,6 +213,7 @@ const TaxSettlementNew = () => {
             concept: row.concept || `Cargo #${row.document_id}`,
             amount: String(row.amount),
             period_ym: lineYm,
+            period_manual,
           };
         }),
       );
@@ -140,7 +222,7 @@ const TaxSettlementNew = () => {
     } finally {
       setLoadingPreview(false);
     }
-  }, []);
+  }, [companies]);
 
   useEffect(() => {
     const id = Number(companyId);
@@ -165,6 +247,7 @@ const TaxSettlementNew = () => {
 
   /** Líneas añadidas por el usuario: descripción + monto (backend: adjustment, mismo grupo que honorarios/cargos al emitir). */
   const addManualLine = () => {
+    const pym = defaultLinePeriodForLiquidation(liquidationPeriod, selectedCompany?.billing_cycle);
     setLines((prev) => [
       ...prev,
       {
@@ -172,7 +255,8 @@ const TaxSettlementNew = () => {
         line_type: 'adjustment',
         concept: '',
         amount: '',
-        period_ym: liquidationPeriod,
+        period_ym: pym,
+        period_manual: false,
       },
     ]);
   };
@@ -212,10 +296,11 @@ const TaxSettlementNew = () => {
       return;
     }
     const lp = liquidationPeriod.trim();
-    if (!/^\d{4}-\d{2}$/.test(lp)) {
+    if (!CANONICAL_PERIOD_YM.test(lp)) {
       setError('Seleccione el periodo de la liquidación (año y mes)');
       return;
     }
+    const billingCo = companies.find((c) => c.id === id);
     const payloadLines: {
       line_type: string;
       document_id?: number;
@@ -227,7 +312,12 @@ const TaxSettlementNew = () => {
     }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      const amt = Number(l.amount);
+      const amountRaw = l.amount.trim();
+      if (!amountRaw) {
+        setError('Indique el monto de cada línea');
+        return;
+      }
+      const amt = parseLineAmount(amountRaw);
       if (!Number.isFinite(amt) || amt < 0) {
         setError('Revise los montos de cada línea');
         return;
@@ -240,10 +330,24 @@ const TaxSettlementNew = () => {
         setError('Línea de deuda sin documento');
         return;
       }
-      const pym = (l.period_ym || lp).trim();
-      if (!/^\d{4}-\d{2}$/.test(pym)) {
-        setError('Cada línea requiere un periodo válido (año-mes, AAAA-MM)');
-        return;
+      let pym = (l.period_ym || '').trim();
+      if (l.period_manual) {
+        if (!pym) {
+          setError('Complete el periodo en texto en las líneas con «Texto libre» activado');
+          return;
+        }
+        if (pym.length > 64) {
+          setError('El periodo manual no puede superar 64 caracteres por línea');
+          return;
+        }
+      } else {
+        if (!isCanonicalPeriodYm(pym)) {
+          pym = defaultLinePeriodForLiquidation(lp, billingCo?.billing_cycle);
+        }
+        if (!isCanonicalPeriodYm(pym)) {
+          setError('Cada línea en modo mes requiere periodo AAAA-MM');
+          return;
+        }
       }
       payloadLines.push({
         line_type: l.line_type,
@@ -338,6 +442,20 @@ const TaxSettlementNew = () => {
                 }}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
               />
+              {selectedCompany &&
+              String(selectedCompany.billing_cycle ?? '').toLowerCase() === 'start_month' ? (
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                  Ciclo de cobro <span className="font-medium text-slate-600">inicio de mes</span>: el periodo sugerido en
+                  líneas de conceptos/catálogo será el{' '}
+                  <span className="font-medium text-slate-700">mes siguiente</span> al periodo liquidado (
+                  {defaultLinePeriodForLiquidation(liquidationPeriod, selectedCompany.billing_cycle)}).
+                </p>
+              ) : selectedCompany ? (
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                  Ciclo <span className="font-medium text-slate-600">fin de mes</span>: las líneas nuevas usan el mismo
+                  periodo que la liquidación.
+                </p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -382,7 +500,10 @@ const TaxSettlementNew = () => {
                     <th className="px-3 py-3 w-10 text-center">#</th>
                     <th className="px-3 py-3 whitespace-nowrap">Tipo</th>
                     <th className="px-3 py-3 min-w-[200px]">Descripción</th>
-                    <th className="px-3 py-3 whitespace-nowrap w-[9.5rem]">Periodo (AAAA-MM)</th>
+                    <th className="px-3 py-3 whitespace-nowrap min-w-[14rem] text-left">
+                      Periodo{' '}
+                      <span className="font-normal text-slate-400 normal-case">(mes · texto libre)</span>
+                    </th>
                     <th className="px-3 py-3 text-right whitespace-nowrap w-36">Monto (S/)</th>
                     <th className="px-3 py-3 w-14 text-center" aria-label="Acciones" />
                   </tr>
@@ -417,24 +538,77 @@ const TaxSettlementNew = () => {
                             className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 outline-none"
                           />
                         </td>
-                        <td className="px-3 py-2.5">
-                          <input
-                            type="month"
-                            value={l.period_ym || liquidationPeriod}
-                            onChange={(e) => updateLine(l.key, { period_ym: e.target.value })}
-                            className="w-full min-w-[8.5rem] px-2 py-2 rounded-lg border border-slate-200 text-xs tabular-nums focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 outline-none"
-                          />
+                        <td className="px-3 py-2.5 align-middle">
+                          <div className="flex flex-nowrap items-center gap-2 min-w-[12rem]">
+                            <label
+                              className="inline-flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-[11px] text-slate-600"
+                              title="Permite escribir el periodo a mano (ej. año) en lugar del selector de mes"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(l.period_manual)}
+                                onChange={(e) => {
+                                  const manual = e.target.checked;
+                                  const def = defaultLinePeriodForLiquidation(
+                                    liquidationPeriod,
+                                    selectedCompany?.billing_cycle,
+                                  );
+                                  updateLine(l.key, {
+                                    period_manual: manual,
+                                    period_ym: manual
+                                      ? isCanonicalPeriodYm(l.period_ym)
+                                        ? ''
+                                        : (l.period_ym ?? '').trim()
+                                      : isCanonicalPeriodYm(l.period_ym)
+                                        ? l.period_ym
+                                        : def,
+                                  });
+                                }}
+                                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-3.5 w-3.5"
+                              />
+                              <span className="whitespace-nowrap">Texto libre</span>
+                            </label>
+                            <div className="flex-1 min-w-0 border-l border-slate-200 pl-2">
+                              {l.period_manual ? (
+                                <input
+                                  type="text"
+                                  value={l.period_ym}
+                                  onChange={(e) => updateLine(l.key, { period_ym: e.target.value })}
+                                  maxLength={64}
+                                  placeholder="ej. 2025"
+                                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 outline-none"
+                                />
+                              ) : (
+                                <input
+                                  type="month"
+                                  value={
+                                    isCanonicalPeriodYm(l.period_ym)
+                                      ? l.period_ym
+                                      : defaultLinePeriodForLiquidation(
+                                          liquidationPeriod,
+                                          selectedCompany?.billing_cycle,
+                                        )
+                                  }
+                                  onChange={(e) =>
+                                    updateLine(l.key, { period_ym: e.target.value, period_manual: false })
+                                  }
+                                  className="w-full min-w-0 max-w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs tabular-nums focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 outline-none"
+                                />
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1 rounded-lg border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-primary-500/25 focus-within:border-primary-400">
                             <span className="pl-2 text-xs font-medium text-slate-500">S/</span>
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
                               value={l.amount}
-                              onChange={(e) => updateLine(l.key, { amount: e.target.value })}
-                              className="w-full min-w-0 py-2 pr-2 rounded-r-lg border-0 text-sm text-right tabular-nums outline-none"
+                              onChange={(e) => updateLine(l.key, { amount: sanitizeAmountInput(e.target.value) })}
+                              onBlur={(e) => updateLine(l.key, { amount: formatAmountOnBlur(e.target.value) })}
+                              className="w-full min-w-0 py-2 pr-2 rounded-r-lg border-0 text-sm text-right tabular-nums outline-none [appearance:textfield]"
                             />
                           </div>
                         </td>
@@ -516,6 +690,7 @@ const TaxSettlementNew = () => {
         title="Agregar desde catálogo"
         onPick={(p: Product) => {
           const price = productUnitPrice(p);
+          const pym = defaultLinePeriodForLiquidation(liquidationPeriod, selectedCompany?.billing_cycle);
           setLines((prev) => [
             ...prev,
             {
@@ -524,7 +699,8 @@ const TaxSettlementNew = () => {
               product_id: p.id,
               concept: productLabel(p),
               amount: price > 0 ? price.toFixed(2) : '',
-              period_ym: liquidationPeriod,
+              period_ym: pym,
+              period_manual: false,
             },
           ]);
           setPickerOpen(false);

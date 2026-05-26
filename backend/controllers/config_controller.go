@@ -31,6 +31,7 @@ func (ctrl *ConfigController) FirmConfigAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	stripDeprecatedFirmIntegrations(cfg)
 	return c.JSON(cfg)
 }
 
@@ -40,8 +41,7 @@ func (ctrl *ConfigController) FirmBrandingAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	cfg.TukifacAPIToken = ""
-	cfg.TukifacAPIURL = ""
+	stripDeprecatedFirmIntegrations(cfg)
 	cfg.ApiPeruToken = ""
 	cfg.ApiPeruBaseURL = ""
 	return c.JSON(cfg)
@@ -56,7 +56,17 @@ func (ctrl *ConfigController) UpdateFirmConfigAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	stripDeprecatedFirmIntegrations(cfg)
 	return c.JSON(cfg)
+}
+
+// stripDeprecatedFirmIntegrations oculta credenciales de integraciones retiradas (Tukifac).
+func stripDeprecatedFirmIntegrations(cfg *models.FirmConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.TukifacAPIToken = ""
+	cfg.TukifacAPIURL = ""
 }
 
 func (ctrl *ConfigController) UploadFirmLogoAPI(c fiber.Ctx) error {

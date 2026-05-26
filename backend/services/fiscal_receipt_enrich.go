@@ -45,11 +45,13 @@ func FiscalReceiptOriginLabel(origin string) string {
 	switch strings.TrimSpace(origin) {
 	case models.TukifacReceiptOriginIssuedLocal:
 		return "Sistema"
+	case models.TukifacReceiptOriginPOS:
+		return "POS"
 	case models.TukifacReceiptOriginSync:
-		return "Tukifac"
+		return "Importado"
 	default:
 		if origin == "" {
-			return "Tukifac"
+			return "—"
 		}
 		return origin
 	}

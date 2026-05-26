@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Payment, Company } from '../types/dashboard';
@@ -6,10 +6,13 @@ import { paymentsService } from '../services/payments';
 import type { PaginationMeta as ApiPaginationMeta } from '../services/payments';
 import { companiesService } from '../services/companies';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
 import { resolveBackendUrl } from '../api/client';
+import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -142,7 +145,7 @@ const Payments = () => {
     const monto = Number.isFinite(p.amount)
       ? p.amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
-    return `Se eliminará el pago del ${fecha} por S/ ${monto} (${empresa}). Se quitarán las imputaciones a deudas, se actualizarán los estados de los documentos y, si aplica, se desvinculará el comprobante Tukifac. Esta acción no se puede deshacer.`;
+    return `Se eliminará el pago del ${fecha} por S/ ${monto} (${empresa}). Se quitarán las imputaciones a deudas, se actualizarán los estados de los documentos y, si aplica, se desvinculará el comprobante fiscal. Esta acción no se puede deshacer.`;
   };
 
   const confirmDeletePayment = async () => {
@@ -233,10 +236,9 @@ const Payments = () => {
     });
   };
 
-  const role = auth.getRole() ?? '';
-  const canCreate = role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente';
-  const canEdit = role === 'Administrador' || role === 'Supervisor' || role === 'Contador';
-  const canDeletePayment = role === 'Administrador';
+  const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
+  const canDeletePayment = useMemo(() => auth.hasPermission(P.paymentsDelete), []);
 
   const closePreview = () => setPreviewUrl(null);
   const isPdf = (url: string) => url.toLowerCase().split('?')[0].endsWith('.pdf');
@@ -357,7 +359,7 @@ const Payments = () => {
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Tukifac</th>
+                <th className="px-4 py-3">Comprobante</th>
                 <th className="px-4 py-3">PDF</th>
                 <th className="px-4 py-3">Deuda</th>
                 <th className="px-4 py-3">Método</th>
@@ -376,6 +378,7 @@ const Payments = () => {
               ) : payments.length > 0 ? (
                 payments.map((payment) => {
                   const tukRec = payment.tukifac_fiscal_receipt;
+                  const localPdf = tukRec ? isLocalFiscalReceipt(tukRec.origin) : false;
                   const ticketUrl = (tukRec?.print_ticket_url ?? '').trim();
                   const pdfUrl = (tukRec?.pdf_url ?? '').trim();
                   return (
@@ -393,15 +396,15 @@ const Payments = () => {
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs">
                       {tukRec?.number ? (
-                        <span title={`ID Tukifac: ${tukRec.external_id}`}>
-                          {tukRec.number}
-                        </span>
+                        <span title={tukRec.external_id}>{tukRec.number}</span>
                       ) : (
                         <span className="text-slate-400 font-sans">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!ticketUrl && !pdfUrl ? (
+                      {localPdf && tukRec ? (
+                        <FiscalReceiptPdfActions receiptId={tukRec.id} compact />
+                      ) : !ticketUrl && !pdfUrl ? (
                         <span className="text-slate-400 text-xs">—</span>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -411,7 +414,7 @@ const Payments = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:bg-slate-100"
-                              title="Vista ticket (Tukifac)"
+                              title="Enlace externo ticket"
                             >
                               <i className="fas fa-receipt text-[10px]" aria-hidden />
                               Ticket
@@ -423,7 +426,7 @@ const Payments = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50"
-                              title="PDF A4 (Tukifac)"
+                              title="Enlace externo PDF"
                             >
                               <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
                               A4

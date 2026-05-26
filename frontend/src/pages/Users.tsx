@@ -3,10 +3,14 @@ import { Link } from 'react-router-dom';
 import { auth } from '../services/auth';
 import { usersService } from '../services/users';
 import type { User } from '../types/dashboard';
+import { P } from '../rbac/codes';
+import { formatUserRolesDisplay } from '../rbac/userRoles';
 
 const Users = () => {
-  const role = auth.getRole() ?? '';
-  const isAdmin = useMemo(() => role === 'Administrador', [role]);
+  const canView = useMemo(() => auth.hasPermission(P.usersView), []);
+  const canCreate = useMemo(() => auth.hasPermission(P.usersCreate), []);
+  const canUpdate = useMemo(() => auth.hasPermission(P.usersUpdate), []);
+  const canDelete = useMemo(() => auth.hasPermission(P.usersDelete), []);
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,15 +31,15 @@ const Users = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canView) {
       setLoading(false);
       return;
     }
-    fetchUsers();
-  }, [isAdmin]);
+    void fetchUsers();
+  }, [canView]);
 
   const handleDelete = async (id: number) => {
-    if (!isAdmin) return;
+    if (!canDelete) return;
     if (!confirm('¿Eliminar este usuario?')) return;
     try {
       setError('');
@@ -64,9 +68,9 @@ const Users = () => {
         <Link
           to="/users/new"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition disabled:opacity-60"
-          aria-disabled={!isAdmin}
+          aria-disabled={!canCreate}
           onClick={(e) => {
-            if (!isAdmin) e.preventDefault();
+            if (!canCreate) e.preventDefault();
           }}
         >
           <i className="fas fa-plus text-xs"></i>
@@ -78,7 +82,7 @@ const Users = () => {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
 
-      {!isAdmin ? (
+      {!canView ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           No tienes permisos para acceder a esta pantalla
         </div>
@@ -93,7 +97,7 @@ const Users = () => {
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Rol</th>
+                <th className="px-4 py-3">Roles</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">DNI</th>
                 <th className="px-4 py-3">Teléfono</th>
@@ -108,7 +112,7 @@ const Users = () => {
                     <i className="fas fa-spinner fa-spin mr-2"></i> Cargando...
                   </td>
                 </tr>
-              ) : !isAdmin ? (
+              ) : !canView ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-6 text-center text-slate-500 text-sm">
                     No hay usuarios registrados.
@@ -123,7 +127,7 @@ const Users = () => {
                     <td className="px-4 py-3 text-slate-700">{user.email?.trim() ? user.email : '—'}</td>
                     <td className="px-4 py-3 text-slate-700">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                        {user.role}
+                        {formatUserRolesDisplay(user)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-700">
@@ -144,14 +148,20 @@ const Users = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
-                        <Link to={`/users/${user.id}/edit`}
-                           className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100">
-                          <i className="fas fa-pen mr-1"></i> Editar
-                        </Link>
-                        <button 
+                        {canUpdate ? (
+                          <Link
+                            to={`/users/${user.id}/edit`}
+                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          >
+                            <i className="fas fa-pen mr-1"></i> Editar
+                          </Link>
+                        ) : null}
+                        <button
+                          type="button"
                           onClick={() => handleDelete(user.id)}
-                          disabled={!isAdmin}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50">
+                          disabled={!canDelete}
+                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
                           <i className="fas fa-trash mr-1"></i> Eliminar
                         </button>
                       </div>

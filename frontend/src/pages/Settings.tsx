@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { configService } from '../services/config';
 import type { FirmConfig } from '../types/dashboard';
 import { resolveBackendUrl } from '../api/client';
 
 const Settings = () => {
-  const role = auth.getRole() ?? '';
-  const isAdmin = useMemo(() => role === 'Administrador', [role]);
-  const canEdit = isAdmin;
+  const canViewSettings = useMemo(() => auth.hasPermission(P.settingsFirmView), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.settingsFirmUpdate), []);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,7 +18,7 @@ const Settings = () => {
   const [config, setConfig] = useState<FirmConfig | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canViewSettings) {
       setLoading(false);
       setConfig(null);
       return;
@@ -38,7 +38,7 @@ const Settings = () => {
       }
     };
     run();
-  }, [isAdmin]);
+  }, [canViewSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!config) return;
@@ -62,8 +62,6 @@ const Settings = () => {
         address: config.address,
         phone: config.phone,
         email: config.email,
-        tukifac_api_url: config.tukifac_api_url,
-        tukifac_api_token: config.tukifac_api_token,
         apiperu_base_url: config.apiperu_base_url,
         apiperu_token: config.apiperu_token,
         statement_whatsapp_notice: config.statement_whatsapp_notice ?? '',
@@ -169,7 +167,7 @@ const Settings = () => {
         <p className="text-sm text-slate-500">Datos generales utilizados en reportes y encabezados.</p>
       </div>
 
-      {!isAdmin ? (
+      {!canViewSettings ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           No tienes permisos para acceder a esta pantalla
         </div>
@@ -530,45 +528,6 @@ const Settings = () => {
                         />
                       </label>
                     </div>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <div className="text-sm font-semibold text-slate-800">Integración Tukifac</div>
-                  <div className="text-xs text-slate-500">Configura el endpoint del API y el token de acceso.</div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="tukifac_api_url" className="block text-sm font-medium text-slate-700 mb-1">
-                      URL del API (Tukifac)
-                    </label>
-                    <input
-                      type="url"
-                      id="tukifac_api_url"
-                      name="tukifac_api_url"
-                      value={config.tukifac_api_url ?? ''}
-                      onChange={handleChange}
-                      disabled={!canEdit || saving || uploading}
-                      placeholder="https://doricontdemo.app.tukifac.pe/api"
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="tukifac_api_token" className="block text-sm font-medium text-slate-700 mb-1">
-                      Token Bearer (Tukifac)
-                    </label>
-                    <input
-                      type="password"
-                      id="tukifac_api_token"
-                      name="tukifac_api_token"
-                      value={config.tukifac_api_token ?? ''}
-                      onChange={handleChange}
-                      disabled={!canEdit || saving || uploading}
-                      placeholder="Bearer ..."
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
-                      autoComplete="off"
-                    />
                   </div>
                 </div>
 

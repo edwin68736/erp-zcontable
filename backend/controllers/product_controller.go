@@ -11,15 +11,11 @@ import (
 )
 
 type ProductController struct {
-	svc    *services.ProductService
-	tukifac *services.TukifacService
+	svc *services.ProductService
 }
 
 func NewProductController() *ProductController {
-	return &ProductController{
-		svc:     services.NewProductService(),
-		tukifac: services.NewTukifacService(),
-	}
+	return &ProductController{svc: services.NewProductService()}
 }
 
 func (ctrl *ProductController) ListAPI(c fiber.Ctx) error {
@@ -122,20 +118,4 @@ func (ctrl *ProductController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No se pudo eliminar"})
 	}
 	return c.JSON(fiber.Map{"message": "Eliminado"})
-}
-
-// SyncTukifacAPI importa o actualiza ítems desde Tukifac (solo lectura remota).
-func (ctrl *ProductController) SyncTukifacAPI(c fiber.Ctx) error {
-	created, updated, err := ctrl.svc.SyncFromTukifac(ctrl.tukifac)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Sincronización de productos completada",
-		"data": fiber.Map{
-			"created": created,
-			"updated": updated,
-		},
-	})
 }

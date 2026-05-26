@@ -7,11 +7,11 @@ import (
 )
 
 // Product almacena ítems SUNAT (bienes o servicios), locales o sincronizados desde Tukifac.
-// La coincidencia en sincronización es por tukifac_item_id (ID remoto); los registros solo locales no se tocan.
+// tukifac_item_id (columna + JSON): codigo_interno del catálogo Tukifac (texto); se envía así en emisión.
 type Product struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	TukifacItemID *uint `gorm:"column:tukifac_item_id;uniqueIndex" json:"tukifac_item_id,omitempty"`
+	TukifacItemID string `gorm:"column:tukifac_item_id;size:64;index" json:"tukifac_item_id,omitempty"`
 	// TukifacItemTypeID: metadato remoto si sellnow devuelve item_type_id (referencia en Tukifac).
 	TukifacItemTypeID *uint `gorm:"column:tukifac_item_type_id;index" json:"tukifac_item_type_id,omitempty"`
 	ProductKind       string `gorm:"size:20;not null;default:product;index" json:"product_kind"` // product | service
@@ -25,6 +25,7 @@ type Product struct {
 	Name                     *string `gorm:"size:255" json:"name,omitempty"`
 	SecondName               *string `gorm:"size:255" json:"second_name,omitempty"`
 	WarehouseID              int     `json:"warehouse_id"`
+	// InternalID: codigo_interno hacia Tukifac; alfanumérico (letras y números), misma cadena que en el catálogo remoto.
 	InternalID               string  `gorm:"size:64" json:"internal_id"`
 	Barcode                  string  `gorm:"size:64;index" json:"barcode"`
 	ItemCode                 *string `gorm:"size:64" json:"item_code,omitempty"`

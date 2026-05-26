@@ -16,6 +16,24 @@ const defaultApiPeruBase = "https://apiperu.dev"
 
 var nonDigitRUC = regexp.MustCompile(`\D`)
 
+// DniLookupResult datos para autocompletar cliente persona natural.
+type DniLookupResult struct {
+	DNI      string `json:"dni"`
+	FullName string `json:"full_name"`
+}
+
+type apiPeruDniEnvelope struct {
+	Success bool `json:"success"`
+	Data    *struct {
+		Numero              string `json:"numero"`
+		NombreCompleto      string `json:"nombre_completo"`
+		Nombres             string `json:"nombres"`
+		ApellidoPaterno      string `json:"apellido_paterno"`
+		ApellidoMaterno      string `json:"apellido_materno"`
+	} `json:"data"`
+	Message string `json:"message"`
+}
+
 // RucLookupResult datos listos para rellenar el formulario de empresa.
 type RucLookupResult struct {
 	RUC          string `json:"ruc"`
@@ -60,6 +78,14 @@ func NewApiPeruService() *ApiPeruService {
 
 func NormalizePeruRUC(raw string) string {
 	return nonDigitRUC.ReplaceAllString(strings.TrimSpace(raw), "")
+}
+
+func NormalizePeruDNI(raw string) string {
+	d := nonDigitRUC.ReplaceAllString(strings.TrimSpace(raw), "")
+	if len(d) > 8 {
+		d = d[:8]
+	}
+	return d
 }
 
 func bearerToken(raw string) string {
@@ -148,4 +174,89 @@ func (s *ApiPeruService) LookupRUC(rawRUC string) (*RucLookupResult, error) {
 		Provincia:    strings.TrimSpace(d.Provincia),
 		Distrito:     strings.TrimSpace(d.Distrito),
 	}, nil
+}
+
+func (s *ApiPeruService) LookupDNI(rawDNI string) (*DniLookupResult, error) {
+	dni := NormalizePeruDNI(rawDNI)
+	if len(dni) != 8 {
+		return nil, errors.New("el DNI debe tener 8 dígitos")
+	}
+
+	cfg, err := s.configService.GetFirmConfig()
+	if err != nil {
+		return nil, err
+	}
+	token := bearerToken(cfg.ApiPeruToken)
+	if token == "" {
+		return nil, errors.New("configura el token de ApiPeru.dev en Ajustes del estudio")
+	}
+
+	base := strings.TrimSpace(cfg.ApiPeruBaseURL)
+	if base == "" {
+		base = defaultApiPeruBase
+	}
+	base = strings.TrimRight(base, "/")
+	endpoint := base + "/api/dni"
+
+	body, err := json.Marshal(map[string]string{"dni": dni})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo contactar ApiPeru.dev: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+
+	var env apiPeruDniEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, fmt.Errorf("respuesta inválida del servicio de DNI")
+	}
+
+	if !env.Success || env.Data == nil {
+		msg := strings.TrimSpace(env.Message)
+		if msg == "" {
+			msg = "RENIEC no devolvió datos para este DNI"
+		}
+		return nil, errors.New(msg)
+	}
+
+	d := env.Data
+	name := strings.TrimSpace(d.NombreCompleto)
+	if name == "" {
+		parts := []string{
+			strings.TrimSpace(d.Nombres),
+			strings.TrimSpace(d.ApellidoPaterno),
+			strings.TrimSpace(d.ApellidoMaterno),
+		}
+		var nonEmpty []string
+		for _, p := range parts {
+			if p != "" {
+				nonEmpty = append(nonEmpty, p)
+			}
+		}
+		name = strings.Join(nonEmpty, " ")
+	}
+	outDNI := strings.TrimSpace(d.Numero)
+	if outDNI == "" {
+		outDNI = dni
+	}
+	if name == "" {
+		return nil, errors.New("no se obtuvo nombre para el DNI")
+	}
+	return &DniLookupResult{DNI: outDNI, FullName: name}, nil
 }

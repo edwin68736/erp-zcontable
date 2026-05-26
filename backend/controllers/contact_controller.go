@@ -29,7 +29,7 @@ func (ctrl *ContactController) ListByCompanyAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "companyID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -56,7 +56,7 @@ func (ctrl *ContactController) GetAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "companyID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -90,7 +90,7 @@ func (ctrl *ContactController) CreateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "companyID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -121,7 +121,7 @@ func (ctrl *ContactController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "companyID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -157,7 +157,7 @@ func (ctrl *ContactController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "companyID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})

@@ -36,6 +36,12 @@ func Connect() error {
 
 func AutoMigrate() error {
 	return DB.AutoMigrate(
+		&models.Module{},
+		&models.Permission{},
+		&models.Role{},
+		&models.SchemaMigration{},
+		&models.RolePermission{},
+		&models.UserRole{},
 		&models.User{},
 		&models.Company{},
 		&models.CompanyAssignment{},
@@ -53,5 +59,20 @@ func AutoMigrate() error {
 		&models.Product{},
 		&models.TaxSettlement{},
 		&models.TaxSettlementLine{},
+		&models.SupervisorPeriod{},
+		&models.SupervisorMonthlyControl{},
+		&models.SupervisorDeclaration{},
+		&models.SupervisorTaxLiquidation{},
+		&models.SupervisorNPS{},
+		&models.SupervisorChangeLog{},
+		&models.SupervisorObservation{},
+		&models.SupervisorAttachment{},
+		&models.SupervisorNotification{},
+		&models.FinanceCalendar{},
+		&models.FinanceCalendarMark{},
+		&models.FinanceCalendarActivity{},
+		&models.FiscalDocumentSeries{},
+		&models.FiscalReceiptLine{},
+		&models.FiscalReceiptPayment{},
 	)
 }

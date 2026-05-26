@@ -4,6 +4,8 @@ import type { Company, CompanyStatement } from '../types/dashboard';
 export interface CompaniesListParams {
   q?: string;
   status?: string;
+  /** estudio | externo */
+  client_type?: 'estudio' | 'externo';
   /** Orden del listado por código interno: asc (defecto) o desc. */
   code_order?: 'asc' | 'desc';
 }
@@ -24,6 +26,20 @@ export interface RucValidationResult {
   departamento?: string;
   provincia?: string;
   distrito?: string;
+}
+
+export interface DniValidationResult {
+  dni: string;
+  full_name: string;
+}
+
+export interface ExternalCompanyQuickInput {
+  ruc: string;
+  business_name: string;
+  trade_name?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface CompanyUpsertInput {
@@ -126,6 +142,16 @@ export const companiesService = {
   /** Consulta SUNAT vía ApiPeru.dev (credenciales en Ajustes del estudio). */
   async validateRuc(ruc: string): Promise<RucValidationResult> {
     const res = await client.post<RucValidationResult>('/companies/validate-ruc', { ruc });
+    return res.data;
+  },
+
+  async validateDni(dni: string): Promise<DniValidationResult> {
+    const res = await client.post<DniValidationResult>('/companies/validate-dni', { dni });
+    return res.data;
+  },
+
+  async convertToStudio(id: number, input: CompanyUpsertInput): Promise<Company> {
+    const res = await client.put<Company>(`/companies/${id}/convert-to-studio`, input);
     return res.data;
   },
 

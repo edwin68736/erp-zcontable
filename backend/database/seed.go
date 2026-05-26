@@ -14,7 +14,6 @@ func Seed() error {
 			Name:     "Admin",
 			Username: "admin",
 			Email:    &email,
-			Role:     "Administrador",
 		}
 		if err := admin.SetPassword("123456"); err != nil {
 			return err
@@ -49,6 +48,10 @@ func Seed() error {
 		if err := DB.Create(&models.ProductCategory{Name: "Productos", SortOrder: 1, Active: true}).Error; err != nil {
 			return err
 		}
+	}
+
+	if err := SeedFiscalDocumentSeries(); err != nil {
+		return err
 	}
 
 	return nil

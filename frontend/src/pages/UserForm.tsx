@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { auth } from '../services/auth';
 import { usersService, type UserUpsertInput } from '../services/users';
+import { rolesService, type RoleRow } from '../services/roles';
 import SearchableSelect from '../components/SearchableSelect';
+import { P } from '../rbac/codes';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el usuario';
@@ -30,9 +32,12 @@ const UserForm = () => {
   const userId = params.id ? Number(params.id) : null;
   const isEdit = Boolean(userId);
 
-  const role = auth.getRole() ?? '';
-  const isAdmin = useMemo(() => role === 'Administrador', [role]);
+  const canManageUsers = useMemo(
+    () => auth.hasPermission(P.usersCreate) || auth.hasPermission(P.usersUpdate),
+    [],
+  );
 
+  const [roleOptions, setRoleOptions] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +46,7 @@ const UserForm = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userRole, setUserRole] = useState('Asistente');
+  const [roleId, setRoleId] = useState(0);
   const [active, setActive] = useState(true);
   const [dni, setDni] = useState('');
   const [phone, setPhone] = useState('');
@@ -56,12 +61,15 @@ const UserForm = () => {
         setLoading(true);
         setError('');
 
+        const roles = await rolesService.list();
+        setRoleOptions(roles);
         if (isEdit && userId) {
           const u = await usersService.get(userId);
           setUsername(u.username ?? '');
           setName(u.name ?? '');
           setEmail(u.email ?? '');
-          setUserRole(u.role ?? 'Asistente');
+          const first = u.roles?.[0];
+          setRoleId(first?.id ?? 0);
           setActive(Boolean(u.active ?? true));
           setDni(u.dni ?? '');
           setPhone(u.phone ?? '');
@@ -70,6 +78,18 @@ const UserForm = () => {
           passwordAutoManaged.current = false;
           usernameHadContentRef.current = true;
         } else {
+          const def = roles.find((r) => r.is_default);
+          if (def) {
+            setRoleId(def.id);
+          } else {
+            try {
+              const d = await rolesService.getDefault();
+              setRoleId(d.id);
+            } catch {
+              setError('No hay rol predeterminado. Configure uno en Roles y permisos.');
+              setRoleId(0);
+            }
+          }
           setPassword('');
           passwordAutoManaged.current = true;
           usernameHadContentRef.current = false;
@@ -112,8 +132,12 @@ const UserForm = () => {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isAdmin) {
+    if (!canManageUsers) {
       setError('No tienes permisos para realizar esta acción');
+      return;
+    }
+    if (!roleId) {
+      setError('Seleccione un rol');
       return;
     }
     if (!username.trim()) {
@@ -135,7 +159,7 @@ const UserForm = () => {
       username: username.trim(),
       name: name.trim(),
       email: email.trim() || undefined,
-      role: userRole,
+      role_id: roleId,
       password: isEdit ? (password.trim() ? password : undefined) : password.trim(),
       active,
       dni: dni.trim(),
@@ -180,7 +204,7 @@ const UserForm = () => {
     );
   }
 
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <div className="max-w-5xl mx-auto w-full space-y-6">
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -281,14 +305,12 @@ const UserForm = () => {
             <SearchableSelect
               id="role"
               name="role"
-              value={userRole}
-              onChange={setUserRole}
-              options={[
-                { value: 'Administrador', label: 'Administrador' },
-                { value: 'Supervisor', label: 'Supervisor' },
-                { value: 'Contador', label: 'Contador' },
-                { value: 'Asistente', label: 'Asistente' },
-              ]}
+              value={roleId ? String(roleId) : ''}
+              onChange={(v) => setRoleId(Number(v) || 0)}
+              options={roleOptions.map((r) => ({
+                value: String(r.id),
+                label: r.name,
+              }))}
             />
           </div>
         </div>

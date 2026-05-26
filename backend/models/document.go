@@ -21,8 +21,8 @@ type Document struct {
 	DueDate        *time.Time     `gorm:"index" json:"due_date,omitempty"`
 	TotalAmount    float64        `gorm:"type:decimal(15,2);not null" json:"total_amount"`
 	Description    string         `gorm:"type:text" json:"description"`
-	ServiceMonth       string `gorm:"size:7;index" json:"service_month"`       // YYYY-MM mensualidad plan
-	AccountingPeriod   string `gorm:"size:7;index" json:"accounting_period"` // YYYY-MM periodo contable del cargo (independiente de issue_date)
+	ServiceMonth       string `gorm:"size:64;index" json:"service_month"`       // YYYY-MM o etiqueta corta (mensualidad / liquidación)
+	AccountingPeriod   string `gorm:"size:64;index" json:"accounting_period"` // periodo contable o referencia libre (independiente de issue_date)
 	Status         string         `gorm:"size:50;not null" json:"status"`   // emitido, pagado, vencido, etc.
 	Source         string         `gorm:"size:50;not null" json:"source"`   // tukifac, manual, recurrente_plan
 	CreatedAt      time.Time      `json:"created_at"`
@@ -35,6 +35,8 @@ type Document struct {
 	Items      []DocumentItem       `gorm:"foreignKey:DocumentID" json:"items,omitempty"`
 	// Número legible para UI (p. ej. DEU-LI-202603 en deudas de liquidación); no persiste en BD.
 	DisplayNumber string `json:"display_number,omitempty" gorm:"-"`
+	// HasItems indica si existen filas en document_items (relleno en API, no columna en BD).
+	HasItems bool `json:"has_items,omitempty" gorm:"-"`
 }
 
 func (Document) TableName() string {

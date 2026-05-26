@@ -16,7 +16,7 @@ const Login = () => {
 
     try {
       await auth.login(username.trim(), password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err: unknown) {
       console.error(err);
       const ax = err as { response?: { data?: { error?: string } } };

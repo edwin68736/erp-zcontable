@@ -43,7 +43,7 @@ func (ctrl *TaxSettlementController) ensureCompanyAccess(c fiber.Ctx, companyID 
 	if companyID == 0 {
 		return fiber.NewError(fiber.StatusBadRequest, "empresa inválida")
 	}
-	if isAdmin(c) {
+	if hasStudioScope(c) {
 		return nil
 	}
 	uid, err := getUserID(c)
@@ -111,7 +111,7 @@ func (ctrl *TaxSettlementController) ListAPI(c fiber.Ctx) error {
 		}
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		uid, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})

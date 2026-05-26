@@ -517,7 +517,7 @@ func parseMinOverdueMonthsQuery(c fiber.Ctx) int {
 
 func (ctrl *DashboardController) HomeAPI(c fiber.Ctx) error {
 	minOvd := parseMinOverdueMonthsQuery(c)
-	if isAdmin(c) {
+	if hasStudioScope(c) {
 		data, err := ctrl.getDashboardData(minOvd)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

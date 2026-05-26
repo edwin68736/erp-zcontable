@@ -51,12 +51,6 @@ func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig) (*models.Firm
 	if input.LogoURL != "" {
 		cfg.LogoURL = input.LogoURL
 	}
-	if input.TukifacAPIURL != "" {
-		cfg.TukifacAPIURL = input.TukifacAPIURL
-	}
-	if input.TukifacAPIToken != "" {
-		cfg.TukifacAPIToken = input.TukifacAPIToken
-	}
 	if input.ApiPeruBaseURL != "" {
 		cfg.ApiPeruBaseURL = input.ApiPeruBaseURL
 	}

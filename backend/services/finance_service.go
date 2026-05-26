@@ -90,6 +90,7 @@ func (s *FinanceService) GetCompanyStatement(companyID uint, ledgerYear int, led
 		Preload("Document").
 		Preload("TaxSettlement").
 		Preload("TukifacFiscalReceipt").
+		Preload("Allocations", "deleted_at IS NULL").
 		Where("company_id = ?", companyID).
 		Order("date DESC, id DESC").
 		Find(&pays).Error; err != nil {

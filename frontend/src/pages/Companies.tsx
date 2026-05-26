@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { companiesService, type CompanyUpsertInput } from '../services/companies';
 import type { PaginationMeta as ApiPaginationMeta } from '../services/companies';
 import { usersService } from '../services/users';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
+import {
+  userIsTeamAccountantOrAdmin,
+  userIsTeamAssistantOrAdmin,
+  userIsTeamSupervisorOrAdmin,
+} from '../rbac/userRoles';
 import { formatUserPickLabel } from '../utils/userLabel';
 import { Company, User } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
@@ -52,10 +58,12 @@ const Companies = () => {
     total: 0,
     total_pages: 0,
   });
-  const role = auth.getRole() ?? '';
-  const isAdmin = role === 'Administrador';
-  const canUpsert = role === 'Administrador' || role === 'Supervisor';
-  const canDelete = role === 'Administrador';
+  const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.companiesCreate) || auth.hasPermission(P.companiesUpdate),
+    [],
+  );
+  const canDelete = useMemo(() => auth.hasPermission(P.companiesDelete), []);
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamCompany, setTeamCompany] = useState<Company | null>(null);
@@ -150,6 +158,7 @@ const Companies = () => {
       const res = await companiesService.listPaged({
         q: qRaw || undefined,
         status: stRaw || undefined,
+        client_type: 'estudio',
         code_order: sp.get('code_order') === 'desc' ? 'desc' : 'asc',
         page: parsePositiveInt(sp.get('page'), 1),
         per_page: parsePositiveInt(sp.get('per_page'), 20),
@@ -813,7 +822,7 @@ const Companies = () => {
                           options={[
                             { value: '', label: 'Sin asignar' },
                             ...teamUsers
-                              .filter((u) => u.role === 'Supervisor' || u.role === 'Administrador')
+                              .filter((u) => userIsTeamSupervisorOrAdmin(u))
                               .map((u) => ({
                                 value: String(u.id),
                                 label: formatUserPickLabel(u),
@@ -830,7 +839,7 @@ const Companies = () => {
                           options={[
                             { value: '', label: 'Sin asignar' },
                             ...teamUsers
-                              .filter((u) => u.role === 'Asistente' || u.role === 'Administrador')
+                              .filter((u) => userIsTeamAssistantOrAdmin(u))
                               .map((u) => ({
                                 value: String(u.id),
                                 label: formatUserPickLabel(u),
@@ -847,7 +856,7 @@ const Companies = () => {
                           options={[
                             { value: '', label: 'Sin asignar' },
                             ...teamUsers
-                              .filter((u) => u.role === 'Contador' || u.role === 'Administrador')
+                              .filter((u) => userIsTeamAccountantOrAdmin(u))
                               .map((u) => ({
                                 value: String(u.id),
                                 label: formatUserPickLabel(u),

@@ -3,12 +3,13 @@ import { useEffect } from 'react';
 import Layout from './layouts/Layout';
 import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
+import ExternalClients from './pages/ExternalClients';
 import CompanyForm from './pages/CompanyForm';
 import CompanyStatement from './pages/CompanyStatement';
 import CompanyContacts from './pages/CompanyContacts';
 import CompanyContactForm from './pages/CompanyContactForm';
 import Documents from './pages/Documents';
-import TukifacDocuments from './pages/TukifacDocuments';
+import FiscalDocumentSeries from './pages/FiscalDocumentSeries';
 import FiscalReceipts from './pages/FiscalReceipts';
 import TaxSettlements from './pages/TaxSettlements';
 import TaxSettlementNew from './pages/TaxSettlementNew';
@@ -27,9 +28,23 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import UserForm from './pages/UserForm';
+import RolePermissions from './pages/RolePermissions';
 import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
+import ModuleComingSoon from './pages/ModuleComingSoon';
+import SupervisorDashboard from './pages/supervisors/SupervisorDashboard';
+import SupervisorPeriods from './pages/supervisors/SupervisorPeriods';
+import SupervisorControls from './pages/supervisors/SupervisorControls';
+import SupervisorControlDetail from './pages/supervisors/SupervisorControlDetail';
+import SupervisorReports from './pages/supervisors/SupervisorReports';
+import SupervisorNotifications from './pages/supervisors/SupervisorNotifications';
+import FinanceCalendar from './pages/finance/FinanceCalendar';
+import AssistantWorkspace from './pages/assistant/AssistantWorkspace';
+import AssistantControls from './pages/assistant/AssistantControls';
 import ProtectedRoute from './components/ProtectedRoute';
+import HomeRedirect from './components/HomeRedirect';
+import PosSale from './pages/pos/PosSale';
+import PosHistory from './pages/pos/PosHistory';
 import { auth } from './services/auth';
 
 const Logout = () => {
@@ -52,10 +67,12 @@ function App() {
         
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<HomeRedirect />} />
             <Route path="logout" element={<Logout />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="m/:slug" element={<ModuleComingSoon />} />
             <Route path="companies" element={<Companies />} />
+            <Route path="companies/external" element={<ExternalClients />} />
             <Route path="companies/new" element={<CompanyForm />} />
             <Route path="companies/:id/edit" element={<CompanyForm />} />
             <Route path="companies/:id/statement" element={<CompanyStatement />} />
@@ -67,10 +84,10 @@ function App() {
             <Route path="tax-settlements/new" element={<TaxSettlementNew />} />
             <Route path="tax-settlements/:id" element={<TaxSettlementDetail />} />
             <Route path="comprobantes" element={<Comprobantes />} />
-            <Route path="tukifac/documentos" element={<TukifacDocuments />} />
-            <Route path="documents/tukifac" element={<Navigate to="/tukifac/documentos" replace />} />
+            <Route path="tukifac/documentos" element={<Navigate to="/comprobantes" replace />} />
+            <Route path="documents/tukifac" element={<Navigate to="/comprobantes" replace />} />
             <Route path="documents/fiscal-receipts" element={<FiscalReceipts />} />
-            <Route path="fiscal-receipts" element={<Navigate to="/documents/fiscal-receipts" replace />} />
+            <Route path="fiscal-receipts" element={<Navigate to="/comprobantes?status=pendiente_vincular" replace />} />
             <Route path="plan-categories" element={<PlanCategories />} />
             <Route path="plan-categories/new" element={<PlanCategoryForm />} />
             <Route path="plan-categories/:id/edit" element={<PlanCategoryForm />} />
@@ -86,8 +103,22 @@ function App() {
             <Route path="payments/new" element={<PaymentForm />} />
             <Route path="payments/:id/edit" element={<PaymentForm />} />
             <Route path="reports/financial" element={<Reports />} />
+            <Route path="supervisors/dashboard" element={<SupervisorDashboard />} />
+            <Route path="supervisors/periods" element={<SupervisorPeriods />} />
+            <Route path="supervisors/controls" element={<SupervisorControls />} />
+            <Route path="supervisors/controls/:id" element={<SupervisorControlDetail />} />
+            <Route path="supervisors/reports" element={<SupervisorReports />} />
+            <Route path="supervisors/notifications" element={<SupervisorNotifications />} />
+            <Route path="finance/calendar" element={<FinanceCalendar />} />
+            <Route path="assistant" element={<AssistantWorkspace />} />
+            <Route path="assistant/controls" element={<AssistantControls />} />
+            <Route path="assistant/controls/:id" element={<SupervisorControlDetail />} />
+            <Route path="pos" element={<PosSale />} />
+            <Route path="pos/history" element={<PosHistory />} />
             <Route path="settings/firm" element={<Settings />} />
+            <Route path="settings/fiscal-series" element={<FiscalDocumentSeries />} />
             <Route path="users" element={<Users />} />
+            <Route path="users/roles" element={<RolePermissions />} />
             <Route path="users/new" element={<UserForm />} />
             <Route path="users/:id/edit" element={<UserForm />} />
             

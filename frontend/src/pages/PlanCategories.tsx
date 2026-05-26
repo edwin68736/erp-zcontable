@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { planCategoriesService } from '../services/planCategories';
 import type { PlanCategory } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 
 const PlanCategories = () => {
-  const canEdit = auth.getRole() === 'Administrador' || auth.getRole() === 'Supervisor';
+  const canEdit = useMemo(
+    () => auth.hasPermission(P.planCategoriesCreate) || auth.hasPermission(P.planCategoriesUpdate),
+    [],
+  );
   const [list, setList] = useState<PlanCategory[]>([]);
   const [loading, setLoading] = useState(true);
 

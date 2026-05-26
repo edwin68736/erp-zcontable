@@ -17,6 +17,7 @@ type Payment struct {
 	Method      string         `gorm:"size:50" json:"method"`   // transferencia, efectivo, etc.
 	Reference   string         `gorm:"size:100" json:"reference"`
 	Attachment  string         `gorm:"size:255" json:"attachment"` // ruta/URL del comprobante
+	Description string         `gorm:"type:text" json:"description"` // detalle visible al cliente (ej. concepto del servicio)
 	Notes       string         `gorm:"type:text" json:"notes"`
 	// FiscalStatus: na | pending_receipt | linked (vínculo comprobante Tukifac)
 	FiscalStatus string `gorm:"size:30;not null;default:'na'" json:"fiscal_status"`

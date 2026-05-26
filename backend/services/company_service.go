@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"miappfiber/database"
 	"miappfiber/models"
+	"miappfiber/rbac"
 
 	"gorm.io/gorm"
 )
@@ -50,9 +52,20 @@ func (s *CompanyService) NextInternalCode() (string, error) {
 type CompanyListParams struct {
 	Query             string
 	Status            string
+	ClientType        string
 	AllowedCompanyIDs []uint
 	// CodeOrder: "asc" | "desc" — orden por internal_code (código de empresa).
 	CodeOrder string
+}
+
+// ExternalCompanyQuickInput alta rápida desde POS (cliente externo).
+type ExternalCompanyQuickInput struct {
+	RUC          string `json:"ruc"`
+	BusinessName string `json:"business_name"`
+	TradeName    string `json:"trade_name"`
+	Address      string `json:"address"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
 }
 
 // companyListOrderByCode ordena por código como número (internal_code es VARCHAR en BD).
@@ -124,8 +137,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("contador general inactivo")
 			}
-			if u.Role != "Contador" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Contador")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
 			}
 		}
 	}
@@ -140,8 +154,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("supervisor inactivo")
 			}
-			if u.Role != "Supervisor" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Supervisor")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
 			}
 		}
 	}
@@ -156,8 +171,9 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			if !u.Active {
 				return errors.New("asistente inactivo")
 			}
-			if u.Role != "Asistente" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Asistente")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
 			}
 		}
 	}
@@ -195,7 +211,168 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 	return nil
 }
 
+func normalizeCompanyDoc(raw string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, strings.TrimSpace(raw))
+}
+
+// NextExternalInternalCode código interno para clientes POS (prefijo E + 4 dígitos).
+func (s *CompanyService) NextExternalInternalCode() (string, error) {
+	var codes []string
+	if err := database.DB.Model(&models.Company{}).
+		Where("internal_code LIKE ?", "E%").
+		Pluck("internal_code", &codes).Error; err != nil {
+		return "", err
+	}
+	maxN := 0
+	for _, c := range codes {
+		c = strings.TrimSpace(c)
+		if len(c) < 2 || !strings.HasPrefix(strings.ToUpper(c), "E") {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimLeft(c[1:], "0"))
+		if err == nil && n > maxN {
+			maxN = n
+		}
+	}
+	next := maxN + 1
+	if next > 9999 {
+		return "", errors.New("no hay códigos internos E disponibles")
+	}
+	return fmt.Sprintf("E%04d", next), nil
+}
+
+func (s *CompanyService) ValidateExternalCompanyForCreate(db *gorm.DB, input *models.Company) error {
+	input.ClientType = models.CompanyClientTypeExterno
+	input.RUC = normalizeCompanyDoc(input.RUC)
+	input.BusinessName = strings.TrimSpace(input.BusinessName)
+	input.InternalCode = strings.TrimSpace(input.InternalCode)
+	input.TradeName = strings.TrimSpace(input.TradeName)
+	input.Address = strings.TrimSpace(input.Address)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.Email = strings.TrimSpace(input.Email)
+
+	if len(input.RUC) != 8 && len(input.RUC) != 11 {
+		return errors.New("el documento debe tener 8 dígitos (DNI) u 11 (RUC)")
+	}
+	if input.BusinessName == "" {
+		return errors.New("el nombre o razón social es requerido")
+	}
+	if input.InternalCode == "" {
+		return errors.New("el código interno es requerido")
+	}
+
+	var count int64
+	db.Model(&models.Company{}).Where("internal_code = ?", input.InternalCode).Count(&count)
+	if count > 0 {
+		return errors.New("el código interno ya existe")
+	}
+	if input.Status == "" {
+		input.Status = "activo"
+	}
+	input.SubscriptionActive = false
+	input.SubscriptionPlanID = nil
+	input.AccountantUserID = nil
+	input.SupervisorUserID = nil
+	input.AssistantUserID = nil
+	return nil
+}
+
+// CreateExternal crea un cliente externo (POS) con datos mínimos.
+func (s *CompanyService) CreateExternal(in ExternalCompanyQuickInput) (*models.Company, error) {
+	code, err := s.NextExternalInternalCode()
+	if err != nil {
+		return nil, err
+	}
+	c := &models.Company{
+		ClientType:   models.CompanyClientTypeExterno,
+		RUC:          in.RUC,
+		BusinessName: in.BusinessName,
+		InternalCode: code,
+		Status:       "activo",
+		TradeName:    strings.TrimSpace(in.TradeName),
+		Address:      strings.TrimSpace(in.Address),
+		Phone:        strings.TrimSpace(in.Phone),
+		Email:        strings.TrimSpace(in.Email),
+	}
+	if c.TradeName == "" {
+		c.TradeName = c.BusinessName
+	}
+	if err := s.ValidateExternalCompanyForCreate(database.DB, c); err != nil {
+		return nil, err
+	}
+	if err := database.DB.Create(c).Error; err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// ConvertToStudio convierte un cliente externo en cliente del estudio (datos contables completos).
+func (s *CompanyService) ConvertToStudio(id uint, input *models.Company) (*models.Company, error) {
+	var c models.Company
+	if err := database.DB.First(&c, id).Error; err != nil {
+		return nil, err
+	}
+	if c.ClientType != models.CompanyClientTypeExterno {
+		return nil, errors.New("solo se pueden convertir clientes externos")
+	}
+	input.ID = c.ID
+	input.ClientType = models.CompanyClientTypeEstudio
+	if input.InternalCode == "" {
+		input.InternalCode = c.InternalCode
+	}
+	if input.RUC == "" {
+		input.RUC = c.RUC
+	}
+	if input.BusinessName == "" {
+		input.BusinessName = c.BusinessName
+	}
+	if input.Status == "" {
+		input.Status = c.Status
+	}
+	if err := s.ValidateNewCompanyForCreate(database.DB, input); err != nil {
+		return nil, err
+	}
+	if input.SubscriptionPlanID != nil && *input.SubscriptionPlanID > 0 {
+		input.SubscriptionActive = true
+	}
+	if err := database.DB.Model(&c).Updates(map[string]interface{}{
+		"client_type":             models.CompanyClientTypeEstudio,
+		"ruc":                     strings.TrimSpace(input.RUC),
+		"business_name":           strings.TrimSpace(input.BusinessName),
+		"internal_code":           strings.TrimSpace(input.InternalCode),
+		"status":                  strings.TrimSpace(input.Status),
+		"trade_name":              strings.TrimSpace(input.TradeName),
+		"address":                 strings.TrimSpace(input.Address),
+		"phone":                   strings.TrimSpace(input.Phone),
+		"email":                   strings.TrimSpace(input.Email),
+		"service_start_at":        input.ServiceStartAt,
+		"accountant_user_id":      input.AccountantUserID,
+		"supervisor_user_id":      input.SupervisorUserID,
+		"assistant_user_id":       input.AssistantUserID,
+		"subscription_plan_id":    input.SubscriptionPlanID,
+		"billing_cycle":           strings.TrimSpace(input.BillingCycle),
+		"subscription_started_at": input.SubscriptionStartedAt,
+		"subscription_ended_at":   input.SubscriptionEndedAt,
+		"subscription_active":     input.SubscriptionActive,
+		"declared_billing_amount": input.DeclaredBillingAmount,
+	}).Error; err != nil {
+		return nil, err
+	}
+	return s.GetByID(id)
+}
+
 func (s *CompanyService) Create(input *models.Company) error {
+	if strings.TrimSpace(input.ClientType) == "" {
+		input.ClientType = models.CompanyClientTypeEstudio
+	}
+	if input.ClientType != models.CompanyClientTypeEstudio {
+		return errors.New("use el registro rápido del POS para clientes externos")
+	}
 	if err := s.ValidateNewCompanyForCreate(database.DB, input); err != nil {
 		return err
 	}
@@ -267,8 +444,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("contador general inactivo")
 			}
-			if u.Role != "Contador" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Contador")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
 			}
 			c.AccountantUserID = input.AccountantUserID
 		}
@@ -284,8 +462,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("supervisor inactivo")
 			}
-			if u.Role != "Supervisor" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Supervisor")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
 			}
 			c.SupervisorUserID = input.SupervisorUserID
 		}
@@ -301,8 +480,9 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			if !u.Active {
 				return errors.New("asistente inactivo")
 			}
-			if u.Role != "Asistente" && u.Role != "Administrador" {
-				return errors.New("el usuario seleccionado no tiene rol Asistente")
+			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
+			if !ok {
+				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
 			}
 			c.AssistantUserID = input.AssistantUserID
 		}
@@ -379,6 +559,10 @@ func (s *CompanyService) companyListBaseQuery(params CompanyListParams) *gorm.DB
 	}
 	if params.Status != "" {
 		q = q.Where("status = ?", params.Status)
+	}
+	ct := strings.TrimSpace(params.ClientType)
+	if ct != "" {
+		q = q.Where("client_type = ?", ct)
 	}
 	if params.Query != "" {
 		like := "%" + params.Query + "%"

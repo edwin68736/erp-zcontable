@@ -24,7 +24,7 @@ func NewReportController() *ReportController {
 
 func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 	var allowedCompanyIDs []uint
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -38,10 +38,10 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 	}
 
 	var totalDocs, totalPays float64
-	if len(allowedCompanyIDs) > 0 || isAdmin(c) {
+	if len(allowedCompanyIDs) > 0 || hasStudioScope(c) {
 		docQ := database.DB.Model(&models.Document{}).Where("status <> ?", "anulado")
 		payQ := database.DB.Model(&models.Payment{})
-		if !isAdmin(c) {
+		if !hasStudioScope(c) {
 			docQ = docQ.Where("company_id IN ?", allowedCompanyIDs)
 			payQ = payQ.Where("company_id IN ?", allowedCompanyIDs)
 		}
@@ -51,8 +51,8 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 
 	include := c.Query("include", "")
 	if include == "companies" {
-		params := services.FinancialReportParams{IsAdmin: isAdmin(c)}
-		if !isAdmin(c) {
+		params := services.FinancialReportParams{IsAdmin: hasStudioScope(c)}
+		if !hasStudioScope(c) {
 			params.AllowedCompanyIDs = allowedCompanyIDs
 			if len(allowedCompanyIDs) == 0 {
 				return c.JSON(fiber.Map{

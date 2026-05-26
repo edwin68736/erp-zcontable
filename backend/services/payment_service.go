@@ -34,6 +34,7 @@ type PaymentCreateParams struct {
 	Method         string
 	Reference      string
 	Attachment     string
+	Description    string
 	Notes          string
 	AllocationMode string // fifo, manual (implícito si hay allocations), vacío + document_id = un documento
 	Allocations    []PaymentAllocationInput
@@ -117,6 +118,7 @@ func (s *PaymentService) Create(input *models.Payment) error {
 		Method:         input.Method,
 		Reference:      input.Reference,
 		Attachment:     input.Attachment,
+		Description:    strings.TrimSpace(input.Description),
 		Notes:          input.Notes,
 		FiscalStatus:   fs,
 		AllocationMode: "",
@@ -169,6 +171,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			Method:       p.Method,
 			Reference:    p.Reference,
 			Attachment:   p.Attachment,
+			Description:  p.Description,
 			Notes:        p.Notes,
 			FiscalStatus: p.FiscalStatus,
 		}
@@ -214,6 +217,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 				Method:       p.Method,
 				Reference:    p.Reference,
 				Attachment:   p.Attachment,
+				Description:  p.Description,
 				Notes:        p.Notes,
 				FiscalStatus: p.FiscalStatus,
 			}
@@ -276,6 +280,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			Method:          p.Method,
 			Reference:       p.Reference,
 			Attachment:      p.Attachment,
+			Description:     p.Description,
 			Notes:           p.Notes,
 			FiscalStatus:    p.FiscalStatus,
 			TaxSettlementID: p.TaxSettlementID,
@@ -375,6 +380,9 @@ func (s *PaymentService) Update(id uint, input *models.Payment) error {
 	}
 	if input.Notes != "" {
 		p.Notes = input.Notes
+	}
+	if input.Description != "" {
+		p.Description = input.Description
 	}
 	if input.DocumentID != nil {
 		if *input.DocumentID == 0 {
