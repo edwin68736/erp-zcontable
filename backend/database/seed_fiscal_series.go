@@ -7,7 +7,7 @@ import (
 )
 
 // SeedFiscalDocumentSeries inserta series por defecto solo en instalación vacía.
-// Si ya existe al menos una serie (p. ej. NV03 tras editar), no hace nada en cada deploy.
+// Si ya existe al menos una serie (p. ej. NV03 tras editar), no hace nada en cada deploy. otra prueba para ejecutar
 func SeedFiscalDocumentSeries() error {
 	var count int64
 	if err := DB.Model(&models.FiscalDocumentSeries{}).Count(&count).Error; err != nil {
