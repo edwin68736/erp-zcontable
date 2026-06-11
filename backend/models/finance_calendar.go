@@ -76,6 +76,7 @@ type FinanceCalendarActivity struct {
 	ActivityKind string         `gorm:"size:30;not null;default:'other'" json:"activity_kind"`
 	Priority     string         `gorm:"size:20;not null;default:'media'" json:"priority"`
 	Status       string         `gorm:"size:20;not null;default:'pendiente'" json:"status"`
+	TextColor    string         `gorm:"size:7;not null;default:'#1d4ed8'" json:"text_color"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`

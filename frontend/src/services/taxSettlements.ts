@@ -36,6 +36,7 @@ export interface TaxSettlementUpdateInput {
   notes?: string;
   pdt621_json?: string;
   lines: TaxSettlementLineInput[];
+  operation_key?: string;
 }
 
 export interface TaxSettlementsPaginationMeta {
@@ -62,6 +63,32 @@ export interface PaymentSuggestionsResponse {
   status: string;
   lines: SettlementPaymentSuggestion[];
   suggested_total: number;
+}
+
+export interface SettlementDebtRow {
+  document_id: number;
+  number: string;
+  description: string;
+  total_amount: number;
+  balance_amount: number;
+  status: string;
+  accounting_period?: string;
+  has_period: boolean;
+  period_month?: number;
+  period_year?: number;
+  source_settlement_id?: number;
+  source_settlement_number?: string;
+  source_settlement_period?: string;
+  from_previous_settlement?: boolean;
+  historical_view?: boolean;
+}
+
+export interface SettlementDebtsContext {
+  tax_settlement_id: number;
+  company_id: number;
+  linked: SettlementDebtRow[];
+  unlinked: SettlementDebtRow[];
+  pending_from_previous_count?: number;
 }
 
 export const taxSettlementsService = {
@@ -118,12 +145,45 @@ export const taxSettlementsService = {
     return res.data;
   },
 
+  async close(id: number): Promise<TaxSettlement> {
+    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/close`, {});
+    return res.data;
+  },
+
+  async pendingFromClosed(companyId: number): Promise<{ count: number; items: SettlementDebtRow[] }> {
+    const res = await client.get<{ count: number; data: SettlementDebtRow[] }>(
+      `/companies/${companyId}/settlements/pending-from-closed`,
+    );
+    return { count: res.data?.count ?? 0, items: res.data?.data ?? [] };
+  },
+
   async paymentSuggestions(id: number): Promise<PaymentSuggestionsResponse> {
     const res = await client.get<PaymentSuggestionsResponse>(`/tax-settlements/${id}/payment-suggestions`);
     return res.data;
   },
 
-  async delete(id: number): Promise<void> {
-    await client.delete(`/tax-settlements/${id}`);
+  async debtsContext(id: number): Promise<SettlementDebtsContext> {
+    const res = await client.get<SettlementDebtsContext>(`/tax-settlements/${id}/debts-context`);
+    return res.data;
+  },
+
+  async linkDebt(settlementId: number, documentId: number, concept?: string, amount?: number): Promise<TaxSettlement> {
+    const res = await client.post<TaxSettlement>(`/tax-settlements/${settlementId}/link-debt`, {
+      document_id: documentId,
+      concept: concept?.trim() || undefined,
+      amount: amount && amount > 0 ? amount : undefined,
+    });
+    return res.data;
+  },
+
+  async revertToDraft(id: number, operationKey: string): Promise<TaxSettlement> {
+    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/revert-to-draft`, {
+      operation_key: operationKey,
+    });
+    return res.data;
+  },
+
+  async delete(id: number, operationKey: string): Promise<void> {
+    await client.delete(`/tax-settlements/${id}`, { data: { operation_key: operationKey } });
   },
 };

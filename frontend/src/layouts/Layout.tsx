@@ -130,7 +130,7 @@ const Layout = () => {
           : undefined
       }
     >
-      <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+      <div className="fixed top-4 right-4 z-[10050] space-y-2 pointer-events-none">
         {toasts.map((t) => {
           const icon =
             t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';

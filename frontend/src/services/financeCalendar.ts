@@ -27,6 +27,7 @@ export interface FinanceCalendarActivity {
   activity_kind: string;
   priority: string;
   status: string;
+  text_color?: string;
   start_date?: string;
   end_date?: string;
   due_date?: string;
@@ -145,6 +146,7 @@ export const financeCalendarService = {
       activity_kind: string;
       priority: string;
       status?: string;
+      text_color?: string;
     },
   ) {
     const res = await client.post<{ data: FinanceCalendarActivity }>(
@@ -165,6 +167,7 @@ export const financeCalendarService = {
       activity_kind: string;
       priority: string;
       status: string;
+      text_color: string;
     }>,
   ) {
     const res = await client.put<{ data: FinanceCalendarActivity }>(`/finance/calendar/activities/${id}`, body);

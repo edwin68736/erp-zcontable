@@ -7,6 +7,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	debtsvc "miappfiber/services/debt"
 )
 
 // FinancialReportParams filtros para el reporte financiero por empresa.
@@ -84,7 +85,13 @@ func (s *FinanceService) MaxPeriodLagMonthsForCompany(companyID uint) (maxLag in
 	oldestYM = ""
 	haveOldest := false
 	for _, d := range docs {
-		bal := d.TotalAmount - DocumentPaidTotal(database.DB, d.ID)
+		if !debtsvc.IsActiveDebt(&d) {
+			continue
+		}
+		bal := d.BalanceAmount
+		if bal <= 0.005 {
+			bal = debtsvc.NewService().EffectiveBalance(database.DB, &d)
+		}
 		if bal <= 0.005 {
 			continue
 		}
@@ -122,10 +129,16 @@ func (s *FinanceService) MaxOverdueMonthsForCompany(companyID uint) (int, bool) 
 	maxM := 0
 	hasOverdue := false
 	for _, d := range docs {
+		if !debtsvc.IsActiveDebt(&d) {
+			continue
+		}
 		if d.DueDate == nil || d.DueDate.IsZero() {
 			continue
 		}
-		bal := d.TotalAmount - DocumentPaidTotal(database.DB, d.ID)
+		bal := d.BalanceAmount
+		if bal <= 0.005 {
+			bal = debtsvc.NewService().EffectiveBalance(database.DB, &d)
+		}
 		if bal <= 0.005 {
 			continue
 		}

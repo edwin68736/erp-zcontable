@@ -117,9 +117,46 @@ export interface Document {
   service_month?: string;
   /** Periodo contable YYYY-MM (independiente de issue_date). */
   accounting_period?: string;
+  has_period?: boolean;
+  period_month?: number;
+  period_year?: number;
+  tax_settlement_id?: number;
+  /** Liquidación vinculada (precargada en listados). */
+  tax_settlement?: {
+    id: number;
+    number?: string;
+    liquidation_period?: string;
+    status?: string;
+  };
   items?: DocumentItem[];
   /** Presente en API de listado/detalle: si existen filas en `document_items`. */
   has_items?: boolean;
+  paid_amount?: number;
+  balance_amount?: number;
+  is_overdue?: boolean;
+  payment_history?: DocumentPaymentHistoryEntry[];
+}
+
+export interface DocumentPaymentHistoryEntry {
+  payment_id: number;
+  date: string;
+  amount: number;
+  method?: string;
+  reference?: string;
+  notes?: string;
+  description?: string;
+}
+
+export interface DebtPaymentContext {
+  is_partial_payment: boolean;
+  status_label: string;
+  document_number?: string;
+  paid_concept_label?: string;
+  paid_concepts?: string[];
+  debt_total: number;
+  paid_this_operation: number;
+  paid_accumulated: number;
+  balance_pending: number;
 }
 
 export interface PaymentAllocation {
@@ -184,6 +221,7 @@ export interface TukifacFiscalReceipt {
   pdf_url?: string;
   /** Período contable / liquidación (detalle PDF). */
   period_label?: string;
+  debt_payment_context?: DebtPaymentContext;
   company?: Company;
   linked_payment?: {
     id: number;
@@ -236,6 +274,7 @@ export interface TaxSettlement {
   period_from?: string | null;
   period_to?: string | null;
   status: string;
+  closed_at?: string | null;
   notes?: string;
   pdt621_json?: string;
   total_honorarios: number;
@@ -270,6 +309,10 @@ export interface FirmConfig {
   statement_payment_qr_url?: string;
   /** Texto bajo el QR; por defecto en PDF «Paga aquí con Yape» */
   statement_payment_qr_caption?: string;
+  /** true si ya hay clave de operaciones registrada (el hash no se expone). */
+  operations_key_configured?: boolean;
+  /** JSON colores pastel por dígito 0–9 para claves SOL (p. ej. {"0":"cyan","1":"sky"}). */
+  claves_sol_dig_colors_json?: string;
   created_at?: string;
   updated_at?: string;
 }

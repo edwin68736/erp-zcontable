@@ -150,6 +150,10 @@ const (
 	FinanceCalendarView   = "finance.calendar_view"
 	FinanceCalendarManage = "finance.calendar_manage"
 
+	CompanyCredentialsView   = "finance.company_credentials_view"
+	CompanyCredentialsManage = "finance.company_credentials_manage"
+	CompanyCredentialsImport = "finance.company_credentials_import"
+
 	SalesEmit           = "sales.emit"
 	SalesHistory        = "sales.history"
 	SalesCatalogPick    = "sales.catalog_pick"
@@ -187,5 +191,6 @@ var AllPermissionCodes = []string{
 	SupervisorsObservationsView, SupervisorsObservationsCreate, SupervisorsHistoryView,
 	SupervisorsAttachmentsUpload, SupervisorsNotificationsView, SupervisorsNPSRegisterPayment,
 	FinanceCalendarView, FinanceCalendarManage,
+	CompanyCredentialsView, CompanyCredentialsManage, CompanyCredentialsImport,
 	SalesEmit, SalesHistory, SalesCatalogPick, SalesCompaniesPick, SalesLinePriceEdit,
 }

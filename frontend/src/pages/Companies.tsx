@@ -6,6 +6,7 @@ import type { PaginationMeta as ApiPaginationMeta } from '../services/companies'
 import { usersService } from '../services/users';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import { extractApiErrorMessage } from '../utils/apiError';
 import {
   userIsTeamAccountantOrAdmin,
   userIsTeamAssistantOrAdmin,
@@ -256,7 +257,11 @@ const Companies = () => {
       closeTeamModal();
     } catch (e) {
       console.error(e);
-      setTeamError('Error al guardar el equipo contable');
+      const msg = extractApiErrorMessage(e, 'Error al guardar el equipo contable');
+      setTeamError(msg);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }),
+      );
     } finally {
       setTeamSaving(false);
     }

@@ -1,10 +1,12 @@
 package services
 
 import (
+	"math"
 	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
+	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
 )
@@ -110,11 +112,16 @@ func (s *FinanceService) GetCompanyStatement(companyID uint, ledgerYear int, led
 			continue
 		}
 		totalDocs += d.TotalAmount
-		paid := DocumentPaidTotal(database.DB, d.ID)
+		debtSvc := debtsvc.NewService()
+		bal := debtSvc.EffectiveBalance(database.DB, &d)
+		paid := roundMoneyDebt(d.TotalAmount - bal)
+		if paid < 0 {
+			paid = 0
+		}
 		statDocs = append(statDocs, DocumentStatement{
 			Document: d,
 			Paid:     paid,
-			Balance:  d.TotalAmount - paid,
+			Balance:  bal,
 		})
 	}
 
@@ -138,4 +145,8 @@ func (s *FinanceService) GetCompanyStatement(companyID uint, ledgerYear int, led
 		Balance:        totalDocs - totalPays,
 		Ledger:         ledger,
 	}, nil
+}
+
+func roundMoneyDebt(v float64) float64 {
+	return math.Round(v*100) / 100
 }

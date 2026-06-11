@@ -179,6 +179,60 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                   </div>
                 ) : null}
               </dl>
+              {receipt.debt_payment_context ? (
+                <div
+                  className={`rounded-xl border overflow-hidden ${
+                    receipt.debt_payment_context.is_partial_payment
+                      ? 'border-sky-200 bg-sky-50'
+                      : 'border-emerald-200 bg-emerald-50'
+                  }`}
+                >
+                  <div
+                    className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+                      receipt.debt_payment_context.is_partial_payment ? 'text-sky-800' : 'text-emerald-800'
+                    }`}
+                  >
+                    {receipt.debt_payment_context.status_label ||
+                      (receipt.debt_payment_context.is_partial_payment ? 'PAGO PARCIAL' : 'DEUDA CANCELADA')}
+                  </div>
+                  <dl className="px-3 py-2 text-sm space-y-1.5">
+                    {receipt.debt_payment_context.document_number ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-600">Documento</dt>
+                        <dd className="font-mono text-xs font-medium">{receipt.debt_payment_context.document_number}</dd>
+                      </div>
+                    ) : null}
+                    {(receipt.debt_payment_context.paid_concept_label ||
+                      (receipt.debt_payment_context.paid_concepts?.length ?? 0) > 0) ? (
+                      <div>
+                        <dt className="text-slate-600 mb-0.5">Concepto(s) pagado(s)</dt>
+                        <dd className="font-medium text-slate-900 leading-snug">
+                          {receipt.debt_payment_context.paid_concept_label ||
+                            receipt.debt_payment_context.paid_concepts?.join('; ')}
+                        </dd>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-600">Monto total deuda</dt>
+                      <dd className="tabular-nums font-medium">
+                        S/ {Number(receipt.debt_payment_context.debt_total).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-600">Pagado (operación)</dt>
+                      <dd className="tabular-nums font-medium">
+                        S/ {Number(receipt.debt_payment_context.paid_this_operation).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-600">Saldo pendiente</dt>
+                      <dd className="tabular-nums font-bold">
+                        S/ {Number(receipt.debt_payment_context.balance_pending).toFixed(2)}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : null}
               {(receipt.payments?.length ?? 0) > 0 ? (
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">Pagos</div>

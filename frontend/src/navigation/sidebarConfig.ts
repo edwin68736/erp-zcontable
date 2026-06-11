@@ -102,6 +102,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           { to: '/comprobantes', icon: 'fas fa-file-invoice', label: 'Comprobantes', permission: P.fiscalReceiptsList },
           { to: '/payments', icon: 'fas fa-wallet', label: 'Pagos', permission: P.paymentsView },
           { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', permission: P.financeCalendarView },
+          {
+            to: '/finance/claves-sol',
+            icon: 'fas fa-key',
+            label: 'Claves sol',
+            permission: P.companyCredentialsView,
+          },
         ],
       },
       {
@@ -165,6 +171,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             label: 'Calendario global',
             permission: P.financeCalendarView,
           },
+          {
+            to: '/finance/claves-sol',
+            icon: 'fas fa-key',
+            label: 'Claves sol',
+            permission: P.companyCredentialsView,
+          },
         ],
       },
     ],
@@ -196,6 +208,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             icon: 'fas fa-calendar-days',
             label: 'Calendario',
             permission: P.financeCalendarView,
+          },
+          {
+            to: '/finance/claves-sol',
+            icon: 'fas fa-key',
+            label: 'Claves sol',
+            permission: P.companyCredentialsView,
           },
         ],
       },

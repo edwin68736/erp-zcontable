@@ -402,7 +402,7 @@ const Header = ({
 
                   <div className="px-2 py-2 space-y-1">
                     <Link
-                      to="/documents?status=pendiente"
+                      to="/documents?situation=por_cobrar"
                       className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                       onClick={() => setIsNotificationsOpen(false)}
                     >
@@ -421,7 +421,7 @@ const Header = ({
                     </Link>
 
                     <Link
-                      to="/documents?status=vencido"
+                      to="/documents?situation=vencidas"
                       className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                       onClick={() => setIsNotificationsOpen(false)}
                     >

@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -340,6 +341,7 @@ func (s *FinanceCalendarService) DuplicateCalendar(fromYM, toYM string, opts Dup
 				CalendarID: created.ID, Name: a.Name, Description: a.Description,
 				StartDay: startDay, EndDay: endDay, DueDay: dueDay,
 				ActivityKind: a.ActivityKind, Priority: a.Priority, Status: a.Status,
+				TextColor: normalizeTextColor(a.TextColor),
 			}).Error
 		}
 	}
@@ -395,6 +397,17 @@ type CalendarActivityInput struct {
 	ActivityKind string
 	Priority     string
 	Status       string
+	TextColor    string
+}
+
+var hexActivityTextColorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+
+func normalizeTextColor(c string) string {
+	c = strings.TrimSpace(c)
+	if hexActivityTextColorRe.MatchString(c) {
+		return strings.ToLower(c)
+	}
+	return "#1d4ed8"
 }
 
 func (s *FinanceCalendarService) CreateActivity(calendarID uint, in CalendarActivityInput) (*models.FinanceCalendarActivity, error) {
@@ -425,6 +438,7 @@ func (s *FinanceCalendarService) CreateActivity(calendarID uint, in CalendarActi
 		Description: strings.TrimSpace(in.Description),
 		StartDay: startDay, EndDay: endDay, DueDay: dueDay,
 		ActivityKind: kind, Priority: pri, Status: st,
+		TextColor: normalizeTextColor(in.TextColor),
 	}
 	if err := database.DB.Create(&a).Error; err != nil {
 		return nil, err
@@ -460,6 +474,9 @@ func (s *FinanceCalendarService) UpdateActivity(id uint, in CalendarActivityInpu
 	}
 	if strings.TrimSpace(in.Status) != "" {
 		a.Status = strings.TrimSpace(in.Status)
+	}
+	if strings.TrimSpace(in.TextColor) != "" {
+		a.TextColor = normalizeTextColor(in.TextColor)
 	}
 	if err := database.DB.Save(&a).Error; err != nil {
 		return nil, err

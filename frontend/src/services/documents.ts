@@ -3,8 +3,11 @@ import type { Company, Document } from '../types/dashboard';
 
 export interface DocumentsListParams {
   company_id?: string;
+  /** @deprecated usar situation */
   status?: string;
+  /** @deprecated usar situation */
   overdue?: string;
+  situation?: string;
   date_from?: string;
   date_to?: string;
   /** Sin `company_id`: `1` pide listado agrupado por empresa (meta `list_mode: by_company`). */

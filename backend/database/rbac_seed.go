@@ -50,6 +50,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := ensureFinanceCalendarRolePermissions(db); err != nil {
 		return err
 	}
+	if err := ensureCompanyCredentialsRolePermissions(db); err != nil {
+		return err
+	}
 	if err := ensureFiscalComprobanteRolePermissions(db); err != nil {
 		return err
 	}
@@ -244,6 +247,10 @@ func seedRBACPermissions(db *gorm.DB) error {
 		rbac.FinanceCalendarView:   {Mod: "finance", Name: "Ver calendario contable global"},
 		rbac.FinanceCalendarManage: {Mod: "finance", Name: "Gestionar calendario contable global"},
 
+		rbac.CompanyCredentialsView:   {Mod: "finance", Name: "Ver claves de acceso por empresa"},
+		rbac.CompanyCredentialsManage: {Mod: "finance", Name: "Editar claves de acceso por empresa"},
+		rbac.CompanyCredentialsImport: {Mod: "finance", Name: "Importar claves de acceso desde Excel"},
+
 		rbac.SalesEmit:          {Mod: "sales", Name: "Emitir comprobante (venta rápida)"},
 		rbac.SalesHistory:       {Mod: "sales", Name: "Historial de ventas emitidas"},
 		rbac.SalesCatalogPick:   {Mod: "sales", Name: "Buscar productos en venta"},
@@ -375,6 +382,68 @@ func ensureFinanceCalendarRolePermissions(db *gorm.DB) error {
 	}
 	for _, rc := range []string{seedRoleSuperusuario, seedRoleContador} {
 		if err := link(rc, manageP.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureCompanyCredentialsRolePermissions enlaza permisos de claves de acceso (idempotente en cada arranque).
+func ensureCompanyCredentialsRolePermissions(db *gorm.DB) error {
+	codes := []string{
+		rbac.CompanyCredentialsView,
+		rbac.CompanyCredentialsManage,
+		rbac.CompanyCredentialsImport,
+	}
+	var perms []models.Permission
+	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
+		return err
+	}
+	if len(perms) == 0 {
+		return nil
+	}
+	byCode := make(map[string]uint, len(perms))
+	for _, p := range perms {
+		byCode[p.Code] = p.ID
+	}
+	link := func(roleCode string, permCodes ...string) error {
+		var role models.Role
+		if err := db.Where("code = ?", roleCode).First(&role).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		for _, pc := range permCodes {
+			pid, ok := byCode[pc]
+			if !ok {
+				continue
+			}
+			var cnt int64
+			if err := db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", role.ID, pid).Count(&cnt).Error; err != nil {
+				return err
+			}
+			if cnt > 0 {
+				continue
+			}
+			if err := db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
+				return fmt.Errorf("rol %s permiso %s: %w", roleCode, pc, err)
+			}
+		}
+		return nil
+	}
+	viewRoles := []string{
+		seedRoleSuperusuario, seedRoleContador, seedRoleSupervisor, seedRoleAdministrador,
+		seedRoleGerencia, seedRoleAsistente, seedRoleAnalista,
+	}
+	for _, rc := range viewRoles {
+		if err := link(rc, rbac.CompanyCredentialsView); err != nil {
+			return err
+		}
+	}
+	manageRoles := []string{seedRoleSuperusuario, seedRoleContador}
+	for _, rc := range manageRoles {
+		if err := link(rc, rbac.CompanyCredentialsManage, rbac.CompanyCredentialsImport); err != nil {
 			return err
 		}
 	}
@@ -527,6 +596,7 @@ func supervisorPermissionCodes() []string {
 		rbac.CompaniesDelete: {}, rbac.SubscriptionPlansDelete: {}, rbac.PlanCategoriesDelete: {},
 		rbac.PaymentsDelete: {},
 		rbac.FinanceCalendarManage: {},
+		rbac.CompanyCredentialsManage: {}, rbac.CompanyCredentialsImport: {},
 	}
 	return permissionCodesExcept(exclSupervisor)
 }
@@ -545,6 +615,7 @@ func analistaPermissionCodes() []string {
 		rbac.SupervisorsHistoryView, rbac.SupervisorsAttachmentsUpload,
 		rbac.SupervisorsNotificationsView,
 		rbac.FinanceCalendarView,
+		rbac.CompanyCredentialsView,
 	}
 }
 
@@ -581,6 +652,7 @@ func seedRBACRolePermissions(db *gorm.DB) error {
 		rbac.TaxSettlementsPreview, rbac.TaxSettlementsList, rbac.TaxSettlementsView, rbac.TaxSettlementsPaymentSuggestions,
 		rbac.CompaniesAssignAssistant,
 		rbac.FinanceCalendarView,
+		rbac.CompanyCredentialsView,
 		rbac.SupervisorsDashboardView,
 		rbac.SupervisorsPeriodsView,
 		rbac.SupervisorsControlsView, rbac.SupervisorsControlsUpdate,

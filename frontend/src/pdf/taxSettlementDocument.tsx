@@ -19,7 +19,7 @@ function sumLines(lines: TaxSettlementLine[] | undefined) {
 }
 
 export function settlementTotalsForPdf(row: TaxSettlement) {
-  const emitted = row.status === 'emitida';
+  const emitted = row.status === 'emitida' || row.status === 'cerrada';
   if (emitted) {
     return {
       honorarios: Number(row.total_honorarios) || 0,

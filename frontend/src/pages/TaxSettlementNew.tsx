@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import SearchableSelect from '../components/SearchableSelect';
 import { companiesService } from '../services/companies';
 import { taxSettlementsService } from '../services/taxSettlements';
+import { stripLegacyMigrationNotes } from '../utils/documentDebtUi';
 import type { Company, SettlementPreviewLine } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
@@ -121,11 +122,22 @@ type LineRow = {
 
 const TaxSettlementNew = () => {
   const navigate = useNavigate();
+  const editMatch = useMatch('/tax-settlements/:id/edit');
+  const editId = editMatch ? Number(editMatch.params.id) : 0;
+  const isEdit = Number.isFinite(editId) && editId > 0;
   const [searchParams] = useSearchParams();
-  const allowed = useMemo(() => auth.hasPermission(P.taxSettlementsCreate), []);
+  const allowed = useMemo(
+    () => auth.hasPermission(isEdit ? P.taxSettlementsUpdate : P.taxSettlementsCreate),
+    [isEdit],
+  );
+
+  const [loadingEdit, setLoadingEdit] = useState(isEdit);
+  const [operationKey, setOperationKey] = useState('');
+  const editLoadedRef = useRef(false);
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState('');
+  const [pendingFromClosedCount, setPendingFromClosedCount] = useState(0);
   const [issueDate, setIssueDate] = useState(() => formatDateInput(new Date()));
   const [liquidationPeriod, setLiquidationPeriod] = useState(() => previousMonthYMFromDate(new Date()));
   const liquidationPeriodManualRef = useRef(false);
@@ -182,8 +194,64 @@ const TaxSettlementNew = () => {
 
   useEffect(() => {
     const cid = searchParams.get('company_id')?.trim() ?? '';
-    if (cid && /^\d+$/.test(cid)) setCompanyId(cid);
-  }, [searchParams]);
+    if (cid && /^\d+$/.test(cid) && !isEdit) setCompanyId(cid);
+  }, [searchParams, isEdit]);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        setLoadingEdit(true);
+        setError('');
+        const ts = await taxSettlementsService.get(editId);
+        if (cancelled) return;
+        if (ts.status !== 'borrador') {
+          setError('Solo se pueden editar liquidaciones en borrador. Use Editar desde el detalle si estaba emitida.');
+          return;
+        }
+        editLoadedRef.current = true;
+        setCompanyId(String(ts.company_id));
+        setIssueDate((ts.issue_date ?? '').slice(0, 10) || formatDateInput(new Date()));
+        setLiquidationPeriod((ts.liquidation_period ?? '').trim() || previousMonthYMFromDate(new Date()));
+        liquidationPeriodManualRef.current = true;
+        setNotes(ts.notes ?? '');
+        setLines(
+          (ts.lines ?? []).map((ln, i) => {
+            const pym = (ln.period_ym ?? '').trim();
+            const pd = ln.period_date ? String(ln.period_date).slice(0, 10) : '';
+            let period_ym = pym;
+            let period_manual = false;
+            if (!isCanonicalPeriodYm(pym)) {
+              if (pym) {
+                period_ym = pym;
+                period_manual = true;
+              } else if (pd.length >= 7) {
+                period_ym = pd.slice(0, 7);
+              }
+            }
+            return {
+              key: `ln-${ln.id}-${i}`,
+              line_type: ln.line_type as LineRow['line_type'],
+              document_id: ln.document_id ?? undefined,
+              product_id: ln.product_id ?? undefined,
+              concept: ln.concept ?? '',
+              amount: Number.isFinite(ln.amount) ? ln.amount.toFixed(2) : '',
+              period_ym,
+              period_manual,
+            };
+          }),
+        );
+      } catch {
+        if (!cancelled) setError('No se pudo cargar la liquidación para editar');
+      } finally {
+        if (!cancelled) setLoadingEdit(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, editId]);
 
   const loadPreviewForCompany = useCallback(async (id: number, opts?: { silent?: boolean }) => {
     if (!id) return;
@@ -210,8 +278,8 @@ const TaxSettlementNew = () => {
             key: `d-${row.document_id}-${i}`,
             line_type: 'document_ref' as const,
             document_id: row.document_id,
-            concept: row.concept || `Cargo #${row.document_id}`,
-            amount: String(row.amount),
+            concept: stripLegacyMigrationNotes(row.concept || '') || `Deuda ${row.document_id}`,
+            amount: Number.isFinite(row.amount) && row.amount > 0 ? row.amount.toFixed(2) : '',
             period_ym: lineYm,
             period_manual,
           };
@@ -225,16 +293,19 @@ const TaxSettlementNew = () => {
   }, [companies]);
 
   useEffect(() => {
+    if (isEdit) return;
     const id = Number(companyId);
     if (!Number.isFinite(id) || id <= 0) {
       setLines([]);
+      setPendingFromClosedCount(0);
       return;
     }
     const t = window.setTimeout(() => {
       void loadPreviewForCompany(id, { silent: true });
+      void taxSettlementsService.pendingFromClosed(id).then((r) => setPendingFromClosedCount(r.count)).catch(() => setPendingFromClosedCount(0));
     }, 450);
     return () => window.clearTimeout(t);
-  }, [companyId, loadPreviewForCompany]);
+  }, [companyId, loadPreviewForCompany, isEdit]);
 
   const loadPreview = () => {
     const id = Number(companyId);
@@ -359,9 +430,26 @@ const TaxSettlementNew = () => {
         period_ym: pym,
       });
     }
+    if (isEdit && !operationKey.trim()) {
+      setError('Indique la clave de operaciones para guardar los cambios');
+      return;
+    }
     setError('');
     setSaving(true);
     try {
+      if (isEdit) {
+        const updated = await taxSettlementsService.update(editId, {
+          issue_date: `${issueDate}T12:00:00Z`,
+          liquidation_period: lp,
+          period_label: periodLabelFromYM(lp) || lp,
+          notes: notes.trim(),
+          lines: payloadLines,
+          operation_key: operationKey.trim(),
+        });
+        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación actualizada.' } }));
+        navigate(`/tax-settlements/${updated.id}`);
+        return;
+      }
       const created = await taxSettlementsService.create({
         company_id: id,
         issue_date: `${issueDate}T12:00:00Z`,
@@ -388,7 +476,16 @@ const TaxSettlementNew = () => {
   if (!allowed) {
     return (
       <div className="w-full min-w-0 max-w-full rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
-        No tiene permiso para crear liquidaciones.
+        No tiene permiso para {isEdit ? 'editar' : 'crear'} liquidaciones.
+      </div>
+    );
+  }
+
+  if (loadingEdit) {
+    return (
+      <div className="w-full min-w-0 max-w-full text-slate-500 text-sm py-12 text-center">
+        <i className="fas fa-spinner fa-spin mr-2" />
+        Cargando liquidación…
       </div>
     );
   }
@@ -396,13 +493,30 @@ const TaxSettlementNew = () => {
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 sm:space-y-6">
       <div>
-        <Link to="/tax-settlements" className="text-sm text-primary-700 hover:text-primary-800 font-medium">
-          ← Volver al listado
+        <Link
+          to={isEdit ? `/tax-settlements/${editId}` : '/tax-settlements'}
+          className="text-sm text-primary-700 hover:text-primary-800 font-medium"
+        >
+          ← {isEdit ? 'Volver al detalle' : 'Volver al listado'}
         </Link>
-        <h2 className="text-xl font-semibold text-slate-800 mt-2">Nueva liquidación</h2>
+        <h2 className="text-xl font-semibold text-slate-800 mt-2">
+          {isEdit ? `Editar liquidación #${editId}` : 'Nueva liquidación'}
+        </h2>
+        {isEdit ? (
+          <p className="mt-1 text-sm text-slate-500">
+            Modifique líneas y datos generales. Al guardar se mantiene en borrador; deberá emitir nuevamente.
+          </p>
+        ) : null}
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+
+      {!isEdit && pendingFromClosedCount > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <i className="fas fa-exclamation-triangle mr-2 text-amber-600" aria-hidden />
+          Hay <strong>{pendingFromClosedCount}</strong> deuda(s) pendiente(s) de liquidaciones cerradas anteriores. No se importan automáticamente: después de crear el borrador, incorpórelas desde el detalle de la liquidación.
+        </div>
+      ) : null}
 
       <form
         onSubmit={(e) => void submit(e)}
@@ -417,8 +531,12 @@ const TaxSettlementNew = () => {
                 value={companyId}
                 onChange={setCompanyId}
                 placeholder="Seleccione…"
+                disabled={isEdit}
                 options={companies.map((c) => ({ value: String(c.id), label: `${c.business_name} (${c.ruc})` }))}
               />
+              {isEdit ? (
+                <p className="mt-1 text-[11px] text-slate-500">La empresa no se puede cambiar al editar un borrador.</p>
+              ) : null}
             </div>
             <div className="min-w-0">
               <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de emisión (borrador)</label>
@@ -666,9 +784,29 @@ const TaxSettlementNew = () => {
           />
         </section>
 
+        {isEdit ? (
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2">Confirmación</h3>
+            <div className="max-w-md">
+              <label htmlFor="tax-settle-operation-key" className="block text-xs font-medium text-slate-600 mb-1">
+                Clave de operaciones
+              </label>
+              <input
+                id="tax-settle-operation-key"
+                type="password"
+                autoComplete="off"
+                value={operationKey}
+                onChange={(e) => setOperationKey(e.target.value)}
+                placeholder="Requerida para guardar cambios"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
+              />
+            </div>
+          </section>
+        ) : null}
+
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
           <Link
-            to="/tax-settlements"
+            to={isEdit ? `/tax-settlements/${editId}` : '/tax-settlements'}
             className="inline-flex justify-center px-4 py-2.5 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Cancelar
@@ -679,7 +817,7 @@ const TaxSettlementNew = () => {
             className="inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50"
           >
             {saving ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-save text-xs" />}
-            Guardar borrador
+            {isEdit ? 'Guardar cambios' : 'Guardar borrador'}
           </button>
         </div>
       </form>

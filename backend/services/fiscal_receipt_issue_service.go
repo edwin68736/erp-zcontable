@@ -66,6 +66,9 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 	var pay models.Payment
 	if err := database.DB.
 		Preload("Allocations.Document.Items.Product").
+		Preload("TaxSettlement.Lines", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC, id ASC")
+		}).
 		Preload("TaxSettlement").
 		First(&pay, paymentID).Error; err != nil {
 		return nil, errors.New("pago no encontrado")
@@ -124,7 +127,7 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 		return nil, err
 	}
 
-	lines := buildLinesFromPaymentAllocations(&pay)
+	lines := BuildReceiptLinesFromPayment(&pay)
 	subtotal, tax, total := sumLineTotals(lines)
 	if total <= 0 {
 		total = roundFiscalMoney(pay.Amount)
@@ -154,6 +157,13 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 	}
 	sid := ser.ID
 
+	debtCtxJSON := ""
+	if ctx := buildDebtPaymentContextSnapshot(&pay, lines); ctx != nil {
+		if j, err := debtPaymentContextToJSON(ctx); err == nil {
+			debtCtxJSON = j
+		}
+	}
+
 	rec := models.TukifacFiscalReceipt{
 		ExternalID:           externalID,
 		CompanyID:            co.ID,
@@ -171,6 +181,7 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 		FiscalSeriesID:       &sid,
 		PaymentMethod:        pm,
 		PaymentReference:     strings.TrimSpace(pay.Reference),
+		DebtPaymentContextJSON: debtCtxJSON,
 	}
 
 	err = database.DB.Transaction(func(tx *gorm.DB) error {

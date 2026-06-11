@@ -34,16 +34,29 @@ func (ctrl *DocumentController) ListAPI(c fiber.Ctx) error {
 		}
 	}
 	rawStatus := strings.TrimSpace(c.Query("status", ""))
+	rawSituation := strings.TrimSpace(c.Query("situation", ""))
 	params.Overdue = c.Query("overdue", "") == "1"
 	params.ExplicitAllStatuses = false
-	// "vencido" no es estado en BD; equivale a filtro por vencimiento (overdue).
-	if strings.EqualFold(rawStatus, "vencido") {
+
+	if rawSituation != "" {
+		if !isValidCollectionSituationParam(rawSituation) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Situación de cobranza inválida"})
+		}
+		params.CollectionSituation = normalizeCollectionSituationParam(rawSituation)
+		if params.CollectionSituation == "all" {
+			params.ExplicitAllStatuses = true
+		}
+	} else if strings.EqualFold(rawStatus, "vencido") {
+		params.CollectionSituation = "vencidas"
 		params.Status = ""
 		params.Overdue = true
 	} else if strings.EqualFold(rawStatus, "all") {
-		// Ver todos los estados de deuda (sin filtro por status ni modo saldo implícito).
+		params.CollectionSituation = "all"
 		params.Status = ""
 		params.ExplicitAllStatuses = true
+	} else if mapped := mapLegacyStatusFilterParam(rawStatus, params.Overdue); mapped != "" {
+		params.CollectionSituation = mapped
+		params.Status = ""
 	} else {
 		params.Status = rawStatus
 	}
@@ -68,10 +81,11 @@ func (ctrl *DocumentController) ListAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rango de fechas inválido"})
 	}
 
-	// Una empresa sin filtro por fecha de emisión: solo documentos con saldo (pendiente/parcial), todas las fechas.
+	// Una empresa sin filtro por fecha de emisión: solo documentos con saldo (por cobrar), todas las fechas.
 	params.ImplicitOpenBalances = params.CompanyID != 0 &&
 		params.DateFrom == nil && params.DateTo == nil &&
-		params.Status == "" && !params.Overdue && !params.ExplicitAllStatuses
+		params.Status == "" && !params.Overdue && !params.ExplicitAllStatuses &&
+		(params.CollectionSituation == "" || params.CollectionSituation == "por_cobrar")
 
 
 
@@ -275,4 +289,35 @@ func (ctrl *DocumentController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Eliminado"})
+}
+
+func isValidCollectionSituationParam(s string) bool {
+	switch strings.TrimSpace(strings.ToLower(s)) {
+	case "all", "por_cobrar", "pagadas", "vencidas", "anuladas":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeCollectionSituationParam(s string) string {
+	return strings.TrimSpace(strings.ToLower(s))
+}
+
+func mapLegacyStatusFilterParam(status string, overdue bool) string {
+	if overdue {
+		return "vencidas"
+	}
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case "all":
+		return "all"
+	case "pagado":
+		return "pagadas"
+	case "anulado":
+		return "anuladas"
+	case "pendiente", "parcial":
+		return "por_cobrar"
+	default:
+		return ""
+	}
 }

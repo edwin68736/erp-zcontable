@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { FinanceCalendarActivity, FinanceCalendarMark } from '../../../services/financeCalendar';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -33,6 +34,66 @@ export const MARK_KINDS = [
   { value: 'importante', label: 'Fecha importante' },
 ];
 
+/** Colores sólidos/oscuros para el texto de actividades en el calendario web. */
+export const ACTIVITY_COLORS = [
+  { value: '#0f172a', label: 'Negro' },
+  { value: '#1d4ed8', label: 'Azul' },
+  { value: '#047857', label: 'Verde' },
+  { value: '#b45309', label: 'Ámbar' },
+  { value: '#b91c1c', label: 'Rojo' },
+  { value: '#7e22ce', label: 'Morado' },
+  { value: '#0e7490', label: 'Cian' },
+  { value: '#be185d', label: 'Rosa' },
+] as const;
+
+/** @deprecated usar ACTIVITY_COLORS */
+export const ACTIVITY_TEXT_COLORS = ACTIVITY_COLORS;
+
+export const DEFAULT_ACTIVITY_COLOR = ACTIVITY_COLORS[1].value;
+export const DEFAULT_ACTIVITY_TEXT_COLOR = DEFAULT_ACTIVITY_COLOR;
+
+export function activityColorHex(color?: string): string {
+  const c = (color ?? '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(c)) return c.toLowerCase();
+  return DEFAULT_ACTIVITY_COLOR;
+}
+
+/** @deprecated usar activityColorHex */
+export function activityTextColor(color?: string): string {
+  return activityColorHex(color);
+}
+
+function parseHexColor(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+/** Oscurece colores claros/pasteles para que el texto sea legible y sólido. */
+export function activityTextDisplayColor(color?: string): string {
+  const hex = activityColorHex(color);
+  const { r, g, b } = parseHexColor(hex);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (luminance <= 0.55) return hex;
+  const factor = 0.42;
+  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return `#${toHex(r * factor)}${toHex(g * factor)}${toHex(b * factor)}`;
+}
+
+/** Estilo del chip de actividad: color sólido en el texto (negrita), fondo neutro. */
+export function activityChipStyle(color?: string): CSSProperties {
+  const textColor = activityTextDisplayColor(color);
+  return {
+    color: textColor,
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    fontWeight: 700,
+  };
+}
+
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -52,6 +113,12 @@ export function shiftPeriodYm(ym: string, delta: number): string {
 export function formatPeriodLabel(ym: string): string {
   const [y, m] = ym.split('-').map(Number);
   return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+/** Título del PDF del calendario, p. ej. «Junio-2026». */
+export function formatPeriodPdfTitle(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]}-${y}`;
 }
 
 /** Solo nombre del mes (sin año), para navegación compacta. */

@@ -14,17 +14,6 @@ import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
 import { resolveBackendUrl } from '../api/client';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
-const getCurrentMonthRange = () => {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: formatDateInput(from), to: formatDateInput(to) };
-};
-
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
   const n = Number(value);
@@ -42,14 +31,11 @@ const Payments = () => {
   const initialDateTo = searchParams.get('date_to') ?? '';
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 20);
-  const currentMonthRange = getCurrentMonthRange();
-  const effectiveInitialDateFrom = initialDateFrom || currentMonthRange.from;
-  const effectiveInitialDateTo = initialDateTo || currentMonthRange.to;
 
   const [companyId, setCompanyId] = useState(initialCompanyId);
   const [type, setType] = useState(initialType);
-  const [dateFrom, setDateFrom] = useState(effectiveInitialDateFrom);
-  const [dateTo, setDateTo] = useState(effectiveInitialDateTo);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,22 +51,11 @@ const Payments = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    if (!initialDateFrom || !initialDateTo) {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('date_from', currentMonthRange.from);
-        next.set('date_to', currentMonthRange.to);
-        return next;
-      }, { replace: true });
-    }
-  }, [currentMonthRange.from, currentMonthRange.to, initialDateFrom, initialDateTo, setSearchParams]);
-
-  useEffect(() => {
     setCompanyId(initialCompanyId);
     setType(initialType);
-    setDateFrom(effectiveInitialDateFrom);
-    setDateTo(effectiveInitialDateTo);
-  }, [effectiveInitialDateFrom, effectiveInitialDateTo, initialCompanyId, initialType]);
+    setDateFrom(initialDateFrom);
+    setDateTo(initialDateTo);
+  }, [initialDateFrom, initialDateTo, initialCompanyId, initialType]);
 
   useEffect(() => {
     fetchCompanies();
@@ -88,7 +63,7 @@ const Payments = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, [effectiveInitialDateFrom, effectiveInitialDateTo, initialCompanyId, initialPage, initialPerPage, initialType]);
+  }, [initialDateFrom, initialDateTo, initialCompanyId, initialPage, initialPerPage, initialType]);
 
   const getTypeLabel = (p: Payment) => {
     const normalized = (p.type ?? '').toLowerCase().trim();
@@ -124,8 +99,8 @@ const Payments = () => {
       const res = await paymentsService.listPaged({
         company_id: initialCompanyId || undefined,
         type: initialType || undefined,
-        date_from: effectiveInitialDateFrom || undefined,
-        date_to: effectiveInitialDateTo || undefined,
+        date_from: initialDateFrom && initialDateTo ? initialDateFrom : undefined,
+        date_to: initialDateFrom && initialDateTo ? initialDateTo : undefined,
         page: initialPage,
         per_page: initialPerPage,
       });
@@ -178,9 +153,27 @@ const Payments = () => {
   };
 
   const lastPaymentsFilterKeyRef = useRef<string | null>(null);
+  const partialDateFilterWarned = useRef(false);
 
   useEffect(() => {
     const filterKey = [companyId, type, dateFrom, dateTo].join('\t');
+
+    if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
+      if (!partialDateFilterWarned.current) {
+        partialDateFilterWarned.current = true;
+        window.dispatchEvent(
+          new CustomEvent('miweb:toast', {
+            detail: {
+              type: 'error',
+              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los pagos.',
+            },
+          }),
+        );
+      }
+      return;
+    }
+    partialDateFilterWarned.current = false;
+
     const prevFilterKey = lastPaymentsFilterKeyRef.current;
     const filtersJustChanged = prevFilterKey !== null && prevFilterKey !== filterKey;
 
@@ -191,8 +184,13 @@ const Payments = () => {
         else next.delete('company_id');
         if (type) next.set('type', type);
         else next.delete('type');
-        next.set('date_from', dateFrom || currentMonthRange.from);
-        next.set('date_to', dateTo || currentMonthRange.to);
+        if (dateFrom && dateTo) {
+          next.set('date_from', dateFrom);
+          next.set('date_to', dateTo);
+        } else {
+          next.delete('date_from');
+          next.delete('date_to');
+        }
         if (filtersJustChanged) {
           next.set('page', '1');
         } else {
@@ -212,8 +210,6 @@ const Payments = () => {
     type,
     dateFrom,
     dateTo,
-    currentMonthRange.from,
-    currentMonthRange.to,
     initialPerPage,
     setSearchParams,
   ]);

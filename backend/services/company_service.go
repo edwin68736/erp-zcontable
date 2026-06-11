@@ -20,6 +20,74 @@ func NewCompanyService() *CompanyService {
 	return &CompanyService{}
 }
 
+func companyInternalCodeTaken(db *gorm.DB, code string, excludeID uint) (bool, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false, nil
+	}
+	var count int64
+	q := db.Model(&models.Company{}).Where("internal_code = ?", code)
+	if excludeID > 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func teamUserIDValue(id *uint) uint {
+	if id == nil || *id == 0 {
+		return 0
+	}
+	return *id
+}
+
+func validateAccountantForCompany(db *gorm.DB, userID uint) error {
+	var u models.User
+	if err := db.First(&u, userID).Error; err != nil {
+		return errors.New("contador general inválido")
+	}
+	if !u.Active {
+		return errors.New("contador general inactivo")
+	}
+	ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
+	if !ok {
+		return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
+	}
+	return nil
+}
+
+func validateSupervisorForCompany(db *gorm.DB, userID uint) error {
+	var u models.User
+	if err := db.First(&u, userID).Error; err != nil {
+		return errors.New("supervisor inválido")
+	}
+	if !u.Active {
+		return errors.New("supervisor inactivo")
+	}
+	ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
+	if !ok {
+		return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
+	}
+	return nil
+}
+
+func validateAssistantForCompany(db *gorm.DB, userID uint) error {
+	var u models.User
+	if err := db.First(&u, userID).Error; err != nil {
+		return errors.New("asistente inválido")
+	}
+	if !u.Active {
+		return errors.New("asistente inactivo")
+	}
+	ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
+	if !ok {
+		return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
+	}
+	return nil
+}
+
 // NextInternalCode sugiere un código interno numérico de 4 dígitos (0001–9999) sin repetir
 // códigos ya usados. Parte de (cantidad de empresas + 1) y avanza hasta encontrar hueco.
 func (s *CompanyService) NextInternalCode() (string, error) {
@@ -118,63 +186,33 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 		return errors.New("el código interno es requerido")
 	}
 
-	var count int64
-	db.Model(&models.Company{}).
-		Where("internal_code = ?", input.InternalCode).
-		Count(&count)
-	if count > 0 {
-		return errors.New("el código interno ya existe")
+	taken, err := companyInternalCodeTaken(db, input.InternalCode, 0)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return errors.New("el código interno ya existe en otra empresa")
 	}
 
 	if input.AccountantUserID != nil {
 		if *input.AccountantUserID == 0 {
 			input.AccountantUserID = nil
-		} else {
-			var u models.User
-			if err := db.First(&u, *input.AccountantUserID).Error; err != nil {
-				return errors.New("contador general inválido")
-			}
-			if !u.Active {
-				return errors.New("contador general inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
-			}
+		} else if err := validateAccountantForCompany(db, *input.AccountantUserID); err != nil {
+			return err
 		}
 	}
 	if input.SupervisorUserID != nil {
 		if *input.SupervisorUserID == 0 {
 			input.SupervisorUserID = nil
-		} else {
-			var u models.User
-			if err := db.First(&u, *input.SupervisorUserID).Error; err != nil {
-				return errors.New("supervisor inválido")
-			}
-			if !u.Active {
-				return errors.New("supervisor inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
-			}
+		} else if err := validateSupervisorForCompany(db, *input.SupervisorUserID); err != nil {
+			return err
 		}
 	}
 	if input.AssistantUserID != nil {
 		if *input.AssistantUserID == 0 {
 			input.AssistantUserID = nil
-		} else {
-			var u models.User
-			if err := db.First(&u, *input.AssistantUserID).Error; err != nil {
-				return errors.New("asistente inválido")
-			}
-			if !u.Active {
-				return errors.New("asistente inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
-			}
+		} else if err := validateAssistantForCompany(db, *input.AssistantUserID); err != nil {
+			return err
 		}
 	}
 
@@ -405,16 +443,18 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	if input.BusinessName != "" {
 		c.BusinessName = strings.TrimSpace(input.BusinessName)
 	}
-	if input.InternalCode != "" && input.InternalCode != c.InternalCode {
-		// verificar unicidad nuevo código
-		var count int64
-		database.DB.Model(&models.Company{}).
-			Where("internal_code = ? AND id <> ?", input.InternalCode, id).
-			Count(&count)
-		if count > 0 {
-			return errors.New("el código interno ya existe")
+	if trimmedCode := strings.TrimSpace(input.InternalCode); trimmedCode != "" {
+		currentCode := strings.TrimSpace(c.InternalCode)
+		if trimmedCode != currentCode {
+			taken, err := companyInternalCodeTaken(database.DB, trimmedCode, id)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return errors.New("el código interno ya existe en otra empresa")
+			}
 		}
-		c.InternalCode = strings.TrimSpace(input.InternalCode)
+		c.InternalCode = trimmedCode
 	}
 	if input.TradeName != "" {
 		c.TradeName = strings.TrimSpace(input.TradeName)
@@ -434,57 +474,42 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	c.ServiceStartAt = input.ServiceStartAt
 
 	if input.AccountantUserID != nil {
-		if *input.AccountantUserID == 0 {
+		newID := teamUserIDValue(input.AccountantUserID)
+		curID := teamUserIDValue(c.AccountantUserID)
+		if newID == 0 {
 			c.AccountantUserID = nil
-		} else {
-			var u models.User
-			if err := database.DB.First(&u, *input.AccountantUserID).Error; err != nil {
-				return errors.New("contador general inválido")
+		} else if newID != curID {
+			if err := validateAccountantForCompany(database.DB, newID); err != nil {
+				return err
 			}
-			if !u.Active {
-				return errors.New("contador general inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAccountant)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como contador en el equipo")
-			}
-			c.AccountantUserID = input.AccountantUserID
+			uid := newID
+			c.AccountantUserID = &uid
 		}
 	}
 	if input.SupervisorUserID != nil {
-		if *input.SupervisorUserID == 0 {
+		newID := teamUserIDValue(input.SupervisorUserID)
+		curID := teamUserIDValue(c.SupervisorUserID)
+		if newID == 0 {
 			c.SupervisorUserID = nil
-		} else {
-			var u models.User
-			if err := database.DB.First(&u, *input.SupervisorUserID).Error; err != nil {
-				return errors.New("supervisor inválido")
+		} else if newID != curID {
+			if err := validateSupervisorForCompany(database.DB, newID); err != nil {
+				return err
 			}
-			if !u.Active {
-				return errors.New("supervisor inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignSupervisor)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como supervisor en el equipo")
-			}
-			c.SupervisorUserID = input.SupervisorUserID
+			uid := newID
+			c.SupervisorUserID = &uid
 		}
 	}
 	if input.AssistantUserID != nil {
-		if *input.AssistantUserID == 0 {
+		newID := teamUserIDValue(input.AssistantUserID)
+		curID := teamUserIDValue(c.AssistantUserID)
+		if newID == 0 {
 			c.AssistantUserID = nil
-		} else {
-			var u models.User
-			if err := database.DB.First(&u, *input.AssistantUserID).Error; err != nil {
-				return errors.New("asistente inválido")
+		} else if newID != curID {
+			if err := validateAssistantForCompany(database.DB, newID); err != nil {
+				return err
 			}
-			if !u.Active {
-				return errors.New("asistente inactivo")
-			}
-			ok := Authz().HasPermission(u.ID, rbac.AccessStudio) || Authz().HasPermission(u.ID, rbac.CompaniesAssignAssistant)
-			if !ok {
-				return errors.New("el usuario seleccionado no tiene permiso para figurar como asistente en el equipo")
-			}
-			c.AssistantUserID = input.AssistantUserID
+			uid := newID
+			c.AssistantUserID = &uid
 		}
 	}
 

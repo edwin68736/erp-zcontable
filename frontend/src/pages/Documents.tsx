@@ -25,15 +25,24 @@ import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TukifacIssueLinksDialog from '../components/TukifacIssueLinksDialog';
 import PosReceiptModal from '../components/pos/PosReceiptModal';
+import DocumentDebtBadge from '../components/DocumentDebtBadge';
+import DocumentDebtDetailModal from '../components/DocumentDebtDetailModal';
+import TableRowMoreMenu from '../components/TableRowMoreMenu';
+import {
+  COLLECTION_SITUATION_OPTIONS,
+  type CollectionSituation,
+  legacyStatusToSituation,
+  documentBalanceAmount,
+  documentPaidAmount,
+  documentCanReceivePayment,
+  formatMoneyPen,
+  stripLegacyMigrationNotes,
+} from '../utils/documentDebtUi';
 import { configService } from '../services/config';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import type { PosSaleDetail } from '../services/posSales';
 import { parseTukifacReceiptViewLinks, type TukifacReceiptViewLinks } from '../utils/tukifacReceiptLinks';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 type DocumentWithPayments = Document & { payments?: Payment[] };
 
@@ -87,10 +96,31 @@ function documentDebtNumber(doc: Document): string {
   return d || doc.number;
 }
 
+/** Concepto / ítems de la deuda (líneas del documento o descripción general). */
+function documentDebtItemLabel(doc: Document): string {
+  const items = sortedDocumentItems(doc);
+  if (items.length > 0) {
+    const parts = items
+      .map((it) => stripLegacyMigrationNotes(String(it.description ?? '')))
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join('; ');
+  }
+  const desc = stripLegacyMigrationNotes((doc.description ?? '').trim());
+  if (desc) return desc;
+  return documentDebtNumber(doc);
+}
+
 /** Periodo contable AAAA-MM (deuda manual / liquidación) o mensualidad plan. */
 function formatDebtPeriod(doc: Document): string {
   const p = (doc.accounting_period ?? '').trim() || (doc.service_month ?? '').trim();
   return p || '—';
+}
+
+function documentSettlementLabel(doc: Document): string {
+  const n = (doc.tax_settlement?.number ?? '').trim();
+  if (n) return n;
+  if (doc.tax_settlement_id && doc.tax_settlement_id > 0) return `#${doc.tax_settlement_id}`;
+  return '';
 }
 
 /** Mes-año legible estilo extracto (ej. marzo-2026); vacío si no hay periodo en el documento. */
@@ -140,7 +170,7 @@ function debtPeriodDisplay(doc: Document): string {
 
 /** Descripción de línea + periodo humano para textos de pago / resumen. */
 function debtLineSummary(doc: Document, itemDescription: string): string {
-  const desc = String(itemDescription ?? '').trim() || '—';
+  const desc = stripLegacyMigrationNotes(String(itemDescription ?? '').trim()) || '—';
   const human = formatAccountingPeriodHuman(doc);
   if (!human) return desc;
   return `${desc} (${human})`;
@@ -162,7 +192,7 @@ function defaultPayDescriptionFromDoc(d: Document): string {
     const parts = items.map((it) => debtLineSummary(d, it.description)).filter((s) => s && s !== '—');
     if (parts.length > 0) return parts.join('; ');
   }
-  return (d.description ?? '').trim();
+  return stripLegacyMigrationNotes((d.description ?? '').trim());
 }
 
 /** Etiqueta textual del tipo de deuda (tablas sin JSX). */
@@ -203,7 +233,7 @@ function flattenCompanyDocumentsToLines(docs: Document[]): CompanyDebtFlatLine[]
         rows.push({
           key: `d${doc.id}-i${it.id}`,
           ...base,
-          description: it.description,
+          description: stripLegacyMigrationNotes(it.description ?? ''),
           amount: Number.isFinite(it.amount) ? it.amount : 0,
         });
       }
@@ -211,7 +241,7 @@ function flattenCompanyDocumentsToLines(docs: Document[]): CompanyDebtFlatLine[]
       rows.push({
         key: `d${doc.id}-single`,
         ...base,
-        description: doc.description?.trim() || '—',
+        description: stripLegacyMigrationNotes(doc.description?.trim() || '') || '—',
         amount: doc.total_amount,
       });
     }
@@ -246,39 +276,32 @@ function parsePositiveInt(value: string | null, fallback: number): number {
   return i;
 }
 
-const getCurrentMonthRange = () => {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: formatDateInput(from), to: formatDateInput(to) };
-};
-
 const Documents = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCompanyId = searchParams.get('company_id') ?? '';
   const initialStatus = searchParams.get('status') ?? '';
   const initialOverdue = searchParams.get('overdue') ?? '';
+  const initialSituationParam = searchParams.get('situation') ?? '';
   const initialDateFrom = searchParams.get('date_from') ?? '';
   const initialDateTo = searchParams.get('date_to') ?? '';
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 20);
-  const currentMonthRange = getCurrentMonthRange();
-  const allCompaniesDefaultFrom = initialDateFrom || currentMonthRange.from;
-  const allCompaniesDefaultTo = initialDateTo || currentMonthRange.to;
+
+  const resolveInitialSituation = (): CollectionSituation => {
+    if (initialSituationParam) return initialSituationParam as CollectionSituation;
+    const legacy = legacyStatusToSituation(initialStatus, initialOverdue === '1');
+    if (legacy && legacy !== 'all') return legacy;
+    if (legacy === 'all') return 'all';
+    if (initialCompanyId) {
+      return initialDateFrom && initialDateTo ? 'all' : 'por_cobrar';
+    }
+    return 'por_cobrar';
+  };
 
   const [companyId, setCompanyId] = useState(initialCompanyId);
-  const [status, setStatus] = useState(() => {
-    const st = searchParams.get('status') ?? '';
-    if (searchParams.get('overdue') === '1' && !st) return 'vencido';
-    if (st === 'all') return 'all';
-    if (st) return st;
-    return searchParams.get('company_id') ? '' : 'pendiente';
-  });
-  const [overdue, setOverdue] = useState(initialOverdue === '1');
-  const [dateFrom, setDateFrom] = useState(
-    initialCompanyId ? initialDateFrom : allCompaniesDefaultFrom,
-  );
-  const [dateTo, setDateTo] = useState(initialCompanyId ? initialDateTo : allCompaniesDefaultTo);
+  const [situation, setSituation] = useState<CollectionSituation>(resolveInitialSituation);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [listMode, setListMode] = useState<DocumentsListMode>('documents');
   const [companySummaries, setCompanySummaries] = useState<CompanyDebtSummary[]>([]);
@@ -335,6 +358,9 @@ const Documents = () => {
   const [debtsCompanyDocs, setDebtsCompanyDocs] = useState<Document[]>([]);
   const [debtsCompanyLoading, setDebtsCompanyLoading] = useState(false);
   const [debtsCompanyError, setDebtsCompanyError] = useState('');
+
+  const [debtDetailDoc, setDebtDetailDoc] = useState<Document | null>(null);
+  const [debtDetailOpen, setDebtDetailOpen] = useState(false);
 
   /** Tabla agrupada: sin empresa en URL y (respuesta by_company o primera carga en curso). */
   const useGroupedLayout = useMemo(
@@ -395,29 +421,40 @@ const Documents = () => {
     includeGroupBy: boolean;
   }): Parameters<typeof documentsService.listPaged>[0] => {
     const { page, perPage, companyId, includeGroupBy } = opts;
+    const effectiveSituation =
+      initialSituationParam ||
+      legacyStatusToSituation(initialStatus, initialOverdue === '1') ||
+      undefined;
     const params: Parameters<typeof documentsService.listPaged>[0] = {
       company_id: companyId || undefined,
-      status:
-        initialOverdue === '1'
-          ? undefined
-          : initialStatus === 'all'
-            ? 'all'
-            : initialStatus || undefined,
-      overdue: initialOverdue === '1' ? '1' : undefined,
+      situation: effectiveSituation,
       page,
       per_page: perPage,
     };
     if (includeGroupBy && !companyId) {
       params.group_by_company = '1';
     }
-    if (!companyId) {
-      params.date_from = initialDateFrom || currentMonthRange.from;
-      params.date_to = initialDateTo || currentMonthRange.to;
-    } else if (initialDateFrom && initialDateTo) {
+    if (initialDateFrom && initialDateTo) {
       params.date_from = initialDateFrom;
       params.date_to = initialDateTo;
     }
     return params;
+  };
+
+  const openDebtDetailModal = async (doc: Document) => {
+    setDebtDetailDoc(doc);
+    setDebtDetailOpen(true);
+    try {
+      const detail = await documentsService.get(doc.id);
+      setDebtDetailDoc({ ...doc, ...detail });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const closeDebtDetailModal = () => {
+    setDebtDetailOpen(false);
+    setDebtDetailDoc(null);
   };
 
   const openDebtsForCompanyModal = async (row: CompanyDebtSummary) => {
@@ -466,51 +503,27 @@ const Documents = () => {
   }, []);
 
   useEffect(() => {
-    if (initialCompanyId) return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      let changed = false;
-      if (!initialDateFrom || !initialDateTo) {
-        next.set('date_from', currentMonthRange.from);
-        next.set('date_to', currentMonthRange.to);
-        changed = true;
-      }
-      return changed ? next : prev;
-    }, { replace: true });
-  }, [
-    currentMonthRange.from,
-    currentMonthRange.to,
-    initialCompanyId,
-    initialDateFrom,
-    initialDateTo,
-    setSearchParams,
-  ]);
-
-  useEffect(() => {
     setCompanyId(initialCompanyId);
-    setStatus(
-      initialOverdue === '1' && !initialStatus
-        ? 'vencido'
-        : initialStatus === 'all'
-          ? 'all'
-          : initialStatus || (initialCompanyId ? '' : 'pendiente'),
-    );
-    setOverdue(initialOverdue === '1');
-    if (initialCompanyId) {
-      setDateFrom(initialDateFrom);
-      setDateTo(initialDateTo);
-    } else {
-      setDateFrom(initialDateFrom || currentMonthRange.from);
-      setDateTo(initialDateTo || currentMonthRange.to);
-    }
+    const nextSituation = (() => {
+      if (initialSituationParam) return initialSituationParam as CollectionSituation;
+      const legacy = legacyStatusToSituation(initialStatus, initialOverdue === '1');
+      if (legacy && legacy !== 'all') return legacy;
+      if (legacy === 'all') return 'all';
+      if (initialCompanyId) {
+        return initialDateFrom && initialDateTo ? 'all' : 'por_cobrar';
+      }
+      return 'por_cobrar';
+    })();
+    setSituation(nextSituation);
+    setDateFrom(initialDateFrom);
+    setDateTo(initialDateTo);
   }, [
     initialCompanyId,
     initialDateFrom,
     initialDateTo,
     initialOverdue,
     initialStatus,
-    currentMonthRange.from,
-    currentMonthRange.to,
+    initialSituationParam,
   ]);
 
   useEffect(() => {
@@ -523,8 +536,7 @@ const Documents = () => {
     initialPage,
     initialPerPage,
     initialStatus,
-    currentMonthRange.from,
-    currentMonthRange.to,
+    initialSituationParam,
   ]);
 
   const fetchDocuments = async () => {
@@ -562,9 +574,11 @@ const Documents = () => {
     if (v && !prev) {
       setDateFrom('');
       setDateTo('');
+      setSituation('por_cobrar');
     } else if (!v && prev) {
-      setDateFrom(currentMonthRange.from);
-      setDateTo(currentMonthRange.to);
+      setDateFrom('');
+      setDateTo('');
+      setSituation('por_cobrar');
     }
   };
 
@@ -603,16 +617,16 @@ const Documents = () => {
   const lastDocumentsFilterKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const filterKey = [companyId, status, String(overdue), dateFrom, dateTo].join('\t');
+    const filterKey = [companyId, situation, dateFrom, dateTo].join('\t');
 
-    if (companyId && ((dateFrom && !dateTo) || (!dateFrom && dateTo))) {
+    if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
       if (!partialDateFilterWarned.current) {
         partialDateFilterWarned.current = true;
         window.dispatchEvent(
           new CustomEvent('miweb:toast', {
             detail: {
               type: 'error',
-              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todo el saldo pendiente.',
+              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los registros.',
             },
           }),
         );
@@ -629,32 +643,15 @@ const Documents = () => {
         const next = new URLSearchParams(prev);
         if (companyId) next.set('company_id', companyId);
         else next.delete('company_id');
-        if (overdue || status === 'vencido') next.set('overdue', '1');
-        else next.delete('overdue');
-        if (status === 'vencido') {
-          next.delete('status');
-        } else if (status === 'all') {
-          next.set('status', 'all');
-        } else if (status) {
-          next.set('status', status);
+        next.delete('status');
+        next.delete('overdue');
+        next.set('situation', situation);
+        if (dateFrom && dateTo) {
+          next.set('date_from', dateFrom);
+          next.set('date_to', dateTo);
         } else {
-          if (companyId) {
-            next.delete('status');
-          } else {
-            next.set('status', 'pendiente');
-          }
-        }
-        if (companyId) {
-          if (dateFrom && dateTo) {
-            next.set('date_from', dateFrom);
-            next.set('date_to', dateTo);
-          } else {
-            next.delete('date_from');
-            next.delete('date_to');
-          }
-        } else {
-          next.set('date_from', dateFrom || currentMonthRange.from);
-          next.set('date_to', dateTo || currentMonthRange.to);
+          next.delete('date_from');
+          next.delete('date_to');
         }
         if (filtersJustChanged) {
           next.set('page', '1');
@@ -672,12 +669,9 @@ const Documents = () => {
     lastDocumentsFilterKeyRef.current = filterKey;
   }, [
     companyId,
-    status,
-    overdue,
+    situation,
     dateFrom,
     dateTo,
-    currentMonthRange.from,
-    currentMonthRange.to,
     initialPerPage,
     setSearchParams,
   ]);
@@ -788,9 +782,7 @@ const Documents = () => {
       const detail = (await documentsService.get(doc.id)) as unknown as DocumentWithPayments;
       const merged: DocumentWithPayments = { ...doc, ...detail };
       setPayDoc(merged);
-      const paid = (detail.payments ?? []).reduce((sum, p) => sum + (Number.isFinite(p.amount) ? p.amount : 0), 0);
-      const balance = Math.max(0, (detail.total_amount ?? doc.total_amount ?? 0) - paid);
-      setPayBalance(balance);
+      setPayBalance(documentBalanceAmount(merged));
       setPayDescription(defaultPayDescriptionFromDoc(merged));
     } catch (e) {
       console.error(e);
@@ -927,6 +919,7 @@ const Documents = () => {
 
   return (
     <div className="space-y-4">
+      <DocumentDebtDetailModal open={debtDetailOpen} doc={debtDetailDoc} onClose={closeDebtDetailModal} />
       <TukifacIssueLinksDialog
         open={Boolean(tukifacPostPayLinks)}
         links={tukifacPostPayLinks}
@@ -973,22 +966,15 @@ const Documents = () => {
             />
           </div>
           <div className="sm:col-span-2 lg:col-span-2 xl:col-span-3 min-w-0 w-full">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Situación</label>
             <SearchableSelect
-              value={status}
-              onChange={(v) => {
-                setStatus(v);
-                setOverdue(v === 'vencido');
-              }}
+              value={situation}
+              onChange={(v) => setSituation(v as CollectionSituation)}
               className="w-full min-w-0"
-              options={[
-                { value: 'all', label: 'Todos' },
-                { value: 'pendiente', label: 'Pendiente' },
-                { value: 'parcial', label: 'Parcial' },
-                { value: 'pagado', label: 'Pagado' },
-                { value: 'anulado', label: 'Anulado' },
-                { value: 'vencido', label: 'Vencido' },
-              ]}
+              options={COLLECTION_SITUATION_OPTIONS.map((o) => ({
+                value: o.value || 'all',
+                label: o.label,
+              }))}
             />
           </div>
           <div className="lg:col-span-1 xl:col-span-2 min-w-0 w-full">
@@ -1037,11 +1023,14 @@ const Documents = () => {
                   <th className="px-4 py-3">Empresa</th>
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3 whitespace-nowrap">Periodo</th>
-                  <th className="px-4 py-3">Número</th>
-                  <th className="px-4 py-3 min-w-[140px] max-w-[280px]">Descripción</th>
-                  <th className="px-4 py-3 text-right">Monto</th>
+                  <th className="px-4 py-3 whitespace-nowrap">
+                    {initialCompanyId ? 'Concepto' : 'Documento'}
+                  </th>
+                  <th className="px-4 py-3 whitespace-nowrap">Liquidación</th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">Monto total</th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">Pagado</th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">Saldo</th>
                   <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3 text-right">Pago</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               )}
@@ -1051,7 +1040,7 @@ const Documents = () => {
               (useGroupedLayout ? companySummaries.length === 0 : documents.length === 0) ? (
                  <tr>
                    <td
-                     colSpan={useGroupedLayout ? 6 : 10}
+                     colSpan={useGroupedLayout ? 6 : 11}
                      className="px-4 py-6 text-center text-slate-500 text-sm"
                    >
                      <i className="fas fa-spinner fa-spin mr-2"></i> Cargando deudas...
@@ -1100,52 +1089,50 @@ const Documents = () => {
                     <td className="px-4 py-3 text-slate-600 font-mono text-xs tabular-nums whitespace-nowrap">
                       {formatDebtPeriod(doc)}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 font-mono text-xs">{documentDebtNumber(doc)}</td>
                     <td
-                      className="px-4 py-3 text-slate-600 text-xs max-w-[280px] align-top"
-                      title={doc.description?.trim() ? doc.description : undefined}
+                      className={`px-4 py-3 text-slate-700 text-xs ${
+                        initialCompanyId ? 'max-w-[14rem] font-medium' : 'font-mono whitespace-nowrap'
+                      }`}
+                      title={initialCompanyId ? documentDebtItemLabel(doc) : documentDebtNumber(doc)}
                     >
-                      {doc.description?.trim() ? (
-                        <span className="line-clamp-2">{doc.description.trim()}</span>
+                      {initialCompanyId ? documentDebtItemLabel(doc) : documentDebtNumber(doc)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">
+                      {documentSettlementLabel(doc) ? (
+                        <Link
+                          to={`/tax-settlements/${doc.tax_settlement_id ?? doc.tax_settlement?.id}`}
+                          className="font-medium text-primary-700 hover:text-primary-900 hover:underline"
+                          title="Ver liquidación"
+                        >
+                          {documentSettlementLabel(doc)}
+                        </Link>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        '—'
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-800 font-semibold whitespace-nowrap">
-                      S/ {doc.total_amount.toFixed(2)}
+                    <td className="px-4 py-3 text-right text-slate-800 font-semibold whitespace-nowrap tabular-nums">
+                      {formatMoneyPen(doc.total_amount)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-emerald-800 whitespace-nowrap tabular-nums">
+                      {formatMoneyPen(documentPaidAmount(doc))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-900 font-medium whitespace-nowrap tabular-nums">
+                      {formatMoneyPen(documentBalanceAmount(doc))}
                     </td>
                     <td className="px-4 py-3">
-                      {(() => {
-                        const dueDate = doc.due_date ? new Date(doc.due_date) : null;
-                        const isOverdue = Boolean(
-                          dueDate &&
-                            Number.isFinite(dueDate.getTime()) &&
-                            dueDate.getTime() < Date.now() &&
-                            doc.status !== 'pagado' &&
-                            doc.status !== 'anulado',
-                        );
-                        const label = isOverdue ? 'vencido' : doc.status;
-                        const cls =
-                          label === 'pendiente'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : label === 'parcial'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : label === 'pagado'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : label === 'anulado'
-                                  ? 'bg-slate-50 text-slate-700 border border-slate-200'
-                                  : 'bg-red-50 text-red-700 border border-red-200';
-
-                        return (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-                            {label}
-                          </span>
-                        );
-                      })()}
+                      <DocumentDebtBadge doc={doc} />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end">
-                        {doc.status !== 'pagado' && doc.status !== 'anulado' && canCreatePayment ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          title="Detalle financiero e historial de pagos"
+                          onClick={() => void openDebtDetailModal(doc)}
+                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <i className="fas fa-circle-info mr-1"></i> Detalle
+                        </button>
+                        {documentCanReceivePayment(doc) && canCreatePayment ? (
                           <button
                             type="button"
                             onClick={() => openPayModal(doc)}
@@ -1153,13 +1140,7 @@ const Documents = () => {
                           >
                             <i className="fas fa-hand-holding-usd mr-1"></i> Pagar
                           </button>
-                        ) : (
-                          <span className="text-slate-400 text-xs">—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
+                        ) : null}
                         {doc.has_items ? (
                           <button
                             type="button"
@@ -1170,23 +1151,24 @@ const Documents = () => {
                             <i className="fas fa-align-left mr-1"></i> Desglose
                           </button>
                         ) : null}
-                        {canUpsert ? (
-                          <Link
-                            to={`/documents/${doc.id}/edit`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            <i className="fas fa-pen mr-1"></i> Editar
-                          </Link>
-                        ) : null}
-                        {canDelete ? (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(doc)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            <i className="fas fa-trash mr-1"></i> Eliminar
-                          </button>
-                        ) : null}
+                        <TableRowMoreMenu
+                          items={[
+                            ...(canUpsert
+                              ? [{ type: 'link' as const, to: `/documents/${doc.id}/edit`, label: 'Editar', icon: 'fas fa-pen' }]
+                              : []),
+                            ...(canDelete
+                              ? [
+                                  {
+                                    type: 'button' as const,
+                                    label: 'Eliminar',
+                                    icon: 'fas fa-trash',
+                                    danger: true,
+                                    onClick: () => setDeleteTarget(doc),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -1194,7 +1176,7 @@ const Documents = () => {
               ) : (
                 <tr>
                   <td
-                    colSpan={useGroupedLayout ? 6 : 10}
+                    colSpan={useGroupedLayout ? 6 : 11}
                     className="px-4 py-6 text-center text-slate-500 text-sm"
                   >
                     {loading ? 'Cargando...' : 'No hay deudas registradas.'}
@@ -1597,34 +1579,7 @@ const Documents = () => {
                                 </td>
                                 <td className="px-3 py-2">
                                   {doc && debtsCompanyFirstRowIdx.get(line.document_id) === idx ? (
-                                    (() => {
-                                      const dueDate = doc.due_date ? new Date(doc.due_date) : null;
-                                      const isOverdue = Boolean(
-                                        dueDate &&
-                                          Number.isFinite(dueDate.getTime()) &&
-                                          dueDate.getTime() < Date.now() &&
-                                          doc.status !== 'pagado' &&
-                                          doc.status !== 'anulado',
-                                      );
-                                      const label = isOverdue ? 'vencido' : doc.status;
-                                      const cls =
-                                        label === 'pendiente'
-                                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                          : label === 'parcial'
-                                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                                            : label === 'pagado'
-                                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                              : label === 'anulado'
-                                                ? 'bg-slate-50 text-slate-700 border border-slate-200'
-                                                : 'bg-red-50 text-red-700 border border-red-200';
-                                      return (
-                                        <span
-                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}
-                                        >
-                                          {label}
-                                        </span>
-                                      );
-                                    })()
+                                    <DocumentDebtBadge doc={doc} />
                                   ) : (
                                     <span className="text-slate-300 select-none">—</span>
                                   )}
@@ -1632,7 +1587,15 @@ const Documents = () => {
                                 <td className="px-3 py-2">
                                   {showDocActions && doc ? (
                                     <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                      {doc.status !== 'pagado' && doc.status !== 'anulado' && canCreatePayment ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void openDebtDetailModal(doc)}
+                                        className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                                      >
+                                        <i className="fas fa-circle-info mr-1" />
+                                        Detalle
+                                      </button>
+                                      {documentCanReceivePayment(doc) && canCreatePayment ? (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1645,28 +1608,35 @@ const Documents = () => {
                                           Pagar
                                         </button>
                                       ) : null}
-                                      {canUpsert ? (
-                                        <Link
-                                          to={`/documents/${doc.id}/edit`}
-                                          className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-                                        >
-                                          <i className="fas fa-pen mr-1" />
-                                          Editar
-                                        </Link>
-                                      ) : null}
-                                      {canDelete ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            closeDebtsCompanyModal();
-                                            setDeleteTarget(doc);
-                                          }}
-                                          className="inline-flex items-center px-2.5 py-1 rounded-full border border-red-200 text-[11px] font-medium text-red-700 hover:bg-red-50"
-                                        >
-                                          <i className="fas fa-trash mr-1" />
-                                          Eliminar
-                                        </button>
-                                      ) : null}
+                                      <TableRowMoreMenu
+                                        buttonClassName="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                                        items={[
+                                          ...(canUpsert
+                                            ? [
+                                                {
+                                                  type: 'link' as const,
+                                                  to: `/documents/${doc.id}/edit`,
+                                                  label: 'Editar',
+                                                  icon: 'fas fa-pen',
+                                                },
+                                              ]
+                                            : []),
+                                          ...(canDelete
+                                            ? [
+                                                {
+                                                  type: 'button' as const,
+                                                  label: 'Eliminar',
+                                                  icon: 'fas fa-trash',
+                                                  danger: true,
+                                                  onClick: () => {
+                                                    closeDebtsCompanyModal();
+                                                    setDeleteTarget(doc);
+                                                  },
+                                                },
+                                              ]
+                                            : []),
+                                        ]}
+                                      />
                                     </div>
                                   ) : null}
                                 </td>

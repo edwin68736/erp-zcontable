@@ -447,8 +447,8 @@ function BankStatementView({
             <colgroup>
               <col style={{ width: '8%' }} />
               <col style={{ width: '8%' }} />
-              <col style={{ width: '7%' }} />
               <col style={{ width: '5%' }} />
+              <col style={{ width: '7%' }} />
               <col style={{ width: '34%' }} />
               <col style={{ width: '6%' }} />
               <col style={{ width: '6%' }} />
@@ -506,7 +506,7 @@ function BankStatementView({
                       className="px-1.5 py-2 text-slate-700 font-mono text-[10px] align-top whitespace-nowrap min-w-0"
                       title={(row.document_number ?? '').trim() || undefined}
                     >
-                      {truncateDocumentNumberDisplay(row.document_number, 24)}
+                      {truncateDocumentNumberDisplay(row.document_number, 28)}
                     </td>
                     <td className="px-2 py-2 text-slate-700 align-top whitespace-normal break-words min-w-0 hyphens-auto">
                       <div className="flex flex-col gap-1">

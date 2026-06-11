@@ -188,6 +188,7 @@ func (ctrl *FinanceCalendarController) CreateActivityAPI(c fiber.Ctx) error {
 		ActivityKind string `json:"activity_kind"`
 		Priority     string `json:"priority"`
 		Status       string `json:"status"`
+		TextColor    string `json:"text_color"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
@@ -196,6 +197,7 @@ func (ctrl *FinanceCalendarController) CreateActivityAPI(c fiber.Ctx) error {
 		Name: body.Name, Description: body.Description,
 		StartDay: body.StartDay, EndDay: body.EndDay, DueDay: body.DueDay,
 		ActivityKind: body.ActivityKind, Priority: body.Priority, Status: body.Status,
+		TextColor: body.TextColor,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -214,6 +216,7 @@ func (ctrl *FinanceCalendarController) UpdateActivityAPI(c fiber.Ctx) error {
 		ActivityKind string `json:"activity_kind"`
 		Priority     string `json:"priority"`
 		Status       string `json:"status"`
+		TextColor    string `json:"text_color"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
@@ -222,6 +225,7 @@ func (ctrl *FinanceCalendarController) UpdateActivityAPI(c fiber.Ctx) error {
 		Name: body.Name, Description: body.Description,
 		StartDay: body.StartDay, EndDay: body.EndDay, DueDay: body.DueDay,
 		ActivityKind: body.ActivityKind, Priority: body.Priority, Status: body.Status,
+		TextColor: body.TextColor,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

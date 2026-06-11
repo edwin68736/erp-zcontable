@@ -1,0 +1,8 @@
+{
+  "migration_name": "documents_v3_legacy_consolidation",
+  "merged": [],
+  "promoted_document_ids": [],
+  "conflicts": [],
+  "balances_normalized": 373,
+  "dry_run": false
+}

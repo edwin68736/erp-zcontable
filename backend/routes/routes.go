@@ -31,6 +31,7 @@ func Setup(app *fiber.App) {
 	taxSettleCtrl := controllers.NewTaxSettlementController()
 	supervisorCtrl := controllers.NewSupervisorController()
 	calendarCtrl := controllers.NewFinanceCalendarController()
+	credCtrl := controllers.NewCompanyAccessCredentialController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
 
@@ -107,6 +108,7 @@ func Setup(app *fiber.App) {
 
 	// Reports API
 	api.Get("/reports/financial", middleware.RequirePermission(rbac.ReportsFinancialView), reportCtrl.FinancialSummaryAPI)
+	api.Get("/reports/debts", middleware.RequirePermission(rbac.ReportsFinancialView), reportCtrl.DebtsReportAPI)
 
 	// Series y comprobantes fiscales (local)
 	api.Get("/fiscal-document-series", middleware.RequirePermission(rbac.FiscalSeriesView), fiscalSeriesCtrl.ListAPI)
@@ -168,12 +170,17 @@ func Setup(app *fiber.App) {
 
 	// Liquidaciones de impuestos
 	api.Get("/companies/:id/settlements/preview", middleware.RequirePermission(rbac.TaxSettlementsPreview), taxSettleCtrl.PreviewSettlementsAPI)
+	api.Get("/companies/:id/settlements/pending-from-closed", middleware.RequirePermission(rbac.TaxSettlementsPreview), taxSettleCtrl.PendingFromClosedAPI)
 	api.Get("/tax-settlements", middleware.RequirePermission(rbac.TaxSettlementsList), taxSettleCtrl.ListAPI)
 	api.Post("/tax-settlements", middleware.RequirePermission(rbac.TaxSettlementsCreate), taxSettleCtrl.CreateAPI)
 	api.Get("/tax-settlements/:id/payment-suggestions", middleware.RequirePermission(rbac.TaxSettlementsPaymentSuggestions), taxSettleCtrl.PaymentSuggestionsAPI)
+	api.Get("/tax-settlements/:id/debts-context", middleware.RequirePermission(rbac.TaxSettlementsView), taxSettleCtrl.DebtsContextAPI)
+	api.Post("/tax-settlements/:id/link-debt", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.LinkDebtAPI)
 	api.Get("/tax-settlements/:id", middleware.RequirePermission(rbac.TaxSettlementsView), taxSettleCtrl.GetAPI)
 	api.Put("/tax-settlements/:id", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.UpdateAPI)
+	api.Post("/tax-settlements/:id/revert-to-draft", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.RevertToDraftAPI)
 	api.Post("/tax-settlements/:id/emit", middleware.RequirePermission(rbac.TaxSettlementsEmit), taxSettleCtrl.EmitAPI)
+	api.Post("/tax-settlements/:id/close", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.CloseAPI)
 	api.Delete("/tax-settlements/:id", middleware.RequirePermission(rbac.TaxSettlementsDelete), taxSettleCtrl.DeleteAPI)
 
 	// Supervisores contables
@@ -231,4 +238,13 @@ func Setup(app *fiber.App) {
 	cal.Put("/activities/:id", middleware.RequirePermission(rbac.FinanceCalendarManage), calendarCtrl.UpdateActivityAPI)
 	cal.Delete("/activities/:id", middleware.RequirePermission(rbac.FinanceCalendarManage), calendarCtrl.DeleteActivityAPI)
 	cal.Get("/:periodYm", middleware.RequirePermission(rbac.FinanceCalendarView), calendarCtrl.GetAPI)
+
+	// Claves de acceso por empresa (Finanzas)
+	creds := api.Group("/finance/company-credentials")
+	creds.Get("/", middleware.RequirePermission(rbac.CompanyCredentialsView), credCtrl.ListAPI)
+	creds.Get("/filter-facets", middleware.RequirePermission(rbac.CompanyCredentialsView), credCtrl.FilterFacetsAPI)
+	creds.Get("/import/template", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportTemplateAPI)
+	creds.Post("/import", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportAPI)
+	creds.Get("/:companyId", middleware.RequirePermission(rbac.CompanyCredentialsView), credCtrl.GetAPI)
+	creds.Put("/:companyId", middleware.RequirePermission(rbac.CompanyCredentialsManage), credCtrl.UpdateAPI)
 }

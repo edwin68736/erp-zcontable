@@ -10,6 +10,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
 )
@@ -33,7 +34,7 @@ type SettlementPreviewLine struct {
 }
 
 func documentPreviewConcept(d models.Document) string {
-	concept := strings.TrimSpace(d.Description)
+	concept := debtsvc.SanitizeDocumentDescription(d.Description)
 	if len(d.Items) == 0 {
 		return concept
 	}
@@ -54,6 +55,11 @@ func documentPreviewConcept(d models.Document) string {
 }
 
 func (s *TaxSettlementService) PreviewOpenDocuments(companyID uint, asOf *time.Time) ([]SettlementPreviewLine, error) {
+	debtSvc := debtsvc.NewService()
+	closedOrigins, err := debtSvc.ClosedSettlementDebtOrigins(database.DB, companyID)
+	if err != nil {
+		return nil, err
+	}
 	var docs []models.Document
 	q := database.DB.Where("company_id = ? AND status IN ?", companyID, []string{"pendiente", "parcial"}).
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
@@ -65,8 +71,20 @@ func (s *TaxSettlementService) PreviewOpenDocuments(companyID uint, asOf *time.T
 	}
 	out := make([]SettlementPreviewLine, 0, len(docs))
 	for _, d := range docs {
-		paid := DocumentPaidTotal(database.DB, d.ID)
-		bal := d.TotalAmount - paid
+		if !debtsvc.IsActiveDebt(&d) {
+			continue
+		}
+		skip, err := debtSvc.IsExcludedFromAutoPreview(database.DB, &d, closedOrigins)
+		if err != nil {
+			return nil, err
+		}
+		if skip {
+			continue
+		}
+		bal := d.BalanceAmount
+		if bal <= 0.005 {
+			bal = debtsvc.NewService().EffectiveBalance(database.DB, &d)
+		}
 		if bal <= 0.005 {
 			continue
 		}
@@ -300,6 +318,10 @@ func (s *TaxSettlementService) CreateDraft(in TaxSettlementCreateInput) (*models
 		if err := tx.Create(&lines).Error; err != nil {
 			return err
 		}
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.EnsureSettlementLineDebts(tx, ts.ID, ts.CompanyID, ts.IssueDate, ts.LiquidationPeriod, lines); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return nil, err
@@ -316,6 +338,7 @@ type TaxSettlementUpdateInput struct {
 	Notes              string                   `json:"notes"`
 	Pdt621JSON         string                   `json:"pdt621_json"`
 	Lines              []TaxSettlementLineInput `json:"lines"`
+	OperationKey       string                   `json:"operation_key"`
 }
 
 func (s *TaxSettlementService) UpdateDraft(id uint, in TaxSettlementUpdateInput) (*models.TaxSettlement, error) {
@@ -405,7 +428,17 @@ func (s *TaxSettlementService) UpdateDraft(id uint, in TaxSettlementUpdateInput)
 		if err := tx.Create(&lines).Error; err != nil {
 			return err
 		}
-		return nil
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.EnsureSettlementLineDebts(tx, ts.ID, ts.CompanyID, ts.IssueDate, ts.LiquidationPeriod, lines); err != nil {
+			return err
+		}
+		kept := make(map[uint]bool)
+		for i := range lines {
+			if lines[i].DocumentID != nil && *lines[i].DocumentID > 0 {
+				kept[*lines[i].DocumentID] = true
+			}
+		}
+		return debtSvc.CleanupSettlementDebtsNotInLines(tx, ts.ID, ts.CompanyID, kept)
 	}); err != nil {
 		return nil, err
 	}
@@ -491,69 +524,6 @@ func (s *TaxSettlementService) ListPaged(params TaxSettlementListParams) ([]mode
 	return list, total, nil
 }
 
-// createDebtDocumentsForManualLines crea documentos de deuda pendientes por líneas adjustment/tax_manual sin document_id.
-// Se usa al emitir y al pedir sugerencias de pago, para reparar liquidaciones emitidas antes del backfill o fallos parciales.
-func createDebtDocumentsForManualLines(tx *gorm.DB, ts *models.TaxSettlement, lines []models.TaxSettlementLine) error {
-	for i := range lines {
-		ln := &lines[i]
-		if ln.DocumentID != nil && *ln.DocumentID > 0 {
-			continue
-		}
-		if ln.LineType != models.TaxSettlementLineAdjust && ln.LineType != models.TaxSettlementLineTaxManual {
-			continue
-		}
-		if ln.Amount < 0.005 {
-			continue
-		}
-		issue := ts.IssueDate
-		y, mo, d := issue.Date()
-		issue = time.Date(y, mo, d, 0, 0, 0, 0, issue.Location())
-		periodYM := strings.TrimSpace(ln.PeriodYM)
-		if periodYM == "" && ln.PeriodDate != nil && !ln.PeriodDate.IsZero() {
-			periodYM = ln.PeriodDate.Format("2006-01")
-		}
-		if periodYM == "" {
-			periodYM = strings.TrimSpace(ts.LiquidationPeriod)
-		}
-		if periodYM == "" {
-			periodYM = issue.Format("2006-01")
-		}
-		desc := strings.TrimSpace(ln.Concept)
-		if desc == "" {
-			desc = "Cargo liquidación"
-		}
-		if len(desc) > 900 {
-			desc = desc[:900] + "…"
-		}
-		acct := periodYM
-		if len(acct) > 64 {
-			acct = acct[:64]
-		}
-		svc := acct
-		doc := models.Document{
-			CompanyID:        ts.CompanyID,
-			Type:             models.DocumentTypeLiquidacion,
-			Number:           fmt.Sprintf("DEU-LIQ-%d-%d", ts.ID, ln.ID),
-			IssueDate:        issue,
-			TotalAmount:      math.Round(ln.Amount*100) / 100,
-			Description:      desc,
-			ServiceMonth:     svc,
-			AccountingPeriod: acct,
-			Status:           "pendiente",
-			Source:           "liquidacion",
-		}
-		if err := tx.Omit("Company", "Payments", "Allocations", "Items").Create(&doc).Error; err != nil {
-			return err
-		}
-		did := doc.ID
-		if err := tx.Model(&models.TaxSettlementLine{}).Where("id = ?", ln.ID).Update("document_id", did).Error; err != nil {
-			return err
-		}
-		ln.DocumentID = &did
-	}
-	return nil
-}
-
 func (s *TaxSettlementService) Emit(id uint) (*models.TaxSettlement, error) {
 	var ts models.TaxSettlement
 	if err := database.DB.Preload("Lines").First(&ts, id).Error; err != nil {
@@ -600,7 +570,8 @@ func (s *TaxSettlementService) Emit(id uint) (*models.TaxSettlement, error) {
 		}
 		ts.Number = num
 		ts.Status = models.TaxSettlementStatusIssued
-		if err := createDebtDocumentsForManualLines(tx, &ts, ts.Lines); err != nil {
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.EnsureSettlementLineDebts(tx, ts.ID, ts.CompanyID, ts.IssueDate, ts.LiquidationPeriod, ts.Lines); err != nil {
 			return err
 		}
 		if err := tx.Save(&ts).Error; err != nil {
@@ -645,7 +616,8 @@ func (s *TaxSettlementService) PaymentSuggestions(settlementID uint) (*PaymentSu
 			if err := tx.Where("tax_settlement_id = ?", ts.ID).Order("sort_order ASC, id ASC").Find(&lines).Error; err != nil {
 				return err
 			}
-			return createDebtDocumentsForManualLines(tx, ts, lines)
+			// TODO: remove after migration — repara liquidaciones emitidas antes del refactor (sin document_id en línea)
+			return debtsvc.NewService().EnsureSettlementLineDebts(tx, ts.ID, ts.CompanyID, ts.IssueDate, ts.LiquidationPeriod, lines)
 		}); err != nil {
 			return nil, err
 		}
@@ -675,7 +647,7 @@ func (s *TaxSettlementService) PaymentSuggestions(settlementID uint) (*PaymentSu
 		if d.Status == "anulado" {
 			continue
 		}
-		bal := d.TotalAmount - DocumentPaidTotal(database.DB, d.ID)
+		bal := debtsvc.NewService().EffectiveBalance(database.DB, &d)
 		if bal < 0.005 {
 			continue
 		}
@@ -694,7 +666,7 @@ func (s *TaxSettlementService) PaymentSuggestions(settlementID uint) (*PaymentSu
 		out.Lines = append(out.Lines, PaymentSuggestionLine{
 			DocumentID:           *ln.DocumentID,
 			Amount:               sug,
-			Concept:              strings.TrimSpace(ln.Concept),
+			Concept:              debtsvc.SanitizeDocumentDescription(strings.TrimSpace(ln.Concept)),
 			SettlementLineAmount: ln.Amount,
 			DocumentNumber:       strings.TrimSpace(d.Number),
 			PeriodYM:             pYM,
@@ -715,8 +687,8 @@ func (s *TaxSettlementService) CanRegisterPayment(settlementID uint) (bool, erro
 }
 
 // Delete elimina la liquidación y revierte lo vinculado: pagos con tax_settlement_id (imputaciones y estados de deuda),
-// referencia a liquidación en comprobantes fiscales, y deudas internas DEU-LIQ-* creadas al emitir.
-// No elimina documentos de deudas externas (líneas document_ref).
+// referencia a liquidación en comprobantes fiscales, y deudas internas de la liquidación sin pagos.
+// No elimina documentos de deudas externas (líneas document_ref); solo desvincula tax_settlement_id.
 func (s *TaxSettlementService) Delete(id uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		var ts models.TaxSettlement
@@ -725,60 +697,17 @@ func (s *TaxSettlementService) Delete(id uint) error {
 		}).First(&ts, id).Error; err != nil {
 			return err
 		}
-
-		paySvc := NewPaymentService()
+		if ts.Status == models.TaxSettlementStatusClosed {
+			return errors.New("no se puede eliminar una liquidación cerrada; es un registro histórico")
+		}
 
 		if ts.Status == models.TaxSettlementStatusIssued {
-			var payIDs []uint
-			if err := tx.Model(&models.Payment{}).Where("tax_settlement_id = ?", id).Pluck("id", &payIDs).Error; err != nil {
+			if err := s.revertSettlementPaymentsAndFiscal(tx, &ts); err != nil {
 				return err
 			}
-			for _, pid := range payIDs {
-				if err := paySvc.DeletePaymentTx(tx, pid); err != nil {
-					return fmt.Errorf("no se pudo revertir el pago %d: %w", pid, err)
-				}
-			}
-			if err := tx.Model(&models.TukifacFiscalReceipt{}).
-				Where("tax_settlement_id = ?", id).
-				Updates(map[string]interface{}{"tax_settlement_id": nil}).Error; err != nil {
-				return err
-			}
-			for _, ln := range ts.Lines {
-				if ln.DocumentID == nil || *ln.DocumentID == 0 {
-					continue
-				}
-				if ln.LineType != models.TaxSettlementLineAdjust && ln.LineType != models.TaxSettlementLineTaxManual {
-					continue
-				}
-				var d models.Document
-				if err := tx.First(&d, *ln.DocumentID).Error; err != nil {
-					if errors.Is(err, gorm.ErrRecordNotFound) {
-						continue
-					}
-					return err
-				}
-				wantNum := fmt.Sprintf("DEU-LIQ-%d-%d", ts.ID, ln.ID)
-				if strings.TrimSpace(d.Source) != "liquidacion" || strings.TrimSpace(d.Number) != wantNum {
-					continue
-				}
-				paid := DocumentPaidTotal(tx, d.ID)
-				if paid >= 0.005 {
-					return fmt.Errorf("la deuda %s aún tiene saldo abonado; no se puede eliminar la liquidación", wantNum)
-				}
-				var payCnt int64
-				if err := tx.Model(&models.Payment{}).Where("document_id = ?", d.ID).Count(&payCnt).Error; err != nil {
-					return err
-				}
-				if payCnt > 0 {
-					return fmt.Errorf("existe un pago registrado sobre la deuda %s; elimínelo antes de borrar la liquidación", wantNum)
-				}
-				if err := tx.Where("document_id = ?", d.ID).Delete(&models.DocumentItem{}).Error; err != nil {
-					return err
-				}
-				if err := tx.Delete(&models.Document{}, d.ID).Error; err != nil {
-					return err
-				}
-			}
+		}
+		if err := debtsvc.NewService().PurgeSettlementDocumentsOnDelete(tx, &ts, ts.Lines); err != nil {
+			return err
 		}
 
 		if err := tx.Where("tax_settlement_id = ?", id).Delete(&models.TaxSettlementLine{}).Error; err != nil {
@@ -793,4 +722,225 @@ func (s *TaxSettlementService) Delete(id uint) error {
 		}
 		return nil
 	})
+}
+
+// RevertToDraft revierte pagos y comprobantes de una liquidación emitida y la deja en borrador para editar.
+func (s *TaxSettlementService) RevertToDraft(id uint) (*models.TaxSettlement, error) {
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var ts models.TaxSettlement
+		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC, id ASC")
+		}).First(&ts, id).Error; err != nil {
+			return err
+		}
+		if ts.Status == models.TaxSettlementStatusDraft {
+			return nil
+		}
+		if ts.Status == models.TaxSettlementStatusClosed {
+			return errors.New("no se puede revertir una liquidación cerrada")
+		}
+		if ts.Status != models.TaxSettlementStatusIssued {
+			return errors.New("solo se puede revertir una liquidación emitida")
+		}
+		if err := s.revertSettlementPaymentsAndFiscal(tx, &ts); err != nil {
+			return err
+		}
+		ts.Status = models.TaxSettlementStatusDraft
+		ts.TotalHonorarios = 0
+		ts.TotalImpuestos = 0
+		ts.TotalGeneral = 0
+		return tx.Save(&ts).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetByID(id)
+}
+
+func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts *models.TaxSettlement) error {
+	if ts == nil {
+		return nil
+	}
+	paySvc := NewPaymentService()
+
+	var payIDs []uint
+	if err := tx.Model(&models.Payment{}).Where("tax_settlement_id = ?", ts.ID).Pluck("id", &payIDs).Error; err != nil {
+		return err
+	}
+	for _, pid := range payIDs {
+		if err := paySvc.DeletePaymentTx(tx, pid); err != nil {
+			return fmt.Errorf("no se pudo revertir el pago %d: %w", pid, err)
+		}
+	}
+	if err := tx.Model(&models.TukifacFiscalReceipt{}).
+		Where("tax_settlement_id = ?", ts.ID).
+		Updates(map[string]interface{}{"tax_settlement_id": nil}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// SettlementDebtsContext deudas vinculadas y abiertas no vinculadas para editar/emitir liquidación.
+type SettlementDebtsContext struct {
+	TaxSettlementID            uint                        `json:"tax_settlement_id"`
+	CompanyID                  uint                        `json:"company_id"`
+	Linked                     []debtsvc.SettlementDebtRow `json:"linked"`
+	Unlinked                   []debtsvc.SettlementDebtRow `json:"unlinked"`
+	PendingFromPreviousCount   int                         `json:"pending_from_previous_count"`
+}
+
+func (s *TaxSettlementService) DebtsContext(settlementID uint) (*SettlementDebtsContext, error) {
+	ts, err := s.GetByID(settlementID)
+	if err != nil {
+		return nil, err
+	}
+	debtSvc := debtsvc.NewService()
+	linked, err := debtSvc.ListDebtsForSettlementView(database.DB, ts)
+	if err != nil {
+		return nil, err
+	}
+	unlinked, err := debtSvc.ListUnlinkedOpenDebts(database.DB, ts.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	prevCount := 0
+	for _, row := range unlinked {
+		if row.FromPreviousSettlement {
+			prevCount++
+		}
+	}
+	return &SettlementDebtsContext{
+		TaxSettlementID:          ts.ID,
+		CompanyID:                  ts.CompanyID,
+		Linked:                     linked,
+		Unlinked:                   unlinked,
+		PendingFromPreviousCount:   prevCount,
+	}, nil
+}
+
+// LinkDebtInput agrega deuda existente a liquidación en borrador (vincula, no duplica).
+type LinkDebtInput struct {
+	DocumentID uint    `json:"document_id"`
+	Concept    string  `json:"concept"`
+	Amount     float64 `json:"amount"`
+}
+
+// LinkDebtToDraft añade línea document_ref y vincula tax_settlement_id.
+func (s *TaxSettlementService) LinkDebtToDraft(settlementID uint, in LinkDebtInput) (*models.TaxSettlement, error) {
+	if in.DocumentID == 0 {
+		return nil, errors.New("document_id requerido")
+	}
+	var ts models.TaxSettlement
+	if err := database.DB.First(&ts, settlementID).Error; err != nil {
+		return nil, err
+	}
+	if ts.Status != models.TaxSettlementStatusDraft {
+		return nil, errors.New("solo se pueden agregar deudas a liquidaciones en borrador")
+	}
+	var doc models.Document
+	if err := database.DB.First(&doc, in.DocumentID).Error; err != nil {
+		return nil, errors.New("deuda no encontrada")
+	}
+	if doc.CompanyID != ts.CompanyID {
+		return nil, errors.New("la deuda no pertenece a la empresa de la liquidación")
+	}
+	debtSvc := debtsvc.NewService()
+	bal := debtSvc.EffectiveBalance(database.DB, &doc)
+	if bal <= debtsvc.MoneyEpsilon {
+		return nil, errors.New("la deuda no tiene saldo pendiente")
+	}
+	if err := debtSvc.AssertCanLinkDocumentToSettlement(database.DB, &doc, ts.ID); err != nil {
+		return nil, err
+	}
+	amt := in.Amount
+	if amt <= 0 {
+		amt = bal
+	}
+	if amt > bal+0.005 {
+		return nil, errors.New("el monto excede el saldo de la deuda")
+	}
+	concept := debtsvc.SanitizeDocumentDescription(strings.TrimSpace(in.Concept))
+	if concept == "" {
+		concept = debtsvc.SanitizeDocumentDescription(doc.Description)
+	}
+	if concept == "" {
+		concept = "Deuda " + strings.TrimSpace(doc.Number)
+	}
+	lp := strings.TrimSpace(ts.LiquidationPeriod)
+	pym := strings.TrimSpace(doc.AccountingPeriod)
+	if pym == "" {
+		pym = lp
+	}
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var maxOrder int
+		tx.Model(&models.TaxSettlementLine{}).Where("tax_settlement_id = ?", ts.ID).Select("COALESCE(MAX(sort_order),0)").Scan(&maxOrder)
+		line := models.TaxSettlementLine{
+			TaxSettlementID: ts.ID,
+			LineType:        models.TaxSettlementLineDocRef,
+			DocumentID:      &in.DocumentID,
+			Concept:         concept,
+			Amount:          math.Round(amt*100) / 100,
+			SortOrder:       maxOrder + 1,
+			PeriodYM:        pym,
+		}
+		if err := tx.Create(&line).Error; err != nil {
+			return err
+		}
+		return debtSvc.EnsureSettlementLineDebts(tx, ts.ID, ts.CompanyID, ts.IssueDate, ts.LiquidationPeriod, []models.TaxSettlementLine{line})
+	}); err != nil {
+		return nil, err
+	}
+	return s.GetByID(settlementID)
+}
+
+// PendingDebtsFromClosedSettlements deudas abiertas liberadas de liquidaciones cerradas (para alertas al crear nueva).
+func (s *TaxSettlementService) PendingDebtsFromClosedSettlements(companyID uint) (int, []debtsvc.SettlementDebtRow, error) {
+	debtSvc := debtsvc.NewService()
+	unlinked, err := debtSvc.ListUnlinkedOpenDebts(database.DB, companyID)
+	if err != nil {
+		return 0, nil, err
+	}
+	out := make([]debtsvc.SettlementDebtRow, 0)
+	for _, row := range unlinked {
+		if row.FromPreviousSettlement {
+			out = append(out, row)
+		}
+	}
+	return len(out), out, nil
+}
+
+// Close pasa una liquidación emitida a cerrada: congela el historial de deudas y libera saldos pendientes.
+func (s *TaxSettlementService) Close(id uint) (*models.TaxSettlement, error) {
+	var outID uint
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var ts models.TaxSettlement
+		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC, id ASC")
+		}).First(&ts, id).Error; err != nil {
+			return err
+		}
+		if ts.Status == models.TaxSettlementStatusClosed {
+			outID = ts.ID
+			return nil
+		}
+		if ts.Status != models.TaxSettlementStatusIssued {
+			return errors.New("solo se pueden cerrar liquidaciones emitidas")
+		}
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.SnapshotAndReleaseOpenDebtsOnClose(tx, ts.ID, ts.Lines); err != nil {
+			return err
+		}
+		now := time.Now()
+		ts.Status = models.TaxSettlementStatusClosed
+		ts.ClosedAt = &now
+		if err := tx.Save(&ts).Error; err != nil {
+			return err
+		}
+		outID = ts.ID
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetByID(outID)
 }

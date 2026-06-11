@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ACTIVITY_KINDS, ACTIVITY_STATUSES, PRIORITIES } from './calendarUtils';
+import { ACTIVITY_COLORS, ACTIVITY_KINDS, ACTIVITY_STATUSES, PRIORITIES } from './calendarUtils';
 
 export type ActivityFormData = {
   name: string;
-  description: string;
   activity_kind: string;
   start_day: number;
   end_day: number;
   due_day: number;
   priority: string;
   status: string;
+  text_color: string;
 };
 
 type Props = {
@@ -49,7 +49,11 @@ const ActivityModal = ({ open, title, initial, lastDayOfMonth, saving, onClose, 
       <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
         <div className="px-5 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">La actividad se mostrará como bloque continuo en el calendario.</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {title.includes('Editar')
+              ? 'Modifique descripción, fechas, estado y color de fondo en el calendario.'
+              : 'La actividad aparece en cada día de su rango. Doble clic en un día del calendario también crea actividades.'}
+          </p>
         </div>
 
         <form
@@ -65,23 +69,13 @@ const ActivityModal = ({ open, title, initial, lastDayOfMonth, saving, onClose, 
           }}
         >
           <label className="block text-sm">
-            <span className="font-medium text-slate-700">Nombre de actividad</span>
+            <span className="font-medium text-slate-700">Descripción</span>
             <input
               required
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
               placeholder="Ej. Generación de NPS"
-            />
-          </label>
-
-          <label className="block text-sm">
-            <span className="font-medium text-slate-700">Descripción (opcional)</span>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              rows={2}
-              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 resize-none"
             />
           </label>
 
@@ -159,6 +153,32 @@ const ActivityModal = ({ open, title, initial, lastDayOfMonth, saving, onClose, 
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="block text-sm">
+            <span className="font-medium text-slate-700">Color del texto en el calendario</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ACTIVITY_COLORS.map((c) => {
+                const selected = form.text_color === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    title={c.label}
+                    aria-label={c.label}
+                    aria-pressed={selected}
+                    onClick={() => setForm((f) => ({ ...f, text_color: c.value }))}
+                    className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-105 ${
+                      selected ? 'border-primary-600 ring-2 ring-primary-200' : 'border-white shadow-sm'
+                    }`}
+                    style={{ backgroundColor: c.value }}
+                  />
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              Color elegido: {ACTIVITY_COLORS.find((c) => c.value === form.text_color)?.label ?? 'Azul'}
+            </p>
           </div>
 
           <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">

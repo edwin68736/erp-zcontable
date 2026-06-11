@@ -29,6 +29,10 @@ func main() {
 		log.Printf("company migrations: %v", err)
 	}
 
+	if err := services.EnsureDocumentMigrationsOnStartup(); err != nil {
+		log.Printf("document migrations: %v", err)
+	}
+
 	if err := database.BackfillUsernames(); err != nil {
 		log.Printf("backfill usernames: %v", err)
 	}

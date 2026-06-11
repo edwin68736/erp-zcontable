@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { CalendarComplianceSummary, FinanceCalendarActivity } from '../../../services/financeCalendar';
 import { priorityLabel } from '../../../utils/supervisorLabels';
-import { ACTIVITY_KINDS, activitySpanDays, formatDayLabel, trafficStyles } from './calendarUtils';
+import { ACTIVITY_KINDS, activityChipStyle, activitySpanDays, formatDayLabel, trafficStyles } from './calendarUtils';
 
 type Props = {
   open: boolean;
@@ -92,7 +92,12 @@ const DaySidePanel = ({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-900 truncate">{a.name}</p>
+                      <p
+                        className="font-bold break-words whitespace-normal inline-block rounded-md border px-2 py-0.5 text-xs"
+                        style={activityChipStyle(a.text_color)}
+                      >
+                        {a.name}
+                      </p>
                       <p className="text-xs text-slate-500 mt-0.5">{kindLabel(a.activity_kind)}</p>
                     </div>
                     <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${st.badge}`}>

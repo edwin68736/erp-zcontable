@@ -15,6 +15,7 @@ import {
 import SearchableSelect from '../components/SearchableSelect';
 import { dateInputToRFC3339MidnightPeru, todayDateInputInPeru } from '../utils/peruDates';
 import { formatUserPickLabel } from '../utils/userLabel';
+import { extractApiErrorMessage } from '../utils/apiError';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -403,8 +404,11 @@ const CompanyForm = () => {
       navigate('/companies', { replace: true });
     } catch (err: unknown) {
       console.error(err);
-      const message = err instanceof Error ? err.message : 'Error al guardar la empresa';
+      const message = extractApiErrorMessage(err, 'Error al guardar la empresa');
       setError(message);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message } }),
+      );
     }
   };
 
@@ -502,19 +506,15 @@ const CompanyForm = () => {
                   id="internal_code"
                   required
                   value={code}
-                  onChange={(e) => {
-                    if (!isEdit) {
-                      setCode(e.target.value.replace(/\D/g, '').slice(0, 4));
-                      return;
-                    }
-                    setCode(e.target.value);
-                  }}
-                  inputMode={isEdit ? 'text' : 'numeric'}
-                  maxLength={isEdit ? 50 : 4}
+                  onChange={(e) => setCode(e.target.value.slice(0, 50))}
+                  maxLength={50}
                   autoComplete="off"
-                  placeholder="0000"
-                  className={`w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none ${isEdit ? '' : 'tracking-widest font-mono'}`}
+                  placeholder="001"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Texto libre (p. ej. 001, 002). Se conservan ceros a la izquierda.
+                </p>
               </div>
               <div className="md:col-span-1">
                 <label htmlFor="ruc" className="block text-sm font-medium text-slate-700 mb-1">

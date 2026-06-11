@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveAs } from 'file-saver';
 import { buildFinanceCalendarPdf, financeCalendarPdfFilename } from '../../pdf/financeCalendarPdfBuild';
+import { configService } from '../../services/config';
 import {
   financeCalendarService,
   type CalendarComplianceSummary,
@@ -15,25 +16,27 @@ import CalendarGrid from './calendar/CalendarGrid';
 import CalendarMetrics from './calendar/CalendarMetrics';
 import DaySidePanel from './calendar/DaySidePanel';
 import ActivityModal, { type ActivityFormData } from './calendar/ActivityModal';
+import ActivityInfoModal from './calendar/ActivityInfoModal';
 import DuplicateMonthModal from './calendar/DuplicateMonthModal';
 import CreateCalendarModal from './calendar/CreateCalendarModal';
 import {
   activitiesForDay,
   applyActivityDatePatch,
   currentPeriodYM,
+  DEFAULT_ACTIVITY_COLOR,
   type ActivityDatePatch,
   type CalendarCell,
 } from './calendar/calendarUtils';
 
 const emptyActivityForm = (day: number): ActivityFormData => ({
   name: '',
-  description: '',
   activity_kind: 'nps',
   start_day: day,
   end_day: day,
   due_day: day,
   priority: 'media',
   status: 'pendiente',
+  text_color: DEFAULT_ACTIVITY_COLOR,
 });
 
 const FinanceCalendar = () => {
@@ -60,12 +63,14 @@ const FinanceCalendar = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [activityModal, setActivityModal] = useState<{ open: boolean; edit?: FinanceCalendarActivity }>({ open: false });
+  const [activityInfo, setActivityInfo] = useState<FinanceCalendarActivity | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [confirmDeleteCal, setConfirmDeleteCal] = useState(false);
   const [confirmDeleteAct, setConfirmDeleteAct] = useState<FinanceCalendarActivity | null>(null);
   const [confirmCloseCal, setConfirmCloseCal] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const dayClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isClosed = !!detail?.is_closed;
   const canEdit = canManage && !isClosed;
@@ -82,11 +87,12 @@ const FinanceCalendar = () => {
     setActivities(detail?.activities ?? []);
   }, [detail?.activities]);
 
-  const loadDetail = useCallback(async () => {
-    if (!periodYm) return;
+  const loadDetail = useCallback(async (ym?: string) => {
+    const target = (ym ?? periodYm).trim();
+    if (!target) return;
     try {
       setLoading(true);
-      setDetail(await financeCalendarService.get(periodYm));
+      setDetail(await financeCalendarService.get(target));
       setMsg('');
     } catch {
       setDetail(null);
@@ -199,45 +205,88 @@ const FinanceCalendar = () => {
     );
   };
 
+  useEffect(() => {
+    return () => {
+      if (dayClickTimerRef.current) clearTimeout(dayClickTimerRef.current);
+    };
+  }, []);
+
+  const defaultDayForNewActivity = useCallback((): number => {
+    const [y, m] = periodYm.split('-').map(Number);
+    const today = new Date();
+    if (today.getFullYear() === y && today.getMonth() + 1 === m) {
+      return today.getDate();
+    }
+    return selectedDay ?? 1;
+  }, [periodYm, selectedDay]);
+
+  const openNewActivityModal = useCallback(
+    (dayNum?: number) => {
+      const day = dayNum ?? defaultDayForNewActivity();
+      const [y, m] = periodYm.split('-').map(Number);
+      setSelectedDay(day);
+      setSelectedDate(new Date(y, m - 1, day));
+      setSelectedActivityId(null);
+      setCompliance(null);
+      setActivityModal({ open: true, edit: undefined });
+    },
+    [defaultDayForNewActivity, periodYm],
+  );
+
   const handleDayClick = (dayNum: number, date: Date) => {
+    if (dayClickTimerRef.current) clearTimeout(dayClickTimerRef.current);
+    dayClickTimerRef.current = setTimeout(() => {
+      dayClickTimerRef.current = null;
+      setSelectedDay(dayNum);
+      setSelectedDate(date);
+      setSideOpen(true);
+      setSelectedActivityId(null);
+      setCompliance(null);
+    }, 250);
+  };
+
+  const handleDayDoubleClick = (dayNum: number, date: Date) => {
+    if (dayClickTimerRef.current) {
+      clearTimeout(dayClickTimerRef.current);
+      dayClickTimerRef.current = null;
+    }
+    if (!canEdit) return;
+    openNewActivityModal(dayNum);
+    setSideOpen(true);
     setSelectedDay(dayNum);
     setSelectedDate(date);
-    setSideOpen(true);
-    setSelectedActivityId(null);
-    setCompliance(null);
-    if (canEdit) {
-      setActivityModal({ open: true, edit: undefined });
-    }
+  };
+
+  const openActivityInfo = (a: FinanceCalendarActivity) => {
+    setActivityInfo(a);
+    setSelectedActivityId(a.id);
+    void openCompliance(a.id);
   };
 
   const handleActivityClick = (a: FinanceCalendarActivity, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedActivityId(a.id);
-    setSideOpen(true);
-    const { start } = a.start_day > 0 ? { start: a.start_day } : { start: a.due_day };
+    if (dayClickTimerRef.current) {
+      clearTimeout(dayClickTimerRef.current);
+      dayClickTimerRef.current = null;
+    }
+    const start = a.start_day > 0 ? a.start_day : a.due_day;
     setSelectedDay(start);
     const [y, m] = periodYm.split('-').map(Number);
     setSelectedDate(new Date(y, m - 1, start));
-    void openCompliance(a.id);
-  };
-
-  const handleOverflow = (dayNum: number) => {
-    const [y, m] = periodYm.split('-').map(Number);
-    setSelectedDay(dayNum);
-    setSelectedDate(new Date(y, m - 1, dayNum));
-    setSideOpen(true);
+    openActivityInfo(a);
   };
 
   const dayActivities = selectedDay != null ? activitiesForDay(activities, selectedDay) : [];
 
   const saveActivity = async (data: ActivityFormData) => {
     if (!detail) return;
+    const payload = { ...data, description: '' };
     setSaving(true);
     try {
       if (activityModal.edit) {
-        await financeCalendarService.updateActivity(activityModal.edit.id, data);
+        await financeCalendarService.updateActivity(activityModal.edit.id, payload);
       } else {
-        await financeCalendarService.addActivity(detail.id, data);
+        await financeCalendarService.addActivity(detail.id, payload);
       }
       setActivityModal({ open: false });
       await loadDetail();
@@ -255,7 +304,8 @@ const FinanceCalendar = () => {
     if (!detail) return;
     setPdfLoading(true);
     try {
-      const bytes = await buildFinanceCalendarPdf(detail);
+      const firm = await configService.getFirmBranding().catch(() => null);
+      const bytes = await buildFinanceCalendarPdf(detail, { firmLogoUrl: firm?.logo_url });
       const blob = new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
       saveAs(blob, financeCalendarPdfFilename(detail.period_ym));
       setMsg('PDF generado correctamente');
@@ -328,13 +378,13 @@ const FinanceCalendar = () => {
   const activityInitial: ActivityFormData = activityModal.edit
     ? {
         name: activityModal.edit.name,
-        description: activityModal.edit.description ?? '',
         activity_kind: activityModal.edit.activity_kind,
         start_day: activityModal.edit.start_day || activityModal.edit.due_day,
         end_day: activityModal.edit.end_day || activityModal.edit.due_day,
         due_day: activityModal.edit.due_day,
         priority: activityModal.edit.priority,
         status: activityModal.edit.status || 'pendiente',
+        text_color: activityModal.edit.text_color || DEFAULT_ACTIVITY_COLOR,
       }
     : emptyActivityForm(selectedDay ?? 1);
 
@@ -355,6 +405,7 @@ const FinanceCalendar = () => {
         onExportPdf={() => void handleExportPdf()}
         onCloseCalendar={() => setConfirmCloseCal(true)}
         onReopenCalendar={() => void handleReopenCalendar()}
+        onAddActivity={() => openNewActivityModal()}
       />
 
       {msg ? (
@@ -389,7 +440,14 @@ const FinanceCalendar = () => {
             </p>
           ) : null}
           <div className="flex flex-col xl:flex-row gap-4 xl:gap-5">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 space-y-2">
+              {canEdit ? (
+                <p className="text-xs text-slate-500 px-1">
+                  <span className="font-medium text-slate-600">Clic</span> en un día para ver actividades ·{' '}
+                  <span className="font-medium text-slate-600">Doble clic</span> en un día para crear ·{' '}
+                  <span className="font-medium text-slate-600">Clic</span> en una actividad para ver detalle
+                </p>
+              ) : null}
               <CalendarGrid
                 periodYm={periodYm}
                 lastDayOfMonth={lastDayOfMonth}
@@ -399,8 +457,8 @@ const FinanceCalendar = () => {
                 selectedDay={selectedDay}
                 isToday={isToday}
                 onDayClick={handleDayClick}
+                onDayDoubleClick={canEdit ? handleDayDoubleClick : undefined}
                 onActivityClick={handleActivityClick}
-                onOverflowClick={handleOverflow}
                 onActivityDatesChange={handleActivityDatesChange}
               />
             </div>
@@ -441,10 +499,34 @@ const FinanceCalendar = () => {
         complianceLoading={complianceLoading}
         selectedActivityId={selectedActivityId}
         onClose={() => setSideOpen(false)}
-        onSelectActivity={(a) => void openCompliance(a.id)}
-        onEditActivity={(a) => setActivityModal({ open: true, edit: a })}
+        onSelectActivity={(a) => openActivityInfo(a)}
+        onEditActivity={(a) => {
+          setActivityInfo(null);
+          setActivityModal({ open: true, edit: a });
+        }}
         onDeleteActivity={(a) => setConfirmDeleteAct(a)}
-        onAddActivity={() => setActivityModal({ open: true, edit: undefined })}
+        onAddActivity={() => openNewActivityModal(selectedDay ?? undefined)}
+      />
+
+      <ActivityInfoModal
+        open={!!activityInfo}
+        activity={activityInfo}
+        canEdit={canEdit}
+        compliance={compliance}
+        complianceLoading={complianceLoading}
+        onClose={() => {
+          setActivityInfo(null);
+          setSelectedActivityId(null);
+          setCompliance(null);
+        }}
+        onEdit={(a) => {
+          setActivityInfo(null);
+          setActivityModal({ open: true, edit: a });
+        }}
+        onDelete={(a) => {
+          setActivityInfo(null);
+          setConfirmDeleteAct(a);
+        }}
       />
 
       {canEdit ? (
@@ -458,7 +540,11 @@ const FinanceCalendar = () => {
               try {
                 await financeCalendarService.create(ym, notes);
                 setCreateOpen(false);
-                setPeriodYm(ym);
+                if (ym !== periodYm) {
+                  setPeriodYm(ym);
+                } else {
+                  await loadDetail(ym);
+                }
                 setMsg('Calendario creado');
                 setMsgType('success');
               } catch (e: unknown) {
@@ -481,7 +567,7 @@ const FinanceCalendar = () => {
                 await financeCalendarService.duplicate(periodYm, toYm, opts);
                 setDuplicateOpen(false);
                 setPeriodYm(toYm);
-                await loadDetail();
+                await loadDetail(toYm);
                 setMsg('Calendario duplicado correctamente');
                 setMsgType('success');
               } catch {

@@ -35,6 +35,17 @@ func (ctrl *ConfigController) FirmConfigAPI(c fiber.Ctx) error {
 	return c.JSON(cfg)
 }
 
+func firmConfigUpdateBody(c fiber.Ctx) (*models.FirmConfig, string, error) {
+	var body struct {
+		models.FirmConfig
+		OperationsKey string `json:"operations_key"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return nil, "", fiber.NewError(fiber.StatusBadRequest, "Datos inválidos")
+	}
+	return &body.FirmConfig, strings.TrimSpace(body.OperationsKey), nil
+}
+
 // FirmBrandingAPI datos del estudio para PDFs e informes (sin credenciales Tukifac).
 func (ctrl *ConfigController) FirmBrandingAPI(c fiber.Ctx) error {
 	cfg, err := ctrl.configService.GetFirmConfig()
@@ -48,11 +59,14 @@ func (ctrl *ConfigController) FirmBrandingAPI(c fiber.Ctx) error {
 }
 
 func (ctrl *ConfigController) UpdateFirmConfigAPI(c fiber.Ctx) error {
-	var input models.FirmConfig
-	if err := c.Bind().Body(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	input, operationsKey, err := firmConfigUpdateBody(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	cfg, err := ctrl.configService.UpdateFirmConfig(&input)
+	cfg, err := ctrl.configService.UpdateFirmConfig(input, operationsKey)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -100,7 +114,7 @@ func (ctrl *ConfigController) UploadFirmLogoAPI(c fiber.Ctx) error {
 	}
 
 	url := "/" + path.Join("storage", "firm", fileName)
-	cfg, err := ctrl.configService.UpdateFirmConfig(&models.FirmConfig{LogoURL: url})
+	cfg, err := ctrl.configService.UpdateFirmConfig(&models.FirmConfig{LogoURL: url}, "")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

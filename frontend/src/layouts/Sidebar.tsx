@@ -152,19 +152,24 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
             return renderNavLink(entry, mod.label, variant, onNavigate);
           }
           return (
-            <div key={`${mod.id}-${entry.label || 'g'}`} className="space-y-1">
+            <div
+              key={`${mod.id}-${entry.label || 'g'}`}
+              className="rounded-xl border border-white/10 bg-white/10 backdrop-blur-sm"
+            >
               {entry.label ? (
                 <p
                   className={
                     variant === 'desktop-flyout'
-                      ? 'px-3 pt-2 pb-0.5 text-[10px] font-semibold text-white/40 uppercase tracking-[0.12em]'
-                      : 'px-4 pt-2 pb-0.5 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]'
+                      ? 'px-3 pt-2 pb-0.5 text-[10px] font-semibold text-white/50 uppercase tracking-[0.12em]'
+                      : 'px-3 pt-2 pb-0.5 text-[10px] font-semibold text-white/45 uppercase tracking-[0.14em]'
                   }
                 >
                   {entry.label}
                 </p>
               ) : null}
-              {entry.items.map((link) => renderNavLink(link, mod.label, variant, onNavigate))}
+              <div className="space-y-0.5 px-1 pb-1.5">
+                {entry.items.map((link) => renderNavLink(link, mod.label, variant, onNavigate))}
+              </div>
             </div>
           );
         })}
@@ -225,13 +230,17 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
           >
             <p className="mb-2 truncate px-2 text-xs font-bold uppercase tracking-wide text-white/50">{mod.label}</p>
             <div className="custom-scrollbar max-h-[min(70vh,24rem)] overflow-y-auto pr-1">
-              {renderEntries(mod, mod.entries, 'desktop-flyout')}
+              <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/10 px-1 py-1.5 backdrop-blur-sm">
+                {renderEntries(mod, mod.entries, 'desktop-flyout')}
+              </div>
             </div>
           </div>
         ) : null}
 
         {!isCollapsed && isOpenMod ? (
-          <div className="mt-1 border-l border-white/15 pl-2">{renderEntries(mod, mod.entries, 'desktop-expanded')}</div>
+          <div className="mt-1.5 space-y-1.5 rounded-xl border border-white/10 bg-white/10 px-1.5 py-2 backdrop-blur-sm">
+            {renderEntries(mod, mod.entries, 'desktop-expanded')}
+          </div>
         ) : null}
       </div>
     );
@@ -285,7 +294,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         ) : null}
 
         {!isCollapsed && isOpenMod ? (
-          <div className="mt-1 border-l border-white/15 pl-2">{renderStudioEntries('desktop-expanded')}</div>
+          <div className="mt-1.5 rounded-xl border border-white/10 bg-white/10 px-1.5 py-2 backdrop-blur-sm">
+            {renderStudioEntries('desktop-expanded')}
+          </div>
         ) : null}
       </div>
     );
@@ -370,7 +381,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
             aria-hidden
           />
         </button>
-        {isOpenMod ? <div className="border-t border-white/10 px-2 py-2">{renderEntries(mod, mod.entries, 'mobile', onClose)}</div> : null}
+        {isOpenMod ? (
+          <div className="border-t border-white/10 bg-white/10 px-2 py-2 backdrop-blur-sm">
+            {renderEntries(mod, mod.entries, 'mobile', onClose)}
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -398,7 +413,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
           />
         </button>
         {isOpenMod ? (
-          <div className="border-t border-white/10 px-2 py-2">{renderStudioEntries('mobile', onClose)}</div>
+          <div className="border-t border-white/10 bg-white/10 px-2 py-2 backdrop-blur-sm">
+            {renderStudioEntries('mobile', onClose)}
+          </div>
         ) : null}
       </div>
     );

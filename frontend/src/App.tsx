@@ -39,6 +39,7 @@ import SupervisorControlDetail from './pages/supervisors/SupervisorControlDetail
 import SupervisorReports from './pages/supervisors/SupervisorReports';
 import SupervisorNotifications from './pages/supervisors/SupervisorNotifications';
 import FinanceCalendar from './pages/finance/FinanceCalendar';
+import CompanyAccessCredentials from './pages/finance/CompanyAccessCredentials';
 import AssistantWorkspace from './pages/assistant/AssistantWorkspace';
 import AssistantControls from './pages/assistant/AssistantControls';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -82,6 +83,7 @@ function App() {
             <Route path="documents" element={<Documents />} />
             <Route path="tax-settlements" element={<TaxSettlements />} />
             <Route path="tax-settlements/new" element={<TaxSettlementNew />} />
+            <Route path="tax-settlements/:id/edit" element={<TaxSettlementNew />} />
             <Route path="tax-settlements/:id" element={<TaxSettlementDetail />} />
             <Route path="comprobantes" element={<Comprobantes />} />
             <Route path="tukifac/documentos" element={<Navigate to="/comprobantes" replace />} />
@@ -110,6 +112,7 @@ function App() {
             <Route path="supervisors/reports" element={<SupervisorReports />} />
             <Route path="supervisors/notifications" element={<SupervisorNotifications />} />
             <Route path="finance/calendar" element={<FinanceCalendar />} />
+            <Route path="finance/claves-sol" element={<CompanyAccessCredentials />} />
             <Route path="assistant" element={<AssistantWorkspace />} />
             <Route path="assistant/controls" element={<AssistantControls />} />
             <Route path="assistant/controls/:id" element={<SupervisorControlDetail />} />

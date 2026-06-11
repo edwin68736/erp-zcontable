@@ -8,8 +8,23 @@ const devBackend = process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:3000'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Algunos hosts (p. ej. nginx sin mime.types para .mjs) sirven *.mjs como
+        // application/octet-stream y el worker de PDF.js deja de cargar.
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.name ?? '';
+          if (name.endsWith('.mjs')) {
+            return 'assets/[name]-[hash].js';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
+      },
+    },
+  },
   server: {
-    port: 5177,
+    port: 5174,
     strictPort: false,
     proxy: {
       '/api': {
