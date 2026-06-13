@@ -182,6 +182,8 @@ export interface Payment {
   description?: string;
   notes: string;
   fiscal_status?: string;
+  /** Momento en que se registró el pago en el sistema (distinto de `date`). */
+  created_at?: string;
   company?: Company;
   document?: Document;
   allocations?: PaymentAllocation[];

@@ -180,6 +180,7 @@ const PaymentForm = () => {
   const [documentId, setDocumentId] = useState(searchParams.get('document_id') ?? '');
   /** Solo edición: tipo guardado en servidor (en altas se usa derivePaymentType). */
   const [loadedPaymentType, setLoadedPaymentType] = useState<'applied' | 'on_account' | null>(null);
+  const [loadedCreatedAt, setLoadedCreatedAt] = useState('');
   const [date, setDate] = useState(() => (isEdit ? '' : peruvianToday));
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('');
@@ -359,6 +360,7 @@ const PaymentForm = () => {
             pay.type === 'applied' || pay.type === 'on_account' ? pay.type : pay.document_id ? 'applied' : 'on_account',
           );
           setDate(peruDateInputFromApiDate(pay.date));
+          setLoadedCreatedAt(pay.created_at ?? '');
           setAmount(Number.isFinite(pay.amount) ? pay.amount.toFixed(2) : '');
           setMethod(pay.method ?? '');
           setReference(pay.reference ?? '');
@@ -379,6 +381,7 @@ const PaymentForm = () => {
 
   useEffect(() => {
     if (!isEdit) setLoadedPaymentType(null);
+    if (!isEdit) setLoadedCreatedAt('');
   }, [isEdit]);
 
   useEffect(() => {
@@ -790,20 +793,12 @@ const PaymentForm = () => {
                     ))}
                   </select>
                 </div>
-                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={date}
-                    onChange={(ev) => setDate(ev.target.value)}
-                    className="w-full max-w-full min-w-0 px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                  />
-                </div>
               </div>
+              {showComprobanteEmision ? (
+                <p className="text-xs text-slate-500 mt-2">
+                  La fecha del pago (más abajo) también se usará como fecha de emisión del comprobante.
+                </p>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -995,22 +990,13 @@ const PaymentForm = () => {
 
           <section className="lg:col-span-6 rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
             <div className="px-3 py-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">
-              {!showComprobanteEmision ? (
-                <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha del pago
-                  </label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={date}
-                    onChange={(ev) => setDate(ev.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                  />
-                </div>
+              {isEdit && loadedCreatedAt ? (
+                <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  <span className="font-medium text-slate-700">Registrado en el sistema:</span>{' '}
+                  {formatInTimeZone(new Date(loadedCreatedAt), 'America/Lima', 'dd/MM/yyyy HH:mm')}
+                </p>
               ) : null}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-3 sm:gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-3 sm:gap-x-4">
                 <div className="min-w-0">
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">
                     Monto pagado
@@ -1030,7 +1016,23 @@ const PaymentForm = () => {
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
-                    En manual, la suma de líneas debe coincidir con este importe.
+                    La suma de líneas debe coincidir con este importe.
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
+                    Fecha del pago
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={date}
+                    onChange={(ev) => setDate(ev.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                    Día en que el cliente realizó el pago.
                   </p>
                 </div>
                 <div className="min-w-0">

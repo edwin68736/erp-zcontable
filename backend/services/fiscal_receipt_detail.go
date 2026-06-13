@@ -614,23 +614,26 @@ func syncFiscalReceiptPayments(rec *models.TukifacFiscalReceipt) {
 	if pm == "" {
 		return
 	}
+	ref := strings.TrimSpace(rec.PaymentReference)
 	parts := splitPaymentMethodHeader(pm)
 	if len(parts) > 1 {
 		rows := make([]models.FiscalReceiptPayment, 0, len(parts))
 		for i, part := range parts {
 			rows = append(rows, models.FiscalReceiptPayment{
-				SortOrder: i,
-				Method:    part,
-				Amount:    rec.Total,
+				SortOrder:       i,
+				Method:          part,
+				Amount:          rec.Total,
+				OperationNumber: ref,
 			})
 		}
 		rec.Payments = rows
 		return
 	}
 	rec.Payments = []models.FiscalReceiptPayment{{
-		SortOrder: 0,
-		Method:    pm,
-		Amount:    rec.Total,
+		SortOrder:       0,
+		Method:          pm,
+		Amount:          rec.Total,
+		OperationNumber: ref,
 	}}
 }
 
