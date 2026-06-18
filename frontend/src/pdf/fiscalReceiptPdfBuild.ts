@@ -622,10 +622,8 @@ export async function buildFiscalReceiptA4Pdf(
 
   // —— Datos cliente ——
   const issue = formatDateDDMMYYYY(receipt.issue_date ?? '');
-  const paymentDate = receiptPaymentDateLabel(receipt);
   const infoRows: [string, string][] = [
     ['FECHA DE EMISIÓN:', issue || '—'],
-    ['FECHA DE PAGO:', paymentDate || '—'],
     ['CLIENTE:', receipt.customer_name ?? '—'],
     [`${customerDocLabel(receipt)}:`, receipt.customer_number || '—'],
     ['DIRECCIÓN:', receipt.company?.address?.trim() || '—'],

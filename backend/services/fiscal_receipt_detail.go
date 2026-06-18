@@ -706,6 +706,7 @@ func (s *FiscalReceiptService) GetFiscalReceiptDetail(id uint) (*models.TukifacF
 	syncFiscalReceiptPayments(&rec)
 	rec.PeriodLabel = resolveFiscalReceiptPeriodLabel(&rec)
 	applyDebtPaymentContextForDetail(&rec)
+	ApplyFiscalReceiptEmissionDate(&rec)
 
 	return &rec, nil
 }

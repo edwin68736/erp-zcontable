@@ -101,7 +101,8 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 		return nil, err
 	}
 
-	issueDate := pay.Date
+	// Emisión interna = fecha de registro del pago (no la fecha en que ocurrió el pago).
+	issueDate := pay.CreatedAt
 	if issueDate.IsZero() {
 		issueDate = time.Now()
 	}

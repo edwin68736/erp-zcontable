@@ -340,7 +340,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Desde</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro desde</label>
           <input
             type="date"
             value={dateFrom}
@@ -349,7 +349,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Hasta</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro hasta</label>
           <input
             type="date"
             value={dateTo}
@@ -370,8 +370,8 @@ const Payments = () => {
           <table className="min-w-full text-sm text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Fecha pago</th>
                 <th className="px-4 py-3">Registro</th>
+                <th className="px-4 py-3">Fecha pago</th>
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Comprobante</th>
@@ -398,11 +398,11 @@ const Payments = () => {
                   const pdfUrl = (tukRec?.pdf_url ?? '').trim();
                   return (
                   <tr key={payment.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-700 tabular-nums whitespace-nowrap">
-                      {formatPaymentDate(payment.date)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 text-xs tabular-nums whitespace-nowrap" title="Fecha y hora en que se registró en el sistema">
+                    <td className="px-4 py-3 text-slate-700 text-xs tabular-nums whitespace-nowrap" title="Fecha y hora en que se registró en el sistema">
                       {formatPaymentRegisteredAt(payment.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 tabular-nums whitespace-nowrap" title="Fecha en que se realizó el pago">
+                      {formatPaymentDate(payment.date)}
                     </td>
                     <td className="px-4 py-3 text-slate-800 font-medium">
                       {payment.company ? payment.company.business_name : '—'}

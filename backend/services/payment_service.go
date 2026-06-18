@@ -432,13 +432,13 @@ func (s *PaymentService) List(params PaymentListParams) ([]models.Payment, error
 		q = q.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		q = q.Where("date >= ?", *params.DateFrom)
+		q = q.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		q = q.Where("date < ?", *params.DateTo)
+		q = q.Where("created_at < ?", *params.DateTo)
 	}
 
-	if err := q.Order("date DESC, id DESC").Find(&list).Error; err != nil {
+	if err := q.Order("created_at DESC, id DESC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -471,10 +471,10 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		base = base.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		base = base.Where("date >= ?", *params.DateFrom)
+		base = base.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		base = base.Where("date < ?", *params.DateTo)
+		base = base.Where("created_at < ?", *params.DateTo)
 	}
 
 	var total int64
@@ -488,7 +488,7 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		Preload("Allocations").
 		Preload("TaxSettlement").
 		Preload("TukifacFiscalReceipt").
-		Order("date DESC, id DESC").
+		Order("created_at DESC, id DESC").
 		Limit(perPage).
 		Offset((page - 1) * perPage)
 
