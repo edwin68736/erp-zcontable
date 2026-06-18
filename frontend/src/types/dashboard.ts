@@ -315,6 +315,8 @@ export interface FirmConfig {
   operations_key_configured?: boolean;
   /** JSON colores pastel por dígito 0–9 para claves SOL (p. ej. {"0":"cyan","1":"sky"}). */
   claves_sol_dig_colors_json?: string;
+  /** Capturas de buzón SUNAT/SUNAFIL por semana (1–7). */
+  mailbox_captures_per_week?: number;
   created_at?: string;
   updated_at?: string;
 }

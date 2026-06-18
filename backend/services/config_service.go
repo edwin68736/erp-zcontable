@@ -64,6 +64,9 @@ func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig, operationsKey
 	cfg.StatementPaymentObservations = input.StatementPaymentObservations
 	cfg.StatementPaymentQrCaption = input.StatementPaymentQrCaption
 	cfg.ClavesSolDigColorsJSON = input.ClavesSolDigColorsJSON
+	if input.MailboxCapturesPerWeek >= 1 && input.MailboxCapturesPerWeek <= 7 {
+		cfg.MailboxCapturesPerWeek = input.MailboxCapturesPerWeek
+	}
 	if err := ApplyOperationsKeyPlain(cfg, operationsKeyPlain); err != nil {
 		return nil, err
 	}

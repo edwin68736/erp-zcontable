@@ -16,6 +16,8 @@ const (
 	migCompanyTeamAssignPerms = "rbac_v1_company_team_assign_permissions"
 	migBootstrapDefaultRole   = "rbac_v1_bootstrap_default_role"
 	migBootstrapAdminUser     = "rbac_v1_bootstrap_admin_user_role"
+	migRepairSystemRoleMatrix   = "rbac_v1_repair_system_role_matrix"
+	migContadorStripSupervisors = "rbac_v1_contador_strip_supervisors"
 )
 
 // RunRBACMigrations ejecuta migraciones de datos RBAC de una sola vez (no en cada arranque como reglas de negocio).
@@ -31,6 +33,8 @@ func RunRBACMigrations(db *gorm.DB) error {
 		{migCompanyTeamAssignPerms, migrateCompanyTeamAssignPermissions},
 		{migBootstrapDefaultRole, migrateBootstrapDefaultRole},
 		{migBootstrapAdminUser, migrateBootstrapAdminUserRole},
+		{migRepairSystemRoleMatrix, migrateRepairSystemRoleMatrix},
+		{migContadorStripSupervisors, migrateContadorStripSupervisors},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -141,4 +145,43 @@ func migrateBootstrapDefaultRole(db *gorm.DB) error {
 // migrateBootstrapAdminUserRole (histórico): la asignación vigente corre en SeedRBAC → ensureAdminSuperusuarioUser.
 func migrateBootstrapAdminUserRole(db *gorm.DB) error {
 	return nil
+}
+
+// migrateContadorStripSupervisors elimina permisos supervisors.* del rol Contador (C2).
+func migrateContadorStripSupervisors(db *gorm.DB) error {
+	var role models.Role
+	if err := db.Where("code = ?", seedRoleContador).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	var permIDs []uint
+	if err := db.Model(&models.Permission{}).Where("code LIKE ?", "supervisors.%").Pluck("id", &permIDs).Error; err != nil {
+		return err
+	}
+	if len(permIDs) == 0 {
+		return nil
+	}
+	return db.Where("role_id = ? AND permission_id IN ?", role.ID, permIDs).
+		Delete(&models.RolePermission{}).Error
+}
+
+// migrateRepairSystemRoleMatrix repara la matriz canónica de roles sistema (add-missing only, una sola vez).
+func migrateRepairSystemRoleMatrix(db *gorm.DB) error {
+	var permCount int64
+	if err := db.Model(&models.Permission{}).Count(&permCount).Error; err != nil {
+		return err
+	}
+	if permCount < int64(len(rbac.AllPermissionCodes)) {
+		return fmt.Errorf("catálogo de permisos incompleto: %d < %d", permCount, len(rbac.AllPermissionCodes))
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, roleCode := range systemRolesForCanonicalRepair() {
+			if err := linkMissingCanonicalPermissionsForSystemRole(tx, roleCode); err != nil {
+				return fmt.Errorf("rol %s: %w", roleCode, err)
+			}
+		}
+		return nil
+	})
 }

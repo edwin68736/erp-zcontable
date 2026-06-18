@@ -3,14 +3,13 @@ import { createPortal } from 'react-dom';
 import type { PosSaleDetail } from '../services/posSales';
 import { configService } from '../services/config';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
-import FiscalReceiptPdfCanvasPreview, {
-  printFiscalReceiptCanvasPreview,
-} from '../pdf/FiscalReceiptPdfCanvasPreview';
+import FiscalReceiptPdfCanvasPreview from '../pdf/FiscalReceiptPdfCanvasPreview';
 import {
   buildFiscalReceiptPdfBlob,
   docTypeLabel,
   downloadFiscalReceiptPdf,
   fiscalReceiptPdfFilename,
+  printFiscalReceiptPdfBlob,
   type ReceiptPdfFormat,
 } from '../pdf/fiscalReceiptPdf';
 import type { FirmBranding } from '../pdf/fiscalReceiptPdf';
@@ -208,7 +207,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
             type="button"
             disabled={busy || !previewBlob}
             onClick={() => {
-              if (!printFiscalReceiptCanvasPreview(previewWrapRef.current)) {
+              if (!previewBlob || !printFiscalReceiptPdfBlob(previewBlob)) {
                 window.dispatchEvent(
                   new CustomEvent('miweb:toast', {
                     detail: { type: 'error', message: 'No se pudo abrir la impresión' },

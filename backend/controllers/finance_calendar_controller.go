@@ -114,11 +114,11 @@ func (ctrl *FinanceCalendarController) DeleteAPI(c fiber.Ctx) error {
 
 func (ctrl *FinanceCalendarController) DuplicateAPI(c fiber.Ctx) error {
 	var body struct {
-		FromPeriodYM    string `json:"from_period_ym"`
-		ToPeriodYM      string `json:"to_period_ym"`
-		CopyActivities  *bool  `json:"copy_activities"`
-		CopyMarks       *bool  `json:"copy_marks"`
-		CopyNotes       *bool  `json:"copy_notes"`
+		FromPeriodYM   string `json:"from_period_ym"`
+		ToPeriodYM     string `json:"to_period_ym"`
+		CopyActivities *bool  `json:"copy_activities"`
+		CopyMarks      *bool  `json:"copy_marks"`
+		CopyNotes      *bool  `json:"copy_notes"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
@@ -180,24 +180,21 @@ func (ctrl *FinanceCalendarController) DeleteMarkAPI(c fiber.Ctx) error {
 func (ctrl *FinanceCalendarController) CreateActivityAPI(c fiber.Ctx) error {
 	cid, _ := strconv.ParseUint(c.Params("calendarId"), 10, 32)
 	var body struct {
-		Name         string `json:"name"`
-		Description  string `json:"description"`
-		StartDay     int    `json:"start_day"`
-		EndDay       int    `json:"end_day"`
-		DueDay       int    `json:"due_day"`
-		ActivityKind string `json:"activity_kind"`
-		Priority     string `json:"priority"`
-		Status       string `json:"status"`
-		TextColor    string `json:"text_color"`
+		ActivityTemplateID uint   `json:"activity_template_id"`
+		StartDay           int    `json:"start_day"`
+		EndDay             int    `json:"end_day"`
+		DueDay             int    `json:"due_day"`
+		Status             string `json:"status"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
 	}
-	row, err := ctrl.svc.CreateActivity(uint(cid), services.CalendarActivityInput{
-		Name: body.Name, Description: body.Description,
-		StartDay: body.StartDay, EndDay: body.EndDay, DueDay: body.DueDay,
-		ActivityKind: body.ActivityKind, Priority: body.Priority, Status: body.Status,
-		TextColor: body.TextColor,
+	row, err := ctrl.svc.CreateActivity(uint(cid), services.CalendarActivityCreateInput{
+		ActivityTemplateID: body.ActivityTemplateID,
+		StartDay:           body.StartDay,
+		EndDay:             body.EndDay,
+		DueDay:             body.DueDay,
+		Status:             body.Status,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -208,24 +205,19 @@ func (ctrl *FinanceCalendarController) CreateActivityAPI(c fiber.Ctx) error {
 func (ctrl *FinanceCalendarController) UpdateActivityAPI(c fiber.Ctx) error {
 	id, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 	var body struct {
-		Name         string `json:"name"`
-		Description  string `json:"description"`
-		StartDay     int    `json:"start_day"`
-		EndDay       int    `json:"end_day"`
-		DueDay       int    `json:"due_day"`
-		ActivityKind string `json:"activity_kind"`
-		Priority     string `json:"priority"`
-		Status       string `json:"status"`
-		TextColor    string `json:"text_color"`
+		StartDay int    `json:"start_day"`
+		EndDay   int    `json:"end_day"`
+		DueDay   int    `json:"due_day"`
+		Status   string `json:"status"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
 	}
-	row, err := ctrl.svc.UpdateActivity(uint(id), services.CalendarActivityInput{
-		Name: body.Name, Description: body.Description,
-		StartDay: body.StartDay, EndDay: body.EndDay, DueDay: body.DueDay,
-		ActivityKind: body.ActivityKind, Priority: body.Priority, Status: body.Status,
-		TextColor: body.TextColor,
+	row, err := ctrl.svc.UpdateActivity(uint(id), services.CalendarActivityUpdateInput{
+		StartDay: body.StartDay,
+		EndDay:   body.EndDay,
+		DueDay:   body.DueDay,
+		Status:   body.Status,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

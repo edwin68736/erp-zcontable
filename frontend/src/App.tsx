@@ -26,6 +26,7 @@ import Payments from './pages/Payments';
 import PaymentForm from './pages/PaymentForm';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import ActivityConfigurationSettings from './pages/settings/ActivityConfigurationSettings';
 import Users from './pages/Users';
 import UserForm from './pages/UserForm';
 import RolePermissions from './pages/RolePermissions';
@@ -34,14 +35,33 @@ import Placeholder from './pages/Placeholder';
 import ModuleComingSoon from './pages/ModuleComingSoon';
 import SupervisorDashboard from './pages/supervisors/SupervisorDashboard';
 import SupervisorPeriods from './pages/supervisors/SupervisorPeriods';
-import SupervisorControls from './pages/supervisors/SupervisorControls';
+import SupervisorCompaniesPage from './pages/supervisors/SupervisorCompaniesPage';
+import SupervisorSunatInboxListPage from './pages/supervisors/activities/SupervisorSunatInboxListPage';
+import SupervisorSunatInboxDetailPage from './pages/supervisors/activities/SupervisorSunatInboxDetailPage';
+import SupervisorDetraccionesListPage from './pages/supervisors/activities/SupervisorDetraccionesListPage';
+import SupervisorDetraccionesDetailPage from './pages/supervisors/activities/SupervisorDetraccionesDetailPage';
+import SupervisorPdt601ListPage from './pages/supervisors/activities/SupervisorPdt601ListPage';
+import SupervisorPdt601DetailPage from './pages/supervisors/activities/SupervisorPdt601DetailPage';
+import SupervisorPdt621ListPage from './pages/supervisors/activities/SupervisorPdt621ListPage';
+import SupervisorPdt621DetailPage from './pages/supervisors/activities/SupervisorPdt621DetailPage';
 import SupervisorControlDetail from './pages/supervisors/SupervisorControlDetail';
 import SupervisorReports from './pages/supervisors/SupervisorReports';
 import SupervisorNotifications from './pages/supervisors/SupervisorNotifications';
 import FinanceCalendar from './pages/finance/FinanceCalendar';
+import ActivityTemplates from './pages/finance/ActivityTemplates';
+import ActivityTemplateForm from './pages/finance/ActivityTemplateForm';
 import CompanyAccessCredentials from './pages/finance/CompanyAccessCredentials';
 import AssistantWorkspace from './pages/assistant/AssistantWorkspace';
-import AssistantControls from './pages/assistant/AssistantControls';
+import AssistantCompaniesPage from './pages/assistant/AssistantCompaniesPage';
+import AssistantSunatInboxListPage from './pages/assistant/activities/AssistantSunatInboxListPage';
+import AssistantSunatInboxDetailPage from './pages/assistant/activities/AssistantSunatInboxDetailPage';
+import AssistantDetraccionesListPage from './pages/assistant/activities/AssistantDetraccionesListPage';
+import AssistantDetraccionesDetailPage from './pages/assistant/activities/AssistantDetraccionesDetailPage';
+import { LegacyDetraccionesRedirect } from './components/activity/LegacyDetraccionesRedirect';
+import AssistantPdt601ListPage from './pages/assistant/activities/AssistantPdt601ListPage';
+import AssistantPdt601DetailPage from './pages/assistant/activities/AssistantPdt601DetailPage';
+import AssistantPdt621ListPage from './pages/assistant/activities/AssistantPdt621ListPage';
+import AssistantPdt621DetailPage from './pages/assistant/activities/AssistantPdt621DetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomeRedirect from './components/HomeRedirect';
 import PosSale from './pages/pos/PosSale';
@@ -107,18 +127,49 @@ function App() {
             <Route path="reports/financial" element={<Reports />} />
             <Route path="supervisors/dashboard" element={<SupervisorDashboard />} />
             <Route path="supervisors/periods" element={<SupervisorPeriods />} />
-            <Route path="supervisors/controls" element={<SupervisorControls />} />
+            <Route path="supervisors/companies" element={<SupervisorCompaniesPage />} />
+            <Route path="supervisors/activities" element={<Navigate to="/supervisors/dashboard" replace />} />
+            <Route path="supervisors/activities/pdt-601" element={<SupervisorPdt601ListPage />} />
+            <Route path="supervisors/activities/pdt-601/:companyId" element={<SupervisorPdt601DetailPage />} />
+            <Route path="supervisors/activities/pdt-621" element={<SupervisorPdt621ListPage />} />
+            <Route path="supervisors/activities/pdt-621/:companyId" element={<SupervisorPdt621DetailPage />} />
+            <Route path="supervisors/activities/sunat-inbox" element={<SupervisorSunatInboxListPage />} />
+            <Route path="supervisors/activities/sunat-inbox/:companyId" element={<SupervisorSunatInboxDetailPage />} />
+            <Route path="supervisors/activities/detracciones" element={<SupervisorDetraccionesListPage />} />
+            <Route path="supervisors/activities/detracciones/:companyId" element={<SupervisorDetraccionesDetailPage />} />
+            <Route path="supervisors/activities/distractions" element={<LegacyDetraccionesRedirect workspace="supervisor" />} />
+            <Route path="supervisors/activities/distractions/:companyId" element={<LegacyDetraccionesRedirect workspace="supervisor" />} />
+            <Route path="supervisors/controls" element={<Navigate to="/supervisors/dashboard" replace />} />
             <Route path="supervisors/controls/:id" element={<SupervisorControlDetail />} />
             <Route path="supervisors/reports" element={<SupervisorReports />} />
             <Route path="supervisors/notifications" element={<SupervisorNotifications />} />
             <Route path="finance/calendar" element={<FinanceCalendar />} />
+            <Route path="finance/activity-templates">
+              <Route index element={<ActivityTemplates />} />
+              <Route path="new" element={<ActivityTemplateForm />} />
+              <Route path=":id/edit" element={<ActivityTemplateForm />} />
+            </Route>
             <Route path="finance/claves-sol" element={<CompanyAccessCredentials />} />
             <Route path="assistant" element={<AssistantWorkspace />} />
-            <Route path="assistant/controls" element={<AssistantControls />} />
+            <Route path="assistant/companies" element={<AssistantCompaniesPage />} />
+            <Route path="assistant/activities" element={<Navigate to="/assistant" replace />} />
+            <Route path="assistant/activities/pdt-601" element={<AssistantPdt601ListPage />} />
+            <Route path="assistant/activities/pdt-601/:companyId" element={<AssistantPdt601DetailPage />} />
+            <Route path="assistant/activities/pdt-621" element={<AssistantPdt621ListPage />} />
+            <Route path="assistant/activities/pdt-621/:companyId" element={<AssistantPdt621DetailPage />} />
+            <Route path="assistant/activities/sunat-inbox" element={<AssistantSunatInboxListPage />} />
+            <Route path="assistant/activities/sunat-inbox/:companyId" element={<AssistantSunatInboxDetailPage />} />
+            <Route path="assistant/activities/detracciones" element={<AssistantDetraccionesListPage />} />
+            <Route path="assistant/activities/detracciones/:companyId" element={<AssistantDetraccionesDetailPage />} />
+            <Route path="assistant/activities/distractions" element={<LegacyDetraccionesRedirect workspace="assistant" />} />
+            <Route path="assistant/activities/distractions/:companyId" element={<LegacyDetraccionesRedirect workspace="assistant" />} />
+            <Route path="assistant/notifications" element={<SupervisorNotifications />} />
+            <Route path="assistant/controls" element={<Navigate to="/assistant" replace />} />
             <Route path="assistant/controls/:id" element={<SupervisorControlDetail />} />
             <Route path="pos" element={<PosSale />} />
             <Route path="pos/history" element={<PosHistory />} />
             <Route path="settings/firm" element={<Settings />} />
+            <Route path="settings/activity-configuration" element={<ActivityConfigurationSettings />} />
             <Route path="settings/fiscal-series" element={<FiscalDocumentSeries />} />
             <Route path="users" element={<Users />} />
             <Route path="users/roles" element={<RolePermissions />} />

@@ -54,5 +54,9 @@ func Seed() error {
 		return err
 	}
 
+	if err := SeedActivityRules(DB); err != nil {
+		return err
+	}
+
 	return nil
 }

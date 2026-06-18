@@ -753,11 +753,23 @@ func (s *SupervisorService) UpdateDeclaration(id uint, in SupervisorDeclarationI
 		return nil, err
 	}
 	oldStatus := d.Status
-	if in.Status != "" {
-		d.Status = in.Status
-		if in.ProgressPct == nil {
-			d.ProgressPct = declarationProgressFromStatus(in.Status)
+	if in.Status != "" && in.Status != oldStatus {
+		if isDetraccionesDeclarationType(d.DeclarationType) {
+			if err := s.validateDetraccionesStatusTransition(&d, oldStatus, in.Status, in.Notes); err != nil {
+				return nil, err
+			}
+			d.Status = in.Status
+			if in.ProgressPct == nil {
+				d.ProgressPct = detraccionesProgressFromStatus(in.Status)
+			}
+		} else {
+			d.Status = in.Status
+			if in.ProgressPct == nil {
+				d.ProgressPct = declarationProgressFromStatus(in.Status)
+			}
 		}
+	} else if in.Status != "" {
+		d.Status = in.Status
 	}
 	if in.Notes != "" {
 		d.Notes = strings.TrimSpace(in.Notes)
@@ -812,21 +824,28 @@ func (s *SupervisorService) ApproveDeclaration(id uint, approverID uint) (*model
 }
 
 func (s *SupervisorService) ObserveDeclaration(id uint, approverID uint, notes string) (*models.SupervisorDeclaration, error) {
+	var d models.SupervisorDeclaration
+	if err := database.DB.Select("declaration_type").First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	if isDetraccionesDeclarationType(d.DeclarationType) {
+		return s.observeDetraccionesDeclaration(id, approverID, notes)
+	}
 	pct := 40
-	d, err := s.UpdateDeclaration(id, SupervisorDeclarationInput{
+	updated, err := s.UpdateDeclaration(id, SupervisorDeclarationInput{
 		Status: models.SupervisorDeclObservado, Notes: notes, ApproverUserID: &approverID, ProgressPct: &pct,
 	}, approverID)
 	if err != nil {
 		return nil, err
 	}
 	_ = database.DB.Model(&models.SupervisorMonthlyControl{}).
-		Where("id = ?", d.MonthlyControlID).
+		Where("id = ?", updated.MonthlyControlID).
 		Update("general_status", models.SupervisorControlObservado).Error
 	if strings.TrimSpace(notes) != "" {
 		did := id
-		_, _ = s.CreateObservation(d.MonthlyControlID, did, approverID, notes)
+		_, _ = s.CreateObservation(updated.MonthlyControlID, did, approverID, notes)
 	}
-	return d, nil
+	return updated, nil
 }
 
 func (s *SupervisorService) DeleteDeclaration(id uint) error {

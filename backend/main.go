@@ -21,12 +21,28 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
+	if err := database.PrepareActivityTemplateSchema(database.DB); err != nil {
+		log.Fatalf("prepare activity templates: %v", err)
+	}
+
 	if err := database.AutoMigrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 
 	if err := database.RunCompanyMigrations(database.DB); err != nil {
 		log.Printf("company migrations: %v", err)
+	}
+
+	if err := database.RunSupervisorMigrations(database.DB); err != nil {
+		log.Printf("supervisor migrations: %v", err)
+	}
+
+	if err := database.RunActivityTemplateMigrations(database.DB); err != nil {
+		log.Printf("activity template migrations: %v", err)
+	}
+
+	if err := database.RunActivityRuleMigrations(database.DB); err != nil {
+		log.Printf("activity rule migrations: %v", err)
 	}
 
 	if err := services.EnsureDocumentMigrationsOnStartup(); err != nil {

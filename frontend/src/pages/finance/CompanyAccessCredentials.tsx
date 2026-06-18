@@ -197,10 +197,23 @@ function FilterUserGrid({
   );
 }
 
-const CompanyAccessCredentials = () => {
+export type CompanyAccessCredentialsVariant = 'finance' | 'assistant';
+
+type CompanyAccessCredentialsProps = {
+  variant?: CompanyAccessCredentialsVariant;
+};
+
+const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredentialsProps) => {
+  const isAssistantView = variant === 'assistant';
   const canView = useMemo(() => auth.hasPermission(P.companyCredentialsView), []);
-  const canManage = useMemo(() => auth.hasPermission(P.companyCredentialsManage), []);
-  const canImport = useMemo(() => auth.hasPermission(P.companyCredentialsImport), []);
+  const canManage = useMemo(
+    () => !isAssistantView && auth.hasPermission(P.companyCredentialsManage),
+    [isAssistantView],
+  );
+  const canImport = useMemo(
+    () => !isAssistantView && auth.hasPermission(P.companyCredentialsImport),
+    [isAssistantView],
+  );
 
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -243,8 +256,9 @@ const CompanyAccessCredentials = () => {
           ? 'text-sm text-amber-900 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg'
           : 'text-sm text-slate-700 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg';
 
-  const hasActiveFilters =
-    filterAssistantId != null || filterSupervisorId != null || filterDig != null;
+  const hasActiveFilters = isAssistantView
+    ? filterDig != null
+    : filterAssistantId != null || filterSupervisorId != null || filterDig != null;
 
   const loadFacets = useCallback(async () => {
     if (!canView) return;
@@ -285,8 +299,10 @@ const CompanyAccessCredentials = () => {
   }, [canView, q, page, perPage, filterAssistantId, filterSupervisorId, filterDig]);
 
   const clearFilters = () => {
-    setFilterAssistantId(null);
-    setFilterSupervisorId(null);
+    if (!isAssistantView) {
+      setFilterAssistantId(null);
+      setFilterSupervisorId(null);
+    }
     setFilterDig(null);
     setPage(1);
   };
@@ -486,7 +502,14 @@ const CompanyAccessCredentials = () => {
   return (
     <div className={`${PAGE_WORKSPACE_CLASS} !space-y-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-slate-800">Claves sol y accesos</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">
+            {isAssistantView ? 'Empresas' : 'Claves sol y accesos'}
+          </h2>
+          {isAssistantView ? (
+            <p className="text-slate-500 mt-0.5 text-sm">Empresas asignadas a su alcance operativo.</p>
+          ) : null}
+        </div>
         {canImport ? (
           <button
             type="button"
@@ -517,28 +540,46 @@ const CompanyAccessCredentials = () => {
             Cargando filtros…
           </p>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-stretch">
-            <FilterUserGrid
-              title="Asistentes"
-              users={facets?.assistants ?? []}
-              selectedId={filterAssistantId}
-              onSelect={(id) => {
-                setFilterAssistantId(id);
-                setPage(1);
-              }}
-            />
-            <FilterUserGrid
-              title="Supervisores"
-              users={facets?.supervisors ?? []}
-              selectedId={filterSupervisorId}
-              onSelect={(id) => {
-                setFilterSupervisorId(id);
-                setPage(1);
-              }}
-            />
-            <div className={`${FILTER_SECTION} w-full sm:w-[11rem] shrink-0`}>
+          <div
+            className={
+              isAssistantView
+                ? 'w-full'
+                : 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-stretch'
+            }
+          >
+            {!isAssistantView ? (
+              <>
+                <FilterUserGrid
+                  title="Asistentes"
+                  users={facets?.assistants ?? []}
+                  selectedId={filterAssistantId}
+                  onSelect={(id) => {
+                    setFilterAssistantId(id);
+                    setPage(1);
+                  }}
+                />
+                <FilterUserGrid
+                  title="Supervisores"
+                  users={facets?.supervisors ?? []}
+                  selectedId={filterSupervisorId}
+                  onSelect={(id) => {
+                    setFilterSupervisorId(id);
+                    setPage(1);
+                  }}
+                />
+              </>
+            ) : null}
+            <div
+              className={`${FILTER_SECTION} ${isAssistantView ? 'w-full flex-1 min-w-0' : 'w-full sm:w-[11rem] shrink-0'}`}
+            >
               <p className={FILTER_SECTION_TITLE}>Dígitos</p>
-              <div className={`grid grid-cols-5 gap-1 ${FILTER_SECTION_BODY}`}>
+              <div
+                className={
+                  isAssistantView
+                    ? `flex flex-nowrap gap-1.5 ${FILTER_SECTION_BODY}`
+                    : `grid grid-cols-5 gap-1 ${FILTER_SECTION_BODY}`
+                }
+              >
                 {CLAVES_SOL_DIGIT_KEYS.map((key) => {
                   const active = filterDig === key;
                   const swatch = getPaletteSwatch(digColorMap[key] ?? 'slate');
@@ -548,7 +589,8 @@ const CompanyAccessCredentials = () => {
                       type="button"
                       title={`Dígito ${key}`}
                       className={[
-                        'flex h-7 w-full items-center justify-center rounded border text-[10px] font-bold font-mono text-slate-800',
+                        'flex items-center justify-center rounded border font-bold font-mono text-slate-800',
+                        isAssistantView ? 'h-8 min-w-0 flex-1 text-xs' : 'h-7 w-full text-[10px]',
                         swatch,
                         active
                           ? 'ring-2 ring-primary-500 ring-offset-1 border-primary-500'

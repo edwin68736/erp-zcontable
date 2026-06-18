@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
 
@@ -282,6 +283,8 @@ const Layout = () => {
           </div>
         </div>
       ) : null}
+
+      <TodayCalendarReminder />
     </div>
   );
 };

@@ -3,14 +3,13 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { resolveBackendUrl } from '../../api/client';
 import type { PosSaleDetail } from '../../services/posSales';
-import FiscalReceiptPdfCanvasPreview, {
-  printFiscalReceiptCanvasPreview,
-} from '../../pdf/FiscalReceiptPdfCanvasPreview';
+import FiscalReceiptPdfCanvasPreview from '../../pdf/FiscalReceiptPdfCanvasPreview';
 import {
   buildFiscalReceiptPdfBlob,
   docTypeLabel,
   downloadFiscalReceiptPdf,
   fiscalReceiptPdfFilename,
+  printFiscalReceiptPdfBlob,
   type ReceiptPdfFormat,
 } from '../../pdf/fiscalReceiptPdf';
 
@@ -358,7 +357,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 type="button"
                 disabled={busy || !previewBlob || tab === 'summary'}
                 onClick={() => {
-                  if (!printFiscalReceiptCanvasPreview(previewWrapRef.current)) {
+                  if (!previewBlob || !printFiscalReceiptPdfBlob(previewBlob)) {
                     window.dispatchEvent(
                       new CustomEvent('miweb:toast', {
                         detail: {

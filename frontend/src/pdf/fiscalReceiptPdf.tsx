@@ -57,6 +57,39 @@ export function openPdfBlobInNewTab(blob: Blob, filename?: string): boolean {
   return true;
 }
 
+/** Imprime el PDF vectorial (nitidez correcta en ticket 80 mm y A4). */
+export function printFiscalReceiptPdfBlob(blob: Blob): boolean {
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', 'Imprimir comprobante');
+  iframe.style.cssText =
+    'position:fixed;left:0;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none;overflow:hidden';
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      iframe.remove();
+      URL.revokeObjectURL(url);
+    }, 120_000);
+  };
+
+  iframe.onload = () => {
+    window.setTimeout(() => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) return;
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    }, 350);
+  };
+
+  iframe.src = url;
+  return true;
+}
+
 export async function openFiscalReceiptPdf(
   receipt: PosSaleDetail,
   firm: FirmBranding,

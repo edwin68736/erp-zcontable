@@ -35,16 +35,10 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := seedRBACSystemRoles(db); err != nil {
 		return err
 	}
-	var rpCount int64
-	if err := db.Model(&models.RolePermission{}).Count(&rpCount).Error; err != nil {
+	if err := RunRBACMigrations(db); err != nil {
 		return err
 	}
-	if rpCount == 0 {
-		if err := seedRBACRolePermissions(db); err != nil {
-			return err
-		}
-	}
-	if err := RunRBACMigrations(db); err != nil {
+	if err := ensureSystemRoleMissingPermissions(db); err != nil {
 		return err
 	}
 	if err := ensureFinanceCalendarRolePermissions(db); err != nil {
@@ -619,27 +613,9 @@ func analistaPermissionCodes() []string {
 	}
 }
 
-func seedRBACRolePermissions(db *gorm.DB) error {
-	type roleBind struct {
-		roleCode string
-		codes    []string
-	}
-
-	exclContador := map[string]struct{}{
-		rbac.AccessStudio: {},
-		rbac.UsersView: {}, rbac.UsersCreate: {}, rbac.UsersUpdate: {}, rbac.UsersDelete: {},
-		rbac.RBACRolesView: {}, rbac.RBACRolesManage: {}, rbac.RBACPermissionsCatalog: {},
-		rbac.SettingsFirmView: {}, rbac.SettingsFirmUpdate: {},
-		rbac.SettingsFirmUploadLogo: {}, rbac.SettingsFirmUploadBankLogo: {}, rbac.SettingsFirmUploadPaymentQR: {},
-		rbac.CompaniesValidateRUC: {}, rbac.CompaniesNextCode: {}, rbac.CompaniesImportTemplate: {},
-		rbac.CompaniesImportSpreadsheet: {}, rbac.CompaniesCreate: {}, rbac.CompaniesUpdate: {}, rbac.CompaniesStatus: {}, rbac.CompaniesDelete: {},
-		rbac.SubscriptionPlansCreate: {}, rbac.SubscriptionPlansUpdate: {}, rbac.SubscriptionPlansTiers: {}, rbac.SubscriptionPlansDelete: {},
-		rbac.PlanCategoriesDelete: {},
-		rbac.PaymentsDelete: {},
-		rbac.ProductsDelete: {},
-	}
-
-	asistenteAllow := []string{
+// asistentePermissionCodes permisos del rol Asistente (lista cerrada).
+func asistentePermissionCodes() []string {
+	return []string{
 		rbac.DashboardView,
 		rbac.CompaniesView,
 		rbac.ContactsView, rbac.ContactsCreate, rbac.ContactsUpdate, rbac.ContactsDelete,
@@ -663,70 +639,118 @@ func seedRBACRolePermissions(db *gorm.DB) error {
 		rbac.SupervisorsHistoryView, rbac.SupervisorsAttachmentsUpload,
 		rbac.SupervisorsNotificationsView,
 	}
+}
 
-	allIDs, err := permissionIDsAll(db)
-	if err != nil {
-		return err
+// contadorPermissionCodes permisos del rol Contador (catálogo menos exclusiones).
+// El módulo supervisores queda reservado a Supervisor/Asistente/Gerencia (C2).
+func contadorPermissionCodes() []string {
+	exclContador := map[string]struct{}{
+		rbac.AccessStudio: {},
+		rbac.UsersView: {}, rbac.UsersCreate: {}, rbac.UsersUpdate: {}, rbac.UsersDelete: {},
+		rbac.RBACRolesView: {}, rbac.RBACRolesManage: {}, rbac.RBACPermissionsCatalog: {},
+		rbac.SettingsFirmView: {}, rbac.SettingsFirmUpdate: {},
+		rbac.SettingsFirmUploadLogo: {}, rbac.SettingsFirmUploadBankLogo: {}, rbac.SettingsFirmUploadPaymentQR: {},
+		rbac.CompaniesValidateRUC: {}, rbac.CompaniesNextCode: {}, rbac.CompaniesImportTemplate: {},
+		rbac.CompaniesImportSpreadsheet: {}, rbac.CompaniesCreate: {}, rbac.CompaniesUpdate: {}, rbac.CompaniesStatus: {}, rbac.CompaniesDelete: {},
+		rbac.SubscriptionPlansCreate: {}, rbac.SubscriptionPlansUpdate: {}, rbac.SubscriptionPlansTiers: {}, rbac.SubscriptionPlansDelete: {},
+		rbac.PlanCategoriesDelete: {},
+		rbac.PaymentsDelete: {},
+		rbac.ProductsDelete: {},
 	}
-	supervisorCodes := supervisorPermissionCodes()
-	contadorCodes := permissionCodesExcept(exclContador)
-	supervisorIDs, err := permissionIDsByCodes(db, supervisorCodes)
-	if err != nil {
-		return err
+	for _, code := range rbac.AllPermissionCodes {
+		if strings.HasPrefix(code, "supervisors.") {
+			exclContador[code] = struct{}{}
+		}
 	}
-	contadorIDs, err := permissionIDsByCodes(db, contadorCodes)
-	if err != nil {
-		return err
-	}
-	asistenteIDs, err := permissionIDsByCodes(db, asistenteAllow)
-	if err != nil {
-		return err
-	}
-	analistaIDs, err := permissionIDsByCodes(db, analistaPermissionCodes())
-	if err != nil {
-		return err
-	}
+	return permissionCodesExcept(exclContador)
+}
 
-	binds := []roleBind{
-		{roleCode: seedRoleSuperusuario, codes: rbac.AllPermissionCodes},
-		{roleCode: seedRoleAdministrador, codes: supervisorCodes},
-		{roleCode: seedRoleGerencia, codes: supervisorCodes},
-		{roleCode: seedRoleSupervisor, codes: supervisorCodes},
-		{roleCode: seedRoleContador, codes: contadorCodes},
-		{roleCode: seedRoleAsistente, codes: asistenteAllow},
-		{roleCode: seedRoleAnalista, codes: analistaPermissionCodes()},
+// systemRolesForCanonicalRepair roles sistema reparados por migración y ensure (sin EmisorComprobantes).
+func systemRolesForCanonicalRepair() []string {
+	return []string{
+		seedRoleSuperusuario,
+		seedRoleAdministrador,
+		seedRoleGerencia,
+		seedRoleSupervisor,
+		seedRoleContador,
+		seedRoleAsistente,
+		seedRoleAnalista,
 	}
+}
 
-	for _, b := range binds {
-		var role models.Role
-		if err := db.Where("code = ?", b.roleCode).First(&role).Error; err != nil {
-			return fmt.Errorf("rol %s: %w", b.roleCode, err)
-		}
-		var ids []uint
-		switch b.roleCode {
-		case seedRoleSuperusuario:
-			ids = allIDs
-		case seedRoleAdministrador, seedRoleGerencia, seedRoleSupervisor:
-			ids = supervisorIDs
-		case seedRoleContador:
-			ids = contadorIDs
-		case seedRoleAsistente:
-			ids = asistenteIDs
-		case seedRoleAnalista:
-			ids = analistaIDs
-		}
-		if err := db.Model(&role).Association("Permissions").Replace([]models.Permission{}); err != nil {
-			return err
-		}
-		if len(ids) == 0 {
+// canonicalPermissionCodesForRole devuelve la matriz canónica de un rol sistema.
+func canonicalPermissionCodesForRole(roleCode string) ([]string, bool) {
+	switch roleCode {
+	case seedRoleSuperusuario:
+		return rbac.AllPermissionCodes, true
+	case seedRoleAdministrador, seedRoleGerencia, seedRoleSupervisor:
+		return supervisorPermissionCodes(), true
+	case seedRoleContador:
+		return contadorPermissionCodes(), true
+	case seedRoleAsistente:
+		return asistentePermissionCodes(), true
+	case seedRoleAnalista:
+		return analistaPermissionCodes(), true
+	default:
+		return nil, false
+	}
+}
+
+// linkMissingRolePermissionCodes inserta permisos faltantes sin eliminar existentes.
+func linkMissingRolePermissionCodes(db *gorm.DB, roleID uint, codes []string) error {
+	if len(codes) == 0 {
+		return nil
+	}
+	var perms []models.Permission
+	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
+		return err
+	}
+	permByCode := make(map[string]uint, len(perms))
+	for _, p := range perms {
+		permByCode[p.Code] = p.ID
+	}
+	for _, code := range codes {
+		pid, ok := permByCode[code]
+		if !ok {
 			continue
 		}
-		var plist []models.Permission
-		if err := db.Where("id IN ?", ids).Find(&plist).Error; err != nil {
+		var cnt int64
+		if err := db.Model(&models.RolePermission{}).
+			Where("role_id = ? AND permission_id = ?", roleID, pid).
+			Count(&cnt).Error; err != nil {
 			return err
 		}
-		if err := db.Model(&role).Association("Permissions").Append(plist); err != nil {
-			return err
+		if cnt > 0 {
+			continue
+		}
+		if err := db.Create(&models.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
+			return fmt.Errorf("permiso %s: %w", code, err)
+		}
+	}
+	return nil
+}
+
+// linkMissingCanonicalPermissionsForSystemRole agrega permisos canónicos faltantes a un rol is_system.
+func linkMissingCanonicalPermissionsForSystemRole(db *gorm.DB, roleCode string) error {
+	codes, ok := canonicalPermissionCodesForRole(roleCode)
+	if !ok {
+		return nil
+	}
+	var role models.Role
+	if err := db.Where("code = ? AND is_system = ?", roleCode, true).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	return linkMissingRolePermissionCodes(db, role.ID, codes)
+}
+
+// ensureSystemRoleMissingPermissions sincroniza permisos canónicos faltantes en cada arranque (add-missing only).
+func ensureSystemRoleMissingPermissions(db *gorm.DB) error {
+	for _, roleCode := range systemRolesForCanonicalRepair() {
+		if err := linkMissingCanonicalPermissionsForSystemRole(db, roleCode); err != nil {
+			return fmt.Errorf("ensure rol %s: %w", roleCode, err)
 		}
 	}
 	return nil
@@ -736,7 +760,7 @@ func ensureRBACUserRoleAssignments(db *gorm.DB) error {
 	return assignDefaultRoleWhereNoRoles(db)
 }
 
-// ensureSuperusuarioFullPermissions deja el rol super_usuario con todos los permisos del catálogo (idempotente).
+// ensureSuperusuarioFullPermissions agrega permisos del catálogo faltantes al rol super_usuario (add-missing only).
 func ensureSuperusuarioFullPermissions(db *gorm.DB) error {
 	var superRole models.Role
 	if err := db.Where("code = ?", seedRoleSuperusuario).First(&superRole).Error; err != nil {
@@ -745,18 +769,7 @@ func ensureSuperusuarioFullPermissions(db *gorm.DB) error {
 		}
 		return err
 	}
-	allIDs, err := permissionIDsAll(db)
-	if err != nil {
-		return err
-	}
-	if len(allIDs) == 0 {
-		return nil
-	}
-	var plist []models.Permission
-	if err := db.Where("id IN ?", allIDs).Find(&plist).Error; err != nil {
-		return err
-	}
-	return db.Model(&superRole).Association("Permissions").Replace(plist)
+	return linkMissingRolePermissionCodes(db, superRole.ID, rbac.AllPermissionCodes)
 }
 
 func findUserByAdminUsername(db *gorm.DB) (*models.User, error) {
