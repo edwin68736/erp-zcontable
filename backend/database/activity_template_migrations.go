@@ -15,7 +15,7 @@ const migActivityCodeSequenceSeed = "activity_templates_v1_seed_code_sequence"
 const migDropCalendarActivityLegacyCols = "finance_calendar_activities_v9_drop_legacy_columns"
 const migRepairCalendarTemplateFK = "finance_calendar_activities_v10_repair_template_fk"
 
-// PrepareActivityTemplateSchema repara datos huérfanos antes de AutoMigrate (FK activity_template_id).
+// PrepareActivityTemplateSchema asegura columnas y repara huérfanos antes de AutoMigrate (FK).
 func PrepareActivityTemplateSchema(db *gorm.DB) error {
 	if !db.Migrator().HasTable("finance_calendar_activities") {
 		return nil
@@ -26,7 +26,35 @@ func PrepareActivityTemplateSchema(db *gorm.DB) error {
 	if err := seedActivityCodeSequence(db); err != nil {
 		return err
 	}
+	if err := ensureFinanceCalendarActivityColumnsForRepair(db); err != nil {
+		return err
+	}
 	return repairCalendarActivityTemplateFK(db)
+}
+
+func ensureFinanceCalendarActivityColumnsForRepair(db *gorm.DB) error {
+	m := &models.FinanceCalendarActivity{}
+	for _, col := range []string{
+		"ActivityTemplateID",
+		"NameSnapshot",
+		"ActivityTypeSnapshot",
+		"PrioritySnapshot",
+		"TextColorSnapshot",
+		"IconSnapshot",
+		"ActivityRuleID",
+	} {
+		if db.Migrator().HasColumn(m, col) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(m, col); err != nil {
+			return fmt.Errorf("add column %s: %w", col, err)
+		}
+	}
+	return nil
+}
+
+func calendarActivityHasSnapshotColumns(db *gorm.DB) bool {
+	return db.Migrator().HasColumn(&models.FinanceCalendarActivity{}, "NameSnapshot")
 }
 
 // RunActivityTemplateMigrations migraciones idempotentes del catálogo de actividades.
@@ -117,6 +145,9 @@ func backfillCalendarActivitySnapshotsFromLegacy(db *gorm.DB) error {
 	if !db.Migrator().HasColumn("finance_calendar_activities", "name") {
 		return nil
 	}
+	if !calendarActivityHasSnapshotColumns(db) {
+		return nil
+	}
 	return db.Exec(`
 		UPDATE finance_calendar_activities SET
 			name_snapshot = COALESCE(NULLIF(TRIM(name_snapshot), ''), NULLIF(TRIM(name), ''), 'Actividad'),
@@ -128,10 +159,15 @@ func backfillCalendarActivitySnapshotsFromLegacy(db *gorm.DB) error {
 
 func loadCalendarActivityTemplateOrphans(db *gorm.DB) ([]calendarActivityOrphanRow, error) {
 	var rows []calendarActivityOrphanRow
+	hasLegacy := db.Migrator().HasColumn("finance_calendar_activities", "name")
+	hasSnapshots := calendarActivityHasSnapshotColumns(db)
+
 	q := db.Unscoped().Table("finance_calendar_activities AS a").
 		Joins("LEFT JOIN activity_templates t ON t.id = a.activity_template_id AND t.deleted_at IS NULL").
 		Where("a.activity_template_id = 0 OR a.activity_template_id IS NULL OR t.id IS NULL")
-	if db.Migrator().HasColumn("finance_calendar_activities", "name") {
+
+	switch {
+	case hasLegacy && hasSnapshots:
 		q = q.Select(`
 			a.id,
 			COALESCE(NULLIF(TRIM(a.name_snapshot), ''), NULLIF(TRIM(a.name), ''), '') AS name_snap,
@@ -142,13 +178,22 @@ func loadCalendarActivityTemplateOrphans(db *gorm.DB) ([]calendarActivityOrphanR
 			COALESCE(a.activity_kind, '') AS activity_kind,
 			COALESCE(a.priority, '') AS priority,
 			COALESCE(a.text_color, '') AS text_color`)
-	} else {
+	case hasLegacy:
+		q = q.Select(`
+			a.id,
+			COALESCE(a.name, '') AS name,
+			COALESCE(a.activity_kind, '') AS activity_kind,
+			COALESCE(a.priority, '') AS priority,
+			COALESCE(a.text_color, '') AS text_color`)
+	case hasSnapshots:
 		q = q.Select(`
 			a.id,
 			COALESCE(a.name_snapshot, '') AS name_snap,
 			COALESCE(a.activity_type_snapshot, '') AS type_snap,
 			COALESCE(a.priority_snapshot, '') AS priority_snap,
 			COALESCE(a.text_color_snapshot, '') AS color_snap`)
+	default:
+		q = q.Select("a.id")
 	}
 	if err := q.Scan(&rows).Error; err != nil {
 		return nil, err
@@ -167,13 +212,15 @@ func linkCalendarActivityToTemplate(db *gorm.DB, row calendarActivityOrphanRow) 
 		if err != nil {
 			return err
 		}
-		return tx.Unscoped().Model(&models.FinanceCalendarActivity{}).Where("id = ?", row.ID).Updates(map[string]interface{}{
-			"activity_template_id":   tpl.ID,
-			"name_snapshot":          name,
-			"activity_type_snapshot": activityType,
-			"priority_snapshot":      priority,
-			"text_color_snapshot":    textColor,
-		}).Error
+		updates := map[string]interface{}{"activity_template_id": tpl.ID}
+		m := &models.FinanceCalendarActivity{}
+		if db.Migrator().HasColumn(m, "NameSnapshot") {
+			updates["name_snapshot"] = name
+			updates["activity_type_snapshot"] = activityType
+			updates["priority_snapshot"] = priority
+			updates["text_color_snapshot"] = textColor
+		}
+		return tx.Unscoped().Model(m).Where("id = ?", row.ID).Updates(updates).Error
 	})
 }
 
