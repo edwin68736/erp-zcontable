@@ -227,6 +227,8 @@ export interface TukifacFiscalReceipt {
   company?: Company;
   linked_payment?: {
     id: number;
+    date?: string;
+    created_at?: string;
     tax_settlement_id?: number | null;
     tax_settlement?: { id: number; number: string; status: string };
   };
