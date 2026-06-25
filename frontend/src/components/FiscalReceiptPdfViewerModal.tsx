@@ -112,7 +112,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
   const title = receipt
     ? `${docTypeLabel(receipt.document_type_id ?? '')} ${receipt.number}`
     : 'Comprobante';
-  const previewScale = format === 'ticket' ? 1.15 : 1.35;
+  const previewScale = format === 'ticket' ? 1.15 : format === 'a5' ? 1.2 : 1.35;
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -150,6 +150,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
           {(
             [
               { id: 'a4' as const, label: 'Formato A4' },
+              { id: 'a5' as const, label: 'Formato A5' },
               { id: 'ticket' as const, label: 'Ticket 80 mm' },
             ] as const
           ).map((t) => (

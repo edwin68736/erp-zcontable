@@ -13,7 +13,7 @@ import {
   type ReceiptPdfFormat,
 } from '../../pdf/fiscalReceiptPdf';
 
-type PreviewTab = 'summary' | 'a4' | 'ticket';
+type PreviewTab = 'summary' | 'a4' | 'a5' | 'ticket';
 
 type Props = {
   open: boolean;
@@ -52,7 +52,8 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
       setPreviewBlob(null);
       return;
     }
-    const format: ReceiptPdfFormat = tab === 'ticket' ? 'ticket' : 'a4';
+    const format: ReceiptPdfFormat =
+      tab === 'ticket' ? 'ticket' : tab === 'a5' ? 'a5' : 'a4';
     let cancelled = false;
     setLoadingPreview(true);
     void buildFiscalReceiptPdfBlob(receipt, firm, format)
@@ -137,6 +138,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
             [
               { id: 'summary' as const, label: 'Resumen' },
               { id: 'a4' as const, label: 'Vista A4' },
+              { id: 'a5' as const, label: 'Vista A5' },
               { id: 'ticket' as const, label: 'Vista ticket' },
             ] as const
           ).map((t) => (
@@ -292,6 +294,12 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                   <span className="text-slate-500">Subtotal</span>
                   <span className="tabular-nums">S/ {Number(receipt.subtotal ?? 0).toFixed(2)}</span>
                 </div>
+                {(receipt.total_discount ?? 0) > 0.005 ? (
+                  <div className="flex justify-between w-44 gap-4">
+                    <span className="text-slate-500">Descuento</span>
+                    <span className="tabular-nums text-amber-800">− S/ {Number(receipt.total_discount).toFixed(2)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between w-44 gap-4">
                   <span className="text-slate-500">IGV</span>
                   <span className="tabular-nums">S/ {Number(receipt.tax_amount ?? 0).toFixed(2)}</span>
@@ -315,7 +323,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
               ) : previewBlob ? (
                 <FiscalReceiptPdfCanvasPreview
                   blob={previewBlob}
-                  scale={tab === 'ticket' ? 1.15 : 1.35}
+                  scale={tab === 'ticket' ? 1.15 : tab === 'a5' ? 1.2 : 1.35}
                 />
               ) : (
                 <p className="p-8 text-center text-sm text-slate-500">No se pudo generar la vista previa.</p>
@@ -327,6 +335,19 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
         <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5 space-y-2">
           {showPdfActions ? (
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void runAction(async () => {
+                    await downloadFiscalReceiptPdf(receipt, firm, undefined, 'a5');
+                  })
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
+              >
+                <i className="fas fa-download text-xs" />
+                Descargar A5
+              </button>
               <button
                 type="button"
                 disabled={busy}
@@ -364,7 +385,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                           type: 'error',
                           message:
                             tab === 'summary'
-                              ? 'Abra la pestaña Vista A4 o Vista ticket para imprimir'
+                              ? 'Abra la pestaña Vista A4, Vista A5 o Vista ticket para imprimir'
                               : 'No se pudo abrir la impresión',
                         },
                       }),
@@ -372,7 +393,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                   }
                 }}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                title={tab === 'summary' ? 'Seleccione Vista A4 o Vista ticket' : `Imprimir ${downloadName}`}
+                title={tab === 'summary' ? 'Seleccione Vista A4, Vista A5 o Vista ticket' : `Imprimir ${downloadName}`}
               >
                 <i className="fas fa-print text-xs" />
                 Imprimir

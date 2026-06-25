@@ -85,7 +85,7 @@ export default function FiscalReceiptPdfCanvasPreview({ blob, className = '', sc
 /** @deprecated Preferir printFiscalReceiptPdfBlob (vectorial). Reserva: impresión raster con ancho fijo. */
 export function printFiscalReceiptCanvasPreview(
   container: HTMLElement | null,
-  format: 'a4' | 'ticket' = 'a4',
+  format: 'a4' | 'a5' | 'ticket' = 'a4',
 ): boolean {
   if (!container) return false;
   const canvases = container.querySelectorAll('canvas');
@@ -94,11 +94,13 @@ export function printFiscalReceiptCanvasPreview(
   const w = window.open('', '_blank');
   if (!w) return false;
 
-  const imgWidth = format === 'ticket' ? '80mm' : '100%';
+  const imgWidth = format === 'ticket' ? '80mm' : format === 'a5' ? '210mm' : '100%';
   const pageRule =
     format === 'ticket'
       ? '@page{size:80mm auto;margin:2mm}'
-      : '@page{margin:8mm}';
+      : format === 'a5'
+        ? '@page{size:A5 landscape;margin:8mm}'
+        : '@page{margin:8mm}';
 
   const imgs = Array.from(canvases)
     .map(

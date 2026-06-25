@@ -26,9 +26,10 @@ import {
   type SunatInboxListRow,
 } from '../../services/sunatInbox';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
-import { defaultWeekStartForPeriod, weeksInPeriodYM } from '../../utils/mailboxWeek';
+import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLabel, weeksInPeriodYM } from '../../utils/mailboxWeek';
 import { countMailboxWeekProgress, summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { exportSunatInboxReportExcel } from '../../utils/sunatInboxExcelExport';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -76,9 +77,15 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [verifyError, setVerifyError] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   const capturesPerWeek = meta?.captures_per_week ?? 2;
   const weekOptions = meta?.weeks?.length ? meta.weeks : weeksInPeriodYM(periodYm);
+  const selectedWeek = useMemo(
+    () => weekOptions.find((w) => w.week_start === weekStart),
+    [weekOptions, weekStart],
+  );
+  const weekContextLabel = formatMailboxWeekContext(selectedWeek, capturesPerWeek, periodYm);
 
   const weekProgress = useMemo(() => {
     const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0 };
@@ -189,6 +196,33 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    try {
+      setExportingExcel(true);
+      setError('');
+      const qParam = debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined;
+      const { captures_per_week, weeks, weeksData } = await sunatInboxService.fetchAllWeeksData({
+        period_ym: periodYm,
+        q: qParam,
+        status: statusFilter || undefined,
+      });
+      await exportSunatInboxReportExcel({
+        periodYm,
+        weeks,
+        weeksData,
+        capturesPerWeek: captures_per_week,
+        workspace,
+      });
+      setMsg('Excel generado correctamente.');
+    } catch (err) {
+      const text = extractApiErrorMessage(err, 'No se pudo exportar a Excel.');
+      setError(text);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   const slotIndices = useMemo(
     () => Array.from({ length: capturesPerWeek }, (_, i) => i + 1),
     [capturesPerWeek],
@@ -202,23 +236,23 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       <div>
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Buzón SOL SUNAT – SUNAFIL</h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Capturas semanales de buzón SUNAT y SUNAFIL por empresa ({capturesPerWeek} carga
-          {capturesPerWeek === 1 ? '' : 's'} por semana). Sin integración con portales.
+          Capturas por semana laborable (lun–sáb). Configuración actual: {capturesPerWeek} carga
+          {capturesPerWeek === 1 ? '' : 's'} por semana en Ajustes.
         </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
         <ActivityPeriodFilter value={periodYm} onChange={handlePeriodChange} />
-        <div className="min-w-[12rem]">
+        <div className="min-w-[14rem]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Semana</label>
           <select
             value={weekStart}
             onChange={(e) => setWeekStart(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
           >
-            {(weekOptions.length ? weekOptions : [{ week_start: weekStart, label: weekStart }]).map((w) => (
+            {(weekOptions.length ? weekOptions : [{ week_start: weekStart, week_index: 1, label: 'Semana 1' }]).map((w) => (
               <option key={w.week_start} value={w.week_start}>
-                {w.label}
+                {formatWeekOptionLabel(w)}
               </option>
             ))}
           </select>
@@ -263,6 +297,15 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleExportExcel()}
+          disabled={loading || exportingExcel}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+        >
+          <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
+          Excel
+        </button>
       </div>
 
       {verifyError ? (
@@ -278,6 +321,9 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm max-w-full">
+        <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80 text-xs text-slate-600">
+          {weekContextLabel}
+        </div>
         <div className="overflow-x-auto max-w-full custom-scrollbar">
           <table className="w-max min-w-full text-left table-auto">
             <thead className="bg-slate-50">
@@ -290,7 +336,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                 <th className={TH}>Resumen</th>
                 <th className={TH} />
                 {slotIndices.map((idx) => (
-                  <MailboxCaptureSlotHeader key={idx} slotIndex={idx} />
+                  <MailboxCaptureSlotHeader key={idx} slotIndex={idx} totalSlots={capturesPerWeek} />
                 ))}
               </tr>
             </thead>

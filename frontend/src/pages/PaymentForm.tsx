@@ -183,6 +183,7 @@ const PaymentForm = () => {
   const [loadedCreatedAt, setLoadedCreatedAt] = useState('');
   const [date, setDate] = useState(() => (isEdit ? '' : peruvianToday));
   const [amount, setAmount] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [method, setMethod] = useState('');
   const [reference, setReference] = useState('');
   const [attachment, setAttachment] = useState('');
@@ -283,6 +284,12 @@ const PaymentForm = () => {
     ];
   }, [method]);
 
+  const resolveDebtBalance = (docId: string): number => {
+    const d = documents.find((x) => String(x.id) === docId);
+    if (d) return documentBalanceAmount(d);
+    return 0;
+  };
+
   const manualImputationSum = useMemo(
     () =>
       manualAlloc.reduce((s, l) => {
@@ -297,18 +304,53 @@ const PaymentForm = () => {
     return Number.isFinite(n) ? n : 0;
   }, [amount]);
 
+  const discountNumForSummary = useMemo(() => {
+    const n = Number(discountAmount);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [discountAmount]);
+
+  const isLineFullyImputed = (docId: string, amtStr: string): boolean => {
+    if (!docId) return false;
+    const bal = resolveDebtBalance(docId);
+    const amt = Number(amtStr);
+    return bal > 0.005 && Number.isFinite(amt) && Math.abs(amt - bal) < 0.02;
+  };
+
+  const canUseDiscount = useMemo(() => {
+    if (isEdit || effectivePaymentType !== 'applied' || applyMode === 'fifo') return false;
+    if (applyMode === 'manual') {
+      const lines = manualAlloc.filter((l) => l.doc && Number(l.amt) > 0);
+      return lines.length > 0 && lines.every((l) => isLineFullyImputed(l.doc, l.amt));
+    }
+    if (applyMode === 'single' && documentId) {
+      const bal = resolveDebtBalance(documentId);
+      return bal > 0.005 && Math.abs(amountNumForSummary + discountNumForSummary - bal) < 0.02;
+    }
+    return false;
+  }, [
+    isEdit,
+    effectivePaymentType,
+    applyMode,
+    manualAlloc,
+    documentId,
+    amountNumForSummary,
+    discountNumForSummary,
+    documents,
+    allocDocHints,
+  ]);
+
+  const imputationTotalForDiscount = useMemo(() => {
+    if (applyMode === 'manual') return manualImputationSum;
+    if (applyMode === 'single' && documentId) return resolveDebtBalance(documentId);
+    return 0;
+  }, [applyMode, manualImputationSum, documentId, documents, allocDocHints]);
+
   const selectedDebtTotal = useMemo(() => {
     if (applyMode !== 'single' || !documentId) return null;
     const d = documents.find((x) => String(x.id) === documentId);
     if (!d) return null;
     return documentBalanceAmount(d);
   }, [applyMode, documentId, documents]);
-
-  const resolveDebtBalance = (docId: string): number => {
-    const d = documents.find((x) => String(x.id) === docId);
-    if (d) return documentBalanceAmount(d);
-    return 0;
-  };
 
   const handleAttachmentFileChange = async (file: File | null) => {
     if (!file) return;
@@ -575,6 +617,12 @@ const PaymentForm = () => {
           return;
         }
       }
+      const discountNum = Number(discountAmount);
+      const hasDiscount = Number.isFinite(discountNum) && discountNum > 0.005;
+      if (hasDiscount && !canUseDiscount) {
+        setError('El descuento solo puede aplicarse cuando cada imputación cubre el saldo completo de la deuda');
+        return;
+      }
       if (applyMode === 'manual') {
         const lines = manualAlloc
           .filter((l) => l.doc && Number(l.amt) > 0)
@@ -584,8 +632,20 @@ const PaymentForm = () => {
           return;
         }
         const sum = lines.reduce((a, l) => a + l.amount, 0);
-        if (Math.abs(sum - amountNum) > 0.02) {
+        if (hasDiscount) {
+          if (Math.abs(amountNum + discountNum - sum) > 0.02) {
+            setError('El monto pagado más el descuento debe igualar la suma de imputaciones');
+            return;
+          }
+        } else if (Math.abs(sum - amountNum) > 0.02) {
           setError('La suma de imputaciones debe coincidir con el monto del pago');
+          return;
+        }
+      }
+      if (applyMode === 'single' && hasDiscount) {
+        const bal = resolveDebtBalance(documentId);
+        if (Math.abs(amountNum + discountNum - bal) > 0.02) {
+          setError('El monto pagado más el descuento debe igualar el saldo de la deuda');
           return;
         }
       }
@@ -611,6 +671,10 @@ const PaymentForm = () => {
       description: description.trim() ? description.trim() : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
     };
+    const discountNum = Number(discountAmount);
+    if (Number.isFinite(discountNum) && discountNum > 0.005) {
+      payload.discount_amount = discountNum;
+    }
 
     if (effectivePaymentType === 'applied') {
       if (applyMode === 'fifo') {
@@ -914,6 +978,14 @@ const PaymentForm = () => {
                           const n = [...manualAlloc];
                           n[idx] = { ...n[idx], amt: ev.target.value };
                           setManualAlloc(n);
+                          if (discountAmount && !isLineFullyImputed(n[idx].doc, ev.target.value)) {
+                            setDiscountAmount('');
+                            const sum = n.reduce((s, l) => {
+                              const a = Number(l.amt);
+                              return s + (Number.isFinite(a) && a > 0 ? a : 0);
+                            }, 0);
+                            if (sum > 0) setAmount(sum.toFixed(2));
+                          }
                         }}
                         className="w-full min-w-0 px-2 py-2.5 md:py-2 rounded-lg border border-slate-300 text-sm text-right tabular-nums"
                       />
@@ -951,11 +1023,25 @@ const PaymentForm = () => {
                           <dt className="text-slate-600">Suma de líneas</dt>
                           <dd className="font-semibold tabular-nums text-slate-900">S/ {manualImputationSum.toFixed(2)}</dd>
                         </div>
+                        {discountNumForSummary > 0 ? (
+                          <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
+                            <dt className="text-slate-600">Descuento</dt>
+                            <dd className="font-semibold tabular-nums text-amber-800">− S/ {discountNumForSummary.toFixed(2)}</dd>
+                          </div>
+                        ) : null}
                         <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                           <dt className="text-slate-600">Monto del pago</dt>
                           <dd className="font-semibold tabular-nums text-slate-900">S/ {amountNumForSummary.toFixed(2)}</dd>
                         </div>
-                        {Math.abs(manualImputationSum - amountNumForSummary) > 0.02 ? (
+                        {discountNumForSummary > 0 ? (
+                          Math.abs(manualImputationSum - discountNumForSummary - amountNumForSummary) <= 0.02 ? (
+                            <p className="text-xs text-emerald-800">Importes alineados (deudas saldadas con descuento).</p>
+                          ) : (
+                            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+                              Ajuste el descuento o el monto pagado para que cuadren con la suma de líneas.
+                            </p>
+                          )
+                        ) : Math.abs(manualImputationSum - amountNumForSummary) > 0.02 ? (
                           <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
                             Ajuste las líneas o el monto del pago para que ambos importes coincidan antes de guardar.
                           </p>
@@ -1011,14 +1097,68 @@ const PaymentForm = () => {
                       name="amount"
                       required
                       value={amount}
-                      onChange={(ev) => setAmount(ev.target.value)}
+                      onChange={(ev) => {
+                        setAmount(ev.target.value);
+                        const n = Number(ev.target.value);
+                        if (discountAmount && Number.isFinite(n)) {
+                          const bal =
+                            applyMode === 'single' && documentId
+                              ? resolveDebtBalance(documentId)
+                              : imputationTotalForDiscount;
+                          if (bal > 0 && Math.abs(n + discountNumForSummary - bal) > 0.02) {
+                            setDiscountAmount('');
+                          }
+                        }
+                      }}
                       className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums"
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
-                    La suma de líneas debe coincidir con este importe.
+                    {canUseDiscount || discountNumForSummary > 0
+                      ? 'Con descuento, el monto cobrado es la suma de líneas menos el descuento.'
+                      : 'La suma de líneas debe coincidir con este importe (o cubrir saldos completos para aplicar descuento).'}
                   </p>
                 </div>
+                {!isEdit && effectivePaymentType === 'applied' && applyMode !== 'fifo' ? (
+                  <div className="min-w-0">
+                    <label htmlFor="discount_amount" className="block text-sm font-medium text-slate-700 mb-1">
+                      Descuento (total)
+                    </label>
+                    <div className="flex items-center rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500">
+                      <span className="px-3 text-slate-500 text-sm shrink-0">S/</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        id="discount_amount"
+                        name="discount_amount"
+                        disabled={!canUseDiscount}
+                        value={discountAmount}
+                        onChange={(ev) => {
+                          const raw = ev.target.value;
+                          setDiscountAmount(raw);
+                          const disc = Number(raw);
+                          if (!Number.isFinite(disc) || disc <= 0) {
+                            if (imputationTotalForDiscount > 0) {
+                              setAmount(imputationTotalForDiscount.toFixed(2));
+                            }
+                            return;
+                          }
+                          const total = imputationTotalForDiscount;
+                          if (total > 0 && disc < total) {
+                            setAmount((total - disc).toFixed(2));
+                          }
+                        }}
+                        className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                      {canUseDiscount
+                        ? 'Solo cuando cada ítem está imputado al saldo completo.'
+                        : 'Disponible cuando las imputaciones cubren el saldo íntegro de cada deuda.'}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="min-w-0">
                   <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
                     Fecha del pago

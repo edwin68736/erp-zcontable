@@ -16,7 +16,7 @@ import {
   type SunatInboxDetail,
 } from '../../services/sunatInbox';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
-import { defaultWeekStartForPeriod } from '../../utils/mailboxWeek';
+import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLabel } from '../../utils/mailboxWeek';
 import { summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
 
@@ -151,7 +151,9 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
     );
   }
 
-  const weekOptions = detail.weeks?.length ? detail.weeks : [{ week_start: weekStart, label: weekStart }];
+  const weekOptions = detail.weeks?.length ? detail.weeks : [{ week_start: weekStart, week_index: 1, label: 'Semana 1' }];
+  const selectedWeek = weekOptions.find((w) => w.week_start === weekStart);
+  const weekContextLabel = formatMailboxWeekContext(selectedWeek, detail.captures_per_week, periodYm);
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -169,7 +171,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
             {detail.dig ? ` · Dígito ${detail.dig}` : ''}
           </p>
         </div>
-        <div className="min-w-[12rem]">
+        <div className="min-w-[14rem]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Semana</label>
           <select
             value={weekStart}
@@ -178,7 +180,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
           >
             {weekOptions.map((w) => (
               <option key={w.week_start} value={w.week_start}>
-                {w.label}
+                {formatWeekOptionLabel(w)}
               </option>
             ))}
           </select>
@@ -209,7 +211,8 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80">
           <h2 className="text-sm font-semibold text-slate-800">Capturas de la semana</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">{weekContextLabel}</p>
+          <p className="text-xs text-slate-500 mt-1">
             {canUpload
               ? 'Suba PDF o imagen por buzón (SUNAT / SUNAFIL). Use Ver para previsualizar o Descargar para guardar el archivo.'
               : 'Revise las capturas. Solo el asistente puede subir archivos; el supervisor puede verificar.'}
@@ -218,7 +221,9 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {detail.slots.map((slot) => (
             <div key={slot.slot_index} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-              <h3 className="text-sm font-semibold text-slate-800 mb-3">Carga {slot.slot_index}</h3>
+              <h3 className="text-sm font-semibold text-slate-800 mb-3">
+                {detail.captures_per_week === 1 ? 'Carga' : `Carga ${slot.slot_index}`}
+              </h3>
               <MailboxCaptureSlotCell
                 slot={slot}
                 canUpload={canUpload}

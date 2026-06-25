@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import { resolveBackendUrl } from '../../api/client';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import FilePreviewModal from '../FilePreviewModal';
+import ClipboardPasteUploadModal from './ClipboardPasteUploadModal';
 import {
   mailboxStatusBadgeClass,
   mailboxSideStatusLabel,
@@ -29,6 +30,7 @@ type MailboxSideCellProps = {
   downloading: boolean;
   layout: LayoutMode;
   onUpload: (file: File) => Promise<void>;
+  onOpenPaste: () => void;
   onVerify: () => Promise<void>;
   onPreview: (url: string, fileName: string) => void;
   onDownload: (url: string, fileName: string) => Promise<void>;
@@ -63,6 +65,7 @@ function CompactMailboxSideCell({
   verifying,
   downloading,
   onUpload,
+  onOpenPaste,
   onVerify,
   onPreview,
   onDownload,
@@ -142,6 +145,16 @@ function CompactMailboxSideCell({
               {uploading ? '…' : 'Subir'}
             </button>
             <input ref={inputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => void handleFile(e)} />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={onOpenPaste}
+              className={actionBtnClass('compact', 'neutral')}
+              title="Pegar imagen o PDF desde el portapapeles"
+            >
+              <i className="fas fa-paste text-[10px]" aria-hidden />
+              {uploading ? '…' : 'Pegar'}
+            </button>
           </>
         ) : null}
         {canVerify && side.status === 'cargado' ? (
@@ -176,6 +189,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
     verifying,
     downloading,
     onUpload,
+    onOpenPaste,
     onVerify,
     onPreview,
     onDownload,
@@ -254,6 +268,16 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
               {uploading ? 'Subiendo…' : 'Subir'}
             </button>
             <input ref={inputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => void handleFile(e)} />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={onOpenPaste}
+              className={actionBtnClass('detail', 'neutral')}
+              title="Pegar imagen o PDF desde el portapapeles"
+            >
+              <i className="fas fa-paste text-[10px]" aria-hidden />
+              {uploading ? 'Subiendo…' : 'Pegar'}
+            </button>
           </>
         ) : null}
 
@@ -301,6 +325,7 @@ export function MailboxCaptureSlotCell({
   const [uploadingType, setUploadingType] = useState<MailboxType | null>(null);
   const [verifyingType, setVerifyingType] = useState<MailboxType | null>(null);
   const [downloadingType, setDownloadingType] = useState<MailboxType | null>(null);
+  const [pasteTarget, setPasteTarget] = useState<MailboxType | null>(null);
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const [downloadError, setDownloadError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -354,6 +379,7 @@ export function MailboxCaptureSlotCell({
     downloading: downloadingType === mailboxType,
     layout,
     onUpload: (file: File) => handleUpload(mailboxType, file),
+    onOpenPaste: () => setPasteTarget(mailboxType),
     onVerify: () => handleVerify(mailboxType),
     onPreview: handlePreview,
     onDownload: (url: string, fileName: string) => handleDownload(url, fileName, mailboxType),
@@ -370,6 +396,16 @@ export function MailboxCaptureSlotCell({
         <MailboxSideCell {...sideProps('sunat', slot.sunat)} />
         <MailboxSideCell {...sideProps('sunafil', slot.sunafil)} />
       </div>
+      <ClipboardPasteUploadModal
+        open={pasteTarget !== null}
+        title={pasteTarget ? `Pegar captura — ${mailboxTypeLabel(pasteTarget)}` : 'Pegar archivo'}
+        saving={pasteTarget !== null && uploadingType === pasteTarget}
+        onClose={() => setPasteTarget(null)}
+        onSave={async (file) => {
+          if (!pasteTarget) return;
+          await handleUpload(pasteTarget, file);
+        }}
+      />
       <FilePreviewModal
         open={!!preview}
         url={preview?.url ?? null}
@@ -385,10 +421,11 @@ export function MailboxCaptureSlotCell({
   );
 }
 
-export function MailboxCaptureSlotHeader({ slotIndex }: { slotIndex: number }) {
+export function MailboxCaptureSlotHeader({ slotIndex, totalSlots = 2 }: { slotIndex: number; totalSlots?: number }) {
+  const title = totalSlots === 1 ? 'Carga' : `Carga ${slotIndex}`;
   return (
     <th className="px-2 py-2.5 text-center text-xs font-semibold uppercase text-slate-500 whitespace-nowrap min-w-[36.5rem] w-[36.5rem]">
-      Carga {slotIndex}
+      {title}
     </th>
   );
 }

@@ -1,4 +1,5 @@
 import client from '../api/client';
+import { defaultWeekStartForPeriod } from '../utils/mailboxWeek';
 
 export type MailboxType = 'sunat' | 'sunafil';
 
@@ -25,7 +26,9 @@ export interface SunatInboxCaptureSlot {
 
 export interface SunatInboxWeekOption {
   week_start: string;
+  week_index: number;
   label: string;
+  date_range?: string;
 }
 
 export interface SunatInboxListMeta {
@@ -41,6 +44,7 @@ export interface SunatInboxListRow {
   business_name: string;
   ruc: string;
   assistant_username: string;
+  supervisor_username: string;
   control_id?: number;
   declaration_id?: number;
   summary_status: string;
@@ -124,5 +128,48 @@ export const sunatInboxService = {
       { mailbox_type: mailboxType },
     );
     return res.data.data;
+  },
+
+  /** Todas las empresas del período, por cada semana laborable (para exportación Excel). */
+  async fetchAllWeeksData(params: {
+    period_ym: string;
+    q?: string;
+    status?: string;
+  }): Promise<{
+    captures_per_week: number;
+    weeks: SunatInboxWeekOption[];
+    weeksData: Record<string, SunatInboxListRow[]>;
+  }> {
+    const probe = await this.list({
+      period_ym: params.period_ym,
+      week_start: defaultWeekStartForPeriod(params.period_ym),
+      per_page: 1,
+      page: 1,
+    });
+    const weeks = probe.meta?.weeks ?? [];
+    const capturesPerWeek = probe.meta?.captures_per_week ?? 2;
+    const weeksData: Record<string, SunatInboxListRow[]> = {};
+
+    for (const week of weeks) {
+      const rows: SunatInboxListRow[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await this.list({
+          period_ym: params.period_ym,
+          week_start: week.week_start,
+          q: params.q,
+          status: params.status,
+          page,
+          per_page: 200,
+        });
+        rows.push(...(res.data ?? []));
+        totalPages = res.pagination?.total_pages ?? 1;
+        page += 1;
+      }
+      weeksData[week.week_start] = rows;
+    }
+
+    return { captures_per_week: capturesPerWeek, weeks, weeksData };
   },
 };

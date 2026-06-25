@@ -1,12 +1,12 @@
 import type { FirmConfig } from '../types/dashboard';
 import type { PosSaleDetail } from '../services/posSales';
-import { buildFiscalReceiptA4Pdf, buildFiscalReceiptTicketPdf } from './fiscalReceiptPdfBuild';
+import { buildFiscalReceiptA4Pdf, buildFiscalReceiptA5Pdf, buildFiscalReceiptTicketPdf } from './fiscalReceiptPdfBuild';
 import { fiscalReceiptPdfFilename } from './fiscalReceiptPdfFilename';
 
 export { docTypeLabel } from './fiscalReceiptPdfBuild';
 export { fiscalReceiptPdfFilename, fiscalReceiptPdfBaseName } from './fiscalReceiptPdfFilename';
 
-export type ReceiptPdfFormat = 'a4' | 'ticket';
+export type ReceiptPdfFormat = 'a4' | 'a5' | 'ticket';
 
 export type FirmBranding = Partial<
   Pick<FirmConfig, 'name' | 'ruc' | 'address' | 'phone' | 'email' | 'logo_url' | 'statement_bank_info'>
@@ -34,7 +34,9 @@ export async function buildFiscalReceiptPdfBlob(
   const bytes =
     format === 'ticket'
       ? await buildFiscalReceiptTicketPdf(receipt, cfg)
-      : await buildFiscalReceiptA4Pdf(receipt, cfg);
+      : format === 'a5'
+        ? await buildFiscalReceiptA5Pdf(receipt, cfg)
+        : await buildFiscalReceiptA4Pdf(receipt, cfg);
   return new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
 }
 

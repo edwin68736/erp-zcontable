@@ -175,6 +175,7 @@ export interface Payment {
   type?: string;
   date: string;
   amount: number;
+  discount_amount?: number;
   method: string;
   reference: string;
   attachment: string;
@@ -207,6 +208,9 @@ export interface TukifacFiscalReceipt {
   document_type_id?: string;
   number: string;
   total: number;
+  subtotal?: number;
+  tax_amount?: number;
+  total_discount?: number;
   issue_date: string;
   customer_number?: string;
   customer_name?: string;
