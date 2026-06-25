@@ -17,10 +17,12 @@ const (
 	mailboxCapturesPerWeekMax = 7
 )
 
-// SunatInboxWeekOption semana selectable dentro de un period_ym.
+// SunatInboxWeekOption semana laborable selectable dentro de un period_ym (lun–sáb, sin domingo).
 type SunatInboxWeekOption struct {
-	WeekStart string `json:"week_start"`
-	Label     string `json:"label"`
+	WeekStart  string `json:"week_start"`
+	WeekIndex  int    `json:"week_index"`
+	Label      string `json:"label"`
+	DateRange  string `json:"date_range,omitempty"`
 }
 
 // SunatInboxListParams filtros del listado Buzón SOL por empresa, período y semana.
@@ -60,8 +62,9 @@ type SunatInboxListRow struct {
 	Dig               string                  `json:"dig"`
 	BusinessName      string                  `json:"business_name"`
 	RUC               string                  `json:"ruc"`
-	AssistantUsername string                  `json:"assistant_username"`
-	ControlID         *uint                   `json:"control_id,omitempty"`
+	AssistantUsername  string                  `json:"assistant_username"`
+	SupervisorUsername string                  `json:"supervisor_username"`
+	ControlID          *uint                   `json:"control_id,omitempty"`
 	DeclarationID     *uint                   `json:"declaration_id,omitempty"`
 	SummaryStatus     string                  `json:"summary_status"`
 	Slots             []SunatInboxCaptureSlot `json:"slots"`
@@ -149,7 +152,43 @@ func mondayOfWeekContaining(t time.Time) time.Time {
 	if wd == 0 {
 		wd = 7
 	}
-	return t.AddDate(0, 0, -(wd - 1))
+	return t.AddDate(0, 0, -(wd-1))
+}
+
+// businessWeekEnd sábado de la semana laborable (lun–sáb; domingo no laborable).
+func businessWeekEnd(weekStart time.Time) time.Time {
+	return weekStart.AddDate(0, 0, 5)
+}
+
+func weekHasBusinessDaysInMonth(weekStart, monthFirst, monthLast time.Time) bool {
+	bizEnd := businessWeekEnd(weekStart)
+	if bizEnd.Before(monthFirst) || weekStart.After(monthLast) {
+		return false
+	}
+	interStart := weekStart
+	if interStart.Before(monthFirst) {
+		interStart = monthFirst
+	}
+	interEnd := bizEnd
+	if interEnd.After(monthLast) {
+		interEnd = monthLast
+	}
+	return !interStart.After(interEnd)
+}
+
+func formatBusinessWeekRange(weekStart, monthFirst, monthLast time.Time) string {
+	start := weekStart
+	if start.Before(monthFirst) {
+		start = monthFirst
+	}
+	end := businessWeekEnd(weekStart)
+	if end.After(monthLast) {
+		end = monthLast
+	}
+	if start.After(end) {
+		return ""
+	}
+	return fmt.Sprintf("%s – %s", start.Format("02/01"), end.Format("02/01"))
 }
 
 func parseWeekStart(value string) (time.Time, error) {
@@ -186,17 +225,22 @@ func weeksInPeriodYM(periodYM string) ([]SunatInboxWeekOption, error) {
 	seen := map[string]struct{}{}
 	var out []SunatInboxWeekOption
 	cur := mondayOfWeekContaining(first)
+	weekIndex := 0
 	for !cur.After(last.AddDate(0, 0, 6)) {
-		end := cur.AddDate(0, 0, 6)
-		if end.Before(first) {
+		if !weekHasBusinessDaysInMonth(cur, first, last) {
 			cur = cur.AddDate(0, 0, 7)
 			continue
 		}
 		ws := formatWeekStart(cur)
 		if _, ok := seen[ws]; !ok {
 			seen[ws] = struct{}{}
-			label := fmt.Sprintf("%s – %s", cur.Format("02/01"), end.Format("02/01/2006"))
-			out = append(out, SunatInboxWeekOption{WeekStart: ws, Label: label})
+			weekIndex++
+			out = append(out, SunatInboxWeekOption{
+				WeekStart: ws,
+				WeekIndex: weekIndex,
+				Label:     fmt.Sprintf("Semana %d", weekIndex),
+				DateRange: formatBusinessWeekRange(cur, first, last),
+			})
 		}
 		cur = cur.AddDate(0, 0, 7)
 		if cur.After(last.AddDate(0, 0, 7)) {
@@ -204,10 +248,12 @@ func weeksInPeriodYM(periodYM string) ([]SunatInboxWeekOption, error) {
 		}
 	}
 	if len(out) == 0 {
-		ws := formatWeekStart(mondayOfWeekContaining(first))
+		wsMonday := mondayOfWeekContaining(first)
 		out = append(out, SunatInboxWeekOption{
-			WeekStart: ws,
-			Label:     first.Format("02/01/2006"),
+			WeekStart: formatWeekStart(wsMonday),
+			WeekIndex: 1,
+			Label:     "Semana 1",
+			DateRange: formatBusinessWeekRange(wsMonday, first, last),
 		})
 	}
 	return out, nil
@@ -561,7 +607,7 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 	}
 
 	var allCompanies []models.Company
-	if err := q.Order("companies.internal_code ASC").Find(&allCompanies).Error; err != nil {
+	if err := q.Preload("Assistant").Preload("Supervisor").Order("companies.internal_code ASC").Find(&allCompanies).Error; err != nil {
 		return nil, err
 	}
 
@@ -627,7 +673,8 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			Dig:               credDig[co.ID],
 			BusinessName:      strings.TrimSpace(co.BusinessName),
 			RUC:               strings.TrimSpace(co.RUC),
-			AssistantUsername: assistantUsername(co.Assistant),
+			AssistantUsername:  assistantUsername(co.Assistant),
+			SupervisorUsername: userUsername(co.Supervisor),
 			ControlID:         controlID,
 			DeclarationID:     declID,
 			SummaryStatus:     summary,

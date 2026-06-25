@@ -158,6 +158,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Type             string                            `json:"type"`
 		Date             string                            `json:"date"`
 		Amount           float64                           `json:"amount"`
+		DiscountAmount   float64                           `json:"discount_amount"`
 		Method           string                            `json:"method"`
 		Reference        string                            `json:"reference"`
 		Attachment       string                            `json:"attachment"`
@@ -204,6 +205,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Type:            body.Type,
 		Date:            dt,
 		Amount:          body.Amount,
+		DiscountAmount:  body.DiscountAmount,
 		Method:          body.Method,
 		Reference:       body.Reference,
 		Attachment:      body.Attachment,

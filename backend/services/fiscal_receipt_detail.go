@@ -196,6 +196,13 @@ func newFiscalLineFromAmount(desc string, amt float64, sortOrder int) models.Fis
 	}
 }
 
+func buildFiscalDiscountLine(discountAmount float64, sortOrder int) models.FiscalReceiptLine {
+	ln := newFiscalLineFromAmount("Descuento comercial", -roundFiscalMoney(discountAmount), sortOrder)
+	ln.LineType = models.FiscalReceiptLineTypeDiscount
+	ln.ProductName = "Descuento"
+	return ln
+}
+
 func sortedDocumentItems(doc *models.Document) []models.DocumentItem {
 	if doc == nil || len(doc.Items) == 0 {
 		return nil
