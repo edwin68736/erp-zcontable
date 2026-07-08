@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	FiscalReceiptLineTypeCatalog = "catalog"
-	FiscalReceiptLineTypeManual  = "manual"
+	FiscalReceiptLineTypeCatalog  = "catalog"
+	FiscalReceiptLineTypeManual   = "manual"
+	FiscalReceiptLineTypeDiscount = "discount"
 )
 
 // FiscalReceiptLine detalle inmutable del comprobante (snapshot; no usar Product en PDF ni reimpresión).

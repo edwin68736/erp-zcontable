@@ -27,6 +27,8 @@ type FirmConfig struct {
 	OperationsKeyConfigured        bool   `gorm:"-" json:"operations_key_configured"`
 	// JSON {"1":"sky","2":"emerald",...} colores pastel por dígito (claves SOL).
 	ClavesSolDigColorsJSON string `gorm:"type:text" json:"claves_sol_dig_colors_json,omitempty"`
+	// Capturas de buzón SUNAT/SUNAFIL que debe subir el asistente por semana (1–7).
+	MailboxCapturesPerWeek int `gorm:"not null;default:2" json:"mailbox_captures_per_week"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

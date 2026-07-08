@@ -8,6 +8,12 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import type { Company, User } from '../../types/dashboard';
 import { controlStatusLabel, currentPeriodYM } from '../../utils/supervisorLabels';
+import {
+  fetchPdtWorkspaceData,
+  formatPdtMetricsLine,
+  type PdtTypeSummary,
+  type PdtWorkspaceData,
+} from '../../utils/pdtClientAggregation';
 
 const SupervisorDashboard = () => {
   const allowed = useMemo(() => auth.hasPermission(P.supervisorsDashboardView), []);
@@ -30,7 +36,9 @@ const SupervisorDashboard = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [data, setData] = useState<SupervisorDashboardData | null>(null);
+  const [pdtData, setPdtData] = useState<PdtWorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pdtLoading, setPdtLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -100,6 +108,25 @@ const SupervisorDashboard = () => {
   useEffect(() => {
     if (allowed) void load();
   }, [allowed, load]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    setPdtLoading(true);
+    void fetchPdtWorkspaceData(periodYm)
+      .then((res) => {
+        if (!cancelled) setPdtData(res);
+      })
+      .catch(() => {
+        if (!cancelled) setPdtData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPdtLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, periodYm]);
 
   const chartTotal = useMemo(() => {
     if (!data) return 0;
@@ -247,6 +274,15 @@ const SupervisorDashboard = () => {
             <StatCard label="NPS pendientes" value={data.nps_pending} icon="fas fa-receipt" />
             <StatCard label="Pagos pendientes" value={data.payments_pending} icon="fas fa-wallet" />
           </div>
+
+          <PdtSummarySection
+            loading={pdtLoading}
+            summary601={pdtData?.summaryByType.pdt_601}
+            summary621={pdtData?.summaryByType.pdt_621}
+            metrics={pdtData?.metrics}
+            workspace="supervisor"
+          />
+
           {chartTotal > 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-medium text-slate-700 mb-3">Distribución por estado</p>
@@ -323,8 +359,11 @@ const SupervisorDashboard = () => {
             </div>
           ) : null}
           <div className="flex flex-wrap gap-3 text-sm">
-            <Link to="/supervisors/controls" className="text-primary-700 font-medium">
-              → Control mensual
+            <Link to="/supervisors/activities/pdt-601" className="text-primary-700 font-medium">
+              → PDT 601
+            </Link>
+            <Link to="/supervisors/activities/pdt-621" className="text-primary-700 font-medium">
+              → PDT 621
             </Link>
             <Link to="/supervisors/periods" className="text-primary-700 font-medium">
               → Períodos
@@ -341,6 +380,106 @@ const SupervisorDashboard = () => {
     </div>
   );
 };
+
+function PdtSummarySection({
+  loading,
+  summary601,
+  summary621,
+  metrics,
+  workspace,
+}: {
+  loading: boolean;
+  summary601?: PdtTypeSummary;
+  summary621?: PdtTypeSummary;
+  metrics?: PdtWorkspaceData['metrics'];
+  workspace: 'supervisor' | 'assistant';
+}) {
+  const base = workspace === 'assistant' ? '/assistant/activities' : '/supervisors/activities';
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Declaraciones PDT (agregación cliente)</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Resumen por tipo a partir de controles y declaraciones del período.
+          </p>
+        </div>
+        {metrics ? (
+          <p className="text-[10px] text-slate-400 font-mono" title="Métricas de llamadas API para evaluar N+1">
+            {formatPdtMetricsLine(metrics)}
+            {metrics.isPartialSample ? ' · muestra parcial' : ''}
+          </p>
+        ) : null}
+      </div>
+      {loading ? (
+        <p className="text-sm text-slate-500">Cargando resumen PDT…</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <PdtTypeCard title="PDT 601" summary={summary601 ?? emptyPdtSummary()} linkTo={`${base}/pdt-601`} />
+          <PdtTypeCard title="PDT 621" summary={summary621 ?? emptyPdtSummary()} linkTo={`${base}/pdt-621`} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function emptyPdtSummary(): PdtTypeSummary {
+  return { pendiente: 0, observado: 0, vencido: 0, completado: 0, total: 0 };
+}
+
+function PdtTypeCard({
+  title,
+  summary,
+  linkTo,
+}: {
+  title: string;
+  summary: PdtTypeSummary;
+  linkTo: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
+        <Link to={linkTo} className="text-xs text-primary-700 font-medium">
+          Ver módulo →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <PdtMiniStat label="Pendientes" value={summary.pendiente} tone="amber" />
+        <PdtMiniStat label="Observadas" value={summary.observado} tone="orange" />
+        <PdtMiniStat label="Vencidas" value={summary.vencido} tone="red" />
+        <PdtMiniStat label="Completadas" value={summary.completado} tone="emerald" />
+      </div>
+      <p className="text-[10px] text-slate-400 mt-3">Total en período: {summary.total}</p>
+    </div>
+  );
+}
+
+function PdtMiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'amber' | 'orange' | 'red' | 'emerald';
+}) {
+  const bg =
+    tone === 'emerald'
+      ? 'bg-emerald-50 text-emerald-800'
+      : tone === 'amber'
+        ? 'bg-amber-50 text-amber-800'
+        : tone === 'red'
+          ? 'bg-red-50 text-red-800'
+          : 'bg-orange-50 text-orange-800';
+  return (
+    <div className={`rounded-lg px-3 py-2 flex justify-between items-center ${bg}`}>
+      <span>{label}</span>
+      <span className="font-bold text-sm">{value}</span>
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon }: { label: string; value: number | string; icon: string }) {
   return (

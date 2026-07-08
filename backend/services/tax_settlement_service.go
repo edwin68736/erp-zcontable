@@ -130,6 +130,15 @@ type TaxSettlementCreateInput struct {
 	Lines              []TaxSettlementLineInput `json:"lines"`
 }
 
+// SupervisorTaxSettlementCreateInput creación inicial desde módulo Supervisores (sin líneas ni deudas).
+type SupervisorTaxSettlementCreateInput struct {
+	CompanyID         uint                         `json:"company_id"`
+	IssueDate         time.Time                    `json:"issue_date"`
+	LiquidationPeriod string                       `json:"liquidation_period"`
+	PeriodLabel       string                       `json:"period_label"`
+	TaxSections       *TaxSettlementSectionsPayload `json:"tax_sections"`
+}
+
 func parseTaxLinePeriodDate(s string) *time.Time {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -329,6 +338,174 @@ func (s *TaxSettlementService) CreateDraft(in TaxSettlementCreateInput) (*models
 	return s.GetByID(ts.ID)
 }
 
+// CreateSupervisorInitialDraft registra borrador vacío para que Finanzas continúe el flujo habitual.
+func (s *TaxSettlementService) CreateSupervisorInitialDraft(in SupervisorTaxSettlementCreateInput) (*models.TaxSettlement, error) {
+	if in.CompanyID == 0 {
+		return nil, errors.New("company_id requerido")
+	}
+	var co models.Company
+	if err := database.DB.Select("id", "igv_rate").First(&co, in.CompanyID).Error; err != nil {
+		return nil, errors.New("empresa no encontrada")
+	}
+	if _, err := validateCompanyIgvRate(co.IgvRate); err != nil {
+		return nil, errors.New("la empresa no tiene IGV configurado; regístrelo en los datos de la empresa")
+	}
+	ts := models.TaxSettlement{
+		CompanyID:   in.CompanyID,
+		Status:      models.TaxSettlementStatusDraft,
+		PeriodLabel: strings.TrimSpace(in.PeriodLabel),
+	}
+	if in.IssueDate.IsZero() {
+		ts.IssueDate = time.Now()
+	} else {
+		ts.IssueDate = in.IssueDate
+	}
+	lp, err := resolveLiquidationPeriodYM(ts.PeriodLabel, ts.IssueDate, in.LiquidationPeriod)
+	if err != nil {
+		return nil, err
+	}
+	ts.LiquidationPeriod = lp
+	num, err := settlementNumberFromLiquidationPeriod(lp)
+	if err != nil {
+		return nil, err
+	}
+	ts.Number = num
+
+	if err := validateTaxSettlementSections(in.TaxSections); err != nil {
+		return nil, err
+	}
+	computed := ComputeTaxSettlementSections(in.TaxSections)
+	jsonStr, err := MarshalTaxSettlementSectionsJSON(computed)
+	if err != nil {
+		return nil, err
+	}
+	ts.Pdt621JSON = jsonStr
+	if computed != nil {
+		ts.TotalImpuestos = computed.GrandTotalImpuesto
+		ts.TotalGeneral = computed.GrandTotalImpuesto
+	}
+
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		dup, err := duplicateLiquidationPeriod(tx, in.CompanyID, lp, 0)
+		if err != nil {
+			return err
+		}
+		if dup {
+			return errors.New("ya existe una liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+		}
+		return tx.Create(&ts).Error
+	}); err != nil {
+		return nil, err
+	}
+	return s.GetByID(ts.ID)
+}
+
+// SupervisorTaxSettlementUpdateInput actualización fiscal del supervisor (solo borrador).
+type SupervisorTaxSettlementUpdateInput struct {
+	IssueDate         time.Time                     `json:"issue_date"`
+	LiquidationPeriod string                        `json:"liquidation_period"`
+	PeriodLabel       string                        `json:"period_label"`
+	TaxSections       *TaxSettlementSectionsPayload `json:"tax_sections"`
+}
+
+// SupervisorCompanyLiquidationDraft borrador editable por empresa (listado supervisores).
+type SupervisorCompanyLiquidationDraft struct {
+	SettlementID      uint   `json:"settlement_id"`
+	LiquidationPeriod string `json:"liquidation_period"`
+	PeriodLabel       string `json:"period_label"`
+	Status            string `json:"status"`
+}
+
+// SupervisorDraftByCompanies devuelve la liquidación (borrador o emitida) por empresa para el periodo indicado.
+func (s *TaxSettlementService) SupervisorDraftByCompanies(companyIDs []uint, periodYM string) (map[uint]SupervisorCompanyLiquidationDraft, error) {
+	out := make(map[uint]SupervisorCompanyLiquidationDraft)
+	if len(companyIDs) == 0 {
+		return out, nil
+	}
+	periodYM = strings.TrimSpace(periodYM)
+	if periodYM == "" {
+		return out, nil
+	}
+	if err := validatePeriodYM(periodYM); err != nil {
+		return nil, err
+	}
+	var rows []models.TaxSettlement
+	if err := database.DB.
+		Where(
+			"company_id IN ? AND liquidation_period = ? AND status IN ?",
+			companyIDs,
+			periodYM,
+			[]string{models.TaxSettlementStatusDraft, models.TaxSettlementStatusIssued},
+		).
+		Order("updated_at DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if _, exists := out[r.CompanyID]; exists {
+			continue
+		}
+		out[r.CompanyID] = SupervisorCompanyLiquidationDraft{
+			SettlementID:      r.ID,
+			LiquidationPeriod: r.LiquidationPeriod,
+			PeriodLabel:       r.PeriodLabel,
+			Status:            r.Status,
+		}
+	}
+	return out, nil
+}
+
+// UpdateSupervisorDraft actualiza cabecera y secciones fiscales sin tocar líneas de Finanzas.
+func (s *TaxSettlementService) UpdateSupervisorDraft(id uint, in SupervisorTaxSettlementUpdateInput) (*models.TaxSettlement, error) {
+	var ts models.TaxSettlement
+	if err := database.DB.First(&ts, id).Error; err != nil {
+		return nil, err
+	}
+	if ts.Status != models.TaxSettlementStatusDraft {
+		return nil, errors.New("solo se puede editar una liquidación en borrador; si ya fue emitida, solicite revertirla desde Finanzas")
+	}
+	var co models.Company
+	if err := database.DB.Select("id", "igv_rate").First(&co, ts.CompanyID).Error; err != nil {
+		return nil, errors.New("empresa no encontrada")
+	}
+	if _, err := validateCompanyIgvRate(co.IgvRate); err != nil {
+		return nil, errors.New("la empresa no tiene IGV configurado; regístrelo en los datos de la empresa")
+	}
+	if err := validateTaxSettlementSections(in.TaxSections); err != nil {
+		return nil, err
+	}
+	if !in.IssueDate.IsZero() {
+		ts.IssueDate = in.IssueDate
+	}
+	ts.PeriodLabel = strings.TrimSpace(in.PeriodLabel)
+	lp, err := resolveLiquidationPeriodYM(ts.PeriodLabel, ts.IssueDate, in.LiquidationPeriod)
+	if err != nil {
+		return nil, err
+	}
+	dup, err := duplicateLiquidationPeriod(database.DB, ts.CompanyID, lp, ts.ID)
+	if err != nil {
+		return nil, err
+	}
+	if dup {
+		return nil, errors.New("ya existe otra liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+	}
+	ts.LiquidationPeriod = lp
+	computed := ComputeTaxSettlementSections(in.TaxSections)
+	jsonStr, err := MarshalTaxSettlementSectionsJSON(computed)
+	if err != nil {
+		return nil, err
+	}
+	ts.Pdt621JSON = jsonStr
+	if computed != nil {
+		ts.TotalImpuestos = computed.GrandTotalImpuesto
+		ts.TotalGeneral = roundTaxMoney(ts.TotalHonorarios + computed.GrandTotalImpuesto)
+	}
+	if err := database.DB.Save(&ts).Error; err != nil {
+		return nil, err
+	}
+	return s.GetByID(ts.ID)
+}
+
 type TaxSettlementUpdateInput struct {
 	IssueDate          time.Time                `json:"issue_date"`
 	LiquidationPeriod  string                   `json:"liquidation_period"`
@@ -359,7 +536,9 @@ func (s *TaxSettlementService) UpdateDraft(id uint, in TaxSettlementUpdateInput)
 	ts.PeriodFrom = in.PeriodFrom
 	ts.PeriodTo = in.PeriodTo
 	ts.Notes = in.Notes
-	ts.Pdt621JSON = in.Pdt621JSON
+	if strings.TrimSpace(in.Pdt621JSON) != "" {
+		ts.Pdt621JSON = in.Pdt621JSON
+	}
 
 	explicitLP := strings.TrimSpace(in.LiquidationPeriod)
 	if explicitLP == "" {

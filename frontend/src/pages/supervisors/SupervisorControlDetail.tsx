@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { resolveBackendUrl } from '../../api/client';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
@@ -17,6 +17,10 @@ import { usersService } from '../../services/users';
 import { P } from '../../rbac/codes';
 import type { User } from '../../types/dashboard';
 import {
+  activitiesBasePath,
+  resolveActivityWorkspace,
+} from '../../navigation/activityRoutes';
+import {
   controlStatusLabel,
   declarationStatusLabel,
   declarationTypeLabel,
@@ -32,6 +36,9 @@ function supervisorUserLabel(u?: { full_name?: string; username?: string }): str
 
 const SupervisorControlDetail = () => {
   const { id } = useParams();
+  const location = useLocation();
+  const workspace = resolveActivityWorkspace(location.pathname);
+  const activitiesHub = activitiesBasePath(workspace);
   const controlId = Number(id);
   const canView = useMemo(() => auth.hasPermission(P.supervisorsControlsView), []);
   const canUpdateControl = useMemo(() => auth.hasPermission(P.supervisorsControlsUpdate), []);
@@ -319,11 +326,8 @@ const SupervisorControlDetail = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <Link
-          to={window.location.pathname.includes('/assistant/') ? '/assistant/controls' : '/supervisors/controls'}
-          className="text-sm text-primary-700"
-        >
-          ← Volver a controles
+        <Link to={activitiesHub} className="text-sm text-primary-700">
+          ← Volver al hub de actividades
         </Link>
         {isReviewer && !isOperatorOnly ? (
           <p className="text-xs text-slate-500 mt-1">Modo revisión: apruebe u observe el trabajo del asistente.</p>

@@ -82,6 +82,7 @@ const Settings = () => {
         statement_payment_observations: config.statement_payment_observations ?? '',
         statement_payment_qr_caption: config.statement_payment_qr_caption ?? '',
         claves_sol_dig_colors_json: serializeDigColorMap(digColorMap),
+        mailbox_captures_per_week: config.mailbox_captures_per_week ?? 2,
         operations_key: operationsKeyDraft.trim() || undefined,
       });
       setConfig(updated);
@@ -576,6 +577,32 @@ const Settings = () => {
                       </label>
                     </div>
                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">Buzones SOL (SUNAT / SUNAFIL)</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Cantidad de veces por semana que el asistente debe subir capturas o PDF de cada buzón. Máximo 7.
+                    </p>
+                  </div>
+                  <label className="block max-w-xs">
+                    <span className="text-xs font-medium text-slate-600">Capturas por semana</span>
+                    <input
+                      type="number"
+                      name="mailbox_captures_per_week"
+                      min={1}
+                      max={7}
+                      step={1}
+                      disabled={!canEdit}
+                      value={config.mailbox_captures_per_week ?? 2}
+                      onChange={(e) => {
+                        const n = Math.min(7, Math.max(1, Number(e.target.value) || 2));
+                        setConfig({ ...config, mailbox_captures_per_week: n });
+                      }}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-50"
+                    />
+                  </label>
                 </div>
 
                 <div className="border-t border-slate-100 pt-6 space-y-4">

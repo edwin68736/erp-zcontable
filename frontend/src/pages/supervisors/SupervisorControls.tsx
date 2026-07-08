@@ -6,14 +6,25 @@ import { P } from '../../rbac/codes';
 import Pagination from '../../components/Pagination';
 import CompanySearchInput from '../../components/CompanySearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import ActivityHubNav from '../../components/activity/ActivityHubNav';
+import {
+  controlsDetailBasePath,
+  type ActivityWorkspace,
+} from '../../navigation/activityRoutes';
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
 
 type SupervisorControlsProps = {
   /** Ruta base para enlazar al detalle (p. ej. /assistant/controls). */
   detailBasePath?: string;
+  /** supervisor | assistant — define el hub de actividades y textos. */
+  workspace?: ActivityWorkspace;
 };
 
-const SupervisorControls = ({ detailBasePath = '/supervisors/controls' }: SupervisorControlsProps) => {
+const SupervisorControls = ({
+  detailBasePath,
+  workspace = 'supervisor',
+}: SupervisorControlsProps) => {
+  const resolvedDetailBase = detailBasePath ?? controlsDetailBasePath(workspace);
   const canView = useMemo(() => auth.hasPermission(P.supervisorsControlsView), []);
   const canCreate = useMemo(() => auth.hasPermission(P.supervisorsControlsCreate), []);
   const canDelete = useMemo(() => auth.hasPermission(P.supervisorsControlsDelete), []);
@@ -96,12 +107,18 @@ const SupervisorControls = ({ detailBasePath = '/supervisors/controls' }: Superv
     return <p className="p-6 text-center text-slate-600">Sin permiso para ver controles mensuales.</p>;
   }
 
+  const pageTitle = 'Control de actividades';
+  const pageSubtitle =
+    workspace === 'assistant'
+      ? 'Hub operativo y listado de controles mensuales de sus empresas.'
+      : 'Hub de supervisión y listado de controles mensuales por empresa.';
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Control mensual</h2>
-          <p className="text-sm text-slate-500">Seguimiento por empresa y período.</p>
+          <h2 className="text-xl font-semibold text-slate-800">{pageTitle}</h2>
+          <p className="text-sm text-slate-500">{pageSubtitle}</p>
         </div>
         {canCreate ? (
           <button
@@ -115,6 +132,15 @@ const SupervisorControls = ({ detailBasePath = '/supervisors/controls' }: Superv
       </div>
 
       {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
+
+      <ActivityHubNav workspace={workspace} />
+
+      <div className="border-t border-slate-100 pt-6">
+        <h3 className="text-sm font-semibold text-slate-800 mb-1">Controles mensuales</h3>
+        <p className="text-xs text-slate-500 mb-4">
+          Vista legacy durante la migración. Use &quot;Detalle&quot; para el flujo completo hasta habilitar PDT 601/621.
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-4 items-end">
         <label className="text-sm text-slate-600">
@@ -224,7 +250,7 @@ const SupervisorControls = ({ detailBasePath = '/supervisors/controls' }: Superv
                     {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
-                    <Link to={`${detailBasePath}/${row.id}`} className="text-primary-700 text-xs font-medium">
+                    <Link to={`${resolvedDetailBase}/${row.id}`} className="text-primary-700 text-xs font-medium">
                       Detalle
                     </Link>
                     {canDelete ? (

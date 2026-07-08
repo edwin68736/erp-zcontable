@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { supervisorsService, type SupervisorNotification } from '../../services/supervisors';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
+import {
+  controlDetailPath,
+  resolveActivityWorkspace,
+} from '../../navigation/activityRoutes';
 
 const SupervisorNotifications = () => {
+  const location = useLocation();
+  const workspace = resolveActivityWorkspace(location.pathname);
   const allowed = useMemo(() => auth.hasPermission(P.supervisorsNotificationsView), []);
   const [items, setItems] = useState<SupervisorNotification[]>([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -75,7 +81,7 @@ const SupervisorNotifications = () => {
                     </p>
                     {n.monthly_control_id ? (
                       <Link
-                        to={`/supervisors/controls/${n.monthly_control_id}`}
+                        to={controlDetailPath(workspace, n.monthly_control_id)}
                         className="text-xs text-primary-700 font-medium mt-1 inline-block"
                       >
                         Ver control →

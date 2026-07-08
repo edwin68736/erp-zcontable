@@ -32,6 +32,7 @@ type PaymentCreateParams struct {
 	Type           string
 	Date           time.Time
 	Amount         float64
+	DiscountAmount float64
 	Method         string
 	Reference      string
 	Attachment     string
@@ -115,6 +116,10 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 	if p.Amount <= 0 {
 		return 0, errors.New("el monto debe ser mayor a 0")
 	}
+	p.DiscountAmount = math.Round(p.DiscountAmount*100) / 100
+	if p.DiscountAmount < 0 {
+		return 0, errors.New("el descuento no puede ser negativo")
+	}
 	if p.Date.IsZero() {
 		p.Date = time.Now()
 	}
@@ -175,6 +180,9 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 
 	// applied
 	mode := strings.ToLower(strings.TrimSpace(p.AllocationMode))
+	if p.DiscountAmount > 0.005 && mode == "fifo" {
+		return 0, errors.New("el descuento no puede combinarse con imputación FIFO")
+	}
 	var lines []PaymentAllocationInput
 
 	if len(p.Allocations) > 0 {
@@ -206,13 +214,29 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			return pay.ID, nil
 		}
 	} else if p.DocumentID != nil {
-		lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: p.Amount}}
+		debtSvc := debtsvc.NewService()
+		var doc models.Document
+		if err := database.DB.First(&doc, *p.DocumentID).Error; err != nil {
+			return 0, errors.New("documento inválido")
+		}
+		if doc.CompanyID != p.CompanyID {
+			return 0, errors.New("el documento no pertenece a la empresa")
+		}
+		bal := debtSvc.EffectiveBalance(database.DB, &doc)
+		if p.DiscountAmount > 0.005 {
+			if math.Abs(p.Amount+p.DiscountAmount-bal) > 0.02 {
+				return 0, errors.New("con descuento, el monto pagado más el descuento debe igualar el saldo de la deuda")
+			}
+			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: bal}}
+		} else {
+			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: p.Amount}}
+		}
 		mode = "single"
 	} else {
 		return 0, errors.New("indique documento, allocation_mode=fifo o lista allocations")
 	}
 
-	if mode == "manual" {
+	if mode == "manual" || mode == "single" {
 		var sum float64
 		for _, ln := range lines {
 			if ln.DocumentID == 0 || ln.Amount <= 0 {
@@ -220,25 +244,21 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			}
 			sum += ln.Amount
 		}
-		if math.Abs(sum-p.Amount) > 0.02 {
-			return 0, errors.New("la suma de imputaciones debe igualar el monto del pago")
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.ValidatePaymentAmountsAndAllocations(database.DB, p.CompanyID, p.Amount, p.DiscountAmount, toDebtLines(lines), p.TaxSettlementID); err != nil {
+			return 0, err
 		}
 	}
 
 	var paymentID uint
 	debtSvc := debtsvc.NewService()
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		applyLines := make([]debtsvc.PaymentAllocationLine, 0, len(lines))
-		for _, ln := range lines {
-			applyLines = append(applyLines, debtsvc.PaymentAllocationLine{
-				DocumentID: ln.DocumentID,
-				Amount:     ln.Amount,
-			})
-		}
+		applyLines := toDebtLines(lines)
 		pid, err := debtSvc.ApplyPaymentTx(tx, debtsvc.ApplyPaymentInput{
 			CompanyID:       p.CompanyID,
 			Date:            p.Date,
 			Amount:          p.Amount,
+			DiscountAmount:  p.DiscountAmount,
 			Method:          p.Method,
 			Reference:       p.Reference,
 			Attachment:      p.Attachment,
@@ -432,13 +452,13 @@ func (s *PaymentService) List(params PaymentListParams) ([]models.Payment, error
 		q = q.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		q = q.Where("date >= ?", *params.DateFrom)
+		q = q.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		q = q.Where("date < ?", *params.DateTo)
+		q = q.Where("created_at < ?", *params.DateTo)
 	}
 
-	if err := q.Order("date DESC, id DESC").Find(&list).Error; err != nil {
+	if err := q.Order("created_at DESC, id DESC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -471,10 +491,10 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		base = base.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		base = base.Where("date >= ?", *params.DateFrom)
+		base = base.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		base = base.Where("date < ?", *params.DateTo)
+		base = base.Where("created_at < ?", *params.DateTo)
 	}
 
 	var total int64
@@ -488,7 +508,7 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		Preload("Allocations").
 		Preload("TaxSettlement").
 		Preload("TukifacFiscalReceipt").
-		Order("date DESC, id DESC").
+		Order("created_at DESC, id DESC").
 		Limit(perPage).
 		Offset((page - 1) * perPage)
 
@@ -564,4 +584,15 @@ func (s *PaymentService) Delete(id uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		return s.DeletePaymentTx(tx, id)
 	})
+}
+
+func toDebtLines(lines []PaymentAllocationInput) []debtsvc.PaymentAllocationLine {
+	out := make([]debtsvc.PaymentAllocationLine, 0, len(lines))
+	for _, ln := range lines {
+		out = append(out, debtsvc.PaymentAllocationLine{
+			DocumentID: ln.DocumentID,
+			Amount:     ln.Amount,
+		})
+	}
+	return out
 }

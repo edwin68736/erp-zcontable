@@ -19,8 +19,9 @@ export interface FinanceCalendarMark {
 export interface FinanceCalendarActivity {
   id: number;
   calendar_id: number;
+  activity_template_id: number;
+  template_code?: string;
   name: string;
-  description?: string;
   start_day: number;
   end_day: number;
   due_day: number;
@@ -28,6 +29,7 @@ export interface FinanceCalendarActivity {
   priority: string;
   status: string;
   text_color?: string;
+  icon?: string;
   start_date?: string;
   end_date?: string;
   due_date?: string;
@@ -138,15 +140,11 @@ export const financeCalendarService = {
   async addActivity(
     calendarId: number,
     body: {
-      name: string;
-      description?: string;
+      activity_template_id: number;
       start_day: number;
       end_day: number;
       due_day: number;
-      activity_kind: string;
-      priority: string;
       status?: string;
-      text_color?: string;
     },
   ) {
     const res = await client.post<{ data: FinanceCalendarActivity }>(
@@ -159,15 +157,10 @@ export const financeCalendarService = {
   async updateActivity(
     id: number,
     body: Partial<{
-      name: string;
-      description: string;
       start_day: number;
       end_day: number;
       due_day: number;
-      activity_kind: string;
-      priority: string;
       status: string;
-      text_color: string;
     }>,
   ) {
     const res = await client.put<{ data: FinanceCalendarActivity }>(`/finance/calendar/activities/${id}`, body);

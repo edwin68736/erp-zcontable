@@ -87,7 +87,12 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 	for _, a := range pay.Allocations {
 		sumAlloc += a.Amount
 	}
-	if math.Abs(sumAlloc-pay.Amount) > 0.03 {
+	discount := roundFiscalMoney(pay.DiscountAmount)
+	if discount > documentMoneyEpsilon {
+		if math.Abs(sumAlloc-pay.Amount-discount) > 0.03 {
+			return nil, errors.New("las imputaciones no coinciden con el monto del pago y el descuento")
+		}
+	} else if math.Abs(sumAlloc-pay.Amount) > 0.03 {
 		return nil, errors.New("las imputaciones no coinciden con el monto del pago")
 	}
 
@@ -101,7 +106,8 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 		return nil, err
 	}
 
-	issueDate := pay.Date
+	// Emisión interna = fecha de registro del pago (no la fecha en que ocurrió el pago).
+	issueDate := pay.CreatedAt
 	if issueDate.IsZero() {
 		issueDate = time.Now()
 	}
@@ -128,6 +134,9 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 	}
 
 	lines := BuildReceiptLinesFromPayment(&pay)
+	if discount > documentMoneyEpsilon {
+		lines = append(lines, buildFiscalDiscountLine(discount, len(lines)))
+	}
 	subtotal, tax, total := sumLineTotals(lines)
 	if total <= 0 {
 		total = roundFiscalMoney(pay.Amount)
@@ -149,6 +158,9 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 				SortOrder:    0,
 			}}
 		}
+	}
+	if discount > documentMoneyEpsilon && math.Abs(total-pay.Amount) > 0.03 {
+		return nil, errors.New("no se pudo cuadrar el total del comprobante con el monto pagado")
 	}
 
 	pm := strings.TrimSpace(pay.Method)
@@ -172,6 +184,7 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 		Total:                total,
 		Subtotal:             subtotal,
 		TaxAmount:            tax,
+		TotalDiscount:        discount,
 		IssueDate:            issueDate,
 		CustomerNumber:       strings.TrimSpace(co.RUC),
 		CustomerName:         customerName,
@@ -199,7 +212,7 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 			FiscalReceiptID: rec.ID,
 			SortOrder:       0,
 			Method:          pm,
-			Amount:          total,
+			Amount:          roundFiscalMoney(pay.Amount),
 			OperationNumber: strings.TrimSpace(pay.Reference),
 		}
 		if e := tx.Create(&paySnap).Error; e != nil {

@@ -196,6 +196,13 @@ func newFiscalLineFromAmount(desc string, amt float64, sortOrder int) models.Fis
 	}
 }
 
+func buildFiscalDiscountLine(discountAmount float64, sortOrder int) models.FiscalReceiptLine {
+	ln := newFiscalLineFromAmount("Descuento comercial", -roundFiscalMoney(discountAmount), sortOrder)
+	ln.LineType = models.FiscalReceiptLineTypeDiscount
+	ln.ProductName = "Descuento"
+	return ln
+}
+
 func sortedDocumentItems(doc *models.Document) []models.DocumentItem {
 	if doc == nil || len(doc.Items) == 0 {
 		return nil
@@ -614,23 +621,26 @@ func syncFiscalReceiptPayments(rec *models.TukifacFiscalReceipt) {
 	if pm == "" {
 		return
 	}
+	ref := strings.TrimSpace(rec.PaymentReference)
 	parts := splitPaymentMethodHeader(pm)
 	if len(parts) > 1 {
 		rows := make([]models.FiscalReceiptPayment, 0, len(parts))
 		for i, part := range parts {
 			rows = append(rows, models.FiscalReceiptPayment{
-				SortOrder: i,
-				Method:    part,
-				Amount:    rec.Total,
+				SortOrder:       i,
+				Method:          part,
+				Amount:          rec.Total,
+				OperationNumber: ref,
 			})
 		}
 		rec.Payments = rows
 		return
 	}
 	rec.Payments = []models.FiscalReceiptPayment{{
-		SortOrder: 0,
-		Method:    pm,
-		Amount:    rec.Total,
+		SortOrder:       0,
+		Method:          pm,
+		Amount:          rec.Total,
+		OperationNumber: ref,
 	}}
 }
 
@@ -703,6 +713,7 @@ func (s *FiscalReceiptService) GetFiscalReceiptDetail(id uint) (*models.TukifacF
 	syncFiscalReceiptPayments(&rec)
 	rec.PeriodLabel = resolveFiscalReceiptPeriodLabel(&rec)
 	applyDebtPaymentContextForDetail(&rec)
+	ApplyFiscalReceiptEmissionDate(&rec)
 
 	return &rec, nil
 }

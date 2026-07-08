@@ -84,12 +84,25 @@ func normalizeActivityDays(startDay, endDay, dueDay int) (int, int, int) {
 	return startDay, endDay, dueDay
 }
 
+// FinanceCalendarActivityDTO respuesta API (campos de presentación mapeados desde snapshots).
 type FinanceCalendarActivityDTO struct {
-	models.FinanceCalendarActivity
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	DueDate      string `json:"due_date"`
-	TrafficLight string `json:"traffic_light"`
+	ID                 uint   `json:"id"`
+	CalendarID         uint   `json:"calendar_id"`
+	ActivityTemplateID uint   `json:"activity_template_id"`
+	TemplateCode       string `json:"template_code,omitempty"`
+	Name               string `json:"name"`
+	ActivityKind       string `json:"activity_kind"`
+	Priority           string `json:"priority"`
+	TextColor          string `json:"text_color"`
+	Icon               string `json:"icon,omitempty"`
+	StartDay           int    `json:"start_day"`
+	EndDay             int    `json:"end_day"`
+	DueDay             int    `json:"due_day"`
+	Status             string `json:"status"`
+	StartDate          string `json:"start_date"`
+	EndDate            string `json:"end_date"`
+	DueDate            string `json:"due_date"`
+	TrafficLight       string `json:"traffic_light"`
 }
 
 type FinanceCalendarDetail struct {
@@ -98,13 +111,13 @@ type FinanceCalendarDetail struct {
 }
 
 type CalendarComplianceCompany struct {
-	CompanyID     uint   `json:"company_id"`
-	CompanyName   string `json:"company_name"`
-	CompanyRUC    string `json:"company_ruc"`
-	ControlID     uint   `json:"control_id,omitempty"`
-	Status        string `json:"status"`
-	TrafficLight  string `json:"traffic_light"`
-	Detail        string `json:"detail,omitempty"`
+	CompanyID    uint   `json:"company_id"`
+	CompanyName  string `json:"company_name"`
+	CompanyRUC   string `json:"company_ruc"`
+	ControlID    uint   `json:"control_id,omitempty"`
+	Status       string `json:"status"`
+	TrafficLight string `json:"traffic_light"`
+	Detail       string `json:"detail,omitempty"`
 }
 
 type CalendarComplianceSummary struct {
@@ -120,6 +133,113 @@ type CalendarComplianceSummary struct {
 }
 
 var errCalendarClosed = errors.New("el calendario está cerrado; ábralo para editar")
+
+var hexActivityTextColorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+
+func normalizeTextColor(c string) string {
+	c = strings.TrimSpace(c)
+	if hexActivityTextColorRe.MatchString(c) {
+		return strings.ToLower(c)
+	}
+	return "#1d4ed8"
+}
+
+func activityDisplayName(a *models.FinanceCalendarActivity) string {
+	return strings.TrimSpace(a.NameSnapshot)
+}
+
+func activityDisplayKind(a *models.FinanceCalendarActivity) string {
+	return strings.TrimSpace(a.ActivityTypeSnapshot)
+}
+
+func activityComplianceKind(a *models.FinanceCalendarActivity) string {
+	return strings.TrimSpace(a.ActivityTypeSnapshot)
+}
+
+func activityDisplayPriority(a *models.FinanceCalendarActivity) string {
+	s := strings.TrimSpace(a.PrioritySnapshot)
+	if s == "" {
+		return models.SupervisorPriorityMedia
+	}
+	return s
+}
+
+func activityDisplayColor(a *models.FinanceCalendarActivity) string {
+	return normalizeTextColor(a.TextColorSnapshot)
+}
+
+func activityDisplayIcon(a *models.FinanceCalendarActivity) string {
+	return strings.TrimSpace(a.IconSnapshot)
+}
+
+func applySnapshotsFromTemplate(a *models.FinanceCalendarActivity, tpl *models.ActivityTemplate) {
+	a.ActivityTemplateID = tpl.ID
+	a.NameSnapshot = tpl.Name
+	a.ActivityTypeSnapshot = NormBackfillKind(tpl.ActivityType)
+	a.PrioritySnapshot = NormBackfillPriority(tpl.Priority)
+	a.TextColorSnapshot = NormBackfillColor(tpl.TextColor)
+	if ic := strings.TrimSpace(tpl.Icon); ic != "" {
+		a.IconSnapshot = ic
+	} else {
+		a.IconSnapshot = ""
+	}
+	a.ActivityRuleID = tpl.ActivityRuleID
+}
+
+func (s *FinanceCalendarService) loadTemplateCodes(ids []uint) map[uint]string {
+	out := make(map[uint]string)
+	if len(ids) == 0 {
+		return out
+	}
+	uniq := make([]uint, 0, len(ids))
+	seen := make(map[uint]struct{})
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
+	}
+	if len(uniq) == 0 {
+		return out
+	}
+	var tpls []models.ActivityTemplate
+	_ = database.DB.Select("id, code").Where("id IN ?", uniq).Find(&tpls).Error
+	for _, t := range tpls {
+		out[t.ID] = t.Code
+	}
+	return out
+}
+
+func (s *FinanceCalendarService) activityToDTO(a models.FinanceCalendarActivity, periodYM, templateCode string) FinanceCalendarActivityDTO {
+	startDay, endDay, dueDay := normalizeActivityDays(a.StartDay, a.EndDay, a.DueDay)
+	start, _ := dueDateForActivity(periodYM, startDay)
+	end, _ := dueDateForActivity(periodYM, endDay)
+	due, _ := dueDateForActivity(periodYM, dueDay)
+	completed := a.Status == models.CalendarActivityStatusDone
+	return FinanceCalendarActivityDTO{
+		ID:                 a.ID,
+		CalendarID:         a.CalendarID,
+		ActivityTemplateID: a.ActivityTemplateID,
+		TemplateCode:       templateCode,
+		Name:               activityDisplayName(&a),
+		ActivityKind:       activityDisplayKind(&a),
+		Priority:           activityDisplayPriority(&a),
+		TextColor:          activityDisplayColor(&a),
+		Icon:               activityDisplayIcon(&a),
+		StartDay:           startDay,
+		EndDay:             endDay,
+		DueDay:             dueDay,
+		Status:             a.Status,
+		StartDate:          start.Format("2006-01-02"),
+		EndDate:            end.Format("2006-01-02"),
+		DueDate:            due.Format("2006-01-02"),
+		TrafficLight:       TrafficLight(due, completed),
+	}
+}
 
 func (s *FinanceCalendarService) calendarByID(id uint) (*models.FinanceCalendar, error) {
 	var cal models.FinanceCalendar
@@ -202,25 +322,41 @@ func (s *FinanceCalendarService) GetCalendarDetail(periodYM string) (*FinanceCal
 		return nil, err
 	}
 
+	tplIDs := make([]uint, 0, len(acts))
+	for _, a := range acts {
+		if a.ActivityTemplateID > 0 {
+			tplIDs = append(tplIDs, a.ActivityTemplateID)
+		}
+	}
+	codes := s.loadTemplateCodes(tplIDs)
+
 	out := &FinanceCalendarDetail{FinanceCalendar: cal, Activities: make([]FinanceCalendarActivityDTO, 0, len(acts))}
 	for _, a := range acts {
-		startDay, endDay, dueDay := normalizeActivityDays(a.StartDay, a.EndDay, a.DueDay)
-		if a.StartDay != startDay || a.EndDay != endDay {
-			a.StartDay, a.EndDay, a.DueDay = startDay, endDay, dueDay
+		code := ""
+		if a.ActivityTemplateID > 0 {
+			code = codes[a.ActivityTemplateID]
 		}
-		start, _ := dueDateForActivity(cal.PeriodYM, startDay)
-		end, _ := dueDateForActivity(cal.PeriodYM, endDay)
-		due, _ := dueDateForActivity(cal.PeriodYM, dueDay)
-		completed := a.Status == models.CalendarActivityStatusDone
-		out.Activities = append(out.Activities, FinanceCalendarActivityDTO{
-			FinanceCalendarActivity: a,
-			StartDate:               start.Format("2006-01-02"),
-			EndDate:                 end.Format("2006-01-02"),
-			DueDate:                 due.Format("2006-01-02"),
-			TrafficLight:            TrafficLight(due, completed),
-		})
+		out.Activities = append(out.Activities, s.activityToDTO(a, cal.PeriodYM, code))
 	}
 	return out, nil
+}
+
+func (s *FinanceCalendarService) ActivityDTOByID(activityID uint) (*FinanceCalendarActivityDTO, error) {
+	var act models.FinanceCalendarActivity
+	if err := database.DB.First(&act, activityID).Error; err != nil {
+		return nil, errors.New("actividad no encontrada")
+	}
+	cal, err := s.calendarByID(act.CalendarID)
+	if err != nil {
+		return nil, err
+	}
+	code := ""
+	if act.ActivityTemplateID > 0 {
+		codes := s.loadTemplateCodes([]uint{act.ActivityTemplateID})
+		code = codes[act.ActivityTemplateID]
+	}
+	dto := s.activityToDTO(act, cal.PeriodYM, code)
+	return &dto, nil
 }
 
 func (s *FinanceCalendarService) CreateCalendar(periodYM, notes string) (*models.FinanceCalendar, error) {
@@ -337,12 +473,21 @@ func (s *FinanceCalendarService) DuplicateCalendar(fromYM, toYM string, opts Dup
 		_ = database.DB.Where("calendar_id = ?", src.ID).Find(&acts).Error
 		for _, a := range acts {
 			startDay, endDay, dueDay := normalizeActivityDays(a.StartDay, a.EndDay, a.DueDay)
-			_ = database.DB.Create(&models.FinanceCalendarActivity{
-				CalendarID: created.ID, Name: a.Name, Description: a.Description,
-				StartDay: startDay, EndDay: endDay, DueDay: dueDay,
-				ActivityKind: a.ActivityKind, Priority: a.Priority, Status: a.Status,
-				TextColor: normalizeTextColor(a.TextColor),
-			}).Error
+			dup := models.FinanceCalendarActivity{
+				CalendarID:           created.ID,
+				ActivityTemplateID:   a.ActivityTemplateID,
+				NameSnapshot:         a.NameSnapshot,
+				ActivityTypeSnapshot: a.ActivityTypeSnapshot,
+				PrioritySnapshot:     a.PrioritySnapshot,
+				TextColorSnapshot:    a.TextColorSnapshot,
+				IconSnapshot:         a.IconSnapshot,
+				ActivityRuleID:       a.ActivityRuleID,
+				StartDay:             startDay,
+				EndDay:               endDay,
+				DueDay:               dueDay,
+				Status:               models.CalendarActivityStatusPending,
+			}
+			_ = database.DB.Create(&dup).Error
 		}
 	}
 	return created, nil
@@ -388,65 +533,63 @@ func (s *FinanceCalendarService) DeleteMark(id uint) error {
 	return database.DB.Delete(&models.FinanceCalendarMark{}, id).Error
 }
 
-type CalendarActivityInput struct {
-	Name         string
-	Description  string
-	StartDay     int
-	EndDay       int
-	DueDay       int
-	ActivityKind string
-	Priority     string
-	Status       string
-	TextColor    string
+// CalendarActivityCreateInput alta desde plantilla del catálogo.
+type CalendarActivityCreateInput struct {
+	ActivityTemplateID uint
+	StartDay           int
+	EndDay             int
+	DueDay             int
+	Status             string
 }
 
-var hexActivityTextColorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-
-func normalizeTextColor(c string) string {
-	c = strings.TrimSpace(c)
-	if hexActivityTextColorRe.MatchString(c) {
-		return strings.ToLower(c)
-	}
-	return "#1d4ed8"
+// CalendarActivityUpdateInput solo días y estado operativo.
+type CalendarActivityUpdateInput struct {
+	StartDay int
+	EndDay   int
+	DueDay   int
+	Status   string
 }
 
-func (s *FinanceCalendarService) CreateActivity(calendarID uint, in CalendarActivityInput) (*models.FinanceCalendarActivity, error) {
+func (s *FinanceCalendarService) CreateActivity(calendarID uint, in CalendarActivityCreateInput) (*FinanceCalendarActivityDTO, error) {
 	if err := s.ensureCalendarOpenByID(calendarID); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(in.Name) == "" {
-		return nil, errors.New("nombre requerido")
 	}
 	startDay, endDay, dueDay := normalizeActivityDays(in.StartDay, in.EndDay, in.DueDay)
 	if dueDay < 1 || dueDay > 31 {
 		return nil, errors.New("día límite inválido (1-31)")
 	}
-	kind := strings.TrimSpace(in.ActivityKind)
-	if kind == "" {
-		kind = models.CalendarActivityOther
-	}
-	pri := strings.TrimSpace(in.Priority)
-	if pri == "" {
-		pri = models.SupervisorPriorityMedia
-	}
 	st := strings.TrimSpace(in.Status)
 	if st == "" {
 		st = models.CalendarActivityStatusPending
 	}
+
 	a := models.FinanceCalendarActivity{
-		CalendarID: calendarID, Name: strings.TrimSpace(in.Name),
-		Description: strings.TrimSpace(in.Description),
-		StartDay: startDay, EndDay: endDay, DueDay: dueDay,
-		ActivityKind: kind, Priority: pri, Status: st,
-		TextColor: normalizeTextColor(in.TextColor),
+		CalendarID: calendarID,
+		StartDay:   startDay,
+		EndDay:     endDay,
+		DueDay:     dueDay,
+		Status:     st,
 	}
+
+	if in.ActivityTemplateID == 0 {
+		return nil, errors.New("activity_template_id requerido")
+	}
+	var tpl models.ActivityTemplate
+	if err := database.DB.First(&tpl, in.ActivityTemplateID).Error; err != nil {
+		return nil, errors.New("plantilla no encontrada")
+	}
+	if !tpl.Active {
+		return nil, errors.New("la plantilla está inactiva")
+	}
+	applySnapshotsFromTemplate(&a, &tpl)
+
 	if err := database.DB.Create(&a).Error; err != nil {
 		return nil, err
 	}
-	return &a, nil
+	return s.ActivityDTOByID(a.ID)
 }
 
-func (s *FinanceCalendarService) UpdateActivity(id uint, in CalendarActivityInput) (*models.FinanceCalendarActivity, error) {
+func (s *FinanceCalendarService) UpdateActivity(id uint, in CalendarActivityUpdateInput) (*FinanceCalendarActivityDTO, error) {
 	var a models.FinanceCalendarActivity
 	if err := database.DB.First(&a, id).Error; err != nil {
 		return nil, errors.New("actividad no encontrada")
@@ -454,10 +597,6 @@ func (s *FinanceCalendarService) UpdateActivity(id uint, in CalendarActivityInpu
 	if err := s.ensureCalendarOpenByID(a.CalendarID); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(in.Name) != "" {
-		a.Name = strings.TrimSpace(in.Name)
-	}
-	a.Description = strings.TrimSpace(in.Description)
 	if in.StartDay >= 1 || in.EndDay >= 1 || in.DueDay >= 1 {
 		startDay, endDay, dueDay := normalizeActivityDays(
 			coalesceDay(in.StartDay, a.StartDay, a.DueDay),
@@ -466,22 +605,13 @@ func (s *FinanceCalendarService) UpdateActivity(id uint, in CalendarActivityInpu
 		)
 		a.StartDay, a.EndDay, a.DueDay = startDay, endDay, dueDay
 	}
-	if strings.TrimSpace(in.ActivityKind) != "" {
-		a.ActivityKind = strings.TrimSpace(in.ActivityKind)
-	}
-	if strings.TrimSpace(in.Priority) != "" {
-		a.Priority = strings.TrimSpace(in.Priority)
-	}
 	if strings.TrimSpace(in.Status) != "" {
 		a.Status = strings.TrimSpace(in.Status)
-	}
-	if strings.TrimSpace(in.TextColor) != "" {
-		a.TextColor = normalizeTextColor(in.TextColor)
 	}
 	if err := database.DB.Save(&a).Error; err != nil {
 		return nil, err
 	}
-	return &a, nil
+	return s.ActivityDTOByID(a.ID)
 }
 
 func coalesceDay(v, fallback, fallback2 int) int {
@@ -616,6 +746,10 @@ func (s *FinanceCalendarService) ActivityCompliance(activityID uint, periodYM st
 	if err := database.DB.First(&act, activityID).Error; err != nil {
 		return nil, errors.New("actividad no encontrada")
 	}
+	complianceKind := activityComplianceKind(&act)
+	if complianceKind == "" {
+		return nil, errors.New("actividad sin activity_type_snapshot")
+	}
 	var cal models.FinanceCalendar
 	if err := database.DB.First(&cal, act.CalendarID).Error; err != nil {
 		return nil, errors.New("calendario no encontrado")
@@ -628,11 +762,13 @@ func (s *FinanceCalendarService) ActivityCompliance(activityID uint, periodYM st
 		return nil, err
 	}
 
+	activityName := activityDisplayName(&act)
+
 	q := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
 	if companyIDs != nil {
 		if len(companyIDs) == 0 {
 			summary := &CalendarComplianceSummary{
-				ActivityID: activityID, ActivityName: act.Name,
+				ActivityID: activityID, ActivityName: activityName,
 				DueDate: due.Format("2006-01-02"), Companies: []CalendarComplianceCompany{},
 			}
 			summary.TrafficLight = TrafficLight(due, false)
@@ -646,12 +782,12 @@ func (s *FinanceCalendarService) ActivityCompliance(activityID uint, periodYM st
 	}
 
 	summary := &CalendarComplianceSummary{
-		ActivityID: activityID, ActivityName: act.Name,
+		ActivityID: activityID, ActivityName: activityName,
 		DueDate: due.Format("2006-01-02"), Companies: make([]CalendarComplianceCompany, 0, len(companies)),
 	}
 
 	for _, co := range companies {
-		st, detail := s.companyCompliance(periodYM, co.ID, act.ActivityKind, due)
+		st, detail := s.companyCompliance(periodYM, co.ID, complianceKind, due)
 		var ctrlID uint
 		var ctrl models.SupervisorMonthlyControl
 		if database.DB.Where("company_id = ? AND period_ym = ?", co.ID, periodYM).First(&ctrl).Error == nil {

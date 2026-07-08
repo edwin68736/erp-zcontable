@@ -313,9 +313,6 @@ func (ctrl *TaxSettlementController) UpdateAPI(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
-	if err := services.VerifyOperationsKey(body.OperationKey); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
-	}
 	ts, err := ctrl.svc.UpdateDraft(uint(id), body)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -419,12 +416,7 @@ func (ctrl *TaxSettlementController) RevertToDraftAPI(c fiber.Ctx) error {
 	var body struct {
 		OperationKey string `json:"operation_key"`
 	}
-	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
-	}
-	if err := services.VerifyOperationsKey(body.OperationKey); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
-	}
+	_ = c.Bind().Body(&body)
 	ts, err := ctrl.svc.RevertToDraft(uint(id))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

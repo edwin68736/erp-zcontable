@@ -12,12 +12,15 @@ import {
   settlementTotalsForPdf,
   taxSettlementPdfFilename,
 } from '../pdf/taxSettlementDocument';
+import { getLogoPngBlobForAccountPdf } from '../pdf/companyAccountStatementPdf';
 import {
   formatMoneyPen,
   stripLegacyMigrationNotes,
 } from '../utils/documentDebtUi';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OperationsKeyDialog from '../components/OperationsKeyDialog';
+import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
+import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -224,8 +227,15 @@ const TaxSettlementDetail = () => {
         configService.getFirmBranding().catch(() => null),
         taxSettlementsService.get(settlementId),
       ]);
-      const logoPng = firm?.logo_url ? await getLogoPngBlobForPdf(firm.logo_url) : null;
-      const blob = await generateTaxSettlementPdfBlob(fresh, firm, logoPng);
+      const studioLogoUrl = (firm?.logo_url ?? '').trim();
+      const bankLogoUrl = (firm?.statement_bank_logo_url ?? '').trim();
+      const payQrUrl = (firm?.statement_payment_qr_url ?? '').trim();
+      const [logoPng, bankLogoPng, paymentQrPng] = await Promise.all([
+        studioLogoUrl ? getLogoPngBlobForPdf(studioLogoUrl) : Promise.resolve(null),
+        bankLogoUrl ? getLogoPngBlobForAccountPdf(bankLogoUrl) : Promise.resolve(null),
+        payQrUrl ? getLogoPngBlobForAccountPdf(payQrUrl) : Promise.resolve(null),
+      ]);
+      const blob = await generateTaxSettlementPdfBlob(fresh, firm, logoPng, { bankLogoPng, paymentQrPng });
       saveAs(blob, taxSettlementPdfFilename(fresh));
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'PDF listo para entregar al cliente.' } }),
@@ -280,11 +290,15 @@ const TaxSettlementDetail = () => {
     }
   };
 
-  const confirmEditSettlement = async (operationKey: string) => {
-    if (!settlementId) return;
+  const confirmEditSettlement = async () => {
+    if (!settlementId || !row) return;
+    if (row.status === 'borrador') {
+      navigate(`/tax-settlements/${settlementId}/edit`);
+      return;
+    }
     setEditKeyLoading(true);
     try {
-      await taxSettlementsService.revertToDraft(settlementId, operationKey);
+      await taxSettlementsService.revertToDraft(settlementId);
       setEditKeyOpen(false);
       navigate(`/tax-settlements/${settlementId}/edit`);
     } catch (e: unknown) {
@@ -469,7 +483,13 @@ const TaxSettlementDetail = () => {
           {canUpdate && row.status !== 'cerrada' ? (
             <button
               type="button"
-              onClick={() => setEditKeyOpen(true)}
+              onClick={() => {
+                if (row.status === 'borrador') {
+                  navigate(`/tax-settlements/${settlementId}/edit`);
+                  return;
+                }
+                setEditKeyOpen(true);
+              }}
               className={`${btnBase} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
             >
               <i className="fas fa-pen text-xs shrink-0" aria-hidden />
@@ -488,6 +508,10 @@ const TaxSettlementDetail = () => {
           ) : null}
         </nav>
       </header>
+
+      {hasTaxSectionsData(row.pdt621_json) ? (
+        <SupervisorFiscalDataPanel pdt621Json={row.pdt621_json} />
+      ) : null}
 
       <div className="w-full min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 text-sm">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -517,7 +541,11 @@ const TaxSettlementDetail = () => {
             {row.closed_at ? ` el ${row.closed_at.slice(0, 10)}` : ''}. Registro histórico: no se puede editar ni eliminar. Las deudas muestran el estado al momento del cierre.
           </div>
         ) : null}
-        {settlementTotals && ((row.lines?.length ?? 0) > 0 || row.status === 'emitida' || row.status === 'cerrada') ? (
+        {settlementTotals &&
+        ((row.lines?.length ?? 0) > 0 ||
+          hasTaxSectionsData(row.pdt621_json) ||
+          row.status === 'emitida' ||
+          row.status === 'cerrada') ? (
           <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100">
             <div>
               <span className="text-xs font-medium text-slate-500">Honorarios / cargos</span>
@@ -826,20 +854,17 @@ const TaxSettlementDetail = () => {
         onConfirm={(key) => void confirmDeleteSettlement(key)}
       />
 
-      <OperationsKeyDialog
+      <ConfirmDialog
         open={editKeyOpen}
         title="Editar liquidación"
-        message={
-          row?.status === 'emitida'
-            ? 'Se revertirán pagos, comprobantes vinculados y deudas internas DEU-LIQ antes de abrir el editor.'
-            : 'Confirme la clave para abrir el editor.'
-        }
+        message="Se revertirán pagos, comprobantes vinculados y deudas internas DEU-LIQ antes de abrir el editor."
         confirmLabel="Continuar"
+        cancelLabel="Cancelar"
         loading={editKeyLoading}
         onClose={() => {
           if (!editKeyLoading) setEditKeyOpen(false);
         }}
-        onConfirm={(key) => void confirmEditSettlement(key)}
+        onConfirm={() => void confirmEditSettlement()}
       />
     </div>
   );

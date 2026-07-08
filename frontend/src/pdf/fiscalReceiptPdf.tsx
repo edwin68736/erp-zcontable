@@ -1,12 +1,12 @@
 import type { FirmConfig } from '../types/dashboard';
 import type { PosSaleDetail } from '../services/posSales';
-import { buildFiscalReceiptA4Pdf, buildFiscalReceiptTicketPdf } from './fiscalReceiptPdfBuild';
+import { buildFiscalReceiptA4Pdf, buildFiscalReceiptA5Pdf, buildFiscalReceiptTicketPdf } from './fiscalReceiptPdfBuild';
 import { fiscalReceiptPdfFilename } from './fiscalReceiptPdfFilename';
 
 export { docTypeLabel } from './fiscalReceiptPdfBuild';
 export { fiscalReceiptPdfFilename, fiscalReceiptPdfBaseName } from './fiscalReceiptPdfFilename';
 
-export type ReceiptPdfFormat = 'a4' | 'ticket';
+export type ReceiptPdfFormat = 'a4' | 'a5' | 'ticket';
 
 export type FirmBranding = Partial<
   Pick<FirmConfig, 'name' | 'ruc' | 'address' | 'phone' | 'email' | 'logo_url' | 'statement_bank_info'>
@@ -34,7 +34,9 @@ export async function buildFiscalReceiptPdfBlob(
   const bytes =
     format === 'ticket'
       ? await buildFiscalReceiptTicketPdf(receipt, cfg)
-      : await buildFiscalReceiptA4Pdf(receipt, cfg);
+      : format === 'a5'
+        ? await buildFiscalReceiptA5Pdf(receipt, cfg)
+        : await buildFiscalReceiptA4Pdf(receipt, cfg);
   return new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
 }
 
@@ -54,6 +56,39 @@ export function openPdfBlobInNewTab(blob: Blob, filename?: string): boolean {
   }
   w.opener = null;
   setTimeout(() => URL.revokeObjectURL(url), 300_000);
+  return true;
+}
+
+/** Imprime el PDF vectorial (nitidez correcta en ticket 80 mm y A4). */
+export function printFiscalReceiptPdfBlob(blob: Blob): boolean {
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', 'Imprimir comprobante');
+  iframe.style.cssText =
+    'position:fixed;left:0;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none;overflow:hidden';
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      iframe.remove();
+      URL.revokeObjectURL(url);
+    }, 120_000);
+  };
+
+  iframe.onload = () => {
+    window.setTimeout(() => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) return;
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    }, 350);
+  };
+
+  iframe.src = url;
   return true;
 }
 

@@ -22,6 +22,7 @@ export interface PaymentUpsertInput {
   type?: 'applied' | 'on_account';
   date?: string;
   amount: number;
+  discount_amount?: number;
   method?: string;
   reference?: string;
   attachment?: string;

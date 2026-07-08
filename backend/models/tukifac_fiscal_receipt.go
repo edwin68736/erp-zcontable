@@ -41,6 +41,7 @@ type TukifacFiscalReceipt struct {
 	FiscalSeriesID         *uint          `gorm:"index" json:"fiscal_series_id,omitempty"`
 	Subtotal               float64        `gorm:"type:decimal(15,2);not null;default:0" json:"subtotal"`
 	TaxAmount              float64        `gorm:"type:decimal(15,2);not null;default:0" json:"tax_amount"`
+	TotalDiscount          float64        `gorm:"type:decimal(15,2);not null;default:0" json:"total_discount"`
 	PaymentMethod          string         `gorm:"size:30" json:"payment_method,omitempty"`
 	PaymentReference       string         `gorm:"size:120" json:"payment_reference,omitempty"`
 	Notes                  string         `gorm:"type:text" json:"notes,omitempty"`

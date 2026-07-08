@@ -12,7 +12,25 @@ import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
 import { resolveBackendUrl } from '../api/client';
+import { formatInTimeZone } from 'date-fns-tz';
+import { peruDateInputFromApiDate } from '../utils/peruDates';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
+
+function formatPaymentDate(iso?: string): string {
+  const d = peruDateInputFromApiDate(iso);
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function formatPaymentRegisteredAt(iso?: string): string {
+  if (!iso) return '—';
+  try {
+    return formatInTimeZone(new Date(iso), 'America/Lima', 'dd/MM/yyyy HH:mm');
+  } catch {
+    return iso.slice(0, 16).replace('T', ' ');
+  }
+}
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -322,7 +340,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Desde</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro desde</label>
           <input
             type="date"
             value={dateFrom}
@@ -331,7 +349,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Hasta</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro hasta</label>
           <input
             type="date"
             value={dateTo}
@@ -352,7 +370,8 @@ const Payments = () => {
           <table className="min-w-full text-sm text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Registro</th>
+                <th className="px-4 py-3">Fecha pago</th>
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Comprobante</th>
@@ -367,7 +386,7 @@ const Payments = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && payments.length === 0 ? (
                  <tr>
-                   <td colSpan={10} className="px-4 py-6 text-center text-slate-500 text-sm">
+                   <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
                      <i className="fas fa-spinner fa-spin mr-2"></i> Cargando pagos...
                    </td>
                  </tr>
@@ -379,7 +398,12 @@ const Payments = () => {
                   const pdfUrl = (tukRec?.pdf_url ?? '').trim();
                   return (
                   <tr key={payment.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-700">{payment.date ? payment.date.slice(0, 10) : '—'}</td>
+                    <td className="px-4 py-3 text-slate-700 text-xs tabular-nums whitespace-nowrap" title="Fecha y hora en que se registró en el sistema">
+                      {formatPaymentRegisteredAt(payment.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 tabular-nums whitespace-nowrap" title="Fecha en que se realizó el pago">
+                      {formatPaymentDate(payment.date)}
+                    </td>
                     <td className="px-4 py-3 text-slate-800 font-medium">
                       {payment.company ? payment.company.business_name : '—'}
                     </td>
@@ -478,7 +502,7 @@ const Payments = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-slate-500 text-sm">
+                  <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
                     {loading ? "Cargando..." : "No hay pagos registrados."}
                   </td>
                 </tr>

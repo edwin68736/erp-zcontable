@@ -1,0 +1,188 @@
+﻿[
+    {
+        "ID":  "B4-01",
+        "Resultado":  "listado total= company1=11",
+        "Estado":  "PASS",
+        "Evidencia":  "GET sunat-inbox"
+    },
+    {
+        "ID":  "B4-02",
+        "Resultado":  "lazy ensure ctrl=433 decl=2018 status=pendiente",
+        "Estado":  "PASS",
+        "Evidencia":  "GET companies/11"
+    },
+    {
+        "ID":  "B4-03",
+        "Resultado":  "PDF upload FAIL 0",
+        "Estado":  "FAIL",
+        "Evidencia":  "POST upload"
+    },
+    {
+        "ID":  "B4-04",
+        "Resultado":  "IMG upload FAIL 0",
+        "Estado":  "FAIL",
+        "Evidencia":  "POST upload"
+    },
+    {
+        "ID":  "B4-03b",
+        "Resultado":  "attachments=0",
+        "Estado":  "FAIL",
+        "Evidencia":  "GET attachments"
+    },
+    {
+        "ID":  "B4-05",
+        "Resultado":  "observacion asistente OK",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observations"
+    },
+    {
+        "ID":  "B4-06",
+        "Resultado":  "estado=en_elaboracion",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT declaration"
+    },
+    {
+        "ID":  "B4-08",
+        "Resultado":  "observe status=observado progress=40 approver=2",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe SUPERVISOR1"
+    },
+    {
+        "ID":  "B4-10",
+        "Resultado":  "general_status=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control"
+    },
+    {
+        "ID":  "B4-11",
+        "Resultado":  "obs auto=True count=1",
+        "Estado":  "PASS",
+        "Evidencia":  "GET observations"
+    },
+    {
+        "ID":  "B11-01",
+        "Resultado":  "POST /observe unico",
+        "Estado":  "PASS",
+        "Evidencia":  "observeDeclaration API"
+    },
+    {
+        "ID":  "B11-02",
+        "Resultado":  "decl=observado pct=40 approver=2",
+        "Estado":  "PASS",
+        "Evidencia":  "JSON"
+    },
+    {
+        "ID":  "B11-03",
+        "Resultado":  "control=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control"
+    },
+    {
+        "ID":  "B11-04",
+        "Resultado":  "auto obs=True",
+        "Estado":  "PASS",
+        "Evidencia":  "GET observations"
+    },
+    {
+        "ID":  "B4-12",
+        "Resultado":  "validate=validado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST validate"
+    },
+    {
+        "ID":  "B2-09",
+        "Resultado":  "asistente approve HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve"
+    },
+    {
+        "ID":  "B2-10",
+        "Resultado":  "asistente observe HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe"
+    },
+    {
+        "ID":  "B5-02",
+        "Resultado":  "ensure ctrl=445 decl=2019",
+        "Estado":  "PASS",
+        "Evidencia":  "GET distractions/24"
+    },
+    {
+        "ID":  "B5-03",
+        "Resultado":  "uploads OK",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload"
+    },
+    {
+        "ID":  "B5-07",
+        "Resultado":  "observe observado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe"
+    },
+    {
+        "ID":  "B5-08",
+        "Resultado":  "validate validado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST validate"
+    },
+    {
+        "ID":  "B11-05",
+        "Resultado":  "DIST observe observado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe"
+    },
+    {
+        "ID":  "B6-01",
+        "Resultado":  "ensure decl=1761 status=pendiente",
+        "Estado":  "PASS",
+        "Evidencia":  "GET pdt-601/25"
+    },
+    {
+        "ID":  "B6-06",
+        "Resultado":  "decl.due= ctrl.due=2026-07-20T00:00:00-05:00",
+        "Estado":  "PASS",
+        "Evidencia":  "due_date fallback"
+    },
+    {
+        "ID":  "B6-09",
+        "Resultado":  "approve aprobado progress=85",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve"
+    },
+    {
+        "ID":  "B11-06",
+        "Resultado":  "PDT601 aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve"
+    },
+    {
+        "ID":  "B7-01",
+        "Resultado":  "ensure decl=1546",
+        "Estado":  "PASS",
+        "Evidencia":  "GET pdt-621/38"
+    },
+    {
+        "ID":  "B7-07",
+        "Resultado":  "approve aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve"
+    },
+    {
+        "ID":  "B11-07",
+        "Resultado":  "PDT621 aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve"
+    },
+    {
+        "ID":  "B12-01",
+        "Resultado":  "legacy ctrl=433 status=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /controls/433"
+    },
+    {
+        "ID":  "B12-08",
+        "Resultado":  "lazy reutilizo ctrl=433 decl=2018",
+        "Estado":  "PASS",
+        "Evidencia":  "company reused"
+    }
+]

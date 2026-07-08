@@ -44,7 +44,7 @@ export type SidebarFlatLink = {
 export type SidebarModuleEntry = SidebarGroup | SidebarFlatLink;
 
 /** IDs estables para permisos / telemetría futura */
-export type OperationalModuleId = 'finance' | 'supervisors' | 'assistant' | 'pos' | 'module4' | 'module5';
+export type OperationalModuleId = 'global' | 'finance' | 'supervisors' | 'assistant' | 'pos' | 'module4' | 'module5';
 
 export type OperationalModuleConfig = {
   id: OperationalModuleId;
@@ -72,7 +72,7 @@ export const PLACEHOLDER_PAGE_COPY: Record<ComingSoonModuleSlug, { title: string
 
 /** Mapeo estable id operativo → slug URL (p. ej. permisos o analytics) */
 export const COMING_SOON_BY_OPERATIONAL_ID: Record<
-  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos'>,
+  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos' | 'global'>,
   { slug: ComingSoonModuleSlug }
 > = {
   module4: { slug: 'module-4' },
@@ -80,6 +80,21 @@ export const COMING_SOON_BY_OPERATIONAL_ID: Record<
 };
 
 export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
+  {
+    id: 'global',
+    label: 'Recursos',
+    icon: 'fas fa-globe',
+    entries: [
+      {
+        type: 'group',
+        label: 'Recursos',
+        items: [
+          { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', public: true },
+          { to: '/finance/claves-sol', icon: 'fas fa-key', label: 'Claves sol', public: true },
+        ],
+      },
+    ],
+  },
   {
     id: 'finance',
     label: 'Finanzas del estudio',
@@ -101,19 +116,18 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           { to: '/tax-settlements', icon: 'fas fa-file-signature', label: 'Liquidaciones', permission: P.taxSettlementsList },
           { to: '/comprobantes', icon: 'fas fa-file-invoice', label: 'Comprobantes', permission: P.fiscalReceiptsList },
           { to: '/payments', icon: 'fas fa-wallet', label: 'Pagos', permission: P.paymentsView },
-          { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', permission: P.financeCalendarView },
-          {
-            to: '/finance/claves-sol',
-            icon: 'fas fa-key',
-            label: 'Claves sol',
-            permission: P.companyCredentialsView,
-          },
         ],
       },
       {
         type: 'group',
         label: 'Catálogo',
         items: [
+          {
+            to: '/finance/activity-templates',
+            icon: 'fas fa-list-check',
+            label: 'Catálogo de actividades',
+            permission: P.financeCalendarView,
+          },
           { to: '/subscription-plans', icon: 'fas fa-layer-group', label: 'Planes', permission: P.subscriptionPlansView },
           { to: '/products', icon: 'fas fa-box-open', label: 'Productos', permission: P.productsView },
         ],
@@ -142,17 +156,53 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             permission: P.supervisorsDashboardView,
           },
           {
-            to: '/supervisors/periods',
-            icon: 'fas fa-calendar-alt',
-            label: 'Períodos',
-            permission: P.supervisorsPeriodsView,
+            to: '/supervisors/companies',
+            icon: 'fas fa-building',
+            label: 'Empresas',
+            permission: P.companyCredentialsView,
           },
           {
-            to: '/supervisors/controls',
-            icon: 'fas fa-clipboard-check',
-            label: 'Control mensual',
+            to: '/supervisors/liquidaciones',
+            icon: 'fas fa-file-invoice-dollar',
+            label: 'Liquidaciones',
+            permission: P.supervisorsLiquidationsView,
+          },
+        ],
+      },
+      {
+        type: 'group',
+        label: 'Control de actividades',
+        items: [
+          {
+            to: '/supervisors/activities/sunat-inbox',
+            icon: 'fas fa-inbox',
+            label: 'Buzón SOL SUNAT – SUNAFIL',
             permission: P.supervisorsControlsView,
           },
+          {
+            to: '/supervisors/activities/detracciones',
+            icon: 'fas fa-landmark',
+            label: 'Control de Detracciones SUNAT',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/supervisors/activities/pdt-601',
+            icon: 'fas fa-file-invoice',
+            label: 'Control Planillas PDT 601',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/supervisors/activities/pdt-621',
+            icon: 'fas fa-file-signature',
+            label: 'Control Vencimientos PDT 621',
+            permission: P.supervisorsControlsView,
+          },
+        ],
+      },
+      {
+        type: 'group',
+        label: 'Informes',
+        items: [
           {
             to: '/supervisors/reports',
             icon: 'fas fa-file-alt',
@@ -164,18 +214,6 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             icon: 'fas fa-bell',
             label: 'Notificaciones',
             permission: P.supervisorsNotificationsView,
-          },
-          {
-            to: '/finance/calendar',
-            icon: 'fas fa-calendar-days',
-            label: 'Calendario global',
-            permission: P.financeCalendarView,
-          },
-          {
-            to: '/finance/claves-sol',
-            icon: 'fas fa-key',
-            label: 'Claves sol',
-            permission: P.companyCredentialsView,
           },
         ],
       },
@@ -198,22 +236,52 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             permission: P.supervisorsControlsView,
           },
           {
-            to: '/assistant/controls',
-            icon: 'fas fa-tasks',
-            label: 'Mis tareas',
+            to: '/assistant/companies',
+            icon: 'fas fa-building',
+            label: 'Empresas',
+            permission: P.companyCredentialsView,
+          },
+        ],
+      },
+      {
+        type: 'group',
+        label: 'Control de actividades',
+        items: [
+          {
+            to: '/assistant/activities/sunat-inbox',
+            icon: 'fas fa-inbox',
+            label: 'Buzón SOL SUNAT – SUNAFIL',
             permission: P.supervisorsControlsView,
           },
           {
-            to: '/finance/calendar',
-            icon: 'fas fa-calendar-days',
-            label: 'Calendario',
-            permission: P.financeCalendarView,
+            to: '/assistant/activities/detracciones',
+            icon: 'fas fa-landmark',
+            label: 'Control de Detracciones SUNAT',
+            permission: P.supervisorsControlsView,
           },
           {
-            to: '/finance/claves-sol',
-            icon: 'fas fa-key',
-            label: 'Claves sol',
-            permission: P.companyCredentialsView,
+            to: '/assistant/activities/pdt-601',
+            icon: 'fas fa-file-invoice',
+            label: 'Control Planillas PDT 601',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/assistant/activities/pdt-621',
+            icon: 'fas fa-file-signature',
+            label: 'Control Vencimientos PDT 621',
+            permission: P.supervisorsControlsView,
+          },
+        ],
+      },
+      {
+        type: 'group',
+        label: 'Alertas',
+        items: [
+          {
+            to: '/assistant/notifications',
+            icon: 'fas fa-bell',
+            label: 'Notificaciones',
+            permission: P.supervisorsNotificationsView,
           },
         ],
       },
@@ -255,6 +323,12 @@ export const STUDIO_SECTION = {
   icon: 'fas fa-building-columns',
   items: [
     { to: '/settings/firm', icon: 'fas fa-gear', label: 'Configuración', permission: P.settingsFirmView },
+    {
+      to: '/settings/activity-configuration',
+      icon: 'fas fa-sliders',
+      label: 'Parametrización de actividades',
+      permission: P.settingsFirmView,
+    },
     { to: '/users', icon: 'fas fa-users-cog', label: 'Usuarios', permission: P.usersView },
     { to: '/users/roles', icon: 'fas fa-user-shield', label: 'Roles y permisos', permission: P.rbacRolesView },
     {

@@ -86,6 +86,13 @@ func buildFiscalReceiptListQuery(params FiscalReceiptListParams) *gorm.DB {
 	return q
 }
 
+// Orden por fecha de emisión efectiva: registro del pago vinculado, issue_date o created_at del comprobante.
+const fiscalReceiptListOrderSQL = `COALESCE(
+	(SELECT p.created_at FROM payments p WHERE p.id = tukifac_fiscal_receipts.linked_payment_id AND p.deleted_at IS NULL LIMIT 1),
+	tukifac_fiscal_receipts.issue_date,
+	tukifac_fiscal_receipts.created_at
+) DESC, tukifac_fiscal_receipts.id DESC`
+
 func (s *FiscalReceiptService) ListFiscalReceiptsPaged(params FiscalReceiptListParams) ([]FiscalReceiptEnriched, int64, error) {
 	page := params.Page
 	if page <= 0 {
@@ -110,7 +117,7 @@ func (s *FiscalReceiptService) ListFiscalReceiptsPaged(params FiscalReceiptListP
 		Preload("TaxSettlement").
 		Preload("LinkedPayment").
 		Preload("LinkedPayment.TaxSettlement").
-		Order("issue_date DESC, id DESC").
+		Order(fiscalReceiptListOrderSQL).
 		Limit(perPage).
 		Offset((page - 1) * perPage).
 		Find(&list).Error

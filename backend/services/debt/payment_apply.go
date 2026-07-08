@@ -23,6 +23,7 @@ type ApplyPaymentInput struct {
 	CompanyID       uint
 	Date            time.Time
 	Amount          float64
+	DiscountAmount  float64
 	Method          string
 	Reference       string
 	Attachment      string
@@ -80,6 +81,39 @@ func (s *Service) ValidateAllocationsTx(tx *gorm.DB, companyID uint, lines []Pay
 	return nil
 }
 
+// ValidatePaymentAmountsAndAllocations valida monto, descuento e imputaciones antes de persistir.
+func (s *Service) ValidatePaymentAmountsAndAllocations(tx *gorm.DB, companyID uint, amount, discount float64, lines []PaymentAllocationLine, taxSettlementID *uint) error {
+	discount = roundMoney(discount)
+	if discount < 0 {
+		return errors.New("el descuento no puede ser negativo")
+	}
+	var sum float64
+	for _, ln := range lines {
+		sum += ln.Amount
+	}
+	sum = roundMoney(sum)
+	amount = roundMoney(amount)
+	if discount > MoneyEpsilon {
+		if math.Abs(amount+discount-sum) > MoneyEpsilon {
+			return errors.New("el monto pagado más el descuento debe igualar la suma de imputaciones")
+		}
+		for _, ln := range lines {
+			bal, err := s.DocumentOpenBalance(tx, ln.DocumentID)
+			if err != nil {
+				return err
+			}
+			if math.Abs(ln.Amount-bal) > MoneyEpsilon {
+				return errors.New("el descuento solo puede aplicarse cuando cada imputación cubre el saldo completo de la deuda")
+			}
+		}
+	} else {
+		if math.Abs(sum-amount) > MoneyEpsilon {
+			return errors.New("la suma de imputaciones debe igualar el monto del pago")
+		}
+	}
+	return s.ValidateAllocationsTx(tx, companyID, lines, taxSettlementID)
+}
+
 // ApplyPaymentTx crea payment + allocations y actualiza balance_amount/status (transaccional).
 func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error) {
 	if in.CompanyID == 0 {
@@ -88,14 +122,7 @@ func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error
 	if in.Amount <= 0 {
 		return 0, errors.New("el monto debe ser mayor a 0")
 	}
-	var sum float64
-	for _, ln := range in.Lines {
-		sum += ln.Amount
-	}
-	if math.Abs(sum-in.Amount) > 0.02 {
-		return 0, errors.New("la suma de imputaciones debe igualar el monto del pago")
-	}
-	if err := s.ValidateAllocationsTx(tx, in.CompanyID, in.Lines, in.TaxSettlementID); err != nil {
+	if err := s.ValidatePaymentAmountsAndAllocations(tx, in.CompanyID, in.Amount, in.DiscountAmount, in.Lines, in.TaxSettlementID); err != nil {
 		return 0, err
 	}
 
@@ -112,6 +139,7 @@ func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error
 		Type:            "applied",
 		Date:            in.Date,
 		Amount:          in.Amount,
+		DiscountAmount:  roundMoney(in.DiscountAmount),
 		Method:          in.Method,
 		Reference:       in.Reference,
 		Attachment:      in.Attachment,

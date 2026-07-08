@@ -14,6 +14,8 @@ export interface Company {
   business_name: string;
   code: string; // Mapeado desde InternalCode con json:"code"
   trade_name: string;
+  igv_rate?: string;
+  tax_regime?: string;
   status: string;
   balance?: number;
   address?: string;
@@ -175,6 +177,7 @@ export interface Payment {
   type?: string;
   date: string;
   amount: number;
+  discount_amount?: number;
   method: string;
   reference: string;
   attachment: string;
@@ -182,6 +185,8 @@ export interface Payment {
   description?: string;
   notes: string;
   fiscal_status?: string;
+  /** Momento en que se registró el pago en el sistema (distinto de `date`). */
+  created_at?: string;
   company?: Company;
   document?: Document;
   allocations?: PaymentAllocation[];
@@ -205,6 +210,9 @@ export interface TukifacFiscalReceipt {
   document_type_id?: string;
   number: string;
   total: number;
+  subtotal?: number;
+  tax_amount?: number;
+  total_discount?: number;
   issue_date: string;
   customer_number?: string;
   customer_name?: string;
@@ -225,6 +233,8 @@ export interface TukifacFiscalReceipt {
   company?: Company;
   linked_payment?: {
     id: number;
+    date?: string;
+    created_at?: string;
     tax_settlement_id?: number | null;
     tax_settlement?: { id: number; number: string; status: string };
   };
@@ -313,6 +323,8 @@ export interface FirmConfig {
   operations_key_configured?: boolean;
   /** JSON colores pastel por dígito 0–9 para claves SOL (p. ej. {"0":"cyan","1":"sky"}). */
   claves_sol_dig_colors_json?: string;
+  /** Capturas de buzón SUNAT/SUNAFIL por semana (1–7). */
+  mailbox_captures_per_week?: number;
   created_at?: string;
   updated_at?: string;
 }

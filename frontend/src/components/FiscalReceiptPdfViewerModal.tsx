@@ -3,14 +3,13 @@ import { createPortal } from 'react-dom';
 import type { PosSaleDetail } from '../services/posSales';
 import { configService } from '../services/config';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
-import FiscalReceiptPdfCanvasPreview, {
-  printFiscalReceiptCanvasPreview,
-} from '../pdf/FiscalReceiptPdfCanvasPreview';
+import FiscalReceiptPdfCanvasPreview from '../pdf/FiscalReceiptPdfCanvasPreview';
 import {
   buildFiscalReceiptPdfBlob,
   docTypeLabel,
   downloadFiscalReceiptPdf,
   fiscalReceiptPdfFilename,
+  printFiscalReceiptPdfBlob,
   type ReceiptPdfFormat,
 } from '../pdf/fiscalReceiptPdf';
 import type { FirmBranding } from '../pdf/fiscalReceiptPdf';
@@ -113,7 +112,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
   const title = receipt
     ? `${docTypeLabel(receipt.document_type_id ?? '')} ${receipt.number}`
     : 'Comprobante';
-  const previewScale = format === 'ticket' ? 1.15 : 1.35;
+  const previewScale = format === 'ticket' ? 1.15 : format === 'a5' ? 1.2 : 1.35;
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -151,6 +150,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
           {(
             [
               { id: 'a4' as const, label: 'Formato A4' },
+              { id: 'a5' as const, label: 'Formato A5' },
               { id: 'ticket' as const, label: 'Ticket 80 mm' },
             ] as const
           ).map((t) => (
@@ -208,7 +208,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
             type="button"
             disabled={busy || !previewBlob}
             onClick={() => {
-              if (!printFiscalReceiptCanvasPreview(previewWrapRef.current)) {
+              if (!previewBlob || !printFiscalReceiptPdfBlob(previewBlob)) {
                 window.dispatchEvent(
                   new CustomEvent('miweb:toast', {
                     detail: { type: 'error', message: 'No se pudo abrir la impresión' },

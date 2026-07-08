@@ -60,16 +60,74 @@ flowchart TD
   H --> I[Cerrar período]
 ```
 
-**Rutas en la aplicación** (menú Supervisores):
+**Rutas en la aplicación** (menú Supervisores / Asistente — plan v2):
 
-| Pantalla | Ruta |
-|----------|------|
-| Dashboard | `/supervisors/dashboard` |
-| Períodos | `/supervisors/periods` |
-| Control mensual (listado) | `/supervisors/controls` |
-| Detalle por empresa | `/supervisors/controls/:id` |
-| Reportes | `/supervisors/reports` |
-| Notificaciones | `/supervisors/notifications` |
+| Pantalla | Ruta supervisor | Ruta asistente |
+|----------|-----------------|----------------|
+| Dashboard / Mi panel | `/supervisors/dashboard` | `/assistant` |
+| Empresas (solo lectura) | `/supervisors/companies` | `/assistant/companies` |
+| Calendario (enlace al módulo global) | `/finance/calendar` | `/finance/calendar` |
+| Reportes | `/supervisors/reports` | — |
+| Notificaciones | `/supervisors/notifications` | `/assistant/notifications` |
+
+Rutas legacy (control mensual): `/supervisors/controls`, `/supervisors/controls/:id`.
+
+### Technical debt — pantalla Empresas (F2b)
+
+La pantalla **Empresas** en Supervisores y Asistente pertenece al dominio operativo S/A, pero reutiliza **temporalmente**:
+
+- API: `GET /api/finance/company-credentials`
+- Permiso: `finance.company_credentials_view`
+- Servicio frontend: `companyAccessCredentialsService.list`
+
+Motivo: esa API ya devuelve Código, Dígito, RUC, Asistente y respeta `AccessService`, sin cambios de backend en F2b.
+
+En una fase futura podría migrarse a un endpoint propio del dominio Supervisores/Asistente (p. ej. `GET /api/supervisors/companies`).
+
+Implementación: `frontend-react/src/pages/activity/AssignedCompaniesListPage.tsx`.
+
+### Buzón SOL SUNAT (F3)
+
+Rutas: `/supervisors/activities/sunat-inbox`, `/assistant/activities/sunat-inbox` (+ detalle `/:companyId`).
+
+- Lista: 1 fila por empresa y período; cantidad de archivos y fecha vía `MAX(attachments.created_at)`.
+- Lazy create puro: al abrir detalle se crean solo `SupervisorMonthlyControl` y `SupervisorDeclaration` (`sunat_inbox`); **no** se modifica `bootstrapControlChildren`.
+- Sin integración SUNAT; carga manual de evidencias.
+- APIs nuevas: listado, detalle (ensure), validar. Observaciones y upload reutilizan endpoints supervisores existentes.
+
+### Control de Detracciones SUNAT (F4)
+
+Rutas: `/supervisors/activities/detracciones`, `/assistant/activities/detracciones` (+ detalle `/:companyId`).
+
+- Alias legacy (una versión): `/activities/distractions` redirige a `/activities/detracciones`.
+- Mismo patrón que F3: lista por empresa/período, lazy create con `declaration_type = detracciones`, estado inicial `pendiente`.
+- Estados F4.1a: `sin_registro` (listado), `pendiente`, `en_elaboracion`, `deposito_pendiente`, `deposito_registrado`, `sin_operaciones`, `en_revision`, `observado`, `validado`.
+- Transiciones con whitelist en backend; `observado` y `validado` solo vía botones Observar / Validar.
+- Para pasar a `en_revision` desde `deposito_registrado` (u otra rama con depósito) se exige al menos una evidencia adjunta.
+- Para `sin_operaciones` y validación sin depósito se exigen notas en la declaración.
+- APIs: `GET /api/supervisors/activity-modules/detracciones`, detalle por empresa, `POST .../validate`.
+- Alias API legacy: `/activity-modules/distractions` (deprecar en próxima versión).
+- Config compartida mínima: `activityModuleShared.ts` (labels/badges/filtros) y `activityRoutes.ts` (metadata y slugs).
+
+### Control Planillas PDT 601 (F5)
+
+Rutas: `/supervisors/activities/pdt-601`, `/assistant/activities/pdt-601` (+ detalle `/:companyId`).
+
+- Mismo esqueleto F3/F4 con semántica legacy de declaraciones (`pendiente` … `cerrado`).
+- Lazy create / reutiliza declaración `pdt_601` de bootstrap si existe.
+- Vencimiento: `declaration.due_date` con fallback `control.due_date`; sin calendario Finanzas.
+- Aprobación supervisor: `POST /api/supervisors/declarations/:id/approve` (sin endpoint validate del módulo).
+- APIs módulo: listado y detalle (ensure). Upload y observaciones reutilizan endpoints existentes.
+- Lista: columnas F3/F4 + **Fecha vencimiento** (incluye indicador vencido y días restantes en la celda).
+
+### Control Vencimientos PDT 621 (F6)
+
+Rutas: `/supervisors/activities/pdt-621`, `/assistant/activities/pdt-621` (+ detalle `/:companyId`).
+
+- Copia parametrizada de F5: `declaration_type = pdt_621`, mismos estados, vencimientos y aprobación.
+- Lazy create / reutiliza declaración `pdt_621` de bootstrap si existe.
+- APIs módulo: `GET /api/supervisors/activity-modules/pdt-621` y detalle por empresa.
+- Sin endpoint validate; aprobación vía `POST /api/supervisors/declarations/:id/approve`.
 
 ---
 

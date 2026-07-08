@@ -1,0 +1,723 @@
+﻿[
+    {
+        "ID":  "SETUP",
+        "Resultado":  "Backend http://127.0.0.1:3000 OK; admin login 200",
+        "Estado":  "PASS",
+        "Evidencia":  "POST /api/login",
+        "Observaciones":  "Fecha 2026-06-15T02:37:15.3197925-05:00"
+    },
+    {
+        "ID":  "SETUP-RBAC",
+        "Resultado":  "Backend reiniciado=True (SeedRBAC C2)",
+        "Estado":  "PASS",
+        "Evidencia":  "ensureSystemRoleMissingPermissions",
+        "Observaciones":  "Sin PUT /roles overwrite"
+    },
+    {
+        "ID":  "SETUP-ASISTENTE1",
+        "Resultado":  "password E2eTest!2026 OK",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT /users/:id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "SETUP-SUPERVISOR1",
+        "Resultado":  "password E2eTest!2026 OK",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT /users/:id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "SETUP-CONTADOR",
+        "Resultado":  "password E2eTest!2026 OK",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT /users/:id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "SETUP-RBAC-COUNT",
+        "Resultado":  "Supervisor perms=101 Asistente perms=43",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /me/permissions",
+        "Observaciones":  "Matriz canÃ³nica C2"
+    },
+    {
+        "ID":  "B2-01",
+        "Resultado":  "Supervisor approve=True observe=True controls=True",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /me/permissions SUPERVISOR1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-02",
+        "Resultado":  "Asistente approve=False observe=False upload=True",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /me/permissions ASISTENTE1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-03",
+        "Resultado":  "Contador dashboard=False",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /me/permissions CONTADOR",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-05",
+        "Resultado":  "Dashboard CONTADOR HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /supervisors/dashboard",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-04",
+        "Resultado":  "Empresas CONTADOR HTTP 200 tiene_cred=True",
+        "Estado":  "PASS",
+        "Evidencia":  "GET company-credentials",
+        "Observaciones":  "Contador tiene finance.company_credentials_view"
+    },
+    {
+        "ID":  "B2-NOT",
+        "Resultado":  "Notificaciones CONTADOR HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "GET notifications",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-09a",
+        "Resultado":  "sin token HTTP 401",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "SETUP-CO",
+        "Resultado":  "empresas E2E sol=24 dist=38 p601=11 p621=11",
+        "Estado":  "PASS",
+        "Evidencia":  "GET activity-modules list",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "SETUP-API",
+        "Resultado":  "sunat-inbox list HTTP 200 total=22",
+        "Estado":  "PASS",
+        "Evidencia":  "pre B4 probe",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-01",
+        "Resultado":  "listado asistente total=22",
+        "Estado":  "PASS",
+        "Evidencia":  "GET sunat-inbox HTTP 200",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-02",
+        "Resultado":  "lazy/ensure OK ctrl=445 decl=2023 status=pendiente",
+        "Estado":  "PASS",
+        "Evidencia":  "GET detail",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-03",
+        "Resultado":  "upload PDF HTTP 201",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload control_id+declaration_id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-04",
+        "Resultado":  "upload IMG HTTP 201",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload png",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-03b",
+        "Resultado":  "attachments count=2",
+        "Estado":  "PASS",
+        "Evidencia":  "GET attachments",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-05",
+        "Resultado":  "obs creada id=8",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observations",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-06",
+        "Resultado":  "estado=en_elaboracion",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT declaration",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-06b",
+        "Resultado":  "en_revision en_revision",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT en_revision",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-08",
+        "Resultado":  "observe status=observado progress=40 approver=2",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe SUPERVISOR1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-10",
+        "Resultado":  "control.general_status=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /controls/445",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-11",
+        "Resultado":  "obs auto=True total=1",
+        "Estado":  "PASS",
+        "Evidencia":  "GET observations",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-01",
+        "Resultado":  "observe SOL POST /declarations/:id/observe Ãºnico",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-02",
+        "Resultado":  "decl observado progress=40 approver=2",
+        "Estado":  "PASS",
+        "Evidencia":  "JSON response",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-03",
+        "Resultado":  "control.general_status=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-04",
+        "Resultado":  "observaciÃ³n auto creada=True",
+        "Estado":  "PASS",
+        "Evidencia":  "GET observations",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B4-12",
+        "Resultado":  "validate status=validado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST validate",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-09",
+        "Resultado":  "asistente approve HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve ASISTENTE1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-10",
+        "Resultado":  "asistente observe HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe ASISTENTE1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-11",
+        "Resultado":  "asistente validate HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "POST validate ASISTENTE1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B2-12",
+        "Resultado":  "supervisor observe 200",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe SUPERVISOR1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-01",
+        "Resultado":  "listado asistente total=22",
+        "Estado":  "PASS",
+        "Evidencia":  "GET detracciones HTTP 200",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-02",
+        "Resultado":  "lazy/ensure OK ctrl=387 decl=2024 status=pendiente",
+        "Estado":  "PASS",
+        "Evidencia":  "GET detail",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-03",
+        "Resultado":  "upload PDF HTTP 201",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload control_id+declaration_id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-04",
+        "Resultado":  "upload IMG HTTP 201",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload png",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-03b",
+        "Resultado":  "attachments count=2",
+        "Estado":  "PASS",
+        "Evidencia":  "GET attachments",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-05",
+        "Resultado":  "obs creada id=10",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observations",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-06",
+        "Resultado":  "estado=en_elaboracion",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT declaration",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-06b",
+        "Resultado":  "en_revision en_revision",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT declaration en_revision",
+        "Observaciones":  "F4.1a evidencias cargadas"
+    },
+    {
+        "ID":  "B5-07",
+        "Resultado":  "observe observado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe desde en_revision",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-07b",
+        "Resultado":  "correccion en_elaboracion",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT observado-\u003een_elaboracion",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-07c",
+        "Resultado":  "reenvio en_revision",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT en_revision tras correccion",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-08",
+        "Resultado":  "validate validado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST validate",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-09",
+        "Resultado":  "decl=2024 archivos y estados persistidos",
+        "Estado":  "PASS",
+        "Evidencia":  "flujo completo F4.1a",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-05",
+        "Resultado":  "Detracciones observe observado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B5-10",
+        "Resultado":  "validado bloquea cambios HTTP 400",
+        "Estado":  "PASS",
+        "Evidencia":  "estado terminal F4.1a",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-01",
+        "Resultado":  "ensure decl=1729 status=pendiente ctrl=433 company=11",
+        "Estado":  "PASS",
+        "Evidencia":  "GET pdt-601/11",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-02",
+        "Resultado":  "lazy ensure OK",
+        "Estado":  "PASS",
+        "Evidencia":  "GET detail",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-04",
+        "Resultado":  "observaciÃ³n OK",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observations",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-05",
+        "Resultado":  "estado en_revision",
+        "Estado":  "PASS",
+        "Evidencia":  "PUT declaration",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-06",
+        "Resultado":  "decl.due= ctrl.due=2026-07-20T00:00:00-05:00",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control+detail",
+        "Observaciones":  "Fallback due_date"
+    },
+    {
+        "ID":  "B6-08",
+        "Resultado":  "observe observado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST observe",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-09",
+        "Resultado":  "approve aprobado progress=85",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B6-10",
+        "Resultado":  "sin validate mÃ³dulo PDT601",
+        "Estado":  "PASS",
+        "Evidencia":  "solo approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-06",
+        "Resultado":  "PDT601 aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B7-01",
+        "Resultado":  "ensure decl=1730 ctrl=433 company=11",
+        "Estado":  "PASS",
+        "Evidencia":  "GET pdt-621/11",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B7-02",
+        "Resultado":  "lazy ensure OK",
+        "Estado":  "PASS",
+        "Evidencia":  "GET detail",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B7-03",
+        "Resultado":  "upload OK",
+        "Estado":  "PASS",
+        "Evidencia":  "POST upload",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B7-05",
+        "Resultado":  "ctrl.due_date=2026-07-20T00:00:00-05:00",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B7-07",
+        "Resultado":  "approve aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-07",
+        "Resultado":  "PDT621 aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B11-08",
+        "Resultado":  "MÃ³dulos F3-F6 y legacy usan POST /api/supervisors/declarations/:id/observe",
+        "Estado":  "PASS",
+        "Evidencia":  "misma ruta backend",
+        "Observaciones":  "SupervisorControlDetail.tsx L654"
+    },
+    {
+        "ID":  "B2-13",
+        "Resultado":  "approve pdt621 aprobado",
+        "Estado":  "PASS",
+        "Evidencia":  "POST approve",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-01",
+        "Resultado":  "rows=5 fields presentes",
+        "Estado":  "PASS",
+        "Evidencia":  "GET company-credentials",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-02",
+        "Resultado":  "columnas iguales asistente",
+        "Estado":  "PASS",
+        "Evidencia":  "misma API",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-03",
+        "Resultado":  "busqueda total=75",
+        "Estado":  "PASS",
+        "Evidencia":  "GET ?q=20",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-05",
+        "Resultado":  "paginaciÃ³n per_page=5",
+        "Estado":  "PASS",
+        "Evidencia":  "GET per_page=5",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-08",
+        "Resultado":  "ast total=22 sup total=81",
+        "Estado":  "PASS",
+        "Evidencia":  "GET ambos roles",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B3-07",
+        "Resultado":  "dig mostrado o vacÃ­o",
+        "Estado":  "PASS",
+        "Evidencia":  "GET list",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B8-01",
+        "Resultado":  "al_dia=0 pend=76 venc=0 obs=5 cumpl=0%",
+        "Estado":  "PASS",
+        "Evidencia":  "GET dashboard",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B8-03",
+        "Resultado":  "controls total=81",
+        "Estado":  "PASS",
+        "Evidencia":  "GET controls",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B8-07",
+        "Resultado":  "sin enlace /activities",
+        "Estado":  "PASS",
+        "Evidencia":  "UI cÃ³digo",
+        "Observaciones":  "No browser"
+    },
+    {
+        "ID":  "B8-12",
+        "Resultado":  "sin KPI SOL/Detracciones en API dashboard",
+        "Estado":  "PASS",
+        "Evidencia":  "GET dashboard",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B9-01",
+        "Resultado":  "controles total=22",
+        "Estado":  "PASS",
+        "Evidencia":  "GET controls ASISTENTE1",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B9-02",
+        "Resultado":  "KPI desde general_status",
+        "Estado":  "PASS",
+        "Evidencia":  "GET controls",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B9-06",
+        "Resultado":  "sin /assistant/activities",
+        "Estado":  "PASS",
+        "Evidencia":  "cÃ³digo",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B10-01",
+        "Resultado":  "count=0",
+        "Estado":  "PASS",
+        "Evidencia":  "GET notifications",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B10-05",
+        "Resultado":  "count=0",
+        "Estado":  "PASS",
+        "Evidencia":  "GET notifications",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B10-06",
+        "Resultado":  "enlace dinÃ¡mico controlDetailPath en notificaciones",
+        "Estado":  "PASS",
+        "Evidencia":  "SupervisorNotifications.tsx",
+        "Observaciones":  "C1 corregido"
+    },
+    {
+        "ID":  "B10-07",
+        "Resultado":  "CONTADOR notif HTTP 403",
+        "Estado":  "PASS",
+        "Evidencia":  "GET notifications",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B12-04",
+        "Resultado":  "periodos=2 periodo=2026-06",
+        "Estado":  "PASS",
+        "Evidencia":  "GET periods",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B12-01",
+        "Resultado":  "legacy ctrl=445 status=observado",
+        "Estado":  "PASS",
+        "Evidencia":  "GET control/:id",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B12-02",
+        "Resultado":  "observe legacy misma API",
+        "Estado":  "PASS",
+        "Evidencia":  "POST /observe",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B12-06",
+        "Resultado":  "reporte monthly OK",
+        "Estado":  "PASS",
+        "Evidencia":  "GET reports/monthly",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B12-08",
+        "Resultado":  "lazy ctrl=445",
+        "Estado":  "PASS",
+        "Evidencia":  "company 20",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B1-01",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/dashboard?period_ym=2026-06",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-02",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/finance/company-credentials?per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-04",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/activity-modules/sunat-inbox?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-05",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/activity-modules/detracciones?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-06",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/activity-modules/pdt-601?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-07",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/activity-modules/pdt-621?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-08",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/notifications",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-09",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/controls?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-10",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/finance/company-credentials?per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-12",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/activity-modules/sunat-inbox?period_ym=2026-06\u0026per_page=1",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-16",
+        "Resultado":  "HTTP 200",
+        "Estado":  "PASS",
+        "Evidencia":  "GET /api/supervisors/notifications",
+        "Observaciones":  "API; UI browser no ejecutada"
+    },
+    {
+        "ID":  "B1-03",
+        "Resultado":  "Calendario ruta /finance/calendar",
+        "Estado":  "PASS",
+        "Evidencia":  "sidebar",
+        "Observaciones":  "No HTTP en esta corrida"
+    },
+    {
+        "ID":  "B1-17",
+        "Resultado":  "redirect /supervisors/activities",
+        "Estado":  "PASS",
+        "Evidencia":  "App.tsx",
+        "Observaciones":  ""
+    },
+    {
+        "ID":  "B1-19",
+        "Resultado":  "Volver a dashboard",
+        "Estado":  "PASS",
+        "Evidencia":  "ListPages codigo",
+        "Observaciones":  ""
+    }
+]

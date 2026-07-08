@@ -82,8 +82,11 @@ export default function FiscalReceiptPdfCanvasPreview({ blob, className = '', sc
   );
 }
 
-/** Imprime el contenido renderizado en canvas (usa los botones de la app, no el visor PDF). */
-export function printFiscalReceiptCanvasPreview(container: HTMLElement | null): boolean {
+/** @deprecated Preferir printFiscalReceiptPdfBlob (vectorial). Reserva: impresión raster con ancho fijo. */
+export function printFiscalReceiptCanvasPreview(
+  container: HTMLElement | null,
+  format: 'a4' | 'a5' | 'ticket' = 'a4',
+): boolean {
   if (!container) return false;
   const canvases = container.querySelectorAll('canvas');
   if (!canvases.length) return false;
@@ -91,13 +94,24 @@ export function printFiscalReceiptCanvasPreview(container: HTMLElement | null): 
   const w = window.open('', '_blank');
   if (!w) return false;
 
+  const imgWidth = format === 'ticket' ? '80mm' : format === 'a5' ? '210mm' : '100%';
+  const pageRule =
+    format === 'ticket'
+      ? '@page{size:80mm auto;margin:2mm}'
+      : format === 'a5'
+        ? '@page{size:A5 landscape;margin:8mm}'
+        : '@page{margin:8mm}';
+
   const imgs = Array.from(canvases)
-    .map((c) => `<img src="${(c as HTMLCanvasElement).toDataURL('image/png')}" style="display:block;width:100%;max-width:100%;margin:0 auto 8px;" />`)
+    .map(
+      (c) =>
+        `<img src="${(c as HTMLCanvasElement).toDataURL('image/png')}" style="display:block;width:${imgWidth};max-width:${imgWidth};height:auto;margin:0 auto 8px;image-rendering:crisp-edges" />`,
+    )
     .join('');
 
   w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Imprimir</title>
-<style>@page{margin:8mm}body{margin:0;padding:8px;background:#fff}</style></head>
+<style>${pageRule}body{margin:0;padding:8px;background:#fff}</style></head>
 <body>${imgs}</body></html>`);
   w.document.close();
   w.focus();

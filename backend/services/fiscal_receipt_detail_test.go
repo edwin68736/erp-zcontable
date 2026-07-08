@@ -240,3 +240,16 @@ func TestBuildFiscalLinesFromSettlementAllocation_partial(t *testing.T) {
 		t.Fatalf("description = %q, want %q", lines[0].Description, want)
 	}
 }
+
+func TestBuildFiscalDiscountLine(t *testing.T) {
+	ln := buildFiscalDiscountLine(50, 2)
+	if ln.LineType != models.FiscalReceiptLineTypeDiscount {
+		t.Fatalf("line type = %q", ln.LineType)
+	}
+	if ln.LineTotal != -50 {
+		t.Fatalf("line total = %v, want -50", ln.LineTotal)
+	}
+	if ln.Description != "Descuento comercial" {
+		t.Fatalf("description = %q", ln.Description)
+	}
+}

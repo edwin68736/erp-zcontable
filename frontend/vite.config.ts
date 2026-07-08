@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // En desarrollo, si VITE_BACKEND_URL está vacío, Axios usa /api y este proxy reenvía al Go local.
@@ -8,6 +8,10 @@ const devBackend = process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:3000'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+  },
   build: {
     rollupOptions: {
       output: {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import { companiesService } from '../services/companies';
@@ -22,6 +22,13 @@ function parsePositiveInt(value: string | null, fallback: number): number {
 }
 
 function formatIssueDate(iso: string): string {
+  if (!iso) return '—';
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+function formatEmissionDate(r: TukifacFiscalReceipt): string {
+  const fromPayment = r.linked_payment?.created_at?.trim();
+  const iso = fromPayment || r.issue_date;
   if (!iso) return '—';
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
@@ -84,6 +91,29 @@ const Comprobantes = () => {
   const [settlementsOptions, setSettlementsOptions] = useState<TaxSettlement[]>([]);
   const [settlementsLoading, setSettlementsLoading] = useState(false);
 
+  const filterKey = useMemo(
+    () =>
+      [
+        filterCompanyId,
+        filterTaxSettlementId.trim(),
+        filterStatus,
+        filterOrigin,
+        filterNeedsSettlement ? '1' : '',
+        filterRuc.trim(),
+        filterNumber.trim(),
+      ].join('\0'),
+    [
+      filterCompanyId,
+      filterTaxSettlementId,
+      filterStatus,
+      filterOrigin,
+      filterNeedsSettlement,
+      filterRuc,
+      filterNumber,
+    ],
+  );
+  const lastFilterKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     void companiesService.list().then(setCompanies).catch(() => setCompanies([]));
   }, []);
@@ -140,6 +170,9 @@ const Comprobantes = () => {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      const prevFilterKey = lastFilterKeyRef.current;
+      const filtersJustChanged = prevFilterKey !== null && prevFilterKey !== filterKey;
+
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         const setOrDel = (k: string, v: string) => {
@@ -154,23 +187,21 @@ const Comprobantes = () => {
         setOrDel('number', filterNumber.trim());
         if (filterNeedsSettlement) next.set('needs_settlement', '1');
         else next.delete('needs_settlement');
-        next.set('page', '1');
+        if (filtersJustChanged) {
+          next.set('page', '1');
+        } else {
+          const p = prev.get('page');
+          next.set('page', p && /^[1-9]\d*$/.test(p) ? p : '1');
+        }
         if (!next.get('per_page')) next.set('per_page', String(initialPerPage));
+        if (next.toString() === prev.toString()) return prev;
         return next;
       }, { replace: true });
+
+      lastFilterKeyRef.current = filterKey;
     }, 350);
     return () => window.clearTimeout(t);
-  }, [
-    filterCompanyId,
-    filterNeedsSettlement,
-    filterOrigin,
-    filterRuc,
-    filterNumber,
-    filterStatus,
-    filterTaxSettlementId,
-    initialPerPage,
-    setSearchParams,
-  ]);
+  }, [filterKey, filterCompanyId, filterNeedsSettlement, filterOrigin, filterNumber, filterRuc, filterStatus, filterTaxSettlementId, initialPerPage, setSearchParams]);
 
   const applyStatusPreset = (status: string) => {
     setFilterStatus(status);
@@ -475,7 +506,7 @@ const Comprobantes = () => {
                     <tr key={r.id} className="hover:bg-slate-50/80">
                       <td className="px-3 py-3 text-slate-800 font-medium">{kind}</td>
                       <td className="px-3 py-3 text-slate-800 tabular-nums">{r.number}</td>
-                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatIssueDate(r.issue_date)}</td>
+                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatEmissionDate(r)}</td>
                       <td className="px-3 py-3 text-slate-700 max-w-[200px] truncate" title={r.company?.business_name ?? r.customer_name}>
                         {r.company?.business_name ?? r.customer_name ?? r.customer_number ?? '—'}
                       </td>
@@ -575,8 +606,8 @@ const Comprobantes = () => {
         {!loading && pagination.total > 0 ? (
           <div className="border-t border-slate-100 px-3 py-3">
             <Pagination
-              page={pagination.page}
-              perPage={pagination.per_page}
+              page={pagination.page || initialPage}
+              perPage={pagination.per_page || initialPerPage}
               total={pagination.total}
               onPageChange={handlePageChange}
               onPerPageChange={handlePerPageChange}

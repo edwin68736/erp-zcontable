@@ -36,12 +36,41 @@ const (
 	SupervisorPriorityCritica = "critica"
 )
 
-// Declaraciones tributarias.
+// Declaraciones tributarias y módulos de actividad (lazy create por módulo).
 const (
-	SupervisorDeclPDT601    = "pdt_601"
-	SupervisorDeclPDT621    = "pdt_621"
-	SupervisorDeclSIRE      = "sire"
+	SupervisorDeclPDT601     = "pdt_601"
+	SupervisorDeclPDT621     = "pdt_621"
+	SupervisorDeclSIRE       = "sire"
 	SupervisorDeclRentaAnual = "renta_anual"
+	SupervisorDeclSunatInbox         = "sunat_inbox"
+	SupervisorDeclDetracciones       = "detracciones"
+	SupervisorDeclDistractionsLegacy   = "distractions" // legacy F4; lectura/migración únicamente
+)
+
+// Estados operativos Buzón SOL (declaration_type sunat_inbox).
+const (
+	SupervisorSunatSinRegistro   = "sin_registro"
+	SupervisorSunatComunicado    = "comunicado"
+	SupervisorSunatSinCulpa      = "sin_culpa"
+	SupervisorSunatNoVisualizado = "no_visualizado"
+	SupervisorSunatValidado      = "validado"
+)
+
+// Estados operativos Control de Detracciones SUNAT (declaration_type detracciones).
+const (
+	SupervisorDetraccionDepositoPendiente   = "deposito_pendiente"
+	SupervisorDetraccionDepositoRegistrado  = "deposito_registrado"
+	SupervisorDetraccionSinOperaciones      = "sin_operaciones"
+	// Flujo operativo simplificado (Control de Detracciones).
+	SupervisorDetraccionCargado       = "cargado"
+	SupervisorDetraccionVerificado    = "verificado"
+	SupervisorDetraccionSinClave       = "sin_clave"
+	SupervisorDetraccionNoCorresponde  = "no_corresponde"
+	// Legacy F4 pre-F4.1a (solo migración / lectura histórica).
+	SupervisorDistractionAbierto   = "abierto"
+	SupervisorDistractionEnProceso = "en_proceso"
+	SupervisorDistractionResuelto  = "resuelto"
+	SupervisorDistractionEscalado  = "escalado"
 )
 
 const (

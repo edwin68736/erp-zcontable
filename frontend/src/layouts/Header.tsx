@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import client from '../api/client';
 import { auth } from '../services/auth';
 import { companiesService } from '../services/companies';
@@ -7,6 +7,11 @@ import { supervisorsService, type SupervisorNotification } from '../services/sup
 import { P } from '../rbac/codes';
 import type { Company, DashboardData } from '../types/dashboard';
 import { PeriodScoreMini, periodDebtMoraBadge } from '../utils/periodDebtScore';
+import {
+  controlDetailPath,
+  notificationsPath,
+  resolveActivityWorkspace,
+} from '../navigation/activityRoutes';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -23,6 +28,8 @@ const Header = ({
   onOpenThemeModal,
   userName = "Usuario"
 }: HeaderProps) => {
+  const location = useLocation();
+  const activityWorkspace = resolveActivityWorkspace(location.pathname);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Company[]>([]);
@@ -303,7 +310,7 @@ const Header = ({
                           Supervisores contables
                         </p>
                         <Link
-                          to="/supervisors/notifications"
+                          to={notificationsPath(activityWorkspace)}
                           className="text-[11px] font-semibold text-primary-700 hover:text-primary-800"
                           onClick={() => setIsNotificationsOpen(false)}
                         >
@@ -318,8 +325,8 @@ const Header = ({
                               key={n.id}
                               to={
                                 n.monthly_control_id
-                                  ? `/supervisors/controls/${n.monthly_control_id}`
-                                  : '/supervisors/notifications'
+                                  ? controlDetailPath(activityWorkspace, n.monthly_control_id)
+                                  : notificationsPath(activityWorkspace)
                               }
                               className="block px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                               onClick={() => setIsNotificationsOpen(false)}

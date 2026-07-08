@@ -15,7 +15,7 @@ import CalendarHeader from './calendar/CalendarHeader';
 import CalendarGrid from './calendar/CalendarGrid';
 import CalendarMetrics from './calendar/CalendarMetrics';
 import DaySidePanel from './calendar/DaySidePanel';
-import ActivityModal, { type ActivityFormData } from './calendar/ActivityModal';
+import ActivityModal, { type ActivityTemplateFormData } from './calendar/ActivityModal';
 import ActivityInfoModal from './calendar/ActivityInfoModal';
 import DuplicateMonthModal from './calendar/DuplicateMonthModal';
 import CreateCalendarModal from './calendar/CreateCalendarModal';
@@ -23,24 +23,11 @@ import {
   activitiesForDay,
   applyActivityDatePatch,
   currentPeriodYM,
-  DEFAULT_ACTIVITY_COLOR,
   type ActivityDatePatch,
   type CalendarCell,
 } from './calendar/calendarUtils';
 
-const emptyActivityForm = (day: number): ActivityFormData => ({
-  name: '',
-  activity_kind: 'nps',
-  start_day: day,
-  end_day: day,
-  due_day: day,
-  priority: 'media',
-  status: 'pendiente',
-  text_color: DEFAULT_ACTIVITY_COLOR,
-});
-
 const FinanceCalendar = () => {
-  const canView = useMemo(() => auth.hasPermission(P.financeCalendarView), []);
   const canManage = useMemo(() => auth.hasPermission(P.financeCalendarManage), []);
 
   const [periodYm, setPeriodYm] = useState(currentPeriodYM());
@@ -62,7 +49,11 @@ const FinanceCalendar = () => {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [activityModal, setActivityModal] = useState<{ open: boolean; edit?: FinanceCalendarActivity }>({ open: false });
+  const [activityModal, setActivityModal] = useState<{
+    open: boolean;
+    edit?: FinanceCalendarActivity;
+    presetDay?: number;
+  }>({ open: false });
   const [activityInfo, setActivityInfo] = useState<FinanceCalendarActivity | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -104,8 +95,8 @@ const FinanceCalendar = () => {
   }, [periodYm]);
 
   useEffect(() => {
-    if (canView) void loadDetail();
-  }, [canView, loadDetail]);
+    void loadDetail();
+  }, [loadDetail]);
 
   useEffect(() => {
     if (msgType !== 'success' || !msg) return;
@@ -228,7 +219,7 @@ const FinanceCalendar = () => {
       setSelectedDate(new Date(y, m - 1, day));
       setSelectedActivityId(null);
       setCompliance(null);
-      setActivityModal({ open: true, edit: undefined });
+      setActivityModal({ open: true, edit: undefined, presetDay: day });
     },
     [defaultDayForNewActivity, periodYm],
   );
@@ -278,15 +269,28 @@ const FinanceCalendar = () => {
 
   const dayActivities = selectedDay != null ? activitiesForDay(activities, selectedDay) : [];
 
-  const saveActivity = async (data: ActivityFormData) => {
+  const saveActivity = async (data: ActivityTemplateFormData) => {
     if (!detail) return;
-    const payload = { ...data, description: '' };
     setSaving(true);
     try {
       if (activityModal.edit) {
-        await financeCalendarService.updateActivity(activityModal.edit.id, payload);
+        await financeCalendarService.updateActivity(activityModal.edit.id, {
+          start_day: data.start_day,
+          end_day: data.end_day,
+          due_day: data.due_day,
+        });
       } else {
-        await financeCalendarService.addActivity(detail.id, payload);
+        if (!data.activity_template_id) {
+          setMsg('Seleccione una plantilla del catálogo.');
+          setMsgType('error');
+          return;
+        }
+        await financeCalendarService.addActivity(detail.id, {
+          activity_template_id: data.activity_template_id,
+          start_day: data.start_day,
+          end_day: data.end_day,
+          due_day: data.due_day,
+        });
       }
       setActivityModal({ open: false });
       await loadDetail();
@@ -366,27 +370,19 @@ const FinanceCalendar = () => {
     }
   };
 
-  if (!canView) {
-    return (
-      <div className="max-w-lg mx-auto p-12 text-center">
-        <i className="fas fa-lock text-3xl text-slate-300 mb-4" aria-hidden />
-        <p className="text-slate-600">Sin permiso para ver el calendario contable.</p>
-      </div>
-    );
-  }
+  const modalPresetDay = activityModal.presetDay ?? selectedDay ?? 1;
 
-  const activityInitial: ActivityFormData = activityModal.edit
+  const activityInitialDays = activityModal.edit
     ? {
-        name: activityModal.edit.name,
-        activity_kind: activityModal.edit.activity_kind,
         start_day: activityModal.edit.start_day || activityModal.edit.due_day,
         end_day: activityModal.edit.end_day || activityModal.edit.due_day,
         due_day: activityModal.edit.due_day,
-        priority: activityModal.edit.priority,
-        status: activityModal.edit.status || 'pendiente',
-        text_color: activityModal.edit.text_color || DEFAULT_ACTIVITY_COLOR,
       }
-    : emptyActivityForm(selectedDay ?? 1);
+    : {
+        start_day: modalPresetDay,
+        end_day: modalPresetDay,
+        due_day: modalPresetDay,
+      };
 
   return (
     <div className="max-w-7xl mx-auto space-y-5 pb-10 print:max-w-none">
@@ -582,7 +578,9 @@ const FinanceCalendar = () => {
           <ActivityModal
             open={activityModal.open}
             title={activityModal.edit ? 'Editar actividad' : 'Nueva actividad'}
-            initial={activityInitial}
+            initialDays={activityInitialDays}
+            editActivity={activityModal.edit}
+            mode={activityModal.edit ? 'edit' : 'create'}
             lastDayOfMonth={lastDayOfMonth}
             saving={saving}
             onClose={() => setActivityModal({ open: false })}
