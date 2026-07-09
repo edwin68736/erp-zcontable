@@ -8,12 +8,15 @@ import {
 } from '../../utils/companyTaxRegime';
 import {
   computeTaxSettlementSections,
-  formatTaxMoney,
+  formatTaxTotalMoney,
+  getItanAppliedDetractionAmount,
+  getItanPayableBeforeDetraction,
   parseTaxSectionsJson,
   type TaxSettlementSectionsPayload,
 } from '../../utils/taxSettlementSections';
 import Pdt621ReadOnlySection from './Pdt621ReadOnlySection';
 import Pdt601ReadOnlySection from './Pdt601ReadOnlySection';
+import DetraccionReadOnlyBar from './DetraccionReadOnlyBar';
 
 type Props = {
   pdt621Json?: string | null;
@@ -120,6 +123,10 @@ export function TaxSettlementSectionsSummary({
     p621?.enabled && rentaRegimen
       ? getRentaMensualRatePct(rentaRegimen, p621.renta_coeficiente_pct ?? 0)
       : null;
+  const itan = sections.itan;
+  const itanPayableBefore = itan ? getItanPayableBeforeDetraction(itan) : 0;
+  const itanDetractionApplied = itan ? getItanAppliedDetractionAmount(itan) : 0;
+  const showItanDetraction = Boolean(itan?.enabled);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -166,14 +173,25 @@ export function TaxSettlementSectionsSummary({
           collapsible={collapsible}
           defaultOpen={false}
         >
-          <Row label="Impuesto a pagar" value={formatTaxMoney(sections.itan.impuesto_a_pagar)} bold />
+          <Row label="Impuesto" value={formatTaxTotalMoney(sections.itan.impuesto)} />
+          {showItanDetraction ? (
+            <DetraccionReadOnlyBar
+              payment={sections.itan.detraction_payment}
+              appliedAmount={itanDetractionApplied}
+              payableBefore={itanPayableBefore}
+              totalLabel="ITAN pendiente"
+              netAfterDetraction={sections.itan.impuesto_a_pagar}
+            />
+          ) : (
+            <Row label="ITAN pendiente" value={formatTaxTotalMoney(sections.itan.impuesto_a_pagar)} bold />
+          )}
         </SectionBlock>
       ) : null}
 
       <div className="rounded-lg border-2 border-primary-200 bg-primary-50/70 px-4 py-3 flex flex-wrap justify-between items-center gap-3">
         <span className="text-sm font-semibold text-primary-900">Total impuestos a pagar</span>
         <span className="text-xl font-bold text-primary-900 tabular-nums">
-          {formatTaxMoney(sections.grand_total_impuesto_a_pagar)}
+          {formatTaxTotalMoney(sections.grand_total_impuesto_a_pagar)}
         </span>
       </div>
     </div>

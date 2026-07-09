@@ -48,20 +48,24 @@ export function PdfSectionBar({
 
 /**
  * Bloque de sección PDF (título + contenido).
- * No usar minPresenceAhead aquí: react-pdf considera todos los hermanos siguientes
- * y puede empujar bloques largos (PDT 621) a la página siguiente dejando huecos en blanco.
+ * keepTogether evita cortes feos entre páginas en bloques compactos (601, ITAN, totales).
  */
 export function PdfSectionBlock({
   title,
   light = false,
   children,
+  keepTogether = true,
+  minPresenceAhead,
 }: {
   title: string;
   light?: boolean;
   children: ReactNode;
+  keepTogether?: boolean;
+  minPresenceAhead?: number;
 }) {
+  const presenceProps = typeof minPresenceAhead === 'number' ? { minPresenceAhead } : {};
   return (
-    <View style={{ marginBottom: 8 }}>
+    <View wrap={keepTogether ? false : undefined} style={{ marginBottom: 8 }} {...presenceProps}>
       <PdfSectionBar title={title} light={light} />
       {children}
     </View>
@@ -69,62 +73,83 @@ export function PdfSectionBlock({
 }
 
 /** Fila total resaltada: etiqueta | S/ | monto (fondo amarillo, como liquidación legacy). */
-export function PdfHighlightedTotalRow({ label, amount }: { label: string; amount: string }) {
+export function PdfHighlightedTotalRow({
+  label,
+  amount,
+  note,
+}: {
+  label: string;
+  amount: string;
+  note?: string | null;
+}) {
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        backgroundColor: PDF_LIQ.highlightYellow,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: PDF_LIQ.text,
-        marginTop: 6,
-      }}
-    >
+    <View wrap={false} style={{ marginTop: 6 }}>
       <View
         style={{
-          flex: 1,
-          paddingVertical: 6,
-          paddingHorizontal: 8,
-          borderRightWidth: 1,
-          borderRightColor: PDF_LIQ.text,
-          justifyContent: 'center',
+          flexDirection: 'row',
+          backgroundColor: PDF_LIQ.highlightYellow,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: PDF_LIQ.text,
         }}
       >
-        <Text
+        <View
           style={{
-            fontSize: 8,
-            fontWeight: 700,
-            color: PDF_LIQ.text,
-            textTransform: 'uppercase',
-            textAlign: 'right',
+            flex: 1,
+            paddingVertical: 6,
+            paddingHorizontal: 8,
+            borderRightWidth: 1,
+            borderRightColor: PDF_LIQ.text,
+            justifyContent: 'center',
           }}
         >
-          {label}
+          <Text
+            style={{
+              fontSize: 8,
+              fontWeight: 700,
+              color: PDF_LIQ.text,
+              textTransform: 'uppercase',
+              textAlign: 'right',
+            }}
+          >
+            {label}
+          </Text>
+        </View>
+        <View
+          style={{
+            width: 26,
+            paddingVertical: 6,
+            borderRightWidth: 1,
+            borderRightColor: PDF_LIQ.text,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ fontSize: 8, fontWeight: 700, color: PDF_LIQ.text }}>S/</Text>
+        </View>
+        <View
+          style={{
+            width: 76,
+            paddingVertical: 6,
+            paddingHorizontal: 8,
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ fontSize: 9, fontWeight: 700, color: PDF_LIQ.text, textAlign: 'right' }}>{amount}</Text>
+        </View>
+      </View>
+      {note ? (
+        <Text
+          style={{
+            fontSize: 6.5,
+            color: PDF_LIQ.textMuted,
+            textAlign: 'right',
+            marginTop: 2,
+          }}
+        >
+          {note}
         </Text>
-      </View>
-      <View
-        style={{
-          width: 26,
-          paddingVertical: 6,
-          borderRightWidth: 1,
-          borderRightColor: PDF_LIQ.text,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <Text style={{ fontSize: 8, fontWeight: 700, color: PDF_LIQ.text }}>S/</Text>
-      </View>
-      <View
-        style={{
-          width: 76,
-          paddingVertical: 6,
-          paddingHorizontal: 8,
-          justifyContent: 'center',
-        }}
-      >
-        <Text style={{ fontSize: 9, fontWeight: 700, color: PDF_LIQ.text, textAlign: 'right' }}>{amount}</Text>
-      </View>
+      ) : null}
     </View>
   );
 }

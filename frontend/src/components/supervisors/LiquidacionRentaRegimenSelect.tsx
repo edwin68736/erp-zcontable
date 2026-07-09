@@ -61,7 +61,7 @@ const LiquidacionRentaRegimenSelect = ({
               id="liq-renta-coeficiente"
               type="text"
               inputMode="decimal"
-              value={coeficientePct === 0 ? '' : formatTaxAmountInput(coeficientePct)}
+              value={coeficientePct === 0 ? '' : formatTaxAmountInput(coeficientePct, { useGrouping: false })}
               onChange={(e) => onCoeficienteChange(parseTaxAmount(sanitizeTaxAmountInput(e.target.value)))}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
               placeholder="0.00"

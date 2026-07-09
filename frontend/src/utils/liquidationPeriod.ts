@@ -61,3 +61,35 @@ export function settlementStatusBadgeClass(status: string): string {
       return 'bg-slate-50 text-slate-700 border-slate-200';
   }
 }
+
+const LIQUIDATION_DOC_SERIES = 'LI001';
+
+/** Número visible en PDF: serie LI001 + periodo YYYYMM (p. ej. LI001-202606). */
+export function formatLiquidationNumberForPdf(
+  number: string | null | undefined,
+  liquidationPeriod?: string | null,
+  fallbackId?: number,
+): string {
+  const raw = (number ?? '').trim();
+  if (raw && /^LI001-/i.test(raw)) {
+    return raw.replace(/^li001/i, LIQUIDATION_DOC_SERIES);
+  }
+
+  let periodCompact = '';
+  const fromRaw = raw.match(/(?:^LI-?)?(\d{6})$/i);
+  if (fromRaw) {
+    periodCompact = fromRaw[1];
+  } else {
+    const lp = (liquidationPeriod ?? '').trim().replace(/-/g, '');
+    if (/^\d{6}$/.test(lp)) periodCompact = lp;
+  }
+
+  if (periodCompact) return `${LIQUIDATION_DOC_SERIES}-${periodCompact}`;
+
+  if (raw) {
+    const stripped = raw.replace(/^LI-?/i, '');
+    if (stripped) return `${LIQUIDATION_DOC_SERIES}-${stripped}`;
+  }
+
+  return fallbackId ? `${LIQUIDATION_DOC_SERIES}-${fallbackId}` : LIQUIDATION_DOC_SERIES;
+}

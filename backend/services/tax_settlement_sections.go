@@ -49,30 +49,58 @@ type TaxSectionPdt621 struct {
 	ImpuestoPeriodo      float64   `json:"impuesto_periodo"`
 	SaldoFavor           float64   `json:"saldo_favor"`
 	SaldoFavorFinal      float64   `json:"saldo_favor_final"`
+	DetractionPaymentIGV   *TaxDetractionPayment `json:"detraction_payment_igv,omitempty"`
+	DetractionPaymentRenta *TaxDetractionPayment `json:"detraction_payment_renta,omitempty"`
 	RentaImpuestoPagar   float64   `json:"renta_impuesto_a_pagar"`
 	ImpuestoAPagar       float64   `json:"impuesto_a_pagar"`
 }
 
+type TaxDetractionPayment struct {
+	Enabled           bool    `json:"enabled"`
+	Mode              string  `json:"mode,omitempty"` // total | parcial
+	Amount            float64 `json:"amount"`
+	AppliedAmount     float64 `json:"applied_amount"`
+	OriginalAmount    float64 `json:"original_amount"`
+}
+
 type TaxSectionPdt601 struct {
-	Enabled        bool    `json:"enabled"`
-	Essalud        float64 `json:"essalud"`
-	Onp            float64 `json:"onp"`
-	Afp            float64 `json:"afp"`
-	Rta4ta         float64 `json:"rta_4ta"`
-	Rta5ta         float64 `json:"rta_5ta"`
-	ImpuestoAPagar float64 `json:"impuesto_a_pagar"`
+	Enabled            bool                  `json:"enabled"`
+	Essalud            float64               `json:"essalud"`
+	Sis                float64               `json:"sis"`
+	Onp                float64               `json:"onp"`
+	Afp                float64               `json:"afp"`
+	Rta4ta             float64               `json:"rta_4ta"`
+	Rta5ta             float64               `json:"rta_5ta"`
+	DetractionPayment  *TaxDetractionPayment `json:"detraction_payment,omitempty"`
+	ImpuestoAPagar     float64               `json:"impuesto_a_pagar"`
 }
 
 type TaxSectionItan struct {
-	Enabled        bool    `json:"enabled"`
-	Year           int     `json:"year"`
-	CuotaNro       int     `json:"cuota_nro"`
-	Impuesto       float64 `json:"impuesto"`
-	ImpuestoAPagar float64 `json:"impuesto_a_pagar"`
+	Enabled           bool                  `json:"enabled"`
+	Year              int                   `json:"year"`
+	CuotaNro          int                   `json:"cuota_nro"`
+	Impuesto          float64               `json:"impuesto"`
+	DetractionPayment *TaxDetractionPayment `json:"detraction_payment,omitempty"`
+	ImpuestoAPagar    float64               `json:"impuesto_a_pagar"`
 }
 
 func roundTaxMoney(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// roundTaxTotalAmount redondea al entero más cercano (solo totales finales).
+func roundTaxTotalAmount(v float64) float64 {
+	return roundTaxMoney(math.Round(v))
+}
+
+func clamp(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
 
 func roundTaxAmount(v float64, decimals int) float64 {
@@ -206,7 +234,60 @@ func rentaMensualRatePct(regimen string, coeficientePct float64) float64 {
 	}
 }
 
-func computePdt621Section(s *TaxSectionPdt621) {
+func normalizeDetractionPayment(payment *TaxDetractionPayment, originalAmount float64, includeDetraction bool) *TaxDetractionPayment {
+	normalizedOriginalAmount := roundTaxMoney(math.Max(originalAmount, 0))
+	mode := "parcial"
+	if payment != nil && strings.TrimSpace(strings.ToLower(payment.Mode)) == "total" {
+		mode = "total"
+	}
+	enabled := payment != nil && payment.Enabled && includeDetraction && normalizedOriginalAmount > 0
+	requested := 0.0
+	if payment != nil {
+		requested = roundTaxMoney(math.Max(payment.Amount, 0))
+	}
+	applied := 0.0
+	if enabled {
+		if mode == "total" {
+			applied = normalizedOriginalAmount
+		} else {
+			applied = roundTaxMoney(clamp(requested, 0, normalizedOriginalAmount))
+		}
+	}
+	amount := requested
+	if mode == "total" {
+		amount = normalizedOriginalAmount
+	}
+	return &TaxDetractionPayment{
+		Enabled:           enabled,
+		Mode:              mode,
+		Amount:            amount,
+		AppliedAmount:     applied,
+		OriginalAmount:    normalizedOriginalAmount,
+	}
+}
+
+func sumPdt621PercepcionesRetenciones(s *TaxSectionPdt621) float64 {
+	if s == nil {
+		return 0
+	}
+	return roundTaxMoney(
+		s.PercepcionesPeriodo + s.PercepcionesAnteriores + s.RetencionesPeriodo + s.RetencionesAnteriores,
+	)
+}
+
+// computePdt621SaldoFavorFinal: percepciones/retenciones siempre restan del saldo.
+func computePdt621SaldoFavorFinal(saldoFavor, percepRetTotal float64) float64 {
+	return roundTaxMoney(saldoFavor - percepRetTotal)
+}
+
+func finalizePdt621SaldoFavorFinal(raw float64) float64 {
+	if raw > 0 {
+		return roundTaxTotalAmount(raw)
+	}
+	return roundTaxMoney(raw)
+}
+
+func computePdt621Section(s *TaxSectionPdt621, includeDetraction bool) {
 	if s == nil {
 		return
 	}
@@ -233,14 +314,13 @@ func computePdt621Section(s *TaxSectionPdt621) {
 		ventasImpuesto-notasImpuesto-s.Compras105.Impuesto-s.Compras18.Impuesto,
 	)
 	s.SaldoFavor = roundTaxMoney(s.ImpuestoPeriodo - s.CreditoPeriodoAnt)
-	s.SaldoFavorFinal = roundTaxMoney(
-		s.SaldoFavor + s.PercepcionesPeriodo + s.PercepcionesAnteriores + s.RetencionesPeriodo + s.RetencionesAnteriores,
-	)
+	percepRetTotal := sumPdt621PercepcionesRetenciones(s)
+	s.SaldoFavorFinal = finalizePdt621SaldoFavorFinal(computePdt621SaldoFavorFinal(s.SaldoFavor, percepRetTotal))
 
 	s.RentaVentasBase = computePdt621RentaVentasBase(s, rates)
 	ratePct := rentaMensualRatePct(s.RentaRegimen, s.RentaCoeficientePct)
 	if ratePct > 0 && s.RentaVentasBase > 0 {
-		s.RentaVentasImpuesto = roundTaxAmount(s.RentaVentasBase*ratePct/100, taxAmountMaxDecimals)
+		s.RentaVentasImpuesto = roundTaxTotalAmount(roundTaxAmount(s.RentaVentasBase*ratePct/100, taxAmountMaxDecimals))
 	} else {
 		s.RentaVentasImpuesto = 0
 	}
@@ -248,6 +328,8 @@ func computePdt621Section(s *TaxSectionPdt621) {
 	renta := roundTaxMoney(s.RentaVentasImpuesto - s.RentaSaldoFavorItan)
 	if renta < 0 {
 		renta = 0
+	} else {
+		renta = roundTaxTotalAmount(renta)
 	}
 	s.RentaImpuestoPagar = renta
 
@@ -256,39 +338,73 @@ func computePdt621Section(s *TaxSectionPdt621) {
 	if s.SaldoFavorFinal > 0 {
 		igvPagar = s.SaldoFavorFinal
 	}
-	s.ImpuestoAPagar = roundTaxMoney(renta + igvPagar)
+	s.DetractionPaymentIGV = normalizeDetractionPayment(s.DetractionPaymentIGV, igvPagar, includeDetraction)
+	s.DetractionPaymentRenta = normalizeDetractionPayment(s.DetractionPaymentRenta, renta, includeDetraction)
+	igvDespuesDetraccion := math.Max(igvPagar-s.DetractionPaymentIGV.AppliedAmount, 0)
+	rentaDespuesDetraccion := math.Max(renta-s.DetractionPaymentRenta.AppliedAmount, 0)
+	s.ImpuestoAPagar = roundTaxTotalAmount(rentaDespuesDetraccion + igvDespuesDetraccion)
 }
 
-func computePdt601Section(s *TaxSectionPdt601) {
+func pdt601DetractableBeforeDetraction(s *TaxSectionPdt601) float64 {
+	if s == nil {
+		return 0
+	}
+	return roundTaxMoney(s.Essalud + s.Sis + s.Onp + s.Rta4ta + s.Rta5ta)
+}
+
+func computePdt601Section(s *TaxSectionPdt601, includeDetraction bool) {
 	if s == nil {
 		return
 	}
-	s.ImpuestoAPagar = roundTaxMoney(s.Essalud + s.Onp + s.Afp + s.Rta4ta + s.Rta5ta)
+	afp := roundTaxMoney(s.Afp)
+	detractable := pdt601DetractableBeforeDetraction(s)
+	gross := roundTaxMoney(afp + detractable)
+	s.DetractionPayment = normalizeDetractionPayment(s.DetractionPayment, detractable, includeDetraction)
+	if includeDetraction {
+		detractableNet := math.Max(detractable-s.DetractionPayment.AppliedAmount, 0)
+		s.ImpuestoAPagar = roundTaxTotalAmount(afp + detractableNet)
+		return
+	}
+	s.ImpuestoAPagar = roundTaxTotalAmount(gross)
 }
 
-func computeItanSection(s *TaxSectionItan) {
+func computeItanSection(s *TaxSectionItan, includeDetraction bool) {
 	if s == nil {
 		return
 	}
-	s.ImpuestoAPagar = roundTaxMoney(s.Impuesto)
+	original := roundTaxMoney(s.Impuesto)
+	s.DetractionPayment = normalizeDetractionPayment(s.DetractionPayment, original, includeDetraction)
+	if includeDetraction {
+		s.ImpuestoAPagar = roundTaxTotalAmount(math.Max(original-s.DetractionPayment.AppliedAmount, 0))
+		return
+	}
+	s.ImpuestoAPagar = roundTaxTotalAmount(original)
 }
 
 // ComputeTaxSettlementSections recalcula totales derivados y gran total.
-func ComputeTaxSettlementSections(p *TaxSettlementSectionsPayload) *TaxSettlementSectionsPayload {
+type ComputeTaxSettlementSectionsOptions struct {
+	IncludeDetraction bool
+}
+
+func ComputeTaxSettlementSectionsWithOptions(p *TaxSettlementSectionsPayload, opts *ComputeTaxSettlementSectionsOptions) *TaxSettlementSectionsPayload {
 	if p == nil {
 		return nil
+	}
+	includeDetraction := true
+	if opts != nil {
+		includeDetraction = opts.IncludeDetraction
 	}
 	if p.Version == 0 {
 		p.Version = taxSettlementSectionsVersion
 	}
 	if p.Pdt621 != nil && p.Pdt621.Enabled {
-		computePdt621Section(p.Pdt621)
+		computePdt621Section(p.Pdt621, includeDetraction)
 	}
 	if p.Pdt601 != nil && p.Pdt601.Enabled {
-		computePdt601Section(p.Pdt601)
+		computePdt601Section(p.Pdt601, includeDetraction)
 	}
 	if p.Itan != nil && p.Itan.Enabled {
-		computeItanSection(p.Itan)
+		computeItanSection(p.Itan, includeDetraction)
 	}
 	var grand float64
 	if p.Pdt621 != nil && p.Pdt621.Enabled {
@@ -300,8 +416,13 @@ func ComputeTaxSettlementSections(p *TaxSettlementSectionsPayload) *TaxSettlemen
 	if p.Itan != nil && p.Itan.Enabled {
 		grand += p.Itan.ImpuestoAPagar
 	}
-	p.GrandTotalImpuesto = roundTaxMoney(grand)
+	p.GrandTotalImpuesto = roundTaxTotalAmount(grand)
 	return p
+}
+
+// ComputeTaxSettlementSections mantiene compatibilidad: aplica detracción por defecto.
+func ComputeTaxSettlementSections(p *TaxSettlementSectionsPayload) *TaxSettlementSectionsPayload {
+	return ComputeTaxSettlementSectionsWithOptions(p, &ComputeTaxSettlementSectionsOptions{IncludeDetraction: true})
 }
 
 // ParseTaxSettlementSectionsJSON interpreta pdt621_json (v1 estructurado o legado).

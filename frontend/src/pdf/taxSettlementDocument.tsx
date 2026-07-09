@@ -1,19 +1,21 @@
 import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 import { Fragment } from 'react';
 import type { FirmConfig, TaxSettlement, TaxSettlementLine } from '../types/dashboard';
-import { periodLabelFromYM } from '../utils/liquidationPeriod';
+import { formatLiquidationNumberForPdf, periodLabelFromYM } from '../utils/liquidationPeriod';
 import { loadLogoPngBlobForPdf } from '../utils/pdfLogo';
 import {
   formatTaxMoney,
+  formatTaxNumber,
   isNonZeroTaxAmount,
   parseTaxSectionsJson,
   type TaxSettlementSectionsPayload,
 } from '../utils/taxSettlementSections';
 import { getRentaMensualRatePct } from '../utils/companyTaxRegime';
-import { PdfClientInfoRow, PdfHighlightedTotalRow, PdfLiquidationHeader, PdfSectionBar, pdfLiquidationStyles } from './pdfLiquidationComponents';
+import { PdfClientInfoRow, PdfHighlightedTotalRow, PdfLiquidationHeader, PdfSectionBar, PdfSectionBlock, pdfLiquidationStyles } from './pdfLiquidationComponents';
 import { formatIssueDateForPdf, PDF_LIQ } from './pdfLiquidationTheme';
 import { Pdt621PdfSection } from './pdt621PdfSection';
 import { Pdt601PdfSection } from './pdt601PdfSection';
+import { ItanPdfSection } from './itanPdfSection';
 import {
   PdfLiquidationPaymentFooter,
   PdfTaxRecommendationsFooter,
@@ -47,7 +49,7 @@ export function settlementTotalsForPdf(row: TaxSettlement) {
     };
   }
   const s = sumLines(row.lines);
-  const sections = parseTaxSectionsJson(row.pdt621_json);
+  const sections = parseTaxSectionsJson(row.pdt621_json, { includeDetraction: true });
   const sectionTax = sections?.grand_total_impuesto_a_pagar ?? 0;
   const impuestos = s.impuestos > 0 ? s.impuestos : sectionTax > 0 ? sectionTax : Number(row.total_impuestos) || 0;
   const total = s.honorarios + impuestos;
@@ -58,8 +60,8 @@ export async function getLogoPngBlobForPdf(logoUrl: string): Promise<Blob | null
   return loadLogoPngBlobForPdf(logoUrl);
 }
 
-const formatMoney = (value: number) => `S/ ${Number(value ?? 0).toFixed(2)}`;
-const formatMoneyAmountOnly = (value: number) => Number(value ?? 0).toFixed(2);
+const formatMoney = (value: number) => formatTaxMoney(value);
+const formatMoneyAmountOnly = (value: number) => formatTaxNumber(value, { minDecimals: 2, maxDecimals: 2 });
 
 const docStyles = StyleSheet.create({
   draftBanner: {
@@ -88,6 +90,7 @@ const docStyles = StyleSheet.create({
   notesText: { fontSize: 8, color: PDF_LIQ.text },
   pdtBlock: { marginBottom: 10 },
   pdtText: { fontSize: 7, color: PDF_LIQ.textMuted },
+  pdtDetractionNote: { fontSize: 6.5, color: PDF_LIQ.textMuted, marginTop: 2 },
   pdtSubBlock: { marginBottom: 8 },
   taxSectionsTail: { marginBottom: 10 },
   footer: { position: 'absolute', bottom: 14, left: 28, right: 28, fontSize: 8, color: '#94a3b8' },
@@ -104,8 +107,12 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
   const firmName = firm?.name?.trim() || 'Estudio contable';
   const totals = settlementTotalsForPdf(settlement);
   const client = settlement.company;
-  const docTitle = `Liquidación ${settlement.number?.trim() || `#${settlement.id}`}`;
-  const liqNumber = settlement.number?.trim() || `LIQ-${settlement.id}`;
+  const liqNumber = formatLiquidationNumberForPdf(
+    settlement.number,
+    settlement.liquidation_period,
+    settlement.id,
+  );
+  const docTitle = `Liquidación ${liqNumber}`;
   const issueStr = formatIssueDateForPdf(settlement.issue_date);
   const periodDisplay =
     (settlement.period_label ?? '').trim() ||
@@ -117,14 +124,13 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.id ?? 0) - (b.id ?? 0));
 
   const pdtSnippet = (settlement.pdt621_json ?? '').trim();
-  const taxSections = parseTaxSectionsJson(settlement.pdt621_json);
+  const taxSections = parseTaxSectionsJson(settlement.pdt621_json, { includeDetraction: true });
 
   const renderTaxSections = (sections: TaxSettlementSectionsPayload) => (
     <Fragment>
       <PdfSectionBar title="Detalle" />
       {sections.pdt621?.enabled ? (
-        <View style={docStyles.pdtSubBlock}>
-          <PdfSectionBar title="PDT 621 — IGV y Renta" light />
+        <PdfSectionBlock title="PDT 621 — IGV y Renta" light keepTogether={false}>
           <Pdt621PdfSection
             p621={sections.pdt621}
             rentaRatePct={
@@ -133,26 +139,22 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
                 : null
             }
           />
-        </View>
+        </PdfSectionBlock>
       ) : null}
       {sections.pdt601?.enabled ? (
-        <View style={docStyles.pdtSubBlock}>
-          <PdfSectionBar title="PDT 601 — Planilla electrónica" light />
+        <PdfSectionBlock title="PDT 601 — Planilla electrónica" light>
           <Pdt601PdfSection p601={sections.pdt601} />
-        </View>
+        </PdfSectionBlock>
       ) : null}
       {sections.itan?.enabled ? (
-        <View style={docStyles.pdtSubBlock}>
-          <PdfSectionBar title={`ITAN ${sections.itan.year} — Cuota ${sections.itan.cuota_nro}`} light />
-          <Text style={docStyles.pdtText}>
-            Impuesto a pagar: {formatTaxMoney(sections.itan.impuesto_a_pagar)}
-          </Text>
-        </View>
+        <PdfSectionBlock title={`ITAN ${sections.itan.year}`} light>
+          <ItanPdfSection itan={sections.itan} />
+        </PdfSectionBlock>
       ) : null}
-      <View style={docStyles.taxSectionsTail}>
+      <View wrap={false} style={docStyles.taxSectionsTail}>
         <PdfHighlightedTotalRow
           label="Total impuestos a pagar"
-          amount={formatMoneyAmountOnly(sections.grand_total_impuesto_a_pagar)}
+          amount={formatTaxNumber(sections.grand_total_impuesto_a_pagar, { minDecimals: 2, maxDecimals: 2 })}
         />
       </View>
     </Fragment>
@@ -201,7 +203,7 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
           </View>
         ) : null}
 
-        <PdfSectionBar title="Honorarios y cargos del estudio" breakBefore />
+        <PdfSectionBar title="Honorarios y cargos del estudio" minPresenceAhead={120} />
         <View style={docStyles.table}>
           <View style={docStyles.rowHead}>
             <View style={[docStyles.cell, docStyles.colTipo]}>
@@ -250,7 +252,7 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
           )}
         </View>
 
-        <View style={docStyles.honorariosTotal}>
+        <View wrap={false} style={docStyles.honorariosTotal}>
           <PdfHighlightedTotalRow
             label="Total honorarios a pagar"
             amount={formatMoneyAmountOnly(totals.honorarios)}
