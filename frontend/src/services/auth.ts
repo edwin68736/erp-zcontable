@@ -6,7 +6,6 @@ export interface AuthUser {
   name: string;
   username: string;
   email?: string;
-  role?: string;
 }
 
 export interface LoginResponse {
@@ -16,13 +15,13 @@ export interface LoginResponse {
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
+const PERMISSIONS_KEY = 'permissions';
 
 type JwtClaims = {
   user_id?: number;
   username?: string;
   email?: string;
   name?: string;
-  role?: string;
 };
 
 function parseJwtClaims(token: string): JwtClaims | null {
@@ -82,14 +81,13 @@ export const auth = {
     }
     const claims = parseJwtClaims(token);
     const mergedUser: AuthUser | null = res.data.user
-      ? { ...res.data.user, role: claims?.role }
+      ? { ...res.data.user }
       : claims?.username
         ? {
             id: claims.user_id ?? 0,
             name: claims.name ?? '',
             username: claims.username,
             email: claims.email || undefined,
-            role: claims.role,
           }
         : null;
 
@@ -103,14 +101,22 @@ export const auth = {
     } else {
       try {
         window.sessionStorage.removeItem(USER_KEY);
+        window.sessionStorage.removeItem(PERMISSIONS_KEY);
       } catch {
         return res.data;
       }
       try {
         window.localStorage.removeItem(USER_KEY);
+        window.localStorage.removeItem(PERMISSIONS_KEY);
       } catch {
         return res.data;
       }
+    }
+
+    try {
+      await auth.refreshPermissions();
+    } catch {
+      /* permisos se reintentan desde Layout */
     }
 
     return res.data;
@@ -124,12 +130,14 @@ export const auth = {
       try {
         window.sessionStorage.removeItem(TOKEN_KEY);
         window.sessionStorage.removeItem(USER_KEY);
+        window.sessionStorage.removeItem(PERMISSIONS_KEY);
       } catch {
         return;
       }
       try {
         window.localStorage.removeItem(TOKEN_KEY);
         window.localStorage.removeItem(USER_KEY);
+        window.localStorage.removeItem(PERMISSIONS_KEY);
       } catch {
         return;
       }
@@ -141,12 +149,14 @@ export const auth = {
     try {
       window.sessionStorage.removeItem(TOKEN_KEY);
       window.sessionStorage.removeItem(USER_KEY);
+      window.sessionStorage.removeItem(PERMISSIONS_KEY);
     } catch {
       return;
     }
     try {
       window.localStorage.removeItem(TOKEN_KEY);
       window.localStorage.removeItem(USER_KEY);
+      window.localStorage.removeItem(PERMISSIONS_KEY);
     } catch {
       return;
     }
@@ -161,13 +171,80 @@ export const auth = {
     }
   },
 
-  getRole(): string | null {
-    const token = this.getToken();
-    if (token) {
-      const claims = parseJwtClaims(token);
-      if (claims?.role) return claims.role;
+  hasStoredPermissions(): boolean {
+    try {
+      const raw = window.sessionStorage.getItem(PERMISSIONS_KEY);
+      if (!raw) return false;
+      const arr = JSON.parse(raw) as string[];
+      return Array.isArray(arr) && arr.length > 0;
+    } catch {
+      return false;
     }
-    return this.getUser()?.role ?? null;
+  },
+
+  getPermissionCodes(): string[] {
+    let raw: string | null = null;
+    try {
+      raw = window.sessionStorage.getItem(PERMISSIONS_KEY);
+    } catch {
+      raw = window.localStorage.getItem(PERMISSIONS_KEY);
+    }
+    if (!raw) return [];
+    try {
+      const arr = JSON.parse(raw) as string[];
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  },
+
+  /** true si el usuario tiene al menos un permiso del módulo RBAC (prefijo module.). */
+  hasAnyPermissionInModule(moduleCode: string): boolean {
+    const mod = (moduleCode ?? '').trim();
+    if (!mod) return false;
+    const prefix = `${mod}.`;
+    return this.getPermissionCodes().some((c) => c.startsWith(prefix));
+  },
+
+  async refreshPermissions(): Promise<void> {
+    if (!this.getToken()) return;
+    const res = await client.get<{ success?: boolean; data?: string[] }>('/me/permissions');
+    const list = res.data?.data ?? [];
+    const json = JSON.stringify(list);
+    try {
+      window.sessionStorage.setItem(PERMISSIONS_KEY, json);
+      window.localStorage.removeItem(PERMISSIONS_KEY);
+    } catch {
+      window.localStorage.setItem(PERMISSIONS_KEY, json);
+    }
+    window.dispatchEvent(new CustomEvent('miweb:permissions-updated'));
+  },
+
+  /** Comprueba permiso module.action (lista desde /me/permissions). */
+  hasPermission(code: string): boolean {
+    if (!code) return true;
+    let raw: string | null = null;
+    try {
+      raw = window.sessionStorage.getItem(PERMISSIONS_KEY);
+    } catch {
+      raw = window.localStorage.getItem(PERMISSIONS_KEY);
+    }
+    if (!raw) return false;
+    try {
+      const arr = JSON.parse(raw) as string[];
+      const set = new Set(arr);
+      return set.has(code);
+    } catch {
+      return false;
+    }
+  },
+
+  hasAnyPermission(...codes: string[]): boolean {
+    return codes.some((c) => c && this.hasPermission(c));
+  },
+
+  hasAllPermissions(...codes: string[]): boolean {
+    return codes.every((c) => !c || this.hasPermission(c));
   },
 
   getUser(): AuthUser | null {
@@ -180,22 +257,7 @@ export const auth = {
     }
     if (!raw) return null;
     try {
-      const user = JSON.parse(raw) as AuthUser;
-      if (user.role) return user;
-
-      const token = this.getToken();
-      if (!token) return user;
-
-      const claims = parseJwtClaims(token);
-      if (!claims?.role) return user;
-
-      const merged = { ...user, role: claims.role };
-      try {
-        window.sessionStorage.setItem(USER_KEY, JSON.stringify(merged));
-      } catch {
-        window.localStorage.setItem(USER_KEY, JSON.stringify(merged));
-      }
-      return merged;
+      return JSON.parse(raw) as AuthUser;
     } catch {
       return null;
     }

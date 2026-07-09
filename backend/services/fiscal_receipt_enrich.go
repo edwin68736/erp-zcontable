@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"miappfiber/models"
 )
@@ -45,11 +46,13 @@ func FiscalReceiptOriginLabel(origin string) string {
 	switch strings.TrimSpace(origin) {
 	case models.TukifacReceiptOriginIssuedLocal:
 		return "Sistema"
+	case models.TukifacReceiptOriginPOS:
+		return "POS"
 	case models.TukifacReceiptOriginSync:
-		return "Tukifac"
+		return "Importado"
 	default:
 		if origin == "" {
-			return "Tukifac"
+			return "—"
 		}
 		return origin
 	}
@@ -90,9 +93,37 @@ func effectiveSettlementFromReceipt(rec *models.TukifacFiscalReceipt) (id *uint,
 	return nil, ""
 }
 
+// resolveFiscalReceiptEmissionDate fecha de emisión efectiva: registro del pago vinculado o issue_date almacenado.
+func resolveFiscalReceiptEmissionDate(rec *models.TukifacFiscalReceipt) time.Time {
+	if rec == nil {
+		return time.Time{}
+	}
+	if rec.LinkedPayment != nil && !rec.LinkedPayment.CreatedAt.IsZero() {
+		return rec.LinkedPayment.CreatedAt.In(fiscalPeruTZ())
+	}
+	if !rec.IssueDate.IsZero() {
+		return rec.IssueDate.In(fiscalPeruTZ())
+	}
+	if !rec.CreatedAt.IsZero() {
+		return rec.CreatedAt.In(fiscalPeruTZ())
+	}
+	return time.Time{}
+}
+
+// ApplyFiscalReceiptEmissionDate ajusta IssueDate en la respuesta API (emisión ≠ fecha de pago).
+func ApplyFiscalReceiptEmissionDate(rec *models.TukifacFiscalReceipt) {
+	if rec == nil {
+		return
+	}
+	if t := resolveFiscalReceiptEmissionDate(rec); !t.IsZero() {
+		rec.IssueDate = t
+	}
+}
+
 // EnrichFiscalReceipt construye la fila de listado (requiere preloads adecuados).
 func EnrichFiscalReceipt(rec models.TukifacFiscalReceipt) FiscalReceiptEnriched {
 	out := FiscalReceiptEnriched{TukifacFiscalReceipt: rec}
+	ApplyFiscalReceiptEmissionDate(&out.TukifacFiscalReceipt)
 	out.DocumentKindLabel = FiscalDocumentKindLabel(rec.DocumentTypeID)
 	out.OriginLabel = FiscalReceiptOriginLabel(rec.Origin)
 	out.ReconciliationLabel = FiscalReceiptReconciliationLabel(rec.ReconciliationStatus)

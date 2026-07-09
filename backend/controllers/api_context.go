@@ -3,6 +3,9 @@ package controllers
 import (
 	"errors"
 
+	"miappfiber/rbac"
+	"miappfiber/services"
+
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -31,11 +34,16 @@ func getUserID(c fiber.Ctx) (uint, error) {
 	}
 }
 
-func getUserRole(c fiber.Ctx) string {
-	role, _ := c.Locals("user_role").(string)
-	return role
+// GetUserID devuelve el ID del usuario autenticado (JWT).
+func GetUserID(c fiber.Ctx) (uint, error) {
+	return getUserID(c)
 }
 
-func isAdmin(c fiber.Ctx) bool {
-	return getUserRole(c) == "Administrador"
+// hasStudioScope true si el usuario tiene permiso de alcance global del estudio (todas las empresas).
+func hasStudioScope(c fiber.Ctx) bool {
+	uid, err := getUserID(c)
+	if err != nil {
+		return false
+	}
+	return services.Authz().HasPermission(uid, rbac.AccessStudio)
 }

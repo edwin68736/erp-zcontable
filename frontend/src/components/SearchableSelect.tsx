@@ -20,6 +20,10 @@ type Props = {
   noResultsText?: string;
   maxVisibleOptions?: number;
   className?: string;
+  /** Notifica el texto de búsqueda actual (útil para acciones cuando no hay resultados). */
+  onQueryChange?: (query: string) => void;
+  /** Acción opcional bajo el mensaje de sin resultados (p. ej. «Agregar nuevo cliente»). */
+  emptyStateAction?: { label: string; onClick: () => void };
 };
 
 function normalizeForSearch(input: string): string {
@@ -43,6 +47,8 @@ const SearchableSelect = ({
   noResultsText = 'No se encontraron resultados',
   maxVisibleOptions = 60,
   className = '',
+  onQueryChange,
+  emptyStateAction,
 }: Props) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +69,10 @@ const SearchableSelect = ({
 
   const visible = useMemo(() => filtered.slice(0, Math.max(0, maxVisibleOptions)), [filtered, maxVisibleOptions]);
   const hasMore = filtered.length > visible.length;
+
+  useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -147,7 +157,22 @@ const SearchableSelect = ({
 
           <div role="listbox" className="max-h-64 overflow-y-auto py-1">
             {visible.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-slate-500 text-center">{noResultsText}</div>
+              <div className="px-3 py-3 text-center space-y-2">
+                <p className="text-xs text-slate-500">{noResultsText}</p>
+                {emptyStateAction ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      emptyStateAction.onClick();
+                      setOpen(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100"
+                  >
+                    <i className="fas fa-plus text-[10px]" />
+                    {emptyStateAction.label}
+                  </button>
+                ) : null}
+              </div>
             ) : (
               visible.map((o) => {
                 const isSelected = o.value === value;

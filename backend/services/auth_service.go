@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"miappfiber/authclaims"
 	"miappfiber/config"
 	"miappfiber/database"
-	"miappfiber/middleware"
 	"miappfiber/models"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -26,7 +26,7 @@ func (s *AuthService) Login(username, password string) (*models.User, error) {
 		return nil, errors.New("credenciales inválidas")
 	}
 	var user models.User
-	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
+	if err := database.DB.Where("LOWER(TRIM(username)) = ?", strings.ToLower(username)).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("credenciales inválidas")
 		}
@@ -45,12 +45,11 @@ func (s *AuthService) Login(username, password string) (*models.User, error) {
 }
 
 func (s *AuthService) GenerateToken(user *models.User) (string, error) {
-	claims := &middleware.JWTClaims{
+	claims := &authclaims.Claims{
 		UserID:   user.ID,
 		Username: user.Username,
 		Email:    user.EmailString(),
 		Name:     user.Name,
-		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

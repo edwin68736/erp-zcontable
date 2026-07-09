@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { productsService, type ProductUpsertInput, type ProductKind } from '../services/products';
 import { productCategoriesService, type ProductCategory } from '../services/productCategories';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import { SUNAT_PRODUCT_UNIT_LABEL, SUNAT_SERVICE_UNITS } from '../constants/sunatUnitOfMeasure';
 
@@ -17,6 +18,13 @@ function affectationFromProduct(code: string | undefined): IgvAffectation {
   const c = (code ?? '').trim();
   if (c === '20' || c === '30') return c;
   return '10';
+}
+
+/** Normaliza `tukifac_item_id` (texto; puede llegar como número en datos legacy). */
+function normalizeTukifacItemIdFromApi(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'number' && Number.isFinite(v)) return String(Math.trunc(v));
+  return String(v).trim();
 }
 
 function buildUpsert(input: {
@@ -70,6 +78,7 @@ function buildUpsert(input: {
     sale_unit_price: saleText,
     purchase_unit_price: purchaseText,
     apply_store: true,
+    tukifac_item_id: input.internalId.trim() === '' ? null : input.internalId.trim(),
   };
 }
 
@@ -77,8 +86,10 @@ const ProductForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const editId = id ? Number(id) : null;
-  const role = auth.getRole() ?? '';
-  const canUpsert = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.productsCreate) || auth.hasPermission(P.productsUpdate),
+    [],
+  );
 
   const [productKind, setProductKind] = useState<ProductKind>('service');
   const [description, setDescription] = useState('');
@@ -100,7 +111,8 @@ const ProductForm = () => {
   const [catSaving, setCatSaving] = useState(false);
   const [catError, setCatError] = useState('');
 
-  const [tukifacItemId, setTukifacItemId] = useState<number | null>(null);
+  /** Marca de ítems importados históricamente (campo legacy en BD). */
+  const [importedAt, setImportedAt] = useState<string | null>(null);
   const [remoteCategoryId, setRemoteCategoryId] = useState(0);
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(!!editId);
@@ -134,7 +146,10 @@ const ProductForm = () => {
         setCategoryIdStr(p.product_category_id ? String(p.product_category_id) : '');
         setIgvAffect(affectationFromProduct(p.sale_affectation_igv_type_id));
         setPriceIncludesIgv(Boolean(p.price_includes_igv));
-        setTukifacItemId(p.tukifac_item_id ?? null);
+        if (!p.internal_id?.trim() && p.tukifac_item_id != null) {
+          setInternalId(normalizeTukifacItemIdFromApi(p.tukifac_item_id));
+        }
+        setImportedAt(p.tukifac_created_at?.trim() ? p.tukifac_created_at : null);
         setRemoteCategoryId(Number(p.category_id) || 0);
         setImageUrl((p.image_url ?? '').trim());
       })
@@ -230,7 +245,7 @@ const ProductForm = () => {
     );
   }
 
-  const fromTukifac = tukifacItemId != null && tukifacItemId > 0;
+  const fromImport = Boolean(importedAt);
 
   return (
     <div className={PAGE_CLASS}>
@@ -245,10 +260,12 @@ const ProductForm = () => {
         </Link>
       </div>
 
-      {fromTukifac ? (
+      {fromImport ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-xs text-emerald-900 flex flex-wrap items-center gap-2">
-          <span className="font-semibold">Sincronizado con Tukifac</span>
-          <span className="text-emerald-800/80">ID {tukifacItemId}</span>
+          <span className="font-semibold">Ítem importado al catálogo</span>
+          <span className="text-emerald-800/80 font-mono">
+            {internalId.trim() !== '' ? internalId.trim() : 'sin código interno'}
+          </span>
           {imageUrl ? (
             <a href={imageUrl} target="_blank" rel="noreferrer" className="ml-auto">
               <img src={imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover border border-emerald-200" />
@@ -311,15 +328,23 @@ const ProductForm = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Código interno</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Código interno <span className="text-slate-400 font-normal">(letras y/o números)</span>
+            </label>
             <input
+              type="text"
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={64}
               value={internalId}
               onChange={(e) => setInternalId(e.target.value)}
-              placeholder="Código interno"
+              placeholder="Ej. VARIOUS_ITEM, SKU-001, PROD2026"
               className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 outline-none"
             />
             <p className="mt-1 text-[11px] text-slate-500 leading-snug">
-              Por defecto coincide con el código de barras; puede escribir otro valor si lo necesita.
+              Alfanumérico (letras y/o números). Se usa al emitir comprobantes y en el POS. Por defecto se iguala al código de barras si lo
+              edita allí primero.
             </p>
           </div>
         </div>

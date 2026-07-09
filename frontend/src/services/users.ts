@@ -6,7 +6,7 @@ export interface UserUpsertInput {
   name: string;
   email?: string;
   password?: string;
-  role: string;
+  role_id: number;
   active?: boolean;
   dni?: string;
   phone?: string;

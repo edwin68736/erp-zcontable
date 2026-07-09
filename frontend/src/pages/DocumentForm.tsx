@@ -5,6 +5,7 @@ import { dateInputToRFC3339MidnightPeru, peruDateInputFromApiDate } from '../uti
 import { companiesService } from '../services/companies';
 import { documentsService, type DocumentItemInput, type DocumentUpsertInput } from '../services/documents';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import type { Company } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
@@ -62,8 +63,10 @@ const DocumentForm = () => {
   const documentId = params.id ? Number(params.id) : null;
   const isEdit = Boolean(documentId);
 
-  const role = auth.getRole() ?? '';
-  const canUpsert = role === 'Administrador' || role === 'Supervisor' || role === 'Contador';
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.documentsCreate) || auth.hasPermission(P.documentsUpdate),
+    [],
+  );
 
   const peruvianToday = useMemo(() => formatInTimeZone(new Date(), 'America/Lima', 'yyyy-MM-dd'), []);
 
@@ -186,6 +189,12 @@ const DocumentForm = () => {
     const isPlanDebt = loadedSource === 'recurrente_plan';
     let payload: DocumentUpsertInput;
 
+    const numberTrimmed = displayNumber.trim();
+    if (numberTrimmed && [...numberTrimmed].length > 6) {
+      setError('El número de la deuda no puede superar 6 caracteres');
+      return;
+    }
+
     if (isPlanDebt) {
       const totalNum = Number(totalAmount);
       if (!Number.isFinite(totalNum) || totalNum <= 0) {
@@ -250,8 +259,8 @@ const DocumentForm = () => {
       };
     }
 
-    if (isEdit && displayNumber.trim()) {
-      payload.number = displayNumber.trim();
+    if (!isPlanDebt && numberTrimmed) {
+      payload.number = numberTrimmed;
     }
 
     try {
@@ -295,7 +304,7 @@ const DocumentForm = () => {
         <div>
           <h2 className="text-xl font-semibold text-slate-800">{isEdit ? 'Editar deuda' : 'Nueva deuda'}</h2>
           <p className="text-sm text-slate-500">
-            Cargo interno en cuentas por cobrar. Las facturas y boletas oficiales se emiten en Tukifac y se concilian en la bandeja de comprobantes.
+            Cargo interno en cuentas por cobrar. Las facturas, boletas y notas de venta se emiten desde pagos, liquidaciones o el punto de venta.
           </p>
         </div>
         <Link
@@ -378,11 +387,33 @@ const DocumentForm = () => {
           </div>
         ) : null}
 
+        {!isPlanDebt && !isEdit ? (
+          <div>
+            <label htmlFor="debt_number" className="block text-sm font-medium text-slate-700 mb-1">
+              Número de deuda <span className="text-slate-400 font-normal">(opcional, máx. 6 caracteres)</span>
+            </label>
+            <input
+              id="debt_number"
+              type="text"
+              inputMode="text"
+              maxLength={6}
+              value={displayNumber}
+              onChange={(ev) => setDisplayNumber(ev.target.value.slice(0, 6))}
+              className="w-full max-w-xs px-3 py-2.5 rounded-lg border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+              placeholder="Vacío = se asigna automático"
+              autoComplete="off"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Si lo deja vacío, el sistema asigna un código corto (6 dígitos). No es el número SUNAT del comprobante fiscal.
+            </p>
+          </div>
+        ) : null}
+
         {isEdit && displayNumber ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <span className="font-medium text-slate-600">Número interno: </span>
             <span className="font-mono text-xs">{displayNumber}</span>
-            <p className="text-xs text-slate-500 mt-1">Se asigna al crear; no es el número SUNAT de Tukifac.</p>
+            <p className="text-xs text-slate-500 mt-1">Se asigna al crear; no es el número SUNAT del comprobante fiscal.</p>
           </div>
         ) : null}
 

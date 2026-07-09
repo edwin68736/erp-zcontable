@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import { configService } from '../services/config';
 import type { FirmConfig } from '../types/dashboard';
 import { resolveBackendUrl } from '../api/client';
+import {
+  CLAVES_SOL_PASTEL_PALETTE,
+  CLAVES_SOL_DIGIT_KEYS,
+  DEFAULT_DIG_COLOR_MAP,
+  parseDigColorMap,
+  serializeDigColorMap,
+  type ClavesSolPaletteId,
+} from '../utils/clavesSolDigColors';
 
 const Settings = () => {
-  const role = auth.getRole() ?? '';
-  const isAdmin = useMemo(() => role === 'Administrador', [role]);
-  const canEdit = isAdmin;
+  const canViewSettings = useMemo(() => auth.hasPermission(P.settingsFirmView), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.settingsFirmUpdate), []);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -16,9 +24,13 @@ const Settings = () => {
   const [error, setError] = useState('');
 
   const [config, setConfig] = useState<FirmConfig | null>(null);
+  const [operationsKeyDraft, setOperationsKeyDraft] = useState('');
+  const [digColorMap, setDigColorMap] = useState<Record<string, ClavesSolPaletteId>>(() => ({
+    ...DEFAULT_DIG_COLOR_MAP,
+  }));
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canViewSettings) {
       setLoading(false);
       setConfig(null);
       return;
@@ -30,6 +42,7 @@ const Settings = () => {
         setError('');
         const cfg = await configService.getFirmConfig();
         setConfig(cfg);
+        setDigColorMap(parseDigColorMap(cfg.claves_sol_dig_colors_json));
       } catch (e) {
         console.error(e);
         setError('Error cargando configuración');
@@ -38,7 +51,7 @@ const Settings = () => {
       }
     };
     run();
-  }, [isAdmin]);
+  }, [canViewSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!config) return;
@@ -62,16 +75,19 @@ const Settings = () => {
         address: config.address,
         phone: config.phone,
         email: config.email,
-        tukifac_api_url: config.tukifac_api_url,
-        tukifac_api_token: config.tukifac_api_token,
         apiperu_base_url: config.apiperu_base_url,
         apiperu_token: config.apiperu_token,
         statement_whatsapp_notice: config.statement_whatsapp_notice ?? '',
         statement_bank_info: config.statement_bank_info ?? '',
         statement_payment_observations: config.statement_payment_observations ?? '',
         statement_payment_qr_caption: config.statement_payment_qr_caption ?? '',
+        claves_sol_dig_colors_json: serializeDigColorMap(digColorMap),
+        mailbox_captures_per_week: config.mailbox_captures_per_week ?? 2,
+        operations_key: operationsKeyDraft.trim() || undefined,
       });
       setConfig(updated);
+      setDigColorMap(parseDigColorMap(updated.claves_sol_dig_colors_json));
+      setOperationsKeyDraft('');
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Configuración guardada.' } }),
       );
@@ -169,7 +185,7 @@ const Settings = () => {
         <p className="text-sm text-slate-500">Datos generales utilizados en reportes y encabezados.</p>
       </div>
 
-      {!isAdmin ? (
+      {!canViewSettings ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           No tienes permisos para acceder a esta pantalla
         </div>
@@ -328,6 +344,36 @@ const Settings = () => {
                       onChange={handleChange}
                       disabled={!canEdit || saving || uploading}
                       className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 space-y-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800">Clave de operaciones</div>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Se solicita al editar o eliminar liquidaciones de impuestos.{' '}
+                      {config.operations_key_configured ? (
+                        <span className="font-medium text-emerald-800">Ya hay una clave configurada.</span>
+                      ) : (
+                        <span className="font-medium text-amber-800">Aún no hay clave configurada.</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="operations_key" className="block text-sm font-medium text-slate-700 mb-1">
+                      {config.operations_key_configured ? 'Nueva clave (opcional)' : 'Definir clave'}
+                    </label>
+                    <input
+                      type="password"
+                      id="operations_key"
+                      name="operations_key"
+                      value={operationsKeyDraft}
+                      onChange={(e) => setOperationsKeyDraft(e.target.value)}
+                      disabled={!canEdit || saving || uploading}
+                      autoComplete="new-password"
+                      placeholder={config.operations_key_configured ? 'Dejar vacío para no cambiar' : 'Mínimo 4 caracteres recomendado'}
+                      className="w-full max-w-md px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -533,42 +579,71 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="pt-2">
-                  <div className="text-sm font-semibold text-slate-800">Integración Tukifac</div>
-                  <div className="text-xs text-slate-500">Configura el endpoint del API y el token de acceso.</div>
+                <div className="border-t border-slate-100 pt-6 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">Buzones SOL (SUNAT / SUNAFIL)</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Cantidad de veces por semana que el asistente debe subir capturas o PDF de cada buzón. Máximo 7.
+                    </p>
+                  </div>
+                  <label className="block max-w-xs">
+                    <span className="text-xs font-medium text-slate-600">Capturas por semana</span>
+                    <input
+                      type="number"
+                      name="mailbox_captures_per_week"
+                      min={1}
+                      max={7}
+                      step={1}
+                      disabled={!canEdit}
+                      value={config.mailbox_captures_per_week ?? 2}
+                      onChange={(e) => {
+                        const n = Math.min(7, Math.max(1, Number(e.target.value) || 2));
+                        setConfig({ ...config, mailbox_captures_per_week: n });
+                      }}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-50"
+                    />
+                  </label>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border-t border-slate-100 pt-6 space-y-4">
                   <div>
-                    <label htmlFor="tukifac_api_url" className="block text-sm font-medium text-slate-700 mb-1">
-                      URL del API (Tukifac)
-                    </label>
-                    <input
-                      type="url"
-                      id="tukifac_api_url"
-                      name="tukifac_api_url"
-                      value={config.tukifac_api_url ?? ''}
-                      onChange={handleChange}
-                      disabled={!canEdit || saving || uploading}
-                      placeholder="https://doricontdemo.app.tukifac.pe/api"
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
-                    />
+                    <h3 className="text-sm font-semibold text-slate-800">Colores por dígito (Claves SOL)</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Asigne un color pastel a cada dígito (0–9). Se usa como fondo de fila en Finanzas → Claves sol y accesos.
+                    </p>
                   </div>
-                  <div>
-                    <label htmlFor="tukifac_api_token" className="block text-sm font-medium text-slate-700 mb-1">
-                      Token Bearer (Tukifac)
-                    </label>
-                    <input
-                      type="password"
-                      id="tukifac_api_token"
-                      name="tukifac_api_token"
-                      value={config.tukifac_api_token ?? ''}
-                      onChange={handleChange}
-                      disabled={!canEdit || saving || uploading}
-                      placeholder="Bearer ..."
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
-                      autoComplete="off"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {CLAVES_SOL_DIGIT_KEYS.map((key) => {
+                      const selected = digColorMap[key] ?? DEFAULT_DIG_COLOR_MAP[key];
+                      return (
+                        <div key={key} className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
+                          <p className="text-xs font-semibold text-slate-700 mb-2">
+                            Dígito <span className="font-mono">{key}</span>
+                          </p>
+                          <div className="grid grid-cols-6 gap-1">
+                            {CLAVES_SOL_PASTEL_PALETTE.map((p) => {
+                              const active = selected === p.id;
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  title={p.label}
+                                  disabled={!canEdit}
+                                  onClick={() =>
+                                    setDigColorMap((prev) => ({ ...prev, [key]: p.id as ClavesSolPaletteId }))
+                                  }
+                                  className={`h-7 w-full rounded border-2 transition ${p.swatch} ${
+                                    active ? 'border-slate-800 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
+                                  } disabled:cursor-not-allowed`}
+                                  aria-label={`${p.label} para dígito ${key}`}
+                                  aria-pressed={active}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -25,10 +25,11 @@ func (s *ConfigService) GetFirmConfig() (*models.FirmConfig, error) {
 			return nil, err
 		}
 	}
+	cfg.OperationsKeyConfigured = FirmConfigOperationsKeyConfigured(&cfg)
 	return &cfg, nil
 }
 
-func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig) (*models.FirmConfig, error) {
+func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig, operationsKeyPlain string) (*models.FirmConfig, error) {
 	cfg, err := s.GetFirmConfig()
 	if err != nil {
 		return nil, err
@@ -51,12 +52,6 @@ func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig) (*models.Firm
 	if input.LogoURL != "" {
 		cfg.LogoURL = input.LogoURL
 	}
-	if input.TukifacAPIURL != "" {
-		cfg.TukifacAPIURL = input.TukifacAPIURL
-	}
-	if input.TukifacAPIToken != "" {
-		cfg.TukifacAPIToken = input.TukifacAPIToken
-	}
 	if input.ApiPeruBaseURL != "" {
 		cfg.ApiPeruBaseURL = input.ApiPeruBaseURL
 	}
@@ -68,9 +63,17 @@ func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig) (*models.Firm
 	cfg.StatementBankInfo = input.StatementBankInfo
 	cfg.StatementPaymentObservations = input.StatementPaymentObservations
 	cfg.StatementPaymentQrCaption = input.StatementPaymentQrCaption
+	cfg.ClavesSolDigColorsJSON = input.ClavesSolDigColorsJSON
+	if input.MailboxCapturesPerWeek >= 1 && input.MailboxCapturesPerWeek <= 7 {
+		cfg.MailboxCapturesPerWeek = input.MailboxCapturesPerWeek
+	}
+	if err := ApplyOperationsKeyPlain(cfg, operationsKeyPlain); err != nil {
+		return nil, err
+	}
 	if err := database.DB.Save(cfg).Error; err != nil {
 		return nil, err
 	}
+	cfg.OperationsKeyConfigured = FirmConfigOperationsKeyConfigured(cfg)
 	return cfg, nil
 }
 

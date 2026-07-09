@@ -1,5 +1,6 @@
 import client from '../api/client';
 import type { TukifacFiscalReceipt } from '../types/dashboard';
+import type { PosSaleDetail } from './posSales';
 
 export interface CreatePaymentFromReceiptInput {
   allocation_mode: 'fifo' | 'manual';
@@ -7,8 +8,9 @@ export interface CreatePaymentFromReceiptInput {
   method?: string;
   reference?: string;
   attachment?: string;
+  description?: string;
   notes?: string;
-  /** Liquidación emitida a la que se asocia el pago generado desde Tukifac */
+  /** Liquidación emitida a la que se asocia el pago generado desde el comprobante */
   tax_settlement_id?: number;
 }
 
@@ -32,6 +34,11 @@ export interface FiscalReceiptsPaginationMeta {
 }
 
 export const fiscalReceiptsService = {
+  async getDetail(id: number): Promise<PosSaleDetail> {
+    const res = await client.get<{ data: PosSaleDetail }>(`/fiscal-receipts/${id}`);
+    return res.data.data;
+  },
+
   async listPaged(params: FiscalReceiptsListParams): Promise<{
     items: TukifacFiscalReceipt[];
     pagination: FiscalReceiptsPaginationMeta;

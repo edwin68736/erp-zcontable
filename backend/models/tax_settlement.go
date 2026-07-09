@@ -9,6 +9,7 @@ import (
 const (
 	TaxSettlementStatusDraft   = "borrador"
 	TaxSettlementStatusIssued  = "emitida"
+	TaxSettlementStatusClosed  = "cerrada"
 	TaxSettlementStatusVoid    = "anulada"
 	TaxSettlementLineDocRef    = "document_ref"
 	TaxSettlementLineTaxManual = "tax_manual"
@@ -27,6 +28,7 @@ type TaxSettlement struct {
 	PeriodFrom       *time.Time     `json:"period_from,omitempty"`
 	PeriodTo         *time.Time     `json:"period_to,omitempty"`
 	Status           string         `gorm:"size:20;not null;default:'borrador'" json:"status"`
+	ClosedAt         *time.Time     `json:"closed_at,omitempty"`
 	Notes            string         `gorm:"type:text" json:"notes"`
 	Pdt621JSON       string         `gorm:"type:text" json:"pdt621_json,omitempty"`
 	TotalHonorarios  float64        `gorm:"type:decimal(15,2);not null;default:0" json:"total_honorarios"`
@@ -55,9 +57,13 @@ type TaxSettlementLine struct {
 	Concept         string     `gorm:"size:512;not null" json:"concept"`
 	Amount          float64    `gorm:"type:decimal(15,2);not null" json:"amount"`
 	SortOrder       int        `gorm:"not null;default:0" json:"sort_order"`
-	// PeriodYM: periodo contable de la línea YYYY-MM.
-	PeriodYM        string     `gorm:"size:7" json:"period_ym"`
+	// PeriodYM: periodo contable AAAA-MM o texto libre corto (ej. año «2025»); máx. 64 caracteres.
+	PeriodYM        string     `gorm:"size:64" json:"period_ym"`
 	PeriodDate      *time.Time `gorm:"type:date" json:"period_date,omitempty"` // primer día del mes de period_ym (compatibilidad / informes)
+	// Snapshots al cerrar la liquidación (estado histórico inmutable de la deuda en ese momento).
+	DocumentNumberSnapshot   string  `gorm:"size:50" json:"document_number_snapshot,omitempty"`
+	DocumentStatusSnapshot   string  `gorm:"size:20" json:"document_status_snapshot,omitempty"`
+	DocumentBalanceSnapshot  float64 `gorm:"type:decimal(15,2)" json:"document_balance_snapshot,omitempty"`
 }
 
 func (TaxSettlementLine) TableName() string {

@@ -48,7 +48,7 @@ const C = {
 } as const;
 
 // ─── Columnas de la tabla ─────────────────────────────────────────────────────
-const COL_FRAC   = [0.10, 0.10, 0.07, 0.07, 0.28, 0.08, 0.08, 0.08, 0.08, 0.06] as const;
+const COL_FRAC   = [0.10, 0.10, 0.05, 0.09, 0.28, 0.08, 0.08, 0.08, 0.08, 0.06] as const;
 const TABLE_SIZE = 6.5;
 const HEAD_H     = 28;
 
@@ -777,7 +777,7 @@ export async function buildAccountStatementPdfBlob(
       const y1  = d + 6.5;
       const opD = formatLedgerDateDisplay(row.operation_date);
       const prD = formatLedgerDateDisplay(row.process_date);
-      const doc = truncateDocumentNumberDisplay(row.document_number, 24);
+      const doc = truncateDocumentNumberDisplay(row.document_number, 28);
       const cgo = row.cargo > 0 ? money(row.cargo) : '-';
       const abo = row.abono > 0 ? money(row.abono) : '-';
       const bal = money(row.balance);

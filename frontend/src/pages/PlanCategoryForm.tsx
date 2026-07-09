@@ -1,13 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { planCategoriesService } from '../services/planCategories';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 
 const PlanCategoryForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const editId = id ? Number(id) : null;
-  const canUpsert = auth.getRole() === 'Administrador' || auth.getRole() === 'Supervisor';
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.planCategoriesCreate) || auth.hasPermission(P.planCategoriesUpdate),
+    [],
+  );
 
   const [code, setCode] = useState('');
   const [name, setName] = useState('');

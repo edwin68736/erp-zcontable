@@ -1,8 +1,6 @@
-import {
-  TUKIFAC_DOC_SERIES_SESSION_KEY,
-  TUKIFAC_SALE_NOTE_SERIES_SESSION_KEY,
-} from '../constants/tukifacSeriesSessionKeys';
-import { tukifacSeriesService, type TukifacSeriesItem } from './tukifacSeries';
+import { FISCAL_SERIES_SESSION_KEY } from '../constants/tukifacSeriesSessionKeys';
+import { fiscalDocumentSeriesService } from './fiscalDocumentSeries';
+import type { TukifacSeriesItem } from './tukifacSeries';
 
 function sessionHasSeriesKey(key: string): boolean {
   try {
@@ -33,23 +31,27 @@ function writeJson(key: string, data: TukifacSeriesItem[]): void {
 
 let inflight: Promise<void> | null = null;
 
-/** Carga ambas listas si faltan en sessionStorage (una sola petición concurrente). */
+function mapRows(rows: Awaited<ReturnType<typeof fiscalDocumentSeriesService.list>>): TukifacSeriesItem[] {
+  return rows.map((row) => ({
+    id: row.id,
+    document_type_id: row.sunat_code,
+    number: row.series,
+    is_default: row.series.endsWith('01'),
+    establishment_id: 1,
+    next_number: row.next_number,
+    name: row.name,
+  }));
+}
+
+/** Carga series locales activas en sessionStorage (una sola petición concurrente). */
 export async function ensureTukifacSeriesCached(): Promise<void> {
-  const hasDoc = sessionHasSeriesKey(TUKIFAC_DOC_SERIES_SESSION_KEY);
-  const hasSn = sessionHasSeriesKey(TUKIFAC_SALE_NOTE_SERIES_SESSION_KEY);
-  if (hasDoc && hasSn) return;
+  if (sessionHasSeriesKey(FISCAL_SERIES_SESSION_KEY)) return;
   if (inflight) return inflight;
 
   inflight = (async () => {
     try {
-      const needDoc = !hasDoc;
-      const needSn = !hasSn;
-      const [doc, sn] = await Promise.all([
-        needDoc ? tukifacSeriesService.listDocumentSeries() : Promise.resolve(null),
-        needSn ? tukifacSeriesService.listSaleNoteSeries() : Promise.resolve(null),
-      ]);
-      if (needDoc && doc !== null) writeJson(TUKIFAC_DOC_SERIES_SESSION_KEY, doc);
-      if (needSn && sn !== null) writeJson(TUKIFAC_SALE_NOTE_SERIES_SESSION_KEY, sn);
+      const rows = await fiscalDocumentSeriesService.list({ active_only: true });
+      writeJson(FISCAL_SERIES_SESSION_KEY, mapRows(rows));
     } finally {
       inflight = null;
     }
@@ -59,11 +61,13 @@ export async function ensureTukifacSeriesCached(): Promise<void> {
 }
 
 export function getCachedDocumentSeries(): TukifacSeriesItem[] {
-  return readJson(TUKIFAC_DOC_SERIES_SESSION_KEY) ?? [];
+  const all = readJson(FISCAL_SERIES_SESSION_KEY) ?? [];
+  return all.filter((r) => r.document_type_id === '01' || r.document_type_id === '03');
 }
 
 export function getCachedSaleNoteSeries(): TukifacSeriesItem[] {
-  return readJson(TUKIFAC_SALE_NOTE_SERIES_SESSION_KEY) ?? [];
+  const all = readJson(FISCAL_SERIES_SESSION_KEY) ?? [];
+  return all.filter((r) => r.document_type_id === '00');
 }
 
 export function pickDefaultSeries(rows: TukifacSeriesItem[]): TukifacSeriesItem | null {

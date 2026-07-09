@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
+import { posSalesService } from '../services/posSales';
 import { productsService, type Product } from '../services/products';
 
 export function productLabel(p: Product): string {
@@ -13,6 +16,12 @@ export function productUnitPrice(p: Product): number {
   if (Number.isFinite(fromSale) && fromSale > 0) return fromSale;
   if (Number.isFinite(p.price) && p.price > 0) return p.price;
   return 0;
+}
+
+export function sortProductsAlphabetically(list: Product[]): Product[] {
+  return [...list].sort((a, b) =>
+    productLabel(a).localeCompare(productLabel(b), 'es', { sensitivity: 'base' }),
+  );
 }
 
 type ProductPickerModalProps = {
@@ -48,14 +57,18 @@ const ProductPickerModal = ({ open, onClose, onPick, title = 'Catálogo de produ
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await productsService.listPaged({
-        q: q || undefined,
-        kind: kind === 'all' ? undefined : kind,
-        active: '1',
-        page,
-        per_page: 12,
-      });
-      setItems(res.items);
+      const usePos =
+        auth.hasPermission(P.salesCatalogPick) && !auth.hasPermission(P.productsView);
+      const res = usePos
+        ? await posSalesService.searchProducts(q, page)
+        : await productsService.listPaged({
+            q: q || undefined,
+            kind: kind === 'all' ? undefined : kind,
+            active: '1',
+            page,
+            per_page: 200,
+          });
+      setItems(sortProductsAlphabetically(res.items));
       setTotalPages(res.pagination.total_pages || 0);
     } catch {
       setItems([]);

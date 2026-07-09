@@ -5,12 +5,17 @@ export interface MonthlyPaymentStat {
   Height: number;
 }
 
+export type CompanyClientType = 'estudio' | 'externo';
+
 export interface Company {
   id: number;
+  client_type?: CompanyClientType;
   ruc: string;
   business_name: string;
   code: string; // Mapeado desde InternalCode con json:"code"
   trade_name: string;
+  igv_rate?: string;
+  tax_regime?: string;
   status: string;
   balance?: number;
   address?: string;
@@ -114,7 +119,46 @@ export interface Document {
   service_month?: string;
   /** Periodo contable YYYY-MM (independiente de issue_date). */
   accounting_period?: string;
+  has_period?: boolean;
+  period_month?: number;
+  period_year?: number;
+  tax_settlement_id?: number;
+  /** Liquidación vinculada (precargada en listados). */
+  tax_settlement?: {
+    id: number;
+    number?: string;
+    liquidation_period?: string;
+    status?: string;
+  };
   items?: DocumentItem[];
+  /** Presente en API de listado/detalle: si existen filas en `document_items`. */
+  has_items?: boolean;
+  paid_amount?: number;
+  balance_amount?: number;
+  is_overdue?: boolean;
+  payment_history?: DocumentPaymentHistoryEntry[];
+}
+
+export interface DocumentPaymentHistoryEntry {
+  payment_id: number;
+  date: string;
+  amount: number;
+  method?: string;
+  reference?: string;
+  notes?: string;
+  description?: string;
+}
+
+export interface DebtPaymentContext {
+  is_partial_payment: boolean;
+  status_label: string;
+  document_number?: string;
+  paid_concept_label?: string;
+  paid_concepts?: string[];
+  debt_total: number;
+  paid_this_operation: number;
+  paid_accumulated: number;
+  balance_pending: number;
 }
 
 export interface PaymentAllocation {
@@ -133,21 +177,27 @@ export interface Payment {
   type?: string;
   date: string;
   amount: number;
+  discount_amount?: number;
   method: string;
   reference: string;
   attachment: string;
+  /** Detalle visible en estado de cuenta (ej. servicio o concepto cobrado). */
+  description?: string;
   notes: string;
   fiscal_status?: string;
+  /** Momento en que se registró el pago en el sistema (distinto de `date`). */
+  created_at?: string;
   company?: Company;
   document?: Document;
   allocations?: PaymentAllocation[];
   tax_settlement?: { id: number; number: string; status: string };
-  /** Presente si el pago tiene comprobante Tukifac vinculado (`linked_payment_id`). */
+  /** Comprobante fiscal vinculado al pago (`linked_payment_id`). */
   tukifac_fiscal_receipt?: {
     id: number;
     number: string;
     external_id: string;
     issue_date: string;
+    origin?: string;
     print_ticket_url?: string;
     pdf_url?: string;
   };
@@ -160,6 +210,9 @@ export interface TukifacFiscalReceipt {
   document_type_id?: string;
   number: string;
   total: number;
+  subtotal?: number;
+  tax_amount?: number;
+  total_discount?: number;
   issue_date: string;
   customer_number?: string;
   customer_name?: string;
@@ -168,15 +221,20 @@ export interface TukifacFiscalReceipt {
   tax_settlement_id?: number | null;
   tax_settlement?: { id: number; number: string; status: string };
   state_type_description?: string;
-  /** tukifac_sync | issued_local */
+  /** tukifac_sync | issued_local | pos_sale */
   origin?: string;
-  /** URL impresión ticket (Tukifac) si se emitió desde este sistema. */
+  /** URL ticket legacy (sincronización externa). */
   print_ticket_url?: string;
-  /** URL descarga PDF A4 (Tukifac). */
+  /** URL PDF legacy (sincronización externa). */
   pdf_url?: string;
+  /** Período contable / liquidación (detalle PDF). */
+  period_label?: string;
+  debt_payment_context?: DebtPaymentContext;
   company?: Company;
   linked_payment?: {
     id: number;
+    date?: string;
+    created_at?: string;
     tax_settlement_id?: number | null;
     tax_settlement?: { id: number; number: string; status: string };
   };
@@ -226,6 +284,7 @@ export interface TaxSettlement {
   period_from?: string | null;
   period_to?: string | null;
   status: string;
+  closed_at?: string | null;
   notes?: string;
   pdt621_json?: string;
   total_honorarios: number;
@@ -260,8 +319,20 @@ export interface FirmConfig {
   statement_payment_qr_url?: string;
   /** Texto bajo el QR; por defecto en PDF «Paga aquí con Yape» */
   statement_payment_qr_caption?: string;
+  /** true si ya hay clave de operaciones registrada (el hash no se expone). */
+  operations_key_configured?: boolean;
+  /** JSON colores pastel por dígito 0–9 para claves SOL (p. ej. {"0":"cyan","1":"sky"}). */
+  claves_sol_dig_colors_json?: string;
+  /** Capturas de buzón SUNAT/SUNAFIL por semana (1–7). */
+  mailbox_captures_per_week?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface UserRoleBrief {
+  id: number;
+  code: string;
+  name: string;
 }
 
 export interface User {
@@ -269,7 +340,10 @@ export interface User {
   name: string;
   username: string;
   email?: string;
-  role: string;
+  /** Roles RBAC asignados (API). */
+  roles?: UserRoleBrief[];
+  /** Permisos efectivos (API list/get usuario). */
+  permission_codes?: string[];
   active?: boolean;
   dni?: string;
   phone?: string;
@@ -295,6 +369,10 @@ export interface AccountLedgerMovement {
   cargo: number;
   abono: number;
   balance: number;
+  /** Solo abonos: id del pago en sistema. */
+  payment_id?: number;
+  /** Notas internas del pago; no se muestran en la columna Detalle (modal). */
+  payment_notes?: string;
 }
 
 export interface AccountLedger {

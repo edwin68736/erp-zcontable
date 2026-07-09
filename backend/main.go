@@ -2,55 +2,15 @@ package main
 
 import (
 	"log"
-	"strings"
-
 	"miappfiber/config"
 	"miappfiber/database"
 	"miappfiber/routes"
+	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/static"
 )
-
-// rootStatusHandler responde en la raíz con un mensaje claro de que el API está operativo.
-// Navegadores reciben HTML; clientes con Accept JSON (o sin text/html) reciben JSON.
-func rootStatusHandler(c fiber.Ctx) error {
-	payload := fiber.Map{
-		"ok":       true,
-		"servicio": "ZContable API",
-		"estado":   "en_linea",
-		"mensaje":  "El backend está en ejecución y respondiendo correctamente.",
-	}
-
-	accept := c.Get("Accept")
-	if strings.Contains(accept, "text/html") {
-		html := `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZContable API</title>
-<style>
-  body{font-family:system-ui,Segoe UI,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1.25rem;line-height:1.5;color:#1f2937;background:#f9fafb;}
-  h1{font-size:1.35rem;font-weight:600;color:#111827;margin:0 0 .5rem;}
-  p{margin:0 0 1rem;}
-  .ok{display:inline-block;background:#d1fae5;color:#065f46;padding:.35rem .65rem;border-radius:.375rem;font-size:.875rem;font-weight:500;}
-  footer{font-size:.8rem;color:#6b7280;margin-top:2rem;}
-</style>
-</head>
-<body>
-  <p class="ok">Servicio operativo</p>
-  <h1>API ZContable</h1>
-  <p>El backend está en ejecución y respondiendo correctamente. Puedes usar los endpoints bajo <code>/api</code> según la documentación del proyecto.</p>
-  <footer>Respuesta HTML · Para JSON usa el header <code>Accept: application/json</code></footer>
-</body>
-</html>`
-		return c.Type("html").SendString(html)
-	}
-
-	return c.JSON(payload)
-}
 
 func main() {
 	if err := config.Load(); err != nil {
@@ -61,8 +21,32 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
+	if err := database.PrepareActivityTemplateSchema(database.DB); err != nil {
+		log.Fatalf("prepare activity templates: %v", err)
+	}
+
 	if err := database.AutoMigrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
+	}
+
+	if err := database.RunCompanyMigrations(database.DB); err != nil {
+		log.Printf("company migrations: %v", err)
+	}
+
+	if err := database.RunSupervisorMigrations(database.DB); err != nil {
+		log.Printf("supervisor migrations: %v", err)
+	}
+
+	if err := database.RunActivityTemplateMigrations(database.DB); err != nil {
+		log.Printf("activity template migrations: %v", err)
+	}
+
+	if err := database.RunActivityRuleMigrations(database.DB); err != nil {
+		log.Printf("activity rule migrations: %v", err)
+	}
+
+	if err := services.EnsureDocumentMigrationsOnStartup(); err != nil {
+		log.Printf("document migrations: %v", err)
 	}
 
 	if err := database.BackfillUsernames(); err != nil {
@@ -77,6 +61,13 @@ func main() {
 		log.Printf("seed (puede ignorarse si ya hay datos): %v", err)
 	}
 
+	if err := database.SeedRBAC(database.DB); err != nil {
+		log.Printf("ERROR seed rbac: %v", err)
+	} else {
+		services.Authz().InvalidateAll()
+		log.Print("seed rbac: OK (caché de permisos reiniciada)")
+	}
+
 	app := fiber.New()
 
 	app.Use(cors.New(cors.Config{
@@ -85,11 +76,18 @@ func main() {
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
 
-	app.Get("/", rootStatusHandler)
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"ok":      true,
+			"message": "Backend OK 👋",
+		})
+	})
 
 	app.Use("/storage", static.New(config.AppConfig.StoragePath))
 
 	routes.Setup(app)
+
+	services.StartSupervisorAutomationLoop()
 
 	addr := ":" + config.AppConfig.ServerPort
 	log.Printf("Servidor en http://localhost%s", addr)

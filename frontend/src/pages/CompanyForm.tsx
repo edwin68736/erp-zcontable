@@ -1,14 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { companiesService, type CompanyUpsertInput } from '../services/companies';
 import { usersService } from '../services/users';
 import { contactsService, type ContactUpsertInput } from '../services/contacts';
 import { subscriptionPlansService } from '../services/subscriptionPlans';
 import { auth } from '../services/auth';
 import type { Contact, SubscriptionPlan, User } from '../types/dashboard';
+import { P } from '../rbac/codes';
+import {
+  userIsTeamAccountantOrAdmin,
+  userIsTeamAssistantOrAdmin,
+  userIsTeamSupervisorOrAdmin,
+} from '../rbac/userRoles';
 import SearchableSelect from '../components/SearchableSelect';
 import { dateInputToRFC3339MidnightPeru, todayDateInputInPeru } from '../utils/peruDates';
 import { formatUserPickLabel } from '../utils/userLabel';
+import { extractApiErrorMessage } from '../utils/apiError';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -20,15 +27,45 @@ function rucDigits(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, 11);
 }
 
+const IGV_RATE_OPTIONS = [
+  { value: '18', label: '18 %' },
+  { value: '10.5', label: '10.5 %' },
+] as const;
+
+const TAX_REGIME_OPTIONS = [
+  { value: 'mype', label: 'MYPE Tributario (RMT) — 1 %' },
+  { value: 'rer', label: 'RER — 1.5 %' },
+  { value: 'general', label: 'Régimen General — 1.5 % mínimo' },
+] as const;
+
+function normalizeTaxRegimeInput(value?: string | null): string {
+  const s = (value ?? '').trim().toLowerCase();
+  if (s === 'mype' || s === 'rmt') return 'mype';
+  if (s === 'rer') return 'rer';
+  if (s === 'general' || s === 'rg') return 'general';
+  return '';
+}
+
+function normalizeIgvRateInput(value?: string | null): string {
+  const s = (value ?? '').trim().replace('%', '').replace(',', '.');
+  if (s === '10.5' || s === '10.50') return '10.5';
+  if (s === '18' || s === '18.0' || s === '18.00') return '18';
+  return '';
+}
+
 const CompanyForm = () => {
   const navigate = useNavigate();
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const companyId = params.id ? Number(params.id) : null;
   const isEdit = Boolean(companyId);
+  const convertMode = isEdit && searchParams.get('convert') === '1';
 
-  const role = auth.getRole() ?? '';
-  const isAdmin = role === 'Administrador';
-  const canUpsert = role === 'Administrador' || role === 'Supervisor';
+  const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.companiesCreate) || auth.hasPermission(P.companiesUpdate),
+    [],
+  );
 
   const [loading, setLoading] = useState(isEdit);
   const [error, setError] = useState('');
@@ -42,6 +79,8 @@ const CompanyForm = () => {
   const [status, setStatus] = useState('activo');
   const [businessName, setBusinessName] = useState('');
   const [tradeName, setTradeName] = useState('');
+  const [igvRate, setIgvRate] = useState<string>('18');
+  const [taxRegime, setTaxRegime] = useState<string>('mype');
   const [serviceStartAt, setServiceStartAt] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
@@ -60,6 +99,7 @@ const CompanyForm = () => {
   const [subscriptionEndedAt, setSubscriptionEndedAt] = useState('');
   const [subscriptionActive, setSubscriptionActive] = useState(true);
   const [declaredBilling, setDeclaredBilling] = useState('');
+  const [clientType, setClientType] = useState<'estudio' | 'externo'>('estudio');
 
   const [activeTab, setActiveTab] = useState<'company' | 'team' | 'contacts'>('company');
 
@@ -93,11 +133,14 @@ const CompanyForm = () => {
         setSubscriptionPlans(plans.filter((p) => p.active !== false));
 
         if (c) {
+          setClientType(c.client_type === 'externo' ? 'externo' : 'estudio');
           setCode(c.code ?? '');
           setRuc(c.ruc ?? '');
           setStatus(c.status ?? 'activo');
           setBusinessName(c.business_name ?? '');
           setTradeName(c.trade_name ?? '');
+          setIgvRate(normalizeIgvRateInput(c.igv_rate));
+          setTaxRegime(normalizeTaxRegimeInput(c.tax_regime) || 'mype');
           setServiceStartAt(toDateInput(c.service_start_at));
           setAddress(c.address ?? '');
           setPhone(c.phone ?? '');
@@ -300,6 +343,14 @@ const CompanyForm = () => {
       setError('No tienes permisos para esta acción');
       return;
     }
+    if (!igvRate) {
+      setError('Seleccione el IGV aplicable de la empresa');
+      return;
+    }
+    if (!taxRegime) {
+      setError('Seleccione el régimen tributario de la empresa');
+      return;
+    }
 
     let declaredBillingAmount: number | null = null;
     if (declaredBilling.trim() !== '') {
@@ -319,6 +370,8 @@ const CompanyForm = () => {
         status: isEdit ? status : 'activo',
         business_name: businessName.trim(),
         trade_name: tradeName.trim() || undefined,
+        igv_rate: igvRate,
+        tax_regime: taxRegime,
         service_start_at: dateInputToRFC3339MidnightPeru(serviceStartAt),
         address: address.trim() || undefined,
         phone: phone.trim() || undefined,
@@ -349,6 +402,16 @@ const CompanyForm = () => {
       }
 
       if (isEdit && companyId) {
+        if (convertMode && clientType === 'externo') {
+          await companiesService.convertToStudio(companyId, payload);
+          window.dispatchEvent(
+            new CustomEvent('miweb:toast', {
+              detail: { type: 'success', message: 'Cliente convertido a cliente del estudio.' },
+            }),
+          );
+          navigate('/companies', { replace: true });
+          return;
+        }
         await companiesService.update(companyId, payload);
         window.dispatchEvent(
           new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa actualizada correctamente.' } }),
@@ -381,8 +444,11 @@ const CompanyForm = () => {
       navigate('/companies', { replace: true });
     } catch (err: unknown) {
       console.error(err);
-      const message = err instanceof Error ? err.message : 'Error al guardar la empresa';
+      const message = extractApiErrorMessage(err, 'Error al guardar la empresa');
       setError(message);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message } }),
+      );
     }
   };
 
@@ -400,16 +466,28 @@ const CompanyForm = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">{isEdit ? 'Editar empresa' : 'Nueva empresa'}</h2>
-          <p className="text-sm text-slate-500">Datos maestros del cliente del estudio.</p>
+          <h2 className="text-xl font-semibold text-slate-800">
+            {convertMode ? 'Convertir a cliente del estudio' : isEdit ? 'Editar empresa' : 'Nueva empresa'}
+          </h2>
+          <p className="text-sm text-slate-500">
+            {convertMode
+              ? 'Complete plan, equipo y datos contables. El cliente dejará de ser solo POS.'
+              : 'Datos maestros del cliente del estudio.'}
+          </p>
         </div>
         <Link
-          to="/companies"
+          to={convertMode ? '/companies/external' : '/companies'}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver al listado
         </Link>
       </div>
+
+      {convertMode ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Cliente externo (código {code}). Al guardar pasará a cliente del estudio con plan y equipo asignados.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
@@ -468,19 +546,15 @@ const CompanyForm = () => {
                   id="internal_code"
                   required
                   value={code}
-                  onChange={(e) => {
-                    if (!isEdit) {
-                      setCode(e.target.value.replace(/\D/g, '').slice(0, 4));
-                      return;
-                    }
-                    setCode(e.target.value);
-                  }}
-                  inputMode={isEdit ? 'text' : 'numeric'}
-                  maxLength={isEdit ? 50 : 4}
+                  onChange={(e) => setCode(e.target.value.slice(0, 50))}
+                  maxLength={50}
                   autoComplete="off"
-                  placeholder="0000"
-                  className={`w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none ${isEdit ? '' : 'tracking-widest font-mono'}`}
+                  placeholder="001"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Texto libre (p. ej. 001, 002). Se conservan ceros a la izquierda.
+                </p>
               </div>
               <div className="md:col-span-1">
                 <label htmlFor="ruc" className="block text-sm font-medium text-slate-700 mb-1">
@@ -551,6 +625,38 @@ const CompanyForm = () => {
                   onChange={(e) => setServiceStartAt(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+              <div>
+                <label htmlFor="igv_rate" className="block text-sm font-medium text-slate-700 mb-1">
+                  IGV aplicable
+                </label>
+                <SearchableSelect
+                  id="igv_rate"
+                  name="igv_rate"
+                  value={igvRate}
+                  onChange={setIgvRate}
+                  placeholder="Seleccione IGV"
+                  options={[...IGV_RATE_OPTIONS]}
+                />
+              </div>
+              <div>
+                <label htmlFor="tax_regime" className="block text-sm font-medium text-slate-700 mb-1">
+                  Régimen tributario
+                </label>
+                <SearchableSelect
+                  id="tax_regime"
+                  name="tax_regime"
+                  value={taxRegime}
+                  onChange={setTaxRegime}
+                  placeholder="Seleccione régimen"
+                  options={[...TAX_REGIME_OPTIONS]}
+                />
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                  MYPE 1 %, RER 1.5 %, General 1.5 % mínimo (SUNAT). Se usa por defecto al crear liquidaciones.
+                </p>
               </div>
             </div>
 
@@ -712,7 +818,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Supervisor' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamSupervisorOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
@@ -734,7 +840,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Asistente' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamAssistantOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
@@ -756,7 +862,7 @@ const CompanyForm = () => {
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
-                        .filter((u) => u.role === 'Contador' || u.role === 'Administrador')
+                        .filter((u) => userIsTeamAccountantOrAdmin(u))
                         .map((u) => ({
                           value: String(u.id),
                           label: formatUserPickLabel(u),
@@ -1006,7 +1112,7 @@ const CompanyForm = () => {
             className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
           >
             <i className="fas fa-save mr-2 text-xs"></i>
-            {isEdit ? 'Guardar cambios' : 'Crear empresa'}
+            {convertMode ? 'Convertir a cliente del estudio' : isEdit ? 'Guardar cambios' : 'Crear empresa'}
           </button>
         </div>
       </form>

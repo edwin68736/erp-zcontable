@@ -8,6 +8,7 @@ import (
 	"miappfiber/database"
 	"miappfiber/models"
 	"miappfiber/services"
+	debtsvc "miappfiber/services/debt"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -24,7 +25,7 @@ func NewReportController() *ReportController {
 
 func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 	var allowedCompanyIDs []uint
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -38,10 +39,10 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 	}
 
 	var totalDocs, totalPays float64
-	if len(allowedCompanyIDs) > 0 || isAdmin(c) {
+	if len(allowedCompanyIDs) > 0 || hasStudioScope(c) {
 		docQ := database.DB.Model(&models.Document{}).Where("status <> ?", "anulado")
 		payQ := database.DB.Model(&models.Payment{})
-		if !isAdmin(c) {
+		if !hasStudioScope(c) {
 			docQ = docQ.Where("company_id IN ?", allowedCompanyIDs)
 			payQ = payQ.Where("company_id IN ?", allowedCompanyIDs)
 		}
@@ -51,8 +52,8 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 
 	include := c.Query("include", "")
 	if include == "companies" {
-		params := services.FinancialReportParams{IsAdmin: isAdmin(c)}
-		if !isAdmin(c) {
+		params := services.FinancialReportParams{IsAdmin: hasStudioScope(c)}
+		if !hasStudioScope(c) {
 			params.AllowedCompanyIDs = allowedCompanyIDs
 			if len(allowedCompanyIDs) == 0 {
 				return c.JSON(fiber.Map{
@@ -109,4 +110,36 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 		"total_payments_amount":  totalPays,
 		"global_balance":         totalDocs - totalPays,
 	})
+}
+
+// DebtsReportAPI GET /api/reports/debts — reporte de deudas con balance_amount persistido.
+func (ctrl *ReportController) DebtsReportAPI(c fiber.Ctx) error {
+	var allowedCompanyIDs []uint
+	if !hasStudioScope(c) {
+		userID, err := getUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		accessService := services.NewAccessService()
+		ids, err := accessService.GetAllowedCompanyIDs(userID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		allowedCompanyIDs = ids
+		if len(allowedCompanyIDs) == 0 {
+			return c.JSON(fiber.Map{"data": []debtsvc.DocumentStatementRow{}})
+		}
+	}
+	var companyID uint
+	if cidStr := strings.TrimSpace(c.Query("company_id", "")); cidStr != "" {
+		if cid, err := strconv.ParseUint(cidStr, 10, 32); err == nil {
+			companyID = uint(cid)
+		}
+	}
+	debtSvc := debtsvc.NewService()
+	rows, err := debtSvc.ListDocumentReportRows(database.DB, companyID, allowedCompanyIDs)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": rows})
 }

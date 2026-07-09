@@ -5,7 +5,8 @@ export type ProductKind = 'product' | 'service';
 
 export type Product = {
   id: number;
-  tukifac_item_id?: number | null;
+  /** codigo_interno del ítem en catálogo Tukifac (alfanumérico); se envía así en emisión. */
+  tukifac_item_id?: string | null;
   /** FK remota item_types en Tukifac (si viene del sync sellnow). */
   tukifac_item_type_id?: number | null;
   product_kind: ProductKind;
@@ -69,6 +70,8 @@ export type ProductUpsertInput = {
   sale_unit_price: string;
   purchase_unit_price: string;
   apply_store: boolean;
+  /** Código interno en catálogo Tukifac (mismo significado que codigo_interno remoto). */
+  tukifac_item_id?: string | null;
 };
 
 export type PaginationMeta = {

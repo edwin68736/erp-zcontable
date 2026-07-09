@@ -23,7 +23,7 @@ export const configService = {
     return res.data;
   },
 
-  async updateFirmConfig(input: Partial<FirmConfig>): Promise<FirmConfig> {
+  async updateFirmConfig(input: Partial<FirmConfig> & { operations_key?: string }): Promise<FirmConfig> {
     const res = await client.put<FirmConfig>('/firm-config', input);
     return res.data;
   },

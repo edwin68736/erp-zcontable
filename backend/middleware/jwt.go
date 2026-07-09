@@ -3,20 +3,12 @@ package middleware
 import (
 	"strings"
 
+	"miappfiber/authclaims"
 	"miappfiber/config"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
-
-type JWTClaims struct {
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Role     string `json:"role"`
-	jwt.RegisteredClaims
-}
 
 func JWTProtected() fiber.Handler {
 	return func(c fiber.Ctx) error {
@@ -38,7 +30,7 @@ func JWTProtected() fiber.Handler {
 		}
 
 		tokenString := parts[1]
-		claims := &JWTClaims{}
+		claims := &authclaims.Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 			return []byte(config.AppConfig.JWTSecret), nil
@@ -53,7 +45,6 @@ func JWTProtected() fiber.Handler {
 		c.Locals("user_id", claims.UserID)
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_username", claims.Username)
-		c.Locals("user_role", claims.Role)
 		c.Locals("claims", claims)
 		return c.Next()
 	}
@@ -67,7 +58,7 @@ func AuthWeb() fiber.Handler {
 			return c.Redirect().To("/login")
 		}
 
-		claims := &JWTClaims{}
+		claims := &authclaims.Claims{}
 		t, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 			return []byte(config.AppConfig.JWTSecret), nil
 		})
@@ -79,38 +70,10 @@ func AuthWeb() fiber.Handler {
 		c.Locals("user_id", claims.UserID)
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_username", claims.Username)
-		c.Locals("user_role", claims.Role)
 		if claims.Name != "" {
 			c.Locals("user_name", claims.Name)
 		} else {
 			c.Locals("user_name", claims.Username)
-		}
-		return c.Next()
-	}
-}
-
-// RequireRole valida que el usuario autenticado tenga uno de los roles permitidos.
-func RequireRole(roles ...string) fiber.Handler {
-	allowed := make(map[string]struct{}, len(roles))
-	for _, r := range roles {
-		allowed[r] = struct{}{}
-	}
-
-	return func(c fiber.Ctx) error {
-		role, _ := c.Locals("user_role").(string)
-		if role == "" {
-			if claims, ok := c.Locals("claims").(*JWTClaims); ok && claims != nil {
-				role = claims.Role
-			}
-		}
-		if role == "" {
-			return c.Status(fiber.StatusForbidden).SendString("Acceso restringido")
-		}
-		if len(allowed) == 0 {
-			return c.Next()
-		}
-		if _, ok := allowed[role]; !ok {
-			return c.Status(fiber.StatusForbidden).SendString("No tienes permisos para esta acción")
 		}
 		return c.Next()
 	}

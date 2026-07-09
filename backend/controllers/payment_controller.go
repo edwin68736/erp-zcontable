@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"encoding/json"
 	"math"
 	"miappfiber/config"
+	"miappfiber/database"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,14 +20,14 @@ import (
 type PaymentController struct {
 	paymentService *services.PaymentService
 	accessService  *services.AccessService
-	tukifacService *services.TukifacService
+	receiptIssue *services.FiscalReceiptIssueService
 }
 
 func NewPaymentController() *PaymentController {
 	return &PaymentController{
 		paymentService: services.NewPaymentService(),
 		accessService:  services.NewAccessService(),
-		tukifacService: services.NewTukifacService(),
+		receiptIssue:   services.NewFiscalReceiptIssueService(),
 	}
 }
 
@@ -67,7 +67,7 @@ func (ctrl *PaymentController) ListAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rango de fechas inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -133,7 +133,7 @@ func (ctrl *PaymentController) GetAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pago no encontrado"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -158,9 +158,11 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Type             string                            `json:"type"`
 		Date             string                            `json:"date"`
 		Amount           float64                           `json:"amount"`
+		DiscountAmount   float64                           `json:"discount_amount"`
 		Method           string                            `json:"method"`
 		Reference        string                            `json:"reference"`
 		Attachment       string                            `json:"attachment"`
+		Description      string                            `json:"description"`
 		Notes            string                            `json:"notes"`
 		FiscalStatus     string                            `json:"fiscal_status"`
 		AllocationMode   string                            `json:"allocation_mode"`
@@ -170,7 +172,7 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -203,9 +205,11 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Type:            body.Type,
 		Date:            dt,
 		Amount:          body.Amount,
+		DiscountAmount:  body.DiscountAmount,
 		Method:          body.Method,
 		Reference:       body.Reference,
 		Attachment:      body.Attachment,
+		Description:     body.Description,
 		Notes:           body.Notes,
 		FiscalStatus:    body.FiscalStatus,
 		AllocationMode:  body.AllocationMode,
@@ -223,8 +227,8 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(pay)
 }
 
-// IssueTukifacAPI POST /api/payments/:id/issue-tukifac — emite factura/boleta/NV en Tukifac a partir del pago (imputaciones = ítems).
-func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
+// IssueComprobanteAPI POST /api/payments/:id/issue-comprobante — emite comprobante local a partir del pago.
+func (ctrl *PaymentController) IssueComprobanteAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil || id == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
@@ -233,7 +237,7 @@ func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pago no encontrado"})
 	}
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -246,21 +250,35 @@ func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
 		}
 	}
-	var body services.PaymentTukifacIssueInput
-	if err := c.Bind().Body(&body); err != nil {
+	var raw struct {
+		services.PaymentComprobanteIssueInput
+		SaleNoteSeriesID uint   `json:"sale_note_series_id"`
+		SerieDocumento   string `json:"serie_documento"`
+	}
+	if err := c.Bind().Body(&raw); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
-	rec, raw, err := ctrl.tukifacService.IssueComprobanteFromPayment(uint(id), body)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":            err.Error(),
-			"tukifac_response": json.RawMessage(raw),
-		})
+	body := raw.PaymentComprobanteIssueInput
+	if body.SeriesID == 0 && raw.SaleNoteSeriesID > 0 {
+		body.SeriesID = raw.SaleNoteSeriesID
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"receipt":          rec,
-		"tukifac_response": json.RawMessage(raw),
-	})
+	if body.SeriesID == 0 && strings.TrimSpace(raw.SerieDocumento) != "" {
+		sunat := services.SunatCodeForComprobanteKind(body.Kind)
+		var ser models.FiscalDocumentSeries
+		if err := database.DB.Where("series = ? AND sunat_code = ?", strings.TrimSpace(strings.ToUpper(raw.SerieDocumento)), sunat).First(&ser).Error; err == nil {
+			body.SeriesID = ser.ID
+		}
+	}
+	rec, err := ctrl.receiptIssue.IssueComprobanteFromPayment(uint(id), body)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"receipt": rec})
+}
+
+// IssueTukifacAPI alias retrocompatible → emisión local.
+func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
+	return ctrl.IssueComprobanteAPI(c)
 }
 
 func (ctrl *PaymentController) UpdateAPI(c fiber.Ctx) error {
@@ -269,7 +287,7 @@ func (ctrl *PaymentController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		userID, err := getUserID(c)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -304,7 +322,7 @@ func (ctrl *PaymentController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
 	}
 
-	if !isAdmin(c) {
+	if !hasStudioScope(c) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Solo el administrador puede eliminar pagos"})
 	}
 

@@ -4,9 +4,10 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { dateInputToRFC3339MidnightPeru, peruDateInputFromApiDate } from '../utils/peruDates';
 import { companiesService } from '../services/companies';
 import { documentsService } from '../services/documents';
-import { paymentsService, type PaymentTukifacIssuePayload, type PaymentUpsertInput } from '../services/payments';
+import { paymentsService, type PaymentUpsertInput } from '../services/payments';
 import { taxSettlementsService, type SettlementPaymentSuggestion } from '../services/taxSettlements';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import {
   ensureTukifacSeriesCached,
   getCachedDocumentSeries,
@@ -16,8 +17,17 @@ import {
 import type { Company, Document } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import TukifacIssueLinksDialog from '../components/TukifacIssueLinksDialog';
+import PosReceiptModal from '../components/pos/PosReceiptModal';
+import { configService } from '../services/config';
+import { fiscalReceiptsService } from '../services/fiscalReceipts';
+import type { PosSaleDetail } from '../services/posSales';
 import { resolveBackendUrl } from '../api/client';
 import { parseTukifacReceiptViewLinks, type TukifacReceiptViewLinks } from '../utils/tukifacReceiptLinks';
+import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
+import {
+  documentBalanceAmount,
+  stripLegacyMigrationNotes,
+} from '../utils/documentDebtUi';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el pago';
@@ -31,16 +41,16 @@ function getErrorMessage(e: unknown): string {
   return 'Error al guardar el pago';
 }
 
-function getTukifacErrorMessage(e: unknown): string {
-  if (!e || typeof e !== 'object') return 'Error al enviar el comprobante a Tukifac';
-  if (!('response' in e)) return 'Error al enviar el comprobante a Tukifac';
+function getComprobanteErrorMessage(e: unknown): string {
+  if (!e || typeof e !== 'object') return 'Error al emitir el comprobante';
+  if (!('response' in e)) return 'Error al emitir el comprobante';
   const maybe = e as { response?: { data?: unknown } };
   const data = maybe.response?.data;
   if (data && typeof data === 'object' && 'error' in data) {
     const msg = (data as { error?: unknown }).error;
     if (typeof msg === 'string' && msg.trim()) return msg;
   }
-  return 'Error al enviar el comprobante a Tukifac';
+  return 'Error al emitir el comprobante';
 }
 
 function newManualAllocKey(): string {
@@ -53,36 +63,74 @@ function truncateText(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
+/** Periodo contable / servicio YYYY-MM para mostrar en selects de deuda. */
+function debtPeriodLabel(d: Document): string {
+  return ((d.accounting_period ?? '').trim() || (d.service_month ?? '').trim()) || '';
+}
+
 /**
- * Etiqueta en selects de deuda: descripción, monto y estado (pendiente/parcial, etc.).
- * No incluye número ni external_id (códigos); esos sí entran en searchText para buscar.
+ * Quita sufijos de cantidad duplicados en el texto del concepto (si el monto va aparte en la UI).
  */
-function debtSelectLabel(d: Document): string {
-  const descRaw = (d.description ?? '').trim();
-  const desc = descRaw ? truncateText(descRaw, 80) : 'Sin descripción';
-  const amt = Number.isFinite(d.total_amount) ? d.total_amount.toFixed(2) : '0.00';
-  const status = (d.status ?? '').trim();
-  const vcto = d.due_date && d.due_date.length >= 10 ? d.due_date.slice(0, 10) : '';
-  const parts: string[] = [desc, `S/ ${amt}`];
-  if (status) parts.push(status);
-  if (vcto) parts.push(`vcto ${vcto}`);
-  return parts.join(' · ');
+function stripConceptQuantityNoise(s: string): string {
+  let t = stripLegacyMigrationNotes(s);
+  t = t.replace(/\s*[·•]\s*[Cc]ant\.?\s*:?\s*\d+([.,]\d+)?\s*$/u, '');
+  t = t.replace(/\s*\(\s*[Cc]ant\.?\s*:?\s*\d+([.,]\d+)?\s*\)\s*$/u, '');
+  t = t.replace(/\s*[×x]\s*\d+([.,]\d+)?\s*$/u, '');
+  return t.trim();
+}
+
+/** Descripción + período YYYY-MM solo separados por " - " (sin la palabra «período»). */
+function joinDebtDescAndPeriod(description: string, periodYm: string): string {
+  const d = description.trim();
+  const p = periodYm.trim();
+  if (d && p) return `${d} - ${p}`;
+  if (d) return d;
+  if (p) return p;
+  return 'Sin descripción';
+}
+
+/**
+ * Etiqueta en selects de deuda: «descripción - YYYY-MM»; en modo una sola deuda añade « · S/ …» (sin estado ni vencimiento).
+ * Número / external_id siguen en searchText para buscar.
+ */
+function debtSelectLabel(d: Document, opts?: { omitAmount?: boolean }): string {
+  const omitAmount = opts?.omitAmount ?? false;
+  const descRaw = stripConceptQuantityNoise((d.description ?? '').trim());
+  const desc = descRaw ? truncateText(descRaw, 80) : '';
+  const period = debtPeriodLabel(d);
+  let label = joinDebtDescAndPeriod(desc || 'Sin descripción', period);
+  if (!omitAmount) {
+    const bal = documentBalanceAmount(d);
+    label = `${label} · S/ ${bal.toFixed(2)}`;
+  }
+  return label;
 }
 
 function debtSelectSearchText(d: Document): string {
-  return [d.number, d.external_id, d.description, d.type, d.status, d.due_date].filter(Boolean).join(' ');
+  return [
+    d.number,
+    d.external_id,
+    d.description,
+    d.accounting_period,
+    d.service_month,
+    d.type,
+    d.status,
+    d.due_date,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
-/** Misma idea que `debtSelectLabel`, para filas sugeridas antes de que el documento aparezca en `documents`. */
-function debtSelectLabelFromSuggestion(l: Pick<SettlementPaymentSuggestion, 'concept' | 'amount'>): string {
-  const descRaw = (l.concept ?? '').trim();
-  const desc = descRaw ? truncateText(descRaw, 80) : 'Sin descripción';
-  const amt = Number.isFinite(l.amount) ? l.amount.toFixed(2) : '0.00';
-  return [desc, `S/ ${amt}`, 'pendiente'].join(' · ');
+/** Sugerencia desde liquidación: misma regla «concepto - YYYY-MM»; el monto va en el campo numérico. */
+function debtSelectLabelFromSuggestion(l: SettlementPaymentSuggestion): string {
+  const descRaw = stripConceptQuantityNoise((l.concept ?? '').trim());
+  const desc = descRaw ? truncateText(descRaw, 80) : '';
+  const py = (l.period_ym ?? '').trim();
+  return joinDebtDescAndPeriod(desc || 'Sin descripción', py);
 }
 
 function debtSelectSearchTextFromSuggestion(l: SettlementPaymentSuggestion): string {
-  return [l.document_number, l.concept, String(l.document_id)].filter(Boolean).join(' ');
+  return [l.document_number, l.concept, l.period_ym, String(l.document_id)].filter(Boolean).join(' ');
 }
 
 type ManualAllocRow = { key: string; doc: string; amt: string };
@@ -110,16 +158,12 @@ const PaymentForm = () => {
   const isEdit = Boolean(paymentId);
   const taxSettlementIdFromUrl = searchParams.get('tax_settlement_id');
 
-  const role = auth.getRole() ?? '';
-  const canCreate = useMemo(
-    () => role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente',
-    [role],
-  );
-  const canEdit = useMemo(() => role === 'Administrador' || role === 'Supervisor' || role === 'Contador', [role]);
+  const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
   const canUpsert = isEdit ? canEdit : canCreate;
-  const canIssueTukifac = useMemo(
-    () => role === 'Administrador' || role === 'Supervisor' || role === 'Contador',
-    [role],
+  const canIssueComprobante = useMemo(
+    () => auth.hasPermission(P.paymentsIssueComprobante) || auth.hasPermission(P.paymentsIssueTukifac),
+    [],
   );
 
   const peruvianToday = useMemo(() => formatInTimeZone(new Date(), 'America/Lima', 'yyyy-MM-dd'), []);
@@ -136,11 +180,14 @@ const PaymentForm = () => {
   const [documentId, setDocumentId] = useState(searchParams.get('document_id') ?? '');
   /** Solo edición: tipo guardado en servidor (en altas se usa derivePaymentType). */
   const [loadedPaymentType, setLoadedPaymentType] = useState<'applied' | 'on_account' | null>(null);
+  const [loadedCreatedAt, setLoadedCreatedAt] = useState('');
   const [date, setDate] = useState(() => (isEdit ? '' : peruvianToday));
   const [amount, setAmount] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [method, setMethod] = useState('');
   const [reference, setReference] = useState('');
   const [attachment, setAttachment] = useState('');
+  const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [applyMode, setApplyMode] = useState<'single' | 'fifo' | 'manual'>('single');
   const [manualAlloc, setManualAlloc] = useState<ManualAllocRow[]>([{ key: newManualAllocKey(), doc: '', amt: '' }]);
@@ -150,22 +197,32 @@ const PaymentForm = () => {
   /** Opciones extra para selects de deuda (id → etiqueta) cuando el listado aún no incluye ese document_id. */
   const [allocDocHints, setAllocDocHints] = useState<Array<{ id: number; label: string; searchText: string }>>([]);
   const settlementLoadedRef = useRef(false);
+  const settlementAllowedDocIdsRef = useRef<Set<number>>(new Set());
   const lastSettlementParamRef = useRef<string | null>(null);
 
   const [tukifacKind, setTukifacKind] = useState<'boleta' | 'factura' | 'sale_note'>('sale_note');
-  const [tukifacSerie, setTukifacSerie] = useState('');
-  const [tukifacSaleNoteSeriesId, setTukifacSaleNoteSeriesId] = useState('');
+  const [comprobanteSeriesId, setComprobanteSeriesId] = useState('');
   const [seriesRefresh, setSeriesRefresh] = useState(0);
-  /** Tras emitir Tukifac desde este formulario, enlaces ticket / PDF antes de ir al listado. */
+  /** Tras emitir comprobante legacy con URLs externas, enlaces antes de ir al listado. */
   const [tukifacPostSaveLinks, setTukifacPostSaveLinks] = useState<TukifacReceiptViewLinks | null>(null);
+  const [issuedReceipt, setIssuedReceipt] = useState<PosSaleDetail | null>(null);
+  const [firmBranding, setFirmBranding] = useState<{
+    name?: string;
+    ruc?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logo_url?: string;
+    statement_bank_info?: string;
+  }>({});
 
   const effectivePaymentType: 'applied' | 'on_account' = isEdit
     ? (loadedPaymentType ?? 'on_account')
     : derivePaymentType(applyMode, documentId, manualAlloc);
 
-  /** Nuevo pago desde liquidación emitida: siempre se emite comprobante en Tukifac tras guardar el pago. */
-  const showComprobanteTukifac =
-    !isEdit && Boolean(settlementLink) && effectivePaymentType === 'applied' && canIssueTukifac;
+  /** Nuevo pago desde liquidación emitida: se emite comprobante local tras guardar el pago. */
+  const showComprobanteEmision =
+    !isEdit && Boolean(settlementLink) && effectivePaymentType === 'applied' && canIssueComprobante;
 
   const isFromTaxSettlement = Boolean((taxSettlementIdFromUrl ?? '').trim());
   const hideCompanyField = isFromTaxSettlement && !isEdit;
@@ -197,7 +254,7 @@ const PaymentForm = () => {
   const manualDebtSelectOptions = useMemo(() => {
     const fromDocs = documents.map((d) => ({
       value: String(d.id),
-      label: debtSelectLabel(d),
+      label: debtSelectLabel(d, { omitAmount: true }),
       searchText: debtSelectSearchText(d),
     }));
     const seen = new Set(fromDocs.map((o) => o.value));
@@ -227,6 +284,12 @@ const PaymentForm = () => {
     ];
   }, [method]);
 
+  const resolveDebtBalance = (docId: string): number => {
+    const d = documents.find((x) => String(x.id) === docId);
+    if (d) return documentBalanceAmount(d);
+    return 0;
+  };
+
   const manualImputationSum = useMemo(
     () =>
       manualAlloc.reduce((s, l) => {
@@ -241,11 +304,52 @@ const PaymentForm = () => {
     return Number.isFinite(n) ? n : 0;
   }, [amount]);
 
+  const discountNumForSummary = useMemo(() => {
+    const n = Number(discountAmount);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [discountAmount]);
+
+  const isLineFullyImputed = (docId: string, amtStr: string): boolean => {
+    if (!docId) return false;
+    const bal = resolveDebtBalance(docId);
+    const amt = Number(amtStr);
+    return bal > 0.005 && Number.isFinite(amt) && Math.abs(amt - bal) < 0.02;
+  };
+
+  const canUseDiscount = useMemo(() => {
+    if (isEdit || effectivePaymentType !== 'applied' || applyMode === 'fifo') return false;
+    if (applyMode === 'manual') {
+      const lines = manualAlloc.filter((l) => l.doc && Number(l.amt) > 0);
+      return lines.length > 0 && lines.every((l) => isLineFullyImputed(l.doc, l.amt));
+    }
+    if (applyMode === 'single' && documentId) {
+      const bal = resolveDebtBalance(documentId);
+      return bal > 0.005 && Math.abs(amountNumForSummary + discountNumForSummary - bal) < 0.02;
+    }
+    return false;
+  }, [
+    isEdit,
+    effectivePaymentType,
+    applyMode,
+    manualAlloc,
+    documentId,
+    amountNumForSummary,
+    discountNumForSummary,
+    documents,
+    allocDocHints,
+  ]);
+
+  const imputationTotalForDiscount = useMemo(() => {
+    if (applyMode === 'manual') return manualImputationSum;
+    if (applyMode === 'single' && documentId) return resolveDebtBalance(documentId);
+    return 0;
+  }, [applyMode, manualImputationSum, documentId, documents, allocDocHints]);
+
   const selectedDebtTotal = useMemo(() => {
     if (applyMode !== 'single' || !documentId) return null;
     const d = documents.find((x) => String(x.id) === documentId);
-    if (!d || !Number.isFinite(d.total_amount)) return null;
-    return d.total_amount;
+    if (!d) return null;
+    return documentBalanceAmount(d);
   }, [applyMode, documentId, documents]);
 
   const handleAttachmentFileChange = async (file: File | null) => {
@@ -266,6 +370,10 @@ const PaymentForm = () => {
       setUploading(false);
     }
   };
+
+  useEffect(() => {
+    void configService.getFirmBranding().then(setFirmBranding).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const run = async () => {
@@ -294,10 +402,12 @@ const PaymentForm = () => {
             pay.type === 'applied' || pay.type === 'on_account' ? pay.type : pay.document_id ? 'applied' : 'on_account',
           );
           setDate(peruDateInputFromApiDate(pay.date));
+          setLoadedCreatedAt(pay.created_at ?? '');
           setAmount(Number.isFinite(pay.amount) ? pay.amount.toFixed(2) : '');
           setMethod(pay.method ?? '');
           setReference(pay.reference ?? '');
           setAttachment(pay.attachment ?? '');
+          setDescription(pay.description ?? '');
           setNotes(pay.notes ?? '');
         }
       } catch (e) {
@@ -313,6 +423,7 @@ const PaymentForm = () => {
 
   useEffect(() => {
     if (!isEdit) setLoadedPaymentType(null);
+    if (!isEdit) setLoadedCreatedAt('');
   }, [isEdit]);
 
   useEffect(() => {
@@ -383,6 +494,7 @@ const PaymentForm = () => {
         });
         if (sug.lines.length > 0) {
           const hintMap = new Map<number, { id: number; label: string; searchText: string }>();
+          settlementAllowedDocIdsRef.current = new Set(sug.lines.map((l) => l.document_id));
           for (const l of sug.lines) {
             hintMap.set(l.document_id, {
               id: l.document_id,
@@ -401,6 +513,7 @@ const PaymentForm = () => {
           setAmount(sug.suggested_total.toFixed(2));
           setSettlementLoadError('');
         } else {
+          settlementAllowedDocIdsRef.current = new Set();
           setAllocDocHints([]);
           setManualAlloc([{ key: newManualAllocKey(), doc: '', amt: '' }]);
           setAmount('');
@@ -409,7 +522,7 @@ const PaymentForm = () => {
           );
         }
         const refLabel = sug.settlement_number?.trim() ? `Liquidación ${sug.settlement_number.trim()}` : `Liquidación #${sid}`;
-        setNotes((n) => (n.trim() ? n : refLabel));
+        setDescription((d) => (d.trim() ? d : refLabel));
       } catch {
         if (!cancelled) {
           setAllocDocHints([]);
@@ -435,7 +548,7 @@ const PaymentForm = () => {
   }, [companyId, settlementLink]);
 
   useEffect(() => {
-    if (!settlementLink || !canIssueTukifac || isEdit) return;
+    if (!settlementLink || !canIssueComprobante || isEdit) return;
     let cancelled = false;
     void ensureTukifacSeriesCached()
       .then(() => {
@@ -447,28 +560,21 @@ const PaymentForm = () => {
     return () => {
       cancelled = true;
     };
-  }, [settlementLink, canIssueTukifac, isEdit]);
+  }, [settlementLink, canIssueComprobante, isEdit]);
 
   useEffect(() => {
-    if (!settlementLink || isEdit || !canIssueTukifac || effectivePaymentType !== 'applied') return;
-    if (tukifacKind === 'sale_note') {
-      const rows = getCachedSaleNoteSeries();
-      const d = pickDefaultSeries(rows);
-      setTukifacSaleNoteSeriesId((prev) => {
-        if (prev && rows.some((r) => String(r.id) === prev)) return prev;
-        return d ? String(d.id) : '';
-      });
-      return;
-    }
-    const sunat = tukifacKind === 'factura' ? '01' : '03';
-    const rows = getCachedDocumentSeries().filter((r) => (r.document_type_id ?? '').trim() === sunat);
+    if (!settlementLink || isEdit || !canIssueComprobante || effectivePaymentType !== 'applied') return;
+    const rows =
+      tukifacKind === 'sale_note' ? getCachedSaleNoteSeries() : getCachedDocumentSeries().filter((r) => {
+          const sunat = tukifacKind === 'factura' ? '01' : '03';
+          return (r.document_type_id ?? '').trim() === sunat;
+        });
     const d = pickDefaultSeries(rows);
-    setTukifacSerie((prev) => {
-      const ok = rows.some((r) => r.number === prev);
-      if (ok) return prev;
-      return d?.number ?? '';
+    setComprobanteSeriesId((prev) => {
+      if (prev && rows.some((r) => String(r.id) === prev)) return prev;
+      return d ? String(d.id) : '';
     });
-  }, [settlementLink, isEdit, canIssueTukifac, tukifacKind, seriesRefresh, effectivePaymentType]);
+  }, [settlementLink, isEdit, canIssueComprobante, tukifacKind, seriesRefresh, effectivePaymentType]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -511,6 +617,12 @@ const PaymentForm = () => {
           return;
         }
       }
+      const discountNum = Number(discountAmount);
+      const hasDiscount = Number.isFinite(discountNum) && discountNum > 0.005;
+      if (hasDiscount && !canUseDiscount) {
+        setError('El descuento solo puede aplicarse cuando cada imputación cubre el saldo completo de la deuda');
+        return;
+      }
       if (applyMode === 'manual') {
         const lines = manualAlloc
           .filter((l) => l.doc && Number(l.amt) > 0)
@@ -520,31 +632,30 @@ const PaymentForm = () => {
           return;
         }
         const sum = lines.reduce((a, l) => a + l.amount, 0);
-        if (Math.abs(sum - amountNum) > 0.02) {
+        if (hasDiscount) {
+          if (Math.abs(amountNum + discountNum - sum) > 0.02) {
+            setError('El monto pagado más el descuento debe igualar la suma de imputaciones');
+            return;
+          }
+        } else if (Math.abs(sum - amountNum) > 0.02) {
           setError('La suma de imputaciones debe coincidir con el monto del pago');
+          return;
+        }
+      }
+      if (applyMode === 'single' && hasDiscount) {
+        const bal = resolveDebtBalance(documentId);
+        if (Math.abs(amountNum + discountNum - bal) > 0.02) {
+          setError('El monto pagado más el descuento debe igualar el saldo de la deuda');
           return;
         }
       }
     }
 
-    const tryTukifacAfterCreate = showComprobanteTukifac;
-    if (tryTukifacAfterCreate && tukifacKind === 'sale_note') {
-      const sid = Number(tukifacSaleNoteSeriesId);
-      const nvRows = getCachedSaleNoteSeries();
+    const tryIssueAfterCreate = showComprobanteEmision;
+    if (tryIssueAfterCreate) {
+      const sid = Number(comprobanteSeriesId);
       if (!Number.isFinite(sid) || sid <= 0) {
-        setError(
-          nvRows.length
-            ? 'Seleccione la serie de nota de venta.'
-            : 'No hay series de nota de venta disponibles en Tukifac para este usuario.',
-        );
-        return;
-      }
-    }
-    if (tryTukifacAfterCreate && (tukifacKind === 'boleta' || tukifacKind === 'factura')) {
-      const sunat = tukifacKind === 'factura' ? '01' : '03';
-      const fbRows = getCachedDocumentSeries().filter((r) => (r.document_type_id ?? '').trim() === sunat);
-      if (fbRows.length > 0 && !tukifacSerie.trim()) {
-        setError('Seleccione la serie del comprobante (factura o boleta).');
+        setError('Seleccione la serie del comprobante.');
         return;
       }
     }
@@ -557,8 +668,13 @@ const PaymentForm = () => {
       method: method.trim() ? method.trim() : undefined,
       reference: reference.trim() ? reference.trim() : undefined,
       attachment: attachment.trim() ? attachment.trim() : undefined,
+      description: description.trim() ? description.trim() : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
     };
+    const discountNum = Number(discountAmount);
+    if (Number.isFinite(discountNum) && discountNum > 0.005) {
+      payload.discount_amount = discountNum;
+    }
 
     if (effectivePaymentType === 'applied') {
       if (applyMode === 'fifo') {
@@ -593,24 +709,25 @@ const PaymentForm = () => {
             detail: { type: 'success', message: 'Pago registrado correctamente.' },
           }),
         );
-        if (tryTukifacAfterCreate) {
+        if (tryIssueAfterCreate) {
           try {
-            const tukBody: PaymentTukifacIssuePayload = {
+            const issueOut = await paymentsService.issueComprobanteFromPayment(created.id, {
               kind: tukifacKind,
-              serie_documento: tukifacSerie.trim() || undefined,
-              sale_note_series_id:
-                tukifacKind === 'sale_note' ? Number(tukifacSaleNoteSeriesId) : undefined,
-              /** SUNAT efectivo en Tukifac; el método real del pago queda guardado en el pago del sistema. */
+              series_id: Number(comprobanteSeriesId),
               payment_method_type_id: '01',
               payment_destination_id: 'cash',
               payment_reference: method.trim() || reference.trim() || 'Caja',
-            };
-            const issueOut = await paymentsService.issueTukifacFromPayment(created.id, tukBody);
+            });
             window.dispatchEvent(
               new CustomEvent('miweb:toast', {
-                detail: { type: 'success', message: 'Comprobante enviado a Tukifac correctamente.' },
+                detail: { type: 'success', message: `Comprobante ${issueOut.receipt.number} emitido correctamente.` },
               }),
             );
+            if (isLocalFiscalReceipt(issueOut.receipt.origin)) {
+              const detail = await fiscalReceiptsService.getDetail(issueOut.receipt.id);
+              setIssuedReceipt(detail);
+              return;
+            }
             const viewLinks = parseTukifacReceiptViewLinks(issueOut.receipt);
             if (viewLinks) {
               setTukifacPostSaveLinks(viewLinks);
@@ -622,7 +739,7 @@ const PaymentForm = () => {
               new CustomEvent('miweb:toast', {
                 detail: {
                   type: 'error',
-                  message: `Pago guardado. No se pudo emitir en Tukifac: ${getTukifacErrorMessage(te)}`,
+                  message: `Pago guardado. No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`,
                 },
               }),
             );
@@ -659,6 +776,16 @@ const PaymentForm = () => {
         }}
         continueLabel="Ir al listado de pagos"
       />
+      <PosReceiptModal
+        open={Boolean(issuedReceipt)}
+        receipt={issuedReceipt}
+        firm={firmBranding}
+        variant="payment"
+        onClose={() => {
+          setIssuedReceipt(null);
+          navigate('/payments', { replace: true });
+        }}
+      />
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 pr-1">
           <h2 className="text-lg sm:text-xl font-semibold text-slate-800">{isEdit ? 'Editar pago' : 'Nuevo pago'}</h2>
@@ -688,7 +815,7 @@ const PaymentForm = () => {
         </div>
       ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-5">
-        {showComprobanteTukifac ? (
+        {showComprobanteEmision ? (
           <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="px-3 py-4 sm:p-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-3 sm:gap-x-4 items-start">
@@ -707,68 +834,35 @@ const PaymentForm = () => {
                     <option value="factura">Factura</option>
                   </select>
                 </div>
-                {tukifacKind === 'sale_note' ? (
-                  <div className="min-w-0">
-                    <label htmlFor="tukifac_nv_series" className="block text-sm font-medium text-slate-700 mb-1">
-                      Serie
-                    </label>
-                    <select
-                      id="tukifac_nv_series"
-                      value={tukifacSaleNoteSeriesId}
-                      onChange={(ev) => setTukifacSaleNoteSeriesId(ev.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                    >
-                      <option value="">Seleccione…</option>
-                      {getCachedSaleNoteSeries().map((r) => (
-                        <option key={r.id} value={String(r.id)}>
-                          {r.number}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="min-w-0">
-                    <label htmlFor="tukifac_serie" className="block text-sm font-medium text-slate-700 mb-1">
-                      Serie
-                    </label>
-                    <select
-                      id="tukifac_serie"
-                      value={tukifacSerie}
-                      onChange={(ev) => setTukifacSerie(ev.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                    >
-                      <option value="">
-                        {getCachedDocumentSeries().filter(
-                          (r) => (r.document_type_id ?? '').trim() === (tukifacKind === 'factura' ? '01' : '03'),
-                        ).length
-                          ? 'Seleccione…'
-                          : 'Sin series en caché (Tukifac)'}
-                      </option>
-                      {getCachedDocumentSeries()
-                        .filter((r) => (r.document_type_id ?? '').trim() === (tukifacKind === 'factura' ? '01' : '03'))
-                        .map((r) => (
-                          <option key={r.id} value={r.number}>
-                            {r.number}
-                          </option>
-                        ))}
-                    </select>
-                    <p className="text-xs text-slate-500 mt-1">El correlativo lo asigna Tukifac.</p>
-                  </div>
-                )}
-                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha
+                <div className="min-w-0">
+                  <label htmlFor="comprobante_series" className="block text-sm font-medium text-slate-700 mb-1">
+                    Serie
                   </label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={date}
-                    onChange={(ev) => setDate(ev.target.value)}
-                    className="w-full max-w-full min-w-0 px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                  />
+                  <select
+                    id="comprobante_series"
+                    value={comprobanteSeriesId}
+                    onChange={(ev) => setComprobanteSeriesId(ev.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  >
+                    <option value="">Seleccione…</option>
+                    {(tukifacKind === 'sale_note'
+                      ? getCachedSaleNoteSeries()
+                      : getCachedDocumentSeries().filter(
+                          (r) => (r.document_type_id ?? '').trim() === (tukifacKind === 'factura' ? '01' : '03'),
+                        )
+                    ).map((r) => (
+                      <option key={r.id} value={String(r.id)}>
+                        {r.number}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
+              {showComprobanteEmision ? (
+                <p className="text-xs text-slate-500 mt-2">
+                  La fecha del pago (más abajo) también se usará como fecha de emisión del comprobante.
+                </p>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -799,7 +893,12 @@ const PaymentForm = () => {
                   Una deuda
                 </label>
                 <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <input type="radio" className="text-primary-600" checked={applyMode === 'fifo'} onChange={() => setApplyMode('fifo')} />
+                  <input
+                    type="radio"
+                    className="text-primary-600"
+                    checked={applyMode === 'fifo'}
+                    onChange={() => setApplyMode('fifo')}
+                  />
                   FIFO
                 </label>
                 <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -807,9 +906,20 @@ const PaymentForm = () => {
                   Manual
                 </label>
               </div>
+              {settlementLink ? (
+                <p className="text-xs text-slate-600 bg-primary-50/60 border border-primary-100 rounded-lg px-3 py-2">
+                  Pago vinculado a liquidación {settlementLink.number ? `«${settlementLink.number}»` : `#${settlementLink.id}`}.
+                  <span className="block mt-1">
+                    <strong>FIFO:</strong> solo deudas ya vinculadas a esta liquidación (más antiguas primero).
+                    <strong className="font-semibold"> Una deuda / Manual:</strong> también puede incluir deudas independientes; al guardar se vinculan a la liquidación.
+                  </span>
+                </p>
+              ) : null}
               {applyMode === 'fifo' ? (
                 <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                  Se aplicará el monto pagado a las deudas más antiguas hasta agotar el importe.
+                  {settlementLink
+                    ? 'Se aplicará el monto a las deudas vinculadas a esta liquidación, de la más antigua a la más reciente.'
+                    : 'Se aplicará el monto pagado a las deudas abiertas de la empresa, de la más antigua a la más reciente.'}
                 </p>
               ) : null}
               {applyMode === 'single' ? (
@@ -822,7 +932,13 @@ const PaymentForm = () => {
                     name="document_id"
                     value={documentId}
                     disabled={!companyId}
-                    onChange={setDocumentId}
+                    onChange={(v) => {
+                      setDocumentId(v);
+                      const bal = resolveDebtBalance(v);
+                      if (bal > 0 && (!amount.trim() || Number(amount) <= 0)) {
+                        setAmount(bal.toFixed(2));
+                      }
+                    }}
                     placeholder="Selecciona una deuda…"
                     searchPlaceholder="Buscar deuda..."
                     options={singleDebtSelectOptions}
@@ -841,7 +957,12 @@ const PaymentForm = () => {
                         value={row.doc}
                         onChange={(v) => {
                           const n = [...manualAlloc];
-                          n[idx] = { ...n[idx], doc: v };
+                          const bal = resolveDebtBalance(v);
+                          n[idx] = {
+                            ...n[idx],
+                            doc: v,
+                            amt: v && bal > 0 ? bal.toFixed(2) : n[idx].amt,
+                          };
                           setManualAlloc(n);
                         }}
                         placeholder="Deuda"
@@ -857,6 +978,14 @@ const PaymentForm = () => {
                           const n = [...manualAlloc];
                           n[idx] = { ...n[idx], amt: ev.target.value };
                           setManualAlloc(n);
+                          if (discountAmount && !isLineFullyImputed(n[idx].doc, ev.target.value)) {
+                            setDiscountAmount('');
+                            const sum = n.reduce((s, l) => {
+                              const a = Number(l.amt);
+                              return s + (Number.isFinite(a) && a > 0 ? a : 0);
+                            }, 0);
+                            if (sum > 0) setAmount(sum.toFixed(2));
+                          }
                         }}
                         className="w-full min-w-0 px-2 py-2.5 md:py-2 rounded-lg border border-slate-300 text-sm text-right tabular-nums"
                       />
@@ -894,11 +1023,25 @@ const PaymentForm = () => {
                           <dt className="text-slate-600">Suma de líneas</dt>
                           <dd className="font-semibold tabular-nums text-slate-900">S/ {manualImputationSum.toFixed(2)}</dd>
                         </div>
+                        {discountNumForSummary > 0 ? (
+                          <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
+                            <dt className="text-slate-600">Descuento</dt>
+                            <dd className="font-semibold tabular-nums text-amber-800">− S/ {discountNumForSummary.toFixed(2)}</dd>
+                          </div>
+                        ) : null}
                         <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                           <dt className="text-slate-600">Monto del pago</dt>
                           <dd className="font-semibold tabular-nums text-slate-900">S/ {amountNumForSummary.toFixed(2)}</dd>
                         </div>
-                        {Math.abs(manualImputationSum - amountNumForSummary) > 0.02 ? (
+                        {discountNumForSummary > 0 ? (
+                          Math.abs(manualImputationSum - discountNumForSummary - amountNumForSummary) <= 0.02 ? (
+                            <p className="text-xs text-emerald-800">Importes alineados (deudas saldadas con descuento).</p>
+                          ) : (
+                            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+                              Ajuste el descuento o el monto pagado para que cuadren con la suma de líneas.
+                            </p>
+                          )
+                        ) : Math.abs(manualImputationSum - amountNumForSummary) > 0.02 ? (
                           <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
                             Ajuste las líneas o el monto del pago para que ambos importes coincidan antes de guardar.
                           </p>
@@ -909,7 +1052,7 @@ const PaymentForm = () => {
                     ) : null}
                     {applyMode === 'single' && selectedDebtTotal != null ? (
                       <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
-                        <dt className="text-slate-600">Total deuda seleccionada</dt>
+                        <dt className="text-slate-600">Saldo deuda seleccionada</dt>
                         <dd className="font-semibold tabular-nums text-slate-900">S/ {selectedDebtTotal.toFixed(2)}</dd>
                       </div>
                     ) : null}
@@ -933,22 +1076,13 @@ const PaymentForm = () => {
 
           <section className="lg:col-span-6 rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
             <div className="px-3 py-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">
-              {!showComprobanteTukifac ? (
-                <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha del pago
-                  </label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={date}
-                    onChange={(ev) => setDate(ev.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                  />
-                </div>
+              {isEdit && loadedCreatedAt ? (
+                <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  <span className="font-medium text-slate-700">Registrado en el sistema:</span>{' '}
+                  {formatInTimeZone(new Date(loadedCreatedAt), 'America/Lima', 'dd/MM/yyyy HH:mm')}
+                </p>
               ) : null}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-3 sm:gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-3 sm:gap-x-4">
                 <div className="min-w-0">
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">
                     Monto pagado
@@ -963,12 +1097,82 @@ const PaymentForm = () => {
                       name="amount"
                       required
                       value={amount}
-                      onChange={(ev) => setAmount(ev.target.value)}
+                      onChange={(ev) => {
+                        setAmount(ev.target.value);
+                        const n = Number(ev.target.value);
+                        if (discountAmount && Number.isFinite(n)) {
+                          const bal =
+                            applyMode === 'single' && documentId
+                              ? resolveDebtBalance(documentId)
+                              : imputationTotalForDiscount;
+                          if (bal > 0 && Math.abs(n + discountNumForSummary - bal) > 0.02) {
+                            setDiscountAmount('');
+                          }
+                        }
+                      }}
                       className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums"
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
-                    En manual, la suma de líneas debe coincidir con este importe.
+                    {canUseDiscount || discountNumForSummary > 0
+                      ? 'Con descuento, el monto cobrado es la suma de líneas menos el descuento.'
+                      : 'La suma de líneas debe coincidir con este importe (o cubrir saldos completos para aplicar descuento).'}
+                  </p>
+                </div>
+                {!isEdit && effectivePaymentType === 'applied' && applyMode !== 'fifo' ? (
+                  <div className="min-w-0">
+                    <label htmlFor="discount_amount" className="block text-sm font-medium text-slate-700 mb-1">
+                      Descuento (total)
+                    </label>
+                    <div className="flex items-center rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500">
+                      <span className="px-3 text-slate-500 text-sm shrink-0">S/</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        id="discount_amount"
+                        name="discount_amount"
+                        disabled={!canUseDiscount}
+                        value={discountAmount}
+                        onChange={(ev) => {
+                          const raw = ev.target.value;
+                          setDiscountAmount(raw);
+                          const disc = Number(raw);
+                          if (!Number.isFinite(disc) || disc <= 0) {
+                            if (imputationTotalForDiscount > 0) {
+                              setAmount(imputationTotalForDiscount.toFixed(2));
+                            }
+                            return;
+                          }
+                          const total = imputationTotalForDiscount;
+                          if (total > 0 && disc < total) {
+                            setAmount((total - disc).toFixed(2));
+                          }
+                        }}
+                        className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                      {canUseDiscount
+                        ? 'Solo cuando cada ítem está imputado al saldo completo.'
+                        : 'Disponible cuando las imputaciones cubren el saldo íntegro de cada deuda.'}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="min-w-0">
+                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
+                    Fecha del pago
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={date}
+                    onChange={(ev) => setDate(ev.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                    Día en que el cliente realizó el pago.
                   </p>
                 </div>
                 <div className="min-w-0">
@@ -1044,19 +1248,41 @@ const PaymentForm = () => {
         </div>
 
         <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-3 py-4 sm:p-5">
-            <label htmlFor="notes" className="sr-only">
-              Notas
-            </label>
-            <textarea
-              id="notes"
-              name="notes"
-              rows={3}
-              value={notes}
-              onChange={(ev) => setNotes(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[5.5rem]"
-              placeholder="Notas sobre el pago…"
-            />
+          <div className="px-3 py-4 sm:p-5 space-y-4">
+            <div>
+              <label htmlFor="payment_description" className="block text-sm font-medium text-slate-700 mb-1">
+                Descripción del pago
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Concepto que verá el cliente en el estado de cuenta (ej. nombre del servicio o mes liquidado).
+              </p>
+              <textarea
+                id="payment_description"
+                name="description"
+                rows={2}
+                value={description}
+                onChange={(ev) => setDescription(ev.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[4.5rem]"
+                placeholder="Ej. Honorarios marzo 2026, Plan contable…"
+              />
+            </div>
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">
+                Notas internas
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Uso interno; no se muestra en la columna principal del estado de cuenta (solo en «ver más» si hay texto).
+              </p>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                value={notes}
+                onChange={(ev) => setNotes(ev.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none min-h-[5.5rem]"
+                placeholder="Observaciones internas sobre el pago…"
+              />
+            </div>
           </div>
         </section>
 

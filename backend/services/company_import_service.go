@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
+	"miappfiber/rbac"
 
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
@@ -37,6 +39,18 @@ type companyImportParsedRow struct {
 }
 
 var rucNonDigit = regexp.MustCompile(`\D`)
+
+func formatUserRolesForSheet(u *models.User) string {
+	if u == nil || len(u.Roles) == 0 {
+		return ""
+	}
+	codes := make([]string, 0, len(u.Roles))
+	for _, r := range u.Roles {
+		codes = append(codes, r.Code)
+	}
+	sort.Strings(codes)
+	return strings.Join(codes, ", ")
+}
 
 // CompanyImportTemplateXLSX genera un .xlsx con cabeceras, ejemplo y hoja de referencia (planes y usuarios de equipo).
 func CompanyImportTemplateXLSX() ([]byte, error) {
@@ -75,9 +89,32 @@ func CompanyImportTemplateXLSX() ([]byte, error) {
 	}
 
 	var users []models.User
-	if err := database.DB.Where("active = ? AND role IN ?", true, []string{"Contador", "Supervisor", "Asistente", "Administrador"}).
-		Order("role ASC, name ASC").Find(&users).Error; err != nil {
+	teamPermCodes := []string{
+		rbac.CompaniesAssignAccountant,
+		rbac.CompaniesAssignSupervisor,
+		rbac.CompaniesAssignAssistant,
+		rbac.AccessStudio,
+	}
+	if err := database.DB.Where("active = ?", true).
+		Where(`EXISTS (
+			SELECT 1 FROM user_roles ur
+			JOIN role_permissions rp ON rp.role_id = ur.role_id
+			JOIN permissions p ON p.id = rp.permission_id
+			WHERE ur.user_id = users.id AND p.code IN ?
+		)`, teamPermCodes).
+		Preload("Roles").
+		Order("name ASC").
+		Find(&users).Error; err != nil {
 		return nil, err
+	}
+	_ = AttachEffectivePermissionCodes(users)
+	hasPerm := func(u models.User, code string) bool {
+		for _, c := range u.PermissionCodes {
+			if c == code {
+				return true
+			}
+		}
+		return false
 	}
 	var exDocCont, exDocSup, exDocAss string
 	for _, u := range users {
@@ -85,17 +122,17 @@ func CompanyImportTemplateXLSX() ([]byte, error) {
 		if d == "" {
 			continue
 		}
-		if u.Role == "Contador" || u.Role == "Administrador" {
+		if hasPerm(u, rbac.CompaniesAssignAccountant) || hasPerm(u, rbac.AccessStudio) {
 			if exDocCont == "" {
 				exDocCont = d
 			}
 		}
-		if u.Role == "Supervisor" || u.Role == "Administrador" {
+		if hasPerm(u, rbac.CompaniesAssignSupervisor) || hasPerm(u, rbac.AccessStudio) {
 			if exDocSup == "" {
 				exDocSup = d
 			}
 		}
-		if u.Role == "Asistente" || u.Role == "Administrador" {
+		if hasPerm(u, rbac.CompaniesAssignAssistant) || hasPerm(u, rbac.AccessStudio) {
 			if exDocAss == "" {
 				exDocAss = d
 			}
@@ -135,7 +172,7 @@ func CompanyImportTemplateXLSX() ([]byte, error) {
 		_ = f.SetCellStr(ref, "B"+strconv.Itoa(r), strings.TrimSpace(u.DNI))
 		_ = f.SetCellStr(ref, "C"+strconv.Itoa(r), u.Name)
 		_ = f.SetCellStr(ref, "D"+strconv.Itoa(r), (&u).EmailString())
-		_ = f.SetCellStr(ref, "E"+strconv.Itoa(r), u.Role)
+		_ = f.SetCellStr(ref, "E"+strconv.Itoa(r), formatUserRolesForSheet(&u))
 	}
 
 	if _, err := f.NewSheet("Instrucciones"); err != nil {
@@ -240,14 +277,14 @@ func resolveSubscriptionPlanIDByName(planName string) (uint, error) {
 }
 
 // resolveTeamUserIDByDocument busca usuario activo por DNI. Si no hay coincidencia, devuelve (nil, nil).
-// Si hay varios o el rol no sirve para el puesto, devuelve error de fila.
-func resolveTeamUserIDByDocument(excelRow int, docRaw string, columnKey string, acceptRoles []string) (*uint, *CompanyImportRowError) {
+// acceptPermissions: al menos uno debe estar en los permisos efectivos del usuario (o access.studio).
+func resolveTeamUserIDByDocument(excelRow int, docRaw string, columnKey string, acceptPermissions []string) (*uint, *CompanyImportRowError) {
 	doc := strings.TrimSpace(docRaw)
 	if doc == "" {
 		return nil, nil
 	}
 	var list []models.User
-	if err := database.DB.Where("active = ? AND dni <> ? AND TRIM(dni) = ?", true, "", doc).Find(&list).Error; err != nil {
+	if err := database.DB.Where("active = ? AND dni <> ? AND TRIM(dni) = ?", true, "", doc).Preload("Roles").Find(&list).Error; err != nil {
 		return nil, &CompanyImportRowError{Row: excelRow, Message: columnKey + ": error al buscar usuario"}
 	}
 	if len(list) == 0 {
@@ -257,26 +294,24 @@ func resolveTeamUserIDByDocument(excelRow int, docRaw string, columnKey string, 
 		return nil, &CompanyImportRowError{Row: excelRow, Message: columnKey + ": hay más de un usuario activo con el mismo documento"}
 	}
 	u := list[0]
-	if u.Role == "Administrador" {
+	if Authz().HasPermission(u.ID, rbac.AccessStudio) {
 		id := u.ID
 		return &id, nil
 	}
-	ok := false
-	for _, r := range acceptRoles {
-		if u.Role == r {
-			ok = true
-			break
-		}
+	if Authz().HasAnyPermission(u.ID, acceptPermissions...) {
+		id := u.ID
+		return &id, nil
 	}
-	if !ok {
-		return nil, &CompanyImportRowError{
-			Row: excelRow,
-			Message: fmt.Sprintf("%s: el usuario existe pero su rol es «%s» (se esperaba %s)",
-				columnKey, u.Role, strings.Join(acceptRoles, " o ")),
-		}
+	pc, _ := Authz().PermissionCodesForUser(u.ID)
+	got := strings.Join(pc, ", ")
+	if got == "" {
+		got = "(sin permisos efectivos)"
 	}
-	id := u.ID
-	return &id, nil
+	return nil, &CompanyImportRowError{
+		Row: excelRow,
+		Message: fmt.Sprintf("%s: el usuario existe pero no tiene los permisos requeridos para este puesto. Permisos actuales: «%s» (se requiere alguno de: %s)",
+			columnKey, got, strings.Join(acceptPermissions, ", ")),
+	}
 }
 
 func parseBillingCycleCell(s string) (string, error) {
@@ -453,17 +488,17 @@ func parseCompanyImportRows(rows [][]string) ([]companyImportParsedRow, []Compan
 			continue
 		}
 
-		accID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_contador"), "documento_contador", []string{"Contador"})
+		accID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_contador"), "documento_contador", []string{rbac.CompaniesAssignAccountant})
 		if rowErr != nil {
 			errs = append(errs, *rowErr)
 			continue
 		}
-		supID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_supervisor"), "documento_supervisor", []string{"Supervisor"})
+		supID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_supervisor"), "documento_supervisor", []string{rbac.CompaniesAssignSupervisor})
 		if rowErr != nil {
 			errs = append(errs, *rowErr)
 			continue
 		}
-		assID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_asistente"), "documento_asistente", []string{"Asistente"})
+		assID, rowErr := resolveTeamUserIDByDocument(excelIdx, cell(row, col, "documento_asistente"), "documento_asistente", []string{rbac.CompaniesAssignAssistant})
 		if rowErr != nil {
 			errs = append(errs, *rowErr)
 			continue
@@ -498,6 +533,7 @@ func parseCompanyImportRows(rows [][]string) ([]companyImportParsedRow, []Compan
 		fileCodes[strings.ToLower(code)] = excelIdx
 
 		c := models.Company{
+			ClientType:            models.CompanyClientTypeEstudio,
 			InternalCode:          code,
 			RUC:                   ruc,
 			BusinessName:          bname,

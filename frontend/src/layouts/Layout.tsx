@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
 
@@ -43,6 +44,12 @@ const Layout = () => {
 
   useEffect(() => {
     void ensureTukifacSeriesCached().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!auth.getToken()) return;
+    if (auth.hasStoredPermissions()) return;
+    void auth.refreshPermissions().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -124,7 +131,7 @@ const Layout = () => {
           : undefined
       }
     >
-      <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+      <div className="fixed top-4 right-4 z-[10050] space-y-2 pointer-events-none">
         {toasts.map((t) => {
           const icon =
             t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
@@ -276,6 +283,8 @@ const Layout = () => {
           </div>
         </div>
       ) : null}
+
+      <TodayCalendarReminder />
     </div>
   );
 };

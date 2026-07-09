@@ -1,33 +1,51 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { saveAs } from 'file-saver';
-import { taxSettlementsService } from '../services/taxSettlements';
+import { taxSettlementsService, type SettlementDebtsContext } from '../services/taxSettlements';
 import { configService } from '../services/config';
 import type { TaxSettlement } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import {
   generateTaxSettlementPdfBlob,
   getLogoPngBlobForPdf,
+  settlementTotalsForPdf,
   taxSettlementPdfFilename,
 } from '../pdf/taxSettlementDocument';
+import { getLogoPngBlobForAccountPdf } from '../pdf/companyAccountStatementPdf';
+import {
+  formatMoneyPen,
+  stripLegacyMigrationNotes,
+} from '../utils/documentDebtUi';
 import ConfirmDialog from '../components/ConfirmDialog';
+import OperationsKeyDialog from '../components/OperationsKeyDialog';
+import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
+import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const settlementId = Number(id);
-  const role = auth.getRole() ?? '';
-  const canEmit = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const canEmit = useMemo(() => auth.hasPermission(P.taxSettlementsEmit), []);
+  const canUpdate = useMemo(() => auth.hasPermission(P.taxSettlementsUpdate), []);
+  const canDelete = useMemo(() => auth.hasPermission(P.taxSettlementsDelete), []);
 
   const [row, setRow] = useState<TaxSettlement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [emitting, setEmitting] = useState(false);
   const [emitDialogOpen, setEmitDialogOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteKeyOpen, setDeleteKeyOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editKeyOpen, setEditKeyOpen] = useState(false);
+  const [editKeyLoading, setEditKeyLoading] = useState(false);
+  const [debtsCtx, setDebtsCtx] = useState<SettlementDebtsContext | null>(null);
+  const [linkingDebtId, setLinkingDebtId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!settlementId) return;
@@ -55,6 +73,86 @@ const TaxSettlementDetail = () => {
   }, [settlementId]);
 
   useEffect(() => {
+    if (!settlementId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const ctx = await taxSettlementsService.debtsContext(settlementId);
+        if (!cancelled) setDebtsCtx(ctx);
+      } catch {
+        if (!cancelled) setDebtsCtx(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settlementId, row?.status]);
+
+  const reloadDebtsContext = async () => {
+    if (!settlementId) return;
+    try {
+      const ctx = await taxSettlementsService.debtsContext(settlementId);
+      setDebtsCtx(ctx);
+    } catch {
+      setDebtsCtx(null);
+    }
+  };
+
+  const handleLinkUnlinkedDebt = async (documentId: number) => {
+    if (!settlementId || row?.status !== 'borrador') return;
+    setLinkingDebtId(documentId);
+    try {
+      const updated = await taxSettlementsService.linkDebt(settlementId, documentId);
+      setRow(updated);
+      await reloadDebtsContext();
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Deuda agregada a la liquidación.' } }),
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+          : 'No se pudo vincular la deuda';
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error' } }),
+      );
+    } finally {
+      setLinkingDebtId(null);
+    }
+  };
+
+  const settlementTotals = useMemo(() => {
+    if (!row) return null;
+    const t = settlementTotalsForPdf(row);
+    return {
+      honorarios: t.honorarios,
+      impuestos: t.impuestos,
+      total: t.total,
+    };
+  }, [row]);
+
+  const lineBreakdown = useMemo(() => {
+    let subDeudas = 0;
+    let subManual = 0;
+    for (const ln of row?.lines ?? []) {
+      const amount = Number(ln.amount) || 0;
+      if (ln.line_type === 'document_ref') subDeudas += amount;
+      else subManual += amount;
+    }
+    return { subDeudas, subManual, total: subDeudas + subManual };
+  }, [row?.lines]);
+
+  const linkedDebtsTotal = useMemo(
+    () => (debtsCtx?.linked ?? []).reduce((sum, d) => sum + (Number(d.balance_amount) || 0), 0),
+    [debtsCtx?.linked],
+  );
+
+  const unlinkedDebtsTotal = useMemo(
+    () => (debtsCtx?.unlinked ?? []).reduce((sum, d) => sum + (Number(d.balance_amount) || 0), 0),
+    [debtsCtx?.unlinked],
+  );
+
+  useEffect(() => {
     if (loading || !row) return;
     if (location.hash !== '#liquidacion-lineas') return;
     const el = document.getElementById('liquidacion-lineas');
@@ -64,6 +162,43 @@ const TaxSettlementDetail = () => {
       });
     }
   }, [loading, row, location.hash]);
+
+  const settlementStatusLabel = (s: string) => {
+    if (s === 'emitida') return 'Emitida';
+    if (s === 'borrador') return 'Borrador';
+    if (s === 'cerrada') return 'Cerrada';
+    if (s === 'anulada') return 'Anulada';
+    return s;
+  };
+
+  const performClose = async () => {
+    if (!settlementId) return;
+    setClosing(true);
+    try {
+      const updated = await taxSettlementsService.close(settlementId);
+      setRow(updated);
+      setCloseDialogOpen(false);
+      await reloadDebtsContext();
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'success',
+            message: 'Liquidación cerrada. Quedó como registro histórico; las deudas pendientes pueden incorporarse a una nueva liquidación.',
+          },
+        }),
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+          : 'Error al cerrar';
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error al cerrar' } }),
+      );
+    } finally {
+      setClosing(false);
+    }
+  };
 
   const performEmit = async () => {
     if (!settlementId) return;
@@ -92,8 +227,15 @@ const TaxSettlementDetail = () => {
         configService.getFirmBranding().catch(() => null),
         taxSettlementsService.get(settlementId),
       ]);
-      const logoPng = firm?.logo_url ? await getLogoPngBlobForPdf(firm.logo_url) : null;
-      const blob = await generateTaxSettlementPdfBlob(fresh, firm, logoPng);
+      const studioLogoUrl = (firm?.logo_url ?? '').trim();
+      const bankLogoUrl = (firm?.statement_bank_logo_url ?? '').trim();
+      const payQrUrl = (firm?.statement_payment_qr_url ?? '').trim();
+      const [logoPng, bankLogoPng, paymentQrPng] = await Promise.all([
+        studioLogoUrl ? getLogoPngBlobForPdf(studioLogoUrl) : Promise.resolve(null),
+        bankLogoUrl ? getLogoPngBlobForAccountPdf(bankLogoUrl) : Promise.resolve(null),
+        payQrUrl ? getLogoPngBlobForAccountPdf(payQrUrl) : Promise.resolve(null),
+      ]);
+      const blob = await generateTaxSettlementPdfBlob(fresh, firm, logoPng, { bankLogoPng, paymentQrPng });
       saveAs(blob, taxSettlementPdfFilename(fresh));
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'PDF listo para entregar al cliente.' } }),
@@ -119,14 +261,15 @@ const TaxSettlementDetail = () => {
     }`;
   };
 
-  const confirmDeleteSettlement = async () => {
+  const confirmDeleteSettlement = async (operationKey: string) => {
     if (!settlementId) return;
     setDeleteLoading(true);
     try {
-      await taxSettlementsService.delete(settlementId);
+      await taxSettlementsService.delete(settlementId, operationKey);
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación eliminada.' } }),
       );
+      setDeleteKeyOpen(false);
       setDeleteDialogOpen(false);
       navigate('/tax-settlements');
     } catch (e: unknown) {
@@ -144,6 +287,35 @@ const TaxSettlementDetail = () => {
       );
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const confirmEditSettlement = async () => {
+    if (!settlementId || !row) return;
+    if (row.status === 'borrador') {
+      navigate(`/tax-settlements/${settlementId}/edit`);
+      return;
+    }
+    setEditKeyLoading(true);
+    try {
+      await taxSettlementsService.revertToDraft(settlementId);
+      setEditKeyOpen(false);
+      navigate(`/tax-settlements/${settlementId}/edit`);
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+          : null;
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'error',
+            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo preparar la edición.',
+          },
+        }),
+      );
+    } finally {
+      setEditKeyLoading(false);
     }
   };
 
@@ -171,7 +343,18 @@ const TaxSettlementDetail = () => {
 
   const lineTypeLabel = (t: string) => {
     if (t === 'document_ref') return 'Deuda';
-    return 'Concepto';
+    if (t === 'tax_manual') return 'Servicio';
+    if (t === 'adjust') return 'Detalle';
+    return 'Detalle';
+  };
+
+  const formatDebtPeriod = (d: { has_period?: boolean; period_month?: number; period_year?: number; accounting_period?: string }) => {
+    if (d.has_period && d.period_month != null && d.period_year != null) {
+      return `${String(d.period_month).padStart(2, '0')}/${d.period_year}`;
+    }
+    const raw = (d.accounting_period ?? '').trim();
+    if (/^\d{4}-\d{2}$/.test(raw)) return `${raw.slice(5, 7)}/${raw.slice(0, 4)}`;
+    return raw || '—';
   };
 
   /** Pastillas compactas; ancho al contenido y salto de línea en pantallas estrechas */
@@ -203,9 +386,7 @@ const TaxSettlementDetail = () => {
               <span className="text-slate-500">Sin datos de empresa</span>
             )}
             <span className="mx-2 text-slate-300">·</span>
-            <span className="text-slate-500">
-              {row.status === 'emitida' ? 'Emitida' : row.status === 'borrador' ? 'Borrador' : row.status}
-            </span>
+            <span className="text-slate-500">{settlementStatusLabel(row.status)}</span>
           </p>
         </div>
 
@@ -248,6 +429,21 @@ const TaxSettlementDetail = () => {
               <span className="hidden sm:inline">Liquidación saldada</span>
             </span>
           ) : null}
+          {row.status === 'emitida' && canUpdate ? (
+            <button
+              type="button"
+              onClick={() => setCloseDialogOpen(true)}
+              disabled={closing}
+              className={`${btnBase} border-slate-500 bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50`}
+            >
+              {closing ? (
+                <i className="fas fa-spinner fa-spin text-xs shrink-0" aria-hidden />
+              ) : (
+                <i className="fas fa-lock text-xs shrink-0" aria-hidden />
+              )}
+              Cerrar liquidación
+            </button>
+          ) : null}
           <Link
             to={`/payments/new?company_id=${row.company_id}`}
             className={`${btnBase} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
@@ -266,8 +462,8 @@ const TaxSettlementDetail = () => {
                 Comprobantes
               </Link>
               <Link
-                to={`/documents/fiscal-receipts?company_id=${row.company_id}`}
-                title="Conciliación — comprobantes pendientes"
+                to={`/comprobantes?status=pendiente_vincular&company_id=${row.company_id}`}
+                title="Comprobantes pendientes de vincular"
                 className={`${btnBase} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
               >
                 <i className="fas fa-balance-scale text-xs shrink-0" aria-hidden />
@@ -284,7 +480,23 @@ const TaxSettlementDetail = () => {
             <i className={`fas ${exportingPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'} text-xs shrink-0`} aria-hidden />
             {exportingPdf ? 'Generando PDF…' : 'PDF cliente'}
           </button>
-          {canEmit ? (
+          {canUpdate && row.status !== 'cerrada' ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (row.status === 'borrador') {
+                  navigate(`/tax-settlements/${settlementId}/edit`);
+                  return;
+                }
+                setEditKeyOpen(true);
+              }}
+              className={`${btnBase} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
+            >
+              <i className="fas fa-pen text-xs shrink-0" aria-hidden />
+              Editar
+            </button>
+          ) : null}
+          {canDelete && row.status !== 'cerrada' ? (
             <button
               type="button"
               onClick={() => setDeleteDialogOpen(true)}
@@ -296,6 +508,10 @@ const TaxSettlementDetail = () => {
           ) : null}
         </nav>
       </header>
+
+      {hasTaxSectionsData(row.pdt621_json) ? (
+        <SupervisorFiscalDataPanel pdt621Json={row.pdt621_json} />
+      ) : null}
 
       <div className="w-full min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 text-sm">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -318,23 +534,184 @@ const TaxSettlementDetail = () => {
             <p className="text-slate-700 whitespace-pre-wrap">{row.notes}</p>
           </div>
         ) : null}
-        {row.status === 'emitida' ? (
+        {row.status === 'cerrada' ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <i className="fas fa-lock text-slate-500 mr-2" aria-hidden />
+            Liquidación cerrada
+            {row.closed_at ? ` el ${row.closed_at.slice(0, 10)}` : ''}. Registro histórico: no se puede editar ni eliminar. Las deudas muestran el estado al momento del cierre.
+          </div>
+        ) : null}
+        {settlementTotals &&
+        ((row.lines?.length ?? 0) > 0 ||
+          hasTaxSectionsData(row.pdt621_json) ||
+          row.status === 'emitida' ||
+          row.status === 'cerrada') ? (
           <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100">
             <div>
               <span className="text-xs font-medium text-slate-500">Honorarios / cargos</span>
-              <p className="text-lg font-semibold tabular-nums">S/ {row.total_honorarios.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums">S/ {settlementTotals.honorarios.toFixed(2)}</p>
             </div>
             <div>
               <span className="text-xs font-medium text-slate-500">Fiscal (PDT)</span>
-              <p className="text-lg font-semibold tabular-nums">S/ {row.total_impuestos.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums">S/ {settlementTotals.impuestos.toFixed(2)}</p>
             </div>
             <div>
               <span className="text-xs font-medium text-slate-500">Total</span>
-              <p className="text-lg font-semibold tabular-nums text-primary-800">S/ {row.total_general.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums text-primary-800">S/ {settlementTotals.total.toFixed(2)}</p>
             </div>
           </div>
         ) : null}
       </div>
+
+      {debtsCtx ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Deudas vinculadas{row.status === 'cerrada' ? ' (histórico al cierre)' : ''}
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Deuda</th>
+                    <th className="px-3 py-2 text-left">Periodo</th>
+                    <th className="px-3 py-2 text-right">Saldo</th>
+                    <th className="px-3 py-2 text-left">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {debtsCtx.linked.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-4 text-slate-500 text-center">
+                        Sin deudas vinculadas aún.
+                      </td>
+                    </tr>
+                  ) : (
+                    debtsCtx.linked.map((d) => (
+                      <tr key={d.document_id}>
+                        <td className="px-3 py-2">
+                          <span className="font-mono text-xs text-slate-500">{d.number}</span>
+                          <p className="text-slate-800 truncate max-w-[14rem]">
+                            {stripLegacyMigrationNotes(d.description || '') || '—'}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-xs">{formatDebtPeriod(d)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoneyPen(d.balance_amount)}</td>
+                        <td className="px-3 py-2 capitalize text-slate-600">
+                          {d.status}
+                          {d.historical_view ? (
+                            <span className="ml-1 text-[10px] uppercase text-slate-400">(cierre)</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {debtsCtx.linked.length > 0 ? (
+                  <tfoot className="border-t border-slate-200 bg-slate-50/90">
+                    <tr>
+                      <td colSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Total saldo vinculado
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900">
+                        {formatMoneyPen(linkedDebtsTotal)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
+          </section>
+
+          {row.status !== 'cerrada' ? (
+          <section className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/80">
+              <h3 className="text-sm font-semibold text-amber-950">Deudas pendientes no vinculadas</h3>
+              {(debtsCtx.pending_from_previous_count ?? 0) > 0 ? (
+                <p className="text-xs text-amber-900 mt-1">
+                  Hay {debtsCtx.pending_from_previous_count} deuda(s) pendiente(s) de liquidaciones cerradas anteriores. Incorpórelas manualmente si corresponde.
+                </p>
+              ) : debtsCtx.unlinked.length > 0 ? (
+                <p className="text-xs text-amber-900 mt-1">Existen deudas pendientes no incluidas en esta liquidación.</p>
+              ) : null}
+            </div>
+            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Deuda</th>
+                    <th className="px-3 py-2 text-left">Periodo</th>
+                    <th className="px-3 py-2 text-right">Saldo</th>
+                    {row.status === 'borrador' && canUpdate ? (
+                      <th className="px-3 py-2 text-right">Acción</th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {debtsCtx.unlinked.length === 0 ? (
+                    <tr>
+                      <td colSpan={row.status === 'borrador' && canUpdate ? 4 : 3} className="px-3 py-4 text-slate-500 text-center">
+                        No hay deudas abiertas sin vincular.
+                      </td>
+                    </tr>
+                  ) : (
+                    debtsCtx.unlinked.map((d) => (
+                      <tr key={d.document_id}>
+                        <td className="px-3 py-2">
+                          <span className="font-mono text-xs text-slate-500">{d.number}</span>
+                          <p className="text-slate-800 truncate max-w-[12rem]">
+                            {stripLegacyMigrationNotes(d.description || '') || '—'}
+                          </p>
+                          {d.from_previous_settlement && d.source_settlement_number ? (
+                            <p className="text-[10px] text-amber-800 mt-0.5">
+                              De liquidación {d.source_settlement_number}
+                              {d.source_settlement_period ? ` (${d.source_settlement_period})` : ''}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-xs">{formatDebtPeriod(d)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoneyPen(d.balance_amount)}</td>
+                        {row.status === 'borrador' && canUpdate ? (
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              disabled={linkingDebtId === d.document_id}
+                              onClick={() => void handleLinkUnlinkedDebt(d.document_id)}
+                              className="text-xs font-medium text-primary-700 hover:text-primary-900 disabled:opacity-50"
+                            >
+                              {linkingDebtId === d.document_id ? '…' : 'Agregar'}
+                            </button>
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {debtsCtx.unlinked.length > 0 ? (
+                  <tfoot className="border-t border-amber-200 bg-amber-50/80">
+                    <tr>
+                      <td
+                        colSpan={2}
+                        className="px-3 py-2 text-right text-xs font-semibold text-amber-950 uppercase tracking-wide"
+                      >
+                        Total saldo pendiente
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-950">
+                        {formatMoneyPen(unlinkedDebtsTotal)}
+                      </td>
+                      {row.status === 'borrador' && canUpdate ? <td /> : null}
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
+          </section>
+          ) : null}
+        </div>
+      ) : null}
 
       <section
         id="liquidacion-lineas"
@@ -357,21 +734,62 @@ const TaxSettlementDetail = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(row.lines ?? []).map((ln) => (
-              <tr key={ln.id ?? `${ln.concept}-${ln.sort_order}`}>
-                <td className="px-4 py-3 text-slate-600">{lineTypeLabel(ln.line_type)}</td>
-                <td className="px-4 py-3 text-slate-800">{ln.concept}</td>
-                <td className="px-4 py-3 text-slate-600 tabular-nums text-xs font-mono">
-                  {(ln.period_ym && /^\d{4}-\d{2}$/.test(ln.period_ym)
-                    ? ln.period_ym
-                    : ln.period_date && ln.period_date.length >= 10
-                      ? ln.period_date.slice(0, 10)
-                      : row.liquidation_period) || '—'}
+            {(row.lines ?? []).length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                  Sin líneas en esta liquidación.
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium">S/ {ln.amount.toFixed(2)}</td>
               </tr>
-            ))}
+            ) : (
+              (row.lines ?? []).map((ln) => (
+                <tr key={ln.id ?? `${ln.concept}-${ln.sort_order}`}>
+                  <td className="px-4 py-3 text-slate-600">{lineTypeLabel(ln.line_type)}</td>
+                  <td className="px-4 py-3 text-slate-800">{stripLegacyMigrationNotes(ln.concept || '') || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600 tabular-nums text-xs font-mono">
+                    {(() => {
+                      const p = (ln.period_ym ?? '').trim();
+                      if (p) return p;
+                      if (ln.period_date && ln.period_date.length >= 10) return ln.period_date.slice(0, 10);
+                      return row.liquidation_period || '—';
+                    })()}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium">S/ {Number(ln.amount).toFixed(2)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
+          {(row.lines?.length ?? 0) > 0 ? (
+            <tfoot className="border-t border-slate-200 bg-slate-50/90 text-sm">
+              {lineBreakdown.subDeudas > 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right text-slate-600">
+                    Subtotal deudas cargadas
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-800">
+                    S/ {lineBreakdown.subDeudas.toFixed(2)}
+                  </td>
+                </tr>
+              ) : null}
+              {lineBreakdown.subManual > 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right text-slate-600">
+                    Subtotal conceptos / servicios
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-800">
+                    S/ {lineBreakdown.subManual.toFixed(2)}
+                  </td>
+                </tr>
+              ) : null}
+              <tr>
+                <td colSpan={3} className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Total líneas
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-base font-bold text-primary-800">
+                  S/ {lineBreakdown.total.toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
         </div>
       </section>
@@ -381,7 +799,7 @@ const TaxSettlementDetail = () => {
         title="Emitir liquidación"
         message={
           row
-            ? `El número «${row.number?.trim() || '—'}» ya corresponde a este borrador. Al emitir se fijarán los totales y el estado pasará a emitida. Las líneas de ajuste / impuesto manual generarán las deudas internas (DEU-LIQ…) si aplica. Esta acción no se puede deshacer como borrador.`
+            ? `El número «${row.number?.trim() || '—'}» ya corresponde a este borrador. Al emitir se fijarán los totales y el estado pasará a emitida. Las deudas de la liquidación quedarán confirmadas (sin duplicar documentos). Esta acción no se puede deshacer como borrador.`
             : ''
         }
         confirmLabel="Sí, emitir"
@@ -394,17 +812,59 @@ const TaxSettlementDetail = () => {
       />
 
       <ConfirmDialog
+        open={closeDialogOpen}
+        title="Cerrar liquidación"
+        message={
+          row
+            ? `¿Cerrar la liquidación «${row.number?.trim() || '—'}»? Quedará como registro histórico inmutable. Se conservará el estado de cada deuda al momento del cierre. Las deudas con saldo pendiente podrán incorporarse manualmente a una nueva liquidación.`
+            : ''
+        }
+        confirmLabel="Sí, cerrar"
+        cancelLabel="Cancelar"
+        loading={closing}
+        onClose={() => {
+          if (!closing) setCloseDialogOpen(false);
+        }}
+        onConfirm={() => void performClose()}
+      />
+
+      <ConfirmDialog
         open={deleteDialogOpen}
         title="Advertencia: eliminar liquidación"
         message={row ? settlementDeleteWarningMessage() : ''}
-        confirmLabel="Sí, eliminar"
+        confirmLabel="Continuar"
         cancelLabel="Cancelar"
         danger
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={() => {
+          setDeleteDialogOpen(false);
+          setDeleteKeyOpen(true);
+        }}
+      />
+
+      <OperationsKeyDialog
+        open={deleteKeyOpen}
+        title="Clave de operaciones"
+        message="Confirme la clave para eliminar esta liquidación."
+        confirmLabel="Eliminar"
         loading={deleteLoading}
         onClose={() => {
-          if (!deleteLoading) setDeleteDialogOpen(false);
+          if (!deleteLoading) setDeleteKeyOpen(false);
         }}
-        onConfirm={() => void confirmDeleteSettlement()}
+        onConfirm={(key) => void confirmDeleteSettlement(key)}
+      />
+
+      <ConfirmDialog
+        open={editKeyOpen}
+        title="Editar liquidación"
+        message="Se revertirán pagos, comprobantes vinculados y deudas internas DEU-LIQ antes de abrir el editor."
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        loading={editKeyLoading}
+        onClose={() => {
+          if (!editKeyLoading) setEditKeyOpen(false);
+        }}
+        onConfirm={() => void confirmEditSettlement()}
       />
     </div>
   );

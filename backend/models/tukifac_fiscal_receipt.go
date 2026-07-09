@@ -17,6 +17,7 @@ const (
 const (
 	TukifacReceiptOriginSync        = "tukifac_sync"
 	TukifacReceiptOriginIssuedLocal = "issued_local"
+	TukifacReceiptOriginPOS         = "pos_sale"
 )
 
 // TukifacFiscalReceipt comprobante fiscal listado desde Tukifac (honorarios del estudio al cliente).
@@ -36,16 +37,46 @@ type TukifacFiscalReceipt struct {
 	TaxSettlementID *uint `gorm:"index" json:"tax_settlement_id,omitempty"`
 	StateTypeDescription   string         `gorm:"size:100" json:"state_type_description,omitempty"`
 	Origin                 string         `gorm:"size:30;not null;default:'tukifac_sync'" json:"origin"`
-	// URLs de impresión/descarga devueltas por Tukifac al emitir (ticket térmico y PDF A4).
+	IssuedByUserID         *uint          `gorm:"index" json:"issued_by_user_id,omitempty"`
+	FiscalSeriesID         *uint          `gorm:"index" json:"fiscal_series_id,omitempty"`
+	Subtotal               float64        `gorm:"type:decimal(15,2);not null;default:0" json:"subtotal"`
+	TaxAmount              float64        `gorm:"type:decimal(15,2);not null;default:0" json:"tax_amount"`
+	TotalDiscount          float64        `gorm:"type:decimal(15,2);not null;default:0" json:"total_discount"`
+	PaymentMethod          string         `gorm:"size:30" json:"payment_method,omitempty"`
+	PaymentReference       string         `gorm:"size:120" json:"payment_reference,omitempty"`
+	Notes                  string         `gorm:"type:text" json:"notes,omitempty"`
+	// Snapshot JSON de DebtPaymentContext al emitir (PDF / reimpresión inmutable).
+	DebtPaymentContextJSON string         `gorm:"type:text" json:"-"`
+	// URLs de impresión/descarga (legacy / externas).
 	PrintTicketURL string `gorm:"size:2000" json:"print_ticket_url,omitempty"`
 	PdfURL         string `gorm:"size:2000" json:"pdf_url,omitempty"`
 	CreatedAt              time.Time      `json:"created_at"`
 	UpdatedAt              time.Time      `json:"updated_at"`
 	DeletedAt              gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Company        *Company        `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
-	LinkedPayment  *Payment        `gorm:"foreignKey:LinkedPaymentID" json:"linked_payment,omitempty"`
-	TaxSettlement  *TaxSettlement  `gorm:"foreignKey:TaxSettlementID" json:"tax_settlement,omitempty"`
+	Company        *Company             `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
+	LinkedPayment  *Payment             `gorm:"foreignKey:LinkedPaymentID" json:"linked_payment,omitempty"`
+	TaxSettlement  *TaxSettlement       `gorm:"foreignKey:TaxSettlementID" json:"tax_settlement,omitempty"`
+	IssuedByUser   *User                `gorm:"foreignKey:IssuedByUserID" json:"issued_by_user,omitempty"`
+	Lines          []FiscalReceiptLine     `gorm:"foreignKey:FiscalReceiptID" json:"lines,omitempty"`
+	Payments       []FiscalReceiptPayment  `gorm:"foreignKey:FiscalReceiptID" json:"payments,omitempty"`
+
+	// Campos calculados en detalle (no persistidos).
+	PeriodLabel        string              `gorm:"-" json:"period_label,omitempty"`
+	DebtPaymentContext *DebtPaymentContext `gorm:"-" json:"debt_payment_context,omitempty"`
+}
+
+// DebtPaymentContext resumen de pago aplicado a deuda(s) para comprobante/PDF.
+type DebtPaymentContext struct {
+	IsPartialPayment  bool     `json:"is_partial_payment"`
+	StatusLabel       string   `json:"status_label"`
+	DocumentNumber    string   `json:"document_number,omitempty"`
+	PaidConceptLabel  string   `json:"paid_concept_label,omitempty"`
+	PaidConcepts      []string `json:"paid_concepts,omitempty"`
+	DebtTotal         float64  `json:"debt_total"`
+	PaidThisOperation float64  `json:"paid_this_operation"`
+	PaidAccumulated   float64  `json:"paid_accumulated"`
+	BalancePending    float64  `json:"balance_pending"`
 }
 
 func (TukifacFiscalReceipt) TableName() string {

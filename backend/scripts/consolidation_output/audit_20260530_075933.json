@@ -1,0 +1,16 @@
+{
+  "deu_liq_count": 373,
+  "deu_liq_active_count": 0,
+  "deu_liq_merged_count": 98,
+  "deu_liq_promoted_count": 275,
+  "legacy_pending_count": 0,
+  "duplicate_settlement_groups": 0,
+  "fragile_receipts": 0,
+  "missing_settlement_link": 0,
+  "orphan_settlement_docs": 0,
+  "negative_balance": 0,
+  "inconsistent_balance": 0,
+  "invalid_allocations": 0,
+  "inconsistent_status": 0,
+  "has_issues": false
+}

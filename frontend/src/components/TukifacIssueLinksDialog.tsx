@@ -8,9 +8,7 @@ type Props = {
   continueLabel?: string;
 };
 
-/**
- * Tras emitir en Tukifac, muestra enlaces a vista ticket y PDF (A4) guardados en el sistema.
- */
+/** Enlaces externos guardados (comprobantes importados o legacy). */
 export default function TukifacIssueLinksDialog({ open, links, onContinue, continueLabel = 'Continuar' }: Props) {
   if (!open || !links) return null;
   const ticket = links.print_ticket_url?.trim();
@@ -27,7 +25,7 @@ export default function TukifacIssueLinksDialog({ open, links, onContinue, conti
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl p-5 space-y-4">
         <div>
           <h2 id="tukifac-links-title" className="text-lg font-semibold text-slate-800">
-            Comprobante en Tukifac
+            Comprobante (enlace externo)
           </h2>
           {links.number ? (
             <p className="mt-1 text-sm text-slate-600">

@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { planCategoriesService } from '../services/planCategories';
 import { subscriptionPlansService } from '../services/subscriptionPlans';
 import type { PlanCategory, PlanTier } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 
 type TierRow = { min_billing: string; max_billing: string; monthly_price: string; sort_order: string };
 
@@ -13,7 +14,10 @@ const SubscriptionPlanForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const editId = id ? Number(id) : null;
-  const canUpsert = auth.getRole() === 'Administrador' || auth.getRole() === 'Supervisor';
+  const canUpsert = useMemo(
+    () => auth.hasPermission(P.subscriptionPlansCreate) || auth.hasPermission(P.subscriptionPlansUpdate),
+    [],
+  );
 
   const [categories, setCategories] = useState<PlanCategory[]>([]);
   const [categoryId, setCategoryId] = useState('');

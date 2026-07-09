@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Payment, Company } from '../types/dashboard';
@@ -6,21 +6,31 @@ import { paymentsService } from '../services/payments';
 import type { PaginationMeta as ApiPaginationMeta } from '../services/payments';
 import { companiesService } from '../services/companies';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
 import { resolveBackendUrl } from '../api/client';
+import { formatInTimeZone } from 'date-fns-tz';
+import { peruDateInputFromApiDate } from '../utils/peruDates';
+import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
+function formatPaymentDate(iso?: string): string {
+  const d = peruDateInputFromApiDate(iso);
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
 
-const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
-const getCurrentMonthRange = () => {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: formatDateInput(from), to: formatDateInput(to) };
-};
+function formatPaymentRegisteredAt(iso?: string): string {
+  if (!iso) return '—';
+  try {
+    return formatInTimeZone(new Date(iso), 'America/Lima', 'dd/MM/yyyy HH:mm');
+  } catch {
+    return iso.slice(0, 16).replace('T', ' ');
+  }
+}
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -39,14 +49,11 @@ const Payments = () => {
   const initialDateTo = searchParams.get('date_to') ?? '';
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 20);
-  const currentMonthRange = getCurrentMonthRange();
-  const effectiveInitialDateFrom = initialDateFrom || currentMonthRange.from;
-  const effectiveInitialDateTo = initialDateTo || currentMonthRange.to;
 
   const [companyId, setCompanyId] = useState(initialCompanyId);
   const [type, setType] = useState(initialType);
-  const [dateFrom, setDateFrom] = useState(effectiveInitialDateFrom);
-  const [dateTo, setDateTo] = useState(effectiveInitialDateTo);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,22 +69,11 @@ const Payments = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    if (!initialDateFrom || !initialDateTo) {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('date_from', currentMonthRange.from);
-        next.set('date_to', currentMonthRange.to);
-        return next;
-      }, { replace: true });
-    }
-  }, [currentMonthRange.from, currentMonthRange.to, initialDateFrom, initialDateTo, setSearchParams]);
-
-  useEffect(() => {
     setCompanyId(initialCompanyId);
     setType(initialType);
-    setDateFrom(effectiveInitialDateFrom);
-    setDateTo(effectiveInitialDateTo);
-  }, [effectiveInitialDateFrom, effectiveInitialDateTo, initialCompanyId, initialType]);
+    setDateFrom(initialDateFrom);
+    setDateTo(initialDateTo);
+  }, [initialDateFrom, initialDateTo, initialCompanyId, initialType]);
 
   useEffect(() => {
     fetchCompanies();
@@ -85,7 +81,7 @@ const Payments = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, [effectiveInitialDateFrom, effectiveInitialDateTo, initialCompanyId, initialPage, initialPerPage, initialType]);
+  }, [initialDateFrom, initialDateTo, initialCompanyId, initialPage, initialPerPage, initialType]);
 
   const getTypeLabel = (p: Payment) => {
     const normalized = (p.type ?? '').toLowerCase().trim();
@@ -121,8 +117,8 @@ const Payments = () => {
       const res = await paymentsService.listPaged({
         company_id: initialCompanyId || undefined,
         type: initialType || undefined,
-        date_from: effectiveInitialDateFrom || undefined,
-        date_to: effectiveInitialDateTo || undefined,
+        date_from: initialDateFrom && initialDateTo ? initialDateFrom : undefined,
+        date_to: initialDateFrom && initialDateTo ? initialDateTo : undefined,
         page: initialPage,
         per_page: initialPerPage,
       });
@@ -142,7 +138,7 @@ const Payments = () => {
     const monto = Number.isFinite(p.amount)
       ? p.amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
-    return `Se eliminará el pago del ${fecha} por S/ ${monto} (${empresa}). Se quitarán las imputaciones a deudas, se actualizarán los estados de los documentos y, si aplica, se desvinculará el comprobante Tukifac. Esta acción no se puede deshacer.`;
+    return `Se eliminará el pago del ${fecha} por S/ ${monto} (${empresa}). Se quitarán las imputaciones a deudas, se actualizarán los estados de los documentos y, si aplica, se desvinculará el comprobante fiscal. Esta acción no se puede deshacer.`;
   };
 
   const confirmDeletePayment = async () => {
@@ -175,9 +171,27 @@ const Payments = () => {
   };
 
   const lastPaymentsFilterKeyRef = useRef<string | null>(null);
+  const partialDateFilterWarned = useRef(false);
 
   useEffect(() => {
     const filterKey = [companyId, type, dateFrom, dateTo].join('\t');
+
+    if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
+      if (!partialDateFilterWarned.current) {
+        partialDateFilterWarned.current = true;
+        window.dispatchEvent(
+          new CustomEvent('miweb:toast', {
+            detail: {
+              type: 'error',
+              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los pagos.',
+            },
+          }),
+        );
+      }
+      return;
+    }
+    partialDateFilterWarned.current = false;
+
     const prevFilterKey = lastPaymentsFilterKeyRef.current;
     const filtersJustChanged = prevFilterKey !== null && prevFilterKey !== filterKey;
 
@@ -188,8 +202,13 @@ const Payments = () => {
         else next.delete('company_id');
         if (type) next.set('type', type);
         else next.delete('type');
-        next.set('date_from', dateFrom || currentMonthRange.from);
-        next.set('date_to', dateTo || currentMonthRange.to);
+        if (dateFrom && dateTo) {
+          next.set('date_from', dateFrom);
+          next.set('date_to', dateTo);
+        } else {
+          next.delete('date_from');
+          next.delete('date_to');
+        }
         if (filtersJustChanged) {
           next.set('page', '1');
         } else {
@@ -209,8 +228,6 @@ const Payments = () => {
     type,
     dateFrom,
     dateTo,
-    currentMonthRange.from,
-    currentMonthRange.to,
     initialPerPage,
     setSearchParams,
   ]);
@@ -233,10 +250,9 @@ const Payments = () => {
     });
   };
 
-  const role = auth.getRole() ?? '';
-  const canCreate = role === 'Administrador' || role === 'Supervisor' || role === 'Contador' || role === 'Asistente';
-  const canEdit = role === 'Administrador' || role === 'Supervisor' || role === 'Contador';
-  const canDeletePayment = role === 'Administrador';
+  const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
+  const canDeletePayment = useMemo(() => auth.hasPermission(P.paymentsDelete), []);
 
   const closePreview = () => setPreviewUrl(null);
   const isPdf = (url: string) => url.toLowerCase().split('?')[0].endsWith('.pdf');
@@ -324,7 +340,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Desde</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro desde</label>
           <input
             type="date"
             value={dateFrom}
@@ -333,7 +349,7 @@ const Payments = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Hasta</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Registro hasta</label>
           <input
             type="date"
             value={dateTo}
@@ -354,10 +370,11 @@ const Payments = () => {
           <table className="min-w-full text-sm text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Registro</th>
+                <th className="px-4 py-3">Fecha pago</th>
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Tukifac</th>
+                <th className="px-4 py-3">Comprobante</th>
                 <th className="px-4 py-3">PDF</th>
                 <th className="px-4 py-3">Deuda</th>
                 <th className="px-4 py-3">Método</th>
@@ -369,18 +386,24 @@ const Payments = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && payments.length === 0 ? (
                  <tr>
-                   <td colSpan={10} className="px-4 py-6 text-center text-slate-500 text-sm">
+                   <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
                      <i className="fas fa-spinner fa-spin mr-2"></i> Cargando pagos...
                    </td>
                  </tr>
               ) : payments.length > 0 ? (
                 payments.map((payment) => {
                   const tukRec = payment.tukifac_fiscal_receipt;
+                  const localPdf = tukRec ? isLocalFiscalReceipt(tukRec.origin) : false;
                   const ticketUrl = (tukRec?.print_ticket_url ?? '').trim();
                   const pdfUrl = (tukRec?.pdf_url ?? '').trim();
                   return (
                   <tr key={payment.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-700">{payment.date ? payment.date.slice(0, 10) : '—'}</td>
+                    <td className="px-4 py-3 text-slate-700 text-xs tabular-nums whitespace-nowrap" title="Fecha y hora en que se registró en el sistema">
+                      {formatPaymentRegisteredAt(payment.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 tabular-nums whitespace-nowrap" title="Fecha en que se realizó el pago">
+                      {formatPaymentDate(payment.date)}
+                    </td>
                     <td className="px-4 py-3 text-slate-800 font-medium">
                       {payment.company ? payment.company.business_name : '—'}
                     </td>
@@ -393,15 +416,15 @@ const Payments = () => {
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs">
                       {tukRec?.number ? (
-                        <span title={`ID Tukifac: ${tukRec.external_id}`}>
-                          {tukRec.number}
-                        </span>
+                        <span title={tukRec.external_id}>{tukRec.number}</span>
                       ) : (
                         <span className="text-slate-400 font-sans">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!ticketUrl && !pdfUrl ? (
+                      {localPdf && tukRec ? (
+                        <FiscalReceiptPdfActions receiptId={tukRec.id} compact />
+                      ) : !ticketUrl && !pdfUrl ? (
                         <span className="text-slate-400 text-xs">—</span>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -411,7 +434,7 @@ const Payments = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:bg-slate-100"
-                              title="Vista ticket (Tukifac)"
+                              title="Enlace externo ticket"
                             >
                               <i className="fas fa-receipt text-[10px]" aria-hidden />
                               Ticket
@@ -423,7 +446,7 @@ const Payments = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50"
-                              title="PDF A4 (Tukifac)"
+                              title="Enlace externo PDF"
                             >
                               <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
                               A4
@@ -479,7 +502,7 @@ const Payments = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-slate-500 text-sm">
+                  <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
                     {loading ? "Cargando..." : "No hay pagos registrados."}
                   </td>
                 </tr>

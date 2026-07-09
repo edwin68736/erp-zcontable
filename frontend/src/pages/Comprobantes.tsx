@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import { companiesService } from '../services/companies';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Company, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
 import { auth } from '../services/auth';
+import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
+import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
+import FiscalReceiptPaymentModal from '../components/FiscalReceiptPaymentModal';
+import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -18,6 +22,13 @@ function parsePositiveInt(value: string | null, fallback: number): number {
 }
 
 function formatIssueDate(iso: string): string {
+  if (!iso) return '—';
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+function formatEmissionDate(r: TukifacFiscalReceipt): string {
+  const fromPayment = r.linked_payment?.created_at?.trim();
+  const iso = fromPayment || r.issue_date;
   if (!iso) return '—';
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
@@ -41,13 +52,17 @@ const Comprobantes = () => {
   const initialTaxSettlementId = searchParams.get('tax_settlement_id') ?? '';
   const initialStatus = searchParams.get('status') ?? '';
   const initialOrigin = searchParams.get('origin') ?? '';
+  const initialRuc = searchParams.get('ruc') ?? '';
+  const initialNumber = searchParams.get('number') ?? '';
   const initialNeeds = searchParams.get('needs_settlement') === '1';
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 25);
 
-  const role = auth.getRole() ?? '';
-  const canView = ['Administrador', 'Supervisor', 'Contador', 'Asistente'].includes(role);
-  const canLinkSettlement = ['Administrador', 'Supervisor', 'Contador'].includes(role);
+  const canView = auth.hasPermission(P.fiscalReceiptsList);
+  const canLinkSettlement = auth.hasPermission(P.tukifacFiscalPatchTax);
+  const canCreatePayment = auth.hasPermission(P.tukifacFiscalCreatePayment);
+  const canDiscard = auth.hasPermission(P.tukifacFiscalDiscard);
+  const isPendingView = initialStatus === 'pendiente_vincular';
 
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,13 +80,39 @@ const Comprobantes = () => {
   const [filterStatus, setFilterStatus] = useState(initialStatus);
   const [filterOrigin, setFilterOrigin] = useState(initialOrigin);
   const [filterNeedsSettlement, setFilterNeedsSettlement] = useState(initialNeeds);
+  const [filterRuc, setFilterRuc] = useState(initialRuc);
+  const [filterNumber, setFilterNumber] = useState(initialNumber);
 
+  const [paymentReceipt, setPaymentReceipt] = useState<TukifacFiscalReceipt | null>(null);
   const [linkModal, setLinkModal] = useState<TukifacFiscalReceipt | null>(null);
   const [linkSelect, setLinkSelect] = useState('');
   const [linkSaving, setLinkSaving] = useState(false);
   const [linkError, setLinkError] = useState('');
   const [settlementsOptions, setSettlementsOptions] = useState<TaxSettlement[]>([]);
   const [settlementsLoading, setSettlementsLoading] = useState(false);
+
+  const filterKey = useMemo(
+    () =>
+      [
+        filterCompanyId,
+        filterTaxSettlementId.trim(),
+        filterStatus,
+        filterOrigin,
+        filterNeedsSettlement ? '1' : '',
+        filterRuc.trim(),
+        filterNumber.trim(),
+      ].join('\0'),
+    [
+      filterCompanyId,
+      filterTaxSettlementId,
+      filterStatus,
+      filterOrigin,
+      filterNeedsSettlement,
+      filterRuc,
+      filterNumber,
+    ],
+  );
+  const lastFilterKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     void companiesService.list().then(setCompanies).catch(() => setCompanies([]));
@@ -83,7 +124,9 @@ const Comprobantes = () => {
     setFilterStatus(initialStatus);
     setFilterOrigin(initialOrigin);
     setFilterNeedsSettlement(initialNeeds);
-  }, [initialCompanyId, initialTaxSettlementId, initialStatus, initialOrigin, initialNeeds]);
+    setFilterRuc(initialRuc);
+    setFilterNumber(initialNumber);
+  }, [initialCompanyId, initialTaxSettlementId, initialStatus, initialOrigin, initialNeeds, initialRuc, initialNumber]);
 
   const fetchList = useCallback(async () => {
     try {
@@ -95,6 +138,8 @@ const Comprobantes = () => {
         company_id: initialCompanyId || undefined,
         tax_settlement_id: initialTaxSettlementId || undefined,
         needs_settlement: initialNeeds || undefined,
+        ruc: initialRuc.trim() || undefined,
+        number: initialNumber.trim() || undefined,
         page: initialPage,
         per_page: initialPerPage,
       });
@@ -107,7 +152,17 @@ const Comprobantes = () => {
     } finally {
       setLoading(false);
     }
-  }, [initialCompanyId, initialNeeds, initialOrigin, initialPage, initialPerPage, initialStatus, initialTaxSettlementId]);
+  }, [
+    initialCompanyId,
+    initialNeeds,
+    initialNumber,
+    initialOrigin,
+    initialPage,
+    initialPerPage,
+    initialRuc,
+    initialStatus,
+    initialTaxSettlementId,
+  ]);
 
   useEffect(() => {
     void fetchList();
@@ -115,6 +170,9 @@ const Comprobantes = () => {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      const prevFilterKey = lastFilterKeyRef.current;
+      const filtersJustChanged = prevFilterKey !== null && prevFilterKey !== filterKey;
+
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         const setOrDel = (k: string, v: string) => {
@@ -125,23 +183,36 @@ const Comprobantes = () => {
         setOrDel('tax_settlement_id', filterTaxSettlementId.trim());
         setOrDel('status', filterStatus);
         setOrDel('origin', filterOrigin);
+        setOrDel('ruc', filterRuc.trim());
+        setOrDel('number', filterNumber.trim());
         if (filterNeedsSettlement) next.set('needs_settlement', '1');
         else next.delete('needs_settlement');
-        next.set('page', '1');
+        if (filtersJustChanged) {
+          next.set('page', '1');
+        } else {
+          const p = prev.get('page');
+          next.set('page', p && /^[1-9]\d*$/.test(p) ? p : '1');
+        }
         if (!next.get('per_page')) next.set('per_page', String(initialPerPage));
+        if (next.toString() === prev.toString()) return prev;
         return next;
       }, { replace: true });
+
+      lastFilterKeyRef.current = filterKey;
     }, 350);
     return () => window.clearTimeout(t);
-  }, [
-    filterCompanyId,
-    filterNeedsSettlement,
-    filterOrigin,
-    filterStatus,
-    filterTaxSettlementId,
-    initialPerPage,
-    setSearchParams,
-  ]);
+  }, [filterKey, filterCompanyId, filterNeedsSettlement, filterOrigin, filterNumber, filterRuc, filterStatus, filterTaxSettlementId, initialPerPage, setSearchParams]);
+
+  const applyStatusPreset = (status: string) => {
+    setFilterStatus(status);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (status) next.set('status', status);
+      else next.delete('status');
+      next.set('page', '1');
+      return next;
+    }, { replace: true });
+  };
 
   const handlePageChange = (nextPage: number) => {
     setSearchParams((prev) => {
@@ -159,6 +230,25 @@ const Comprobantes = () => {
       next.set('page', '1');
       return next;
     });
+  };
+
+  const canRegisterPayment = (r: TukifacFiscalReceipt) =>
+    canCreatePayment && r.reconciliation_status === 'pendiente_vincular';
+
+  const discardReceipt = async (id: number) => {
+    if (!canDiscard) return;
+    if (!confirm('¿Descartar este comprobante? No se registrará pago.')) return;
+    try {
+      await fiscalReceiptsService.discard(id);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Comprobante descartado.' } }),
+      );
+      void fetchList();
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo descartar el comprobante.' } }),
+      );
+    }
   };
 
   /** Comprobantes emitidos desde pago de liquidación ya quedan vinculados; solo manual si falta liquidación efectiva. */
@@ -243,8 +333,9 @@ const Comprobantes = () => {
   const originOptions = useMemo(
     () => [
       { value: '', label: 'Todos los orígenes' },
-      { value: 'issued_local', label: 'Sistema' },
-      { value: 'tukifac_sync', label: 'Tukifac' },
+      { value: 'issued_local', label: 'Pagos / liquidación' },
+      { value: 'pos_sale', label: 'POS' },
+      { value: 'tukifac_sync', label: 'Importado (histórico)' },
     ],
     [],
   );
@@ -264,36 +355,50 @@ const Comprobantes = () => {
           <div>
             <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Comprobantes</h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed max-w-3xl">
-              Facturas, boletas y notas de venta registradas en el sistema (emitidas aquí o sincronizadas desde Tukifac).
-              Tukifac es referencia para conciliación; la trazabilidad con liquidaciones se muestra en cada fila. Los que no
-              tienen liquidación figuran como pendientes de vinculación.
+              Facturas, boletas y notas de venta emitidas en ZContable (POS, pagos y liquidaciones). Use la vista{' '}
+              <strong className="font-medium text-slate-600">Pendientes de pago</strong> para registrar el cobro e imputar a
+              deudas.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Link
-              to="/documents/fiscal-receipts"
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
+            <button
+              type="button"
+              onClick={() => applyStatusPreset('')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                !isPendingView
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
             >
-              <i className="fas fa-link text-[11px]" aria-hidden />
-              Conciliación (pendientes)
-            </Link>
-            <Link
-              to="/tukifac/documentos"
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
+              Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => applyStatusPreset('pendiente_vincular')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                isPendingView
+                  ? 'bg-amber-600 text-white border-amber-600'
+                  : 'bg-white text-amber-800 border-amber-300 hover:bg-amber-50'
+              }`}
             >
-              <i className="fas fa-cloud-download-alt text-[11px]" aria-hidden />
-              Sincronizar Tukifac
-            </Link>
+              Pendientes de pago
+            </button>
           </div>
         </div>
       </header>
+
+      {isPendingView ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Comprobantes sin pago registrado. Confirme el cobro con método e imputación (FIFO o manual), igual que al pagar una deuda.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       ) : null}
 
       <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Empresa</label>
             <SearchableSelect
@@ -322,6 +427,28 @@ const Comprobantes = () => {
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">RUC</label>
+            <input
+              type="text"
+              value={filterRuc}
+              onChange={(ev) => setFilterRuc(ev.target.value)}
+              placeholder="Número de RUC"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nº comprobante</label>
+            <input
+              type="text"
+              value={filterNumber}
+              onChange={(ev) => setFilterNumber(ev.target.value)}
+              placeholder="Ej. B002-907"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono"
+              autoComplete="off"
+            />
+          </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input
@@ -343,7 +470,11 @@ const Comprobantes = () => {
             Cargando…
           </div>
         ) : list.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">No hay comprobantes con los filtros actuales.</div>
+          <div className="p-8 text-center text-slate-500 text-sm">
+            {isPendingView
+              ? 'No hay comprobantes pendientes de pago con los filtros actuales.'
+              : 'No hay comprobantes con los filtros actuales.'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1040px] w-full text-sm">
@@ -364,7 +495,8 @@ const Comprobantes = () => {
               <tbody className="divide-y divide-slate-100">
                 {list.map((r) => {
                   const kind = r.document_kind_label ?? '—';
-                  const origin = r.origin_label ?? (r.origin === 'issued_local' ? 'Sistema' : 'Tukifac');
+                  const origin = r.origin_label ?? (r.origin === 'issued_local' ? 'Sistema' : r.origin === 'pos_sale' ? 'POS' : 'Externo');
+                  const localPdf = isLocalFiscalReceipt(r.origin);
                   const recon = r.reconciliation_label ?? r.reconciliation_status;
                   const sunat = r.state_type_description?.trim();
                   const stBadge = r.settlement_link_status ?? (r.reconciliation_status === 'descartado' ? 'descartado' : 'pendiente');
@@ -374,7 +506,7 @@ const Comprobantes = () => {
                     <tr key={r.id} className="hover:bg-slate-50/80">
                       <td className="px-3 py-3 text-slate-800 font-medium">{kind}</td>
                       <td className="px-3 py-3 text-slate-800 tabular-nums">{r.number}</td>
-                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatIssueDate(r.issue_date)}</td>
+                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatEmissionDate(r)}</td>
                       <td className="px-3 py-3 text-slate-700 max-w-[200px] truncate" title={r.company?.business_name ?? r.customer_name}>
                         {r.company?.business_name ?? r.customer_name ?? r.customer_number ?? '—'}
                       </td>
@@ -397,7 +529,9 @@ const Comprobantes = () => {
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        {ticketUrl || pdfUrl ? (
+                        {localPdf ? (
+                          <FiscalReceiptPdfActions receiptId={r.id} compact />
+                        ) : ticketUrl || pdfUrl ? (
                           <div className="flex flex-wrap items-center gap-1.5">
                             {ticketUrl ? (
                               <a
@@ -405,7 +539,7 @@ const Comprobantes = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:bg-slate-100"
-                                title="Vista ticket (Tukifac)"
+                                title="Enlace externo ticket"
                               >
                                 <i className="fas fa-receipt text-[10px]" aria-hidden />
                                 Ticket
@@ -417,7 +551,7 @@ const Comprobantes = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50"
-                                title="PDF A4 (Tukifac)"
+                                title="Enlace externo PDF"
                               >
                                 <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
                                 A4
@@ -429,17 +563,38 @@ const Comprobantes = () => {
                         )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        {canManualLinkSettlement(r) ? (
-                          <button
-                            type="button"
-                            onClick={() => void openLinkModal(r)}
-                            className="text-xs font-medium text-primary-700 hover:text-primary-800"
-                          >
-                            Vincular liquidación
-                          </button>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
+                        <div className="inline-flex flex-col items-end gap-1">
+                          {canRegisterPayment(r) ? (
+                            <button
+                              type="button"
+                              onClick={() => setPaymentReceipt(r)}
+                              className="text-xs font-medium text-primary-700 hover:text-primary-800"
+                            >
+                              Registrar pago
+                            </button>
+                          ) : null}
+                          {canManualLinkSettlement(r) ? (
+                            <button
+                              type="button"
+                              onClick={() => void openLinkModal(r)}
+                              className="text-xs font-medium text-slate-600 hover:text-slate-800"
+                            >
+                              Vincular liquidación
+                            </button>
+                          ) : null}
+                          {r.reconciliation_status === 'pendiente_vincular' && canDiscard ? (
+                            <button
+                              type="button"
+                              onClick={() => void discardReceipt(r.id)}
+                              className="text-xs text-slate-500 hover:text-red-600"
+                            >
+                              Descartar
+                            </button>
+                          ) : null}
+                          {!canRegisterPayment(r) && !canManualLinkSettlement(r) ? (
+                            <span className="text-slate-300">—</span>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -451,8 +606,8 @@ const Comprobantes = () => {
         {!loading && pagination.total > 0 ? (
           <div className="border-t border-slate-100 px-3 py-3">
             <Pagination
-              page={pagination.page}
-              perPage={pagination.per_page}
+              page={pagination.page || initialPage}
+              perPage={pagination.per_page || initialPerPage}
               total={pagination.total}
               onPageChange={handlePageChange}
               onPerPageChange={handlePerPageChange}
@@ -461,6 +616,12 @@ const Comprobantes = () => {
           </div>
         ) : null}
       </div>
+
+      <FiscalReceiptPaymentModal
+        receipt={paymentReceipt}
+        onClose={() => setPaymentReceipt(null)}
+        onSuccess={() => void fetchList()}
+      />
 
       {linkModal ? (
         <div

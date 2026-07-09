@@ -13,10 +13,13 @@ type Payment struct {
 	DocumentID  *uint          `gorm:"index" json:"document_id"`
 	Type        string         `gorm:"size:20;not null;default:'applied'" json:"type"`
 	Date        time.Time      `json:"date"`
-	Amount      float64        `gorm:"type:decimal(15,2);not null" json:"amount"`
+	Amount         float64 `gorm:"type:decimal(15,2);not null" json:"amount"`
+	// Descuento comercial sobre el total (monto cobrado + descuento = suma de imputaciones).
+	DiscountAmount float64 `gorm:"type:decimal(15,2);not null;default:0" json:"discount_amount"`
 	Method      string         `gorm:"size:50" json:"method"`   // transferencia, efectivo, etc.
 	Reference   string         `gorm:"size:100" json:"reference"`
 	Attachment  string         `gorm:"size:255" json:"attachment"` // ruta/URL del comprobante
+	Description string         `gorm:"type:text" json:"description"` // detalle visible al cliente (ej. concepto del servicio)
 	Notes       string         `gorm:"type:text" json:"notes"`
 	// FiscalStatus: na | pending_receipt | linked (vínculo comprobante Tukifac)
 	FiscalStatus string `gorm:"size:30;not null;default:'na'" json:"fiscal_status"`

@@ -8,6 +8,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
 )
@@ -31,9 +32,11 @@ type PaymentCreateParams struct {
 	Type           string
 	Date           time.Time
 	Amount         float64
+	DiscountAmount float64
 	Method         string
 	Reference      string
 	Attachment     string
+	Description    string
 	Notes          string
 	AllocationMode string // fifo, manual (implícito si hay allocations), vacío + document_id = un documento
 	Allocations    []PaymentAllocationInput
@@ -72,29 +75,7 @@ func isValidPaymentType(value string) bool {
 }
 
 func recalculateDocumentStatusTx(tx *gorm.DB, documentID uint) error {
-	var d models.Document
-	if err := tx.First(&d, documentID).Error; err != nil {
-		return err
-	}
-	if d.Status == "anulado" {
-		return nil
-	}
-
-	paid := DocumentPaidTotal(tx, documentID)
-
-	next := "pendiente"
-	if paid <= 0 {
-		next = "pendiente"
-	} else if paid+0.005 >= d.TotalAmount {
-		next = "pagado"
-	} else if paid > 0 && paid < d.TotalAmount && !math.IsNaN(paid) {
-		next = "parcial"
-	}
-
-	if next != d.Status {
-		return tx.Model(&models.Document{}).Where("id = ?", documentID).Update("status", next).Error
-	}
-	return nil
+	return debtsvc.NewService().PersistBalanceAndStatus(tx, documentID)
 }
 
 func (s *PaymentService) Create(input *models.Payment) error {
@@ -117,6 +98,7 @@ func (s *PaymentService) Create(input *models.Payment) error {
 		Method:         input.Method,
 		Reference:      input.Reference,
 		Attachment:     input.Attachment,
+		Description:    strings.TrimSpace(input.Description),
 		Notes:          input.Notes,
 		FiscalStatus:   fs,
 		AllocationMode: "",
@@ -133,6 +115,10 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 	}
 	if p.Amount <= 0 {
 		return 0, errors.New("el monto debe ser mayor a 0")
+	}
+	p.DiscountAmount = math.Round(p.DiscountAmount*100) / 100
+	if p.DiscountAmount < 0 {
+		return 0, errors.New("el descuento no puede ser negativo")
 	}
 	if p.Date.IsZero() {
 		p.Date = time.Now()
@@ -169,6 +155,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			Method:       p.Method,
 			Reference:    p.Reference,
 			Attachment:   p.Attachment,
+			Description:  p.Description,
 			Notes:        p.Notes,
 			FiscalStatus: p.FiscalStatus,
 		}
@@ -193,6 +180,9 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 
 	// applied
 	mode := strings.ToLower(strings.TrimSpace(p.AllocationMode))
+	if p.DiscountAmount > 0.005 && mode == "fifo" {
+		return 0, errors.New("el descuento no puede combinarse con imputación FIFO")
+	}
 	var lines []PaymentAllocationInput
 
 	if len(p.Allocations) > 0 {
@@ -200,7 +190,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 		mode = "manual"
 	} else if mode == "fifo" {
 		var err error
-		lines, err = s.buildFIFOAllocations(p.CompanyID, p.Amount, p.AllowUnallocatedRemainder)
+		lines, err = s.buildFIFOAllocations(p.CompanyID, p.Amount, p.AllowUnallocatedRemainder, p.TaxSettlementID)
 		if err != nil {
 			return 0, err
 		}
@@ -214,6 +204,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 				Method:       p.Method,
 				Reference:    p.Reference,
 				Attachment:   p.Attachment,
+				Description:  p.Description,
 				Notes:        p.Notes,
 				FiscalStatus: p.FiscalStatus,
 			}
@@ -223,13 +214,29 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			return pay.ID, nil
 		}
 	} else if p.DocumentID != nil {
-		lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: p.Amount}}
+		debtSvc := debtsvc.NewService()
+		var doc models.Document
+		if err := database.DB.First(&doc, *p.DocumentID).Error; err != nil {
+			return 0, errors.New("documento inválido")
+		}
+		if doc.CompanyID != p.CompanyID {
+			return 0, errors.New("el documento no pertenece a la empresa")
+		}
+		bal := debtSvc.EffectiveBalance(database.DB, &doc)
+		if p.DiscountAmount > 0.005 {
+			if math.Abs(p.Amount+p.DiscountAmount-bal) > 0.02 {
+				return 0, errors.New("con descuento, el monto pagado más el descuento debe igualar el saldo de la deuda")
+			}
+			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: bal}}
+		} else {
+			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: p.Amount}}
+		}
 		mode = "single"
 	} else {
 		return 0, errors.New("indique documento, allocation_mode=fifo o lista allocations")
 	}
 
-	if mode == "manual" {
+	if mode == "manual" || mode == "single" {
 		var sum float64
 		for _, ln := range lines {
 			if ln.DocumentID == 0 || ln.Amount <= 0 {
@@ -237,82 +244,52 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			}
 			sum += ln.Amount
 		}
-		if math.Abs(sum-p.Amount) > 0.02 {
-			return 0, errors.New("la suma de imputaciones debe igualar el monto del pago")
+		debtSvc := debtsvc.NewService()
+		if err := debtSvc.ValidatePaymentAmountsAndAllocations(database.DB, p.CompanyID, p.Amount, p.DiscountAmount, toDebtLines(lines), p.TaxSettlementID); err != nil {
+			return 0, err
 		}
 	}
 
 	var paymentID uint
+	debtSvc := debtsvc.NewService()
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		docSeen := map[uint]struct{}{}
-		for _, ln := range lines {
-			if _, dup := docSeen[ln.DocumentID]; dup {
-				return errors.New("documento repetido en imputación; una sola línea por documento")
-			}
-			docSeen[ln.DocumentID] = struct{}{}
-
-			var d models.Document
-			if err := tx.First(&d, ln.DocumentID).Error; err != nil {
-				return errors.New("documento inválido")
-			}
-			if d.CompanyID != p.CompanyID {
-				return errors.New("el documento no pertenece a la empresa")
-			}
-			if d.Status == "anulado" {
-				return errors.New("no se puede imputar a un documento anulado")
-			}
-			bal := d.TotalAmount - DocumentPaidTotal(tx, ln.DocumentID)
-			if ln.Amount > bal+0.005 {
-				return errors.New("el monto excede el saldo de un documento imputado")
-			}
-		}
-
-		pay := models.Payment{
+		applyLines := toDebtLines(lines)
+		pid, err := debtSvc.ApplyPaymentTx(tx, debtsvc.ApplyPaymentInput{
 			CompanyID:       p.CompanyID,
-			DocumentID:      nil,
-			Type:            "applied",
 			Date:            p.Date,
 			Amount:          p.Amount,
+			DiscountAmount:  p.DiscountAmount,
 			Method:          p.Method,
 			Reference:       p.Reference,
 			Attachment:      p.Attachment,
+			Description:     p.Description,
 			Notes:           p.Notes,
 			FiscalStatus:    p.FiscalStatus,
 			TaxSettlementID: p.TaxSettlementID,
-		}
-		if err := tx.Create(&pay).Error; err != nil {
+			Lines:           applyLines,
+		})
+		if err != nil {
 			return err
 		}
-		paymentID = pay.ID
-
-		for _, ln := range lines {
-			a := models.PaymentAllocation{
-				PaymentID:  pay.ID,
-				DocumentID: ln.DocumentID,
-				Amount:     ln.Amount,
-			}
-			if err := tx.Create(&a).Error; err != nil {
-				return err
-			}
-			if err := recalculateDocumentStatusTx(tx, ln.DocumentID); err != nil {
-				return err
-			}
-		}
+		paymentID = pid
 		return nil
 	})
 	return paymentID, err
 }
 
-func (s *PaymentService) buildFIFOAllocations(companyID uint, amount float64, allowPartial bool) ([]PaymentAllocationInput, error) {
+func (s *PaymentService) buildFIFOAllocations(companyID uint, amount float64, allowPartial bool, taxSettlementID *uint) ([]PaymentAllocationInput, error) {
 	var docs []models.Document
-	err := database.DB.
-		Where("company_id = ? AND status IN ?", companyID, []string{"pendiente", "parcial"}).
-		Order("issue_date ASC, id ASC").
-		Find(&docs).Error
+	q := database.DB.
+		Where("company_id = ? AND status IN ?", companyID, []string{"pendiente", "parcial"})
+	if taxSettlementID != nil && *taxSettlementID > 0 {
+		q = q.Where("tax_settlement_id = ?", *taxSettlementID)
+	}
+	err := q.Order("issue_date ASC, id ASC").Find(&docs).Error
 	if err != nil {
 		return nil, err
 	}
 
+	debtSvc := debtsvc.NewService()
 	remaining := amount
 	var lines []PaymentAllocationInput
 
@@ -320,7 +297,7 @@ func (s *PaymentService) buildFIFOAllocations(companyID uint, amount float64, al
 		if remaining < 0.005 {
 			break
 		}
-		bal := d.TotalAmount - DocumentPaidTotal(database.DB, d.ID)
+		bal := debtSvc.EffectiveBalance(database.DB, &d)
 		if bal < 0.005 {
 			continue
 		}
@@ -338,6 +315,9 @@ func (s *PaymentService) buildFIFOAllocations(companyID uint, amount float64, al
 		return nil, errors.New("no hay deuda pendiente suficiente para aplicar todo el monto (FIFO)")
 	}
 	if len(lines) == 0 && !allowPartial {
+		if taxSettlementID != nil && *taxSettlementID > 0 {
+			return nil, errors.New("no hay deudas vinculadas a esta liquidación con saldo pendiente (FIFO)")
+		}
 		return nil, errors.New("no hay documentos pendientes para aplicar FIFO")
 	}
 	return lines, nil
@@ -353,7 +333,7 @@ func (s *PaymentService) Update(id uint, input *models.Payment) error {
 	database.DB.Model(&models.PaymentAllocation{}).Where("payment_id = ?", p.ID).Count(&allocCount)
 
 	if p.DocumentID != nil || normalizePaymentType(p.Type) == "applied" || allocCount > 0 {
-		return errors.New("no se puede editar un pago aplicado o con imputaciones")
+		return errors.New("no se puede editar un pago aplicado o con imputaciones; elimínelo y regístrelo de nuevo")
 	}
 
 	oldDocID := p.DocumentID
@@ -375,6 +355,9 @@ func (s *PaymentService) Update(id uint, input *models.Payment) error {
 	}
 	if input.Notes != "" {
 		p.Notes = input.Notes
+	}
+	if input.Description != "" {
+		p.Description = input.Description
 	}
 	if input.DocumentID != nil {
 		if *input.DocumentID == 0 {
@@ -419,13 +402,13 @@ func (s *PaymentService) Update(id uint, input *models.Payment) error {
 				return errors.New("no se puede registrar pagos en un documento anulado")
 			}
 
-			var paid float64
-			tx.Model(&models.Payment{}).
-				Where("document_id = ? AND id <> ?", *p.DocumentID, p.ID).
-				Select("COALESCE(SUM(amount),0)").Scan(&paid)
-
-			balance := newDoc.TotalAmount - paid
-			if p.Amount > balance+0.005 {
+			debtSvc := debtsvc.NewService()
+			paidOthers := debtSvc.PaidTotal(tx, *p.DocumentID) - p.Amount
+			if paidOthers < 0 {
+				paidOthers = 0
+			}
+			bal := debtsvc.BalanceFromTotalPaid(newDoc.TotalAmount, paidOthers)
+			if p.Amount > bal+0.005 {
 				return errors.New("el monto excede el saldo del documento")
 			}
 		}
@@ -469,13 +452,13 @@ func (s *PaymentService) List(params PaymentListParams) ([]models.Payment, error
 		q = q.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		q = q.Where("date >= ?", *params.DateFrom)
+		q = q.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		q = q.Where("date < ?", *params.DateTo)
+		q = q.Where("created_at < ?", *params.DateTo)
 	}
 
-	if err := q.Order("date DESC, id DESC").Find(&list).Error; err != nil {
+	if err := q.Order("created_at DESC, id DESC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -508,10 +491,10 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		base = base.Where("type = ?", normalizePaymentType(params.Type))
 	}
 	if params.DateFrom != nil {
-		base = base.Where("date >= ?", *params.DateFrom)
+		base = base.Where("created_at >= ?", *params.DateFrom)
 	}
 	if params.DateTo != nil {
-		base = base.Where("date < ?", *params.DateTo)
+		base = base.Where("created_at < ?", *params.DateTo)
 	}
 
 	var total int64
@@ -525,7 +508,7 @@ func (s *PaymentService) ListPaged(params PaymentListParams, page int, perPage i
 		Preload("Allocations").
 		Preload("TaxSettlement").
 		Preload("TukifacFiscalReceipt").
-		Order("date DESC, id DESC").
+		Order("created_at DESC, id DESC").
 		Limit(perPage).
 		Offset((page - 1) * perPage)
 
@@ -601,4 +584,15 @@ func (s *PaymentService) Delete(id uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		return s.DeletePaymentTx(tx, id)
 	})
+}
+
+func toDebtLines(lines []PaymentAllocationInput) []debtsvc.PaymentAllocationLine {
+	out := make([]debtsvc.PaymentAllocationLine, 0, len(lines))
+	for _, ln := range lines {
+		out = append(out, debtsvc.PaymentAllocationLine{
+			DocumentID: ln.DocumentID,
+			Amount:     ln.Amount,
+		})
+	}
+	return out
 }
