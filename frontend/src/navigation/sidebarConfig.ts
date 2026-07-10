@@ -44,7 +44,7 @@ export type SidebarFlatLink = {
 export type SidebarModuleEntry = SidebarGroup | SidebarFlatLink;
 
 /** IDs estables para permisos / telemetría futura */
-export type OperationalModuleId = 'finance' | 'supervisors' | 'assistant' | 'pos' | 'module4' | 'module5';
+export type OperationalModuleId = 'global' | 'finance' | 'supervisors' | 'assistant' | 'pos' | 'module4' | 'module5';
 
 export type OperationalModuleConfig = {
   id: OperationalModuleId;
@@ -72,7 +72,7 @@ export const PLACEHOLDER_PAGE_COPY: Record<ComingSoonModuleSlug, { title: string
 
 /** Mapeo estable id operativo → slug URL (p. ej. permisos o analytics) */
 export const COMING_SOON_BY_OPERATIONAL_ID: Record<
-  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos'>,
+  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos' | 'global'>,
   { slug: ComingSoonModuleSlug }
 > = {
   module4: { slug: 'module-4' },
@@ -80,6 +80,21 @@ export const COMING_SOON_BY_OPERATIONAL_ID: Record<
 };
 
 export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
+  {
+    id: 'global',
+    label: 'Recursos',
+    icon: 'fas fa-globe',
+    entries: [
+      {
+        type: 'group',
+        label: 'Recursos',
+        items: [
+          { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', public: true },
+          { to: '/finance/claves-sol', icon: 'fas fa-key', label: 'Claves sol', public: true },
+        ],
+      },
+    ],
+  },
   {
     id: 'finance',
     label: 'Finanzas del estudio',
@@ -101,13 +116,6 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           { to: '/tax-settlements', icon: 'fas fa-file-signature', label: 'Liquidaciones', permission: P.taxSettlementsList },
           { to: '/comprobantes', icon: 'fas fa-file-invoice', label: 'Comprobantes', permission: P.fiscalReceiptsList },
           { to: '/payments', icon: 'fas fa-wallet', label: 'Pagos', permission: P.paymentsView },
-          { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', permission: P.financeCalendarView },
-          {
-            to: '/finance/claves-sol',
-            icon: 'fas fa-key',
-            label: 'Claves sol',
-            permission: P.companyCredentialsView,
-          },
         ],
       },
       {
@@ -153,18 +161,18 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             label: 'Empresas',
             permission: P.companyCredentialsView,
           },
+          {
+            to: '/supervisors/liquidaciones',
+            icon: 'fas fa-file-invoice-dollar',
+            label: 'Liquidaciones',
+            permission: P.supervisorsLiquidationsView,
+          },
         ],
       },
       {
         type: 'group',
         label: 'Control de actividades',
         items: [
-          {
-            to: '/finance/calendar',
-            icon: 'fas fa-calendar-days',
-            label: 'Calendario',
-            permission: P.financeCalendarView,
-          },
           {
             to: '/supervisors/activities/sunat-inbox',
             icon: 'fas fa-inbox',
@@ -239,12 +247,6 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
         type: 'group',
         label: 'Control de actividades',
         items: [
-          {
-            to: '/finance/calendar',
-            icon: 'fas fa-calendar-days',
-            label: 'Calendario',
-            permission: P.financeCalendarView,
-          },
           {
             to: '/assistant/activities/sunat-inbox',
             icon: 'fas fa-inbox',

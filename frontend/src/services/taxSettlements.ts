@@ -176,10 +176,8 @@ export const taxSettlementsService = {
     return res.data;
   },
 
-  async revertToDraft(id: number, operationKey: string): Promise<TaxSettlement> {
-    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/revert-to-draft`, {
-      operation_key: operationKey,
-    });
+  async revertToDraft(id: number): Promise<TaxSettlement> {
+    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/revert-to-draft`, {});
     return res.data;
   },
 

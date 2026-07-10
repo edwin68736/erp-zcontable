@@ -28,7 +28,6 @@ import {
 } from './calendar/calendarUtils';
 
 const FinanceCalendar = () => {
-  const canView = useMemo(() => auth.hasPermission(P.financeCalendarView), []);
   const canManage = useMemo(() => auth.hasPermission(P.financeCalendarManage), []);
 
   const [periodYm, setPeriodYm] = useState(currentPeriodYM());
@@ -96,8 +95,8 @@ const FinanceCalendar = () => {
   }, [periodYm]);
 
   useEffect(() => {
-    if (canView) void loadDetail();
-  }, [canView, loadDetail]);
+    void loadDetail();
+  }, [loadDetail]);
 
   useEffect(() => {
     if (msgType !== 'success' || !msg) return;
@@ -370,15 +369,6 @@ const FinanceCalendar = () => {
       setMsgType('error');
     }
   };
-
-  if (!canView) {
-    return (
-      <div className="max-w-lg mx-auto p-12 text-center">
-        <i className="fas fa-lock text-3xl text-slate-300 mb-4" aria-hidden />
-        <p className="text-slate-600">Sin permiso para ver el calendario contable.</p>
-      </div>
-    );
-  }
 
   const modalPresetDay = activityModal.presetDay ?? selectedDay ?? 1;
 

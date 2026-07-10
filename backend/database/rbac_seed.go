@@ -602,7 +602,7 @@ func analistaPermissionCodes() []string {
 		rbac.SupervisorsPeriodsView,
 		rbac.SupervisorsControlsView, rbac.SupervisorsControlsUpdate,
 		rbac.SupervisorsDeclarationsView, rbac.SupervisorsDeclarationsUpdate,
-		rbac.SupervisorsLiquidationsView, rbac.SupervisorsLiquidationsUpdate,
+		rbac.SupervisorsLiquidationsView, rbac.SupervisorsLiquidationsCreate, rbac.SupervisorsLiquidationsUpdate,
 		rbac.SupervisorsNPSView, rbac.SupervisorsNPSUpdate,
 		rbac.SupervisorsReportsView,
 		rbac.SupervisorsObservationsView, rbac.SupervisorsObservationsCreate,

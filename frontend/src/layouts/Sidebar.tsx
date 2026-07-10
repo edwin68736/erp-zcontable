@@ -38,7 +38,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   }, []);
 
   const [openModuleId, setOpenModuleId] = useState<SidebarAccordionId | null>(() => {
-    return resolveSidebarModuleIdFromPathname(location.pathname) ?? 'finance';
+    return resolveSidebarModuleIdFromPathname(location.pathname) ?? 'global';
   });
 
   useEffect(() => {

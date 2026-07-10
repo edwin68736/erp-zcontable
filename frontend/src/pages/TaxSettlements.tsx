@@ -191,10 +191,18 @@ const TaxSettlements = () => {
     }
   };
 
-  const settlementEditKeyMessage = (row: TaxSettlement) =>
+  const settlementEditConfirmMessage = (row: TaxSettlement) =>
     row.status === 'emitida'
       ? 'Si la liquidación está emitida, se revertirán pagos vinculados, referencias en comprobantes y deudas internas DEU-LIQ antes de abrir el editor.'
-      : 'Confirme la clave para abrir el editor de la liquidación en borrador.';
+      : '';
+
+  const startEditFromList = (row: TaxSettlement) => {
+    if (row.status === 'borrador') {
+      navigate(`/tax-settlements/${row.id}/edit`);
+      return;
+    }
+    setEditKeyTarget(row);
+  };
 
   const confirmCloseFromList = async () => {
     if (!closeTarget) return;
@@ -229,11 +237,11 @@ const TaxSettlements = () => {
     }
   };
 
-  const confirmEditFromList = async (operationKey: string) => {
+  const confirmEditFromList = async () => {
     if (!editKeyTarget) return;
     setEditKeyLoading(true);
     try {
-      await taxSettlementsService.revertToDraft(editKeyTarget.id, operationKey);
+      await taxSettlementsService.revertToDraft(editKeyTarget.id);
       const id = editKeyTarget.id;
       setEditKeyTarget(null);
       navigate(`/tax-settlements/${id}/edit`);
@@ -443,7 +451,7 @@ const TaxSettlements = () => {
                                     type: 'button' as const,
                                     label: 'Editar',
                                     icon: 'fas fa-pen',
-                                    onClick: () => setEditKeyTarget(row),
+                                    onClick: () => startEditFromList(row),
                                   },
                                 ]
                               : []),
@@ -536,16 +544,17 @@ const TaxSettlements = () => {
         onConfirm={(key) => void confirmDeleteFromList(key)}
       />
 
-      <OperationsKeyDialog
+      <ConfirmDialog
         open={Boolean(editKeyTarget)}
         title="Editar liquidación"
-        message={editKeyTarget ? settlementEditKeyMessage(editKeyTarget) : undefined}
+        message={editKeyTarget ? settlementEditConfirmMessage(editKeyTarget) : ''}
         confirmLabel="Continuar"
+        cancelLabel="Cancelar"
         loading={editKeyLoading}
         onClose={() => {
           if (!editKeyLoading) setEditKeyTarget(null);
         }}
-        onConfirm={(key) => void confirmEditFromList(key)}
+        onConfirm={() => void confirmEditFromList()}
       />
 
       {itemsModalRow

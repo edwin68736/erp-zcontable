@@ -205,7 +205,6 @@ type CompanyAccessCredentialsProps = {
 
 const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredentialsProps) => {
   const isAssistantView = variant === 'assistant';
-  const canView = useMemo(() => auth.hasPermission(P.companyCredentialsView), []);
   const canManage = useMemo(
     () => !isAssistantView && auth.hasPermission(P.companyCredentialsManage),
     [isAssistantView],
@@ -261,7 +260,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     : filterAssistantId != null || filterSupervisorId != null || filterDig != null;
 
   const loadFacets = useCallback(async () => {
-    if (!canView) return;
     try {
       setFacetsLoading(true);
       const data = await companyAccessCredentialsService.filterFacets();
@@ -272,10 +270,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     } finally {
       setFacetsLoading(false);
     }
-  }, [canView]);
+  }, []);
 
   const load = useCallback(async (opts?: { page?: number }) => {
-    if (!canView) return;
     const targetPage = opts?.page ?? page;
     try {
       setLoading(true);
@@ -296,7 +293,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     } finally {
       setLoading(false);
     }
-  }, [canView, q, page, perPage, filterAssistantId, filterSupervisorId, filterDig]);
+  }, [q, page, perPage, filterAssistantId, filterSupervisorId, filterDig]);
 
   const clearFilters = () => {
     if (!isAssistantView) {
@@ -490,14 +487,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
       setImportCommitLoading(false);
     }
   };
-
-  if (!canView) {
-    return (
-      <div className={PAGE_WORKSPACE_CLASS}>
-        <p className="text-sm text-slate-600">No tiene permiso para ver esta vista.</p>
-      </div>
-    );
-  }
 
   return (
     <div className={`${PAGE_WORKSPACE_CLASS} !space-y-3`}>

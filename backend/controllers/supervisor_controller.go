@@ -1500,3 +1500,146 @@ func (ctrl *SupervisorController) Pdt621DetailAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": row})
 }
+
+// CreateTaxSettlementAPI POST /api/supervisors/tax-settlements — borrador inicial sin líneas (Finanzas completa después).
+func (ctrl *SupervisorController) CreateTaxSettlementAPI(c fiber.Ctx) error {
+	var body services.SupervisorTaxSettlementCreateInput
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	if body.CompanyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "company_id requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, body.CompanyID, false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	taxSvc := services.NewTaxSettlementService()
+	rec, err := taxSvc.CreateSupervisorInitialDraft(body)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": rec})
+}
+
+// TaxSettlementDraftsByCompaniesAPI GET /api/supervisors/tax-settlements/drafts-by-companies?company_ids=1,2,3
+func (ctrl *SupervisorController) TaxSettlementDraftsByCompaniesAPI(c fiber.Ctx) error {
+	raw := strings.TrimSpace(c.Query("company_ids"))
+	if raw == "" {
+		return c.JSON(fiber.Map{"data": map[uint]services.SupervisorCompanyLiquidationDraft{}})
+	}
+	parts := strings.Split(raw, ",")
+	companyIDs := make([]uint, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		n, err := strconv.ParseUint(p, 10, 32)
+		if err != nil || n == 0 {
+			continue
+		}
+		companyIDs = append(companyIDs, uint(n))
+	}
+	if len(companyIDs) == 0 {
+		return c.JSON(fiber.Map{"data": map[uint]services.SupervisorCompanyLiquidationDraft{}})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		filtered := make([]uint, 0, len(companyIDs))
+		for _, cid := range companyIDs {
+			ok, aerr := ctrl.svc.CanAccessCompany(uid, cid, false)
+			if aerr != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+			}
+			if ok {
+				filtered = append(filtered, cid)
+			}
+		}
+		companyIDs = filtered
+	}
+	taxSvc := services.NewTaxSettlementService()
+	periodYM := strings.TrimSpace(c.Query("liquidation_period"))
+	m, err := taxSvc.SupervisorDraftByCompanies(companyIDs, periodYM)
+	if err != nil {
+		if strings.Contains(err.Error(), "periodo") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": m})
+}
+
+// GetTaxSettlementAPI GET /api/supervisors/tax-settlements/:id
+func (ctrl *SupervisorController) GetTaxSettlementAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	taxSvc := services.NewTaxSettlementService()
+	rec, err := taxSvc.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Liquidación no encontrada"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, rec.CompanyID, false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Liquidación no encontrada"})
+		}
+	}
+	return c.JSON(fiber.Map{"data": rec})
+}
+
+// UpdateTaxSettlementAPI PUT /api/supervisors/tax-settlements/:id
+func (ctrl *SupervisorController) UpdateTaxSettlementAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	var body services.SupervisorTaxSettlementUpdateInput
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	taxSvc := services.NewTaxSettlementService()
+	existing, err := taxSvc.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Liquidación no encontrada"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, existing.CompanyID, false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	rec, err := taxSvc.UpdateSupervisorDraft(uint(id), body)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": rec})
+}

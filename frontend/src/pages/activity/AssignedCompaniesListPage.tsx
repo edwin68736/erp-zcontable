@@ -3,15 +3,12 @@
  *
  * Technical Debt:
  * La pantalla Empresas pertenece al dominio Supervisores/Asistente, pero reutiliza
- * temporalmente GET /api/finance/company-credentials y el permiso
- * finance.company_credentials_view, porque esa API ya expone Código, Dígito, RUC y
+ * temporalmente GET /api/finance/company-credentials (lectura global para usuarios autenticados)
  * Asistente con alcance por AccessService.
  * En una futura fase podría migrarse a un endpoint específico del dominio
  * Supervisores/Asistente (p. ej. GET /api/supervisors/companies).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { auth } from '../../services/auth';
-import { P } from '../../rbac/codes';
+import { useCallback, useEffect, useState } from 'react';
 import Pagination from '../../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import {
@@ -38,8 +35,6 @@ type AssignedCompaniesListPageProps = {
 };
 
 const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps) => {
-  const canView = useMemo(() => auth.hasPermission(P.companyCredentialsView), []);
-
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
   const [page, setPage] = useState(1);
@@ -55,7 +50,6 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
       : 'Empresas asignadas dentro de su alcance de supervisión.';
 
   const load = useCallback(async () => {
-    if (!canView) return;
     const term = debouncedQ.trim();
     try {
       setLoading(true);
@@ -75,7 +69,7 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedQ, page, perPage]);
+  }, [debouncedQ, page, perPage]);
 
   useEffect(() => {
     void load();
@@ -84,17 +78,6 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
   useEffect(() => {
     setPage(1);
   }, [debouncedQ]);
-
-  if (!canView) {
-    return (
-      <div className={PAGE_WORKSPACE_CLASS}>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Empresas</h1>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
-          No tiene permiso para consultar el listado de empresas asignadas.
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>

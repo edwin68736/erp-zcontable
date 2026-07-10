@@ -47,6 +47,8 @@ import SupervisorPdt621DetailPage from './pages/supervisors/activities/Superviso
 import SupervisorControlDetail from './pages/supervisors/SupervisorControlDetail';
 import SupervisorReports from './pages/supervisors/SupervisorReports';
 import SupervisorNotifications from './pages/supervisors/SupervisorNotifications';
+import SupervisorLiquidacionesListPage from './pages/supervisors/SupervisorLiquidacionesListPage';
+import SupervisorLiquidacionCreatePage from './pages/supervisors/SupervisorLiquidacionCreatePage';
 import FinanceCalendar from './pages/finance/FinanceCalendar';
 import ActivityTemplates from './pages/finance/ActivityTemplates';
 import ActivityTemplateForm from './pages/finance/ActivityTemplateForm';
@@ -128,6 +130,10 @@ function App() {
             <Route path="supervisors/dashboard" element={<SupervisorDashboard />} />
             <Route path="supervisors/periods" element={<SupervisorPeriods />} />
             <Route path="supervisors/companies" element={<SupervisorCompaniesPage />} />
+            <Route path="supervisors/liquidaciones" element={<SupervisorLiquidacionesListPage />} />
+            <Route path="supervisors/liquidaciones/crear/:companyId" element={<SupervisorLiquidacionCreatePage />} />
+            <Route path="supervisors/liquidaciones/editar/:settlementId" element={<SupervisorLiquidacionCreatePage />} />
+            <Route path="supervisors/liquidaciones/ver/:settlementId" element={<SupervisorLiquidacionCreatePage />} />
             <Route path="supervisors/activities" element={<Navigate to="/supervisors/dashboard" replace />} />
             <Route path="supervisors/activities/pdt-601" element={<SupervisorPdt601ListPage />} />
             <Route path="supervisors/activities/pdt-601/:companyId" element={<SupervisorPdt601DetailPage />} />

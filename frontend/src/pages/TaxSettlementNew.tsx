@@ -9,6 +9,8 @@ import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
 import type { Product } from '../services/products';
+import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
+import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -132,7 +134,6 @@ const TaxSettlementNew = () => {
   );
 
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
-  const [operationKey, setOperationKey] = useState('');
   const editLoadedRef = useRef(false);
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -142,6 +143,7 @@ const TaxSettlementNew = () => {
   const [liquidationPeriod, setLiquidationPeriod] = useState(() => previousMonthYMFromDate(new Date()));
   const liquidationPeriodManualRef = useRef(false);
   const [notes, setNotes] = useState('');
+  const [supervisorPdt621Json, setSupervisorPdt621Json] = useState('');
   const [lines, setLines] = useState<LineRow[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -216,6 +218,7 @@ const TaxSettlementNew = () => {
         setLiquidationPeriod((ts.liquidation_period ?? '').trim() || previousMonthYMFromDate(new Date()));
         liquidationPeriodManualRef.current = true;
         setNotes(ts.notes ?? '');
+        setSupervisorPdt621Json((ts.pdt621_json ?? '').trim());
         setLines(
           (ts.lines ?? []).map((ln, i) => {
             const pym = (ln.period_ym ?? '').trim();
@@ -430,10 +433,6 @@ const TaxSettlementNew = () => {
         period_ym: pym,
       });
     }
-    if (isEdit && !operationKey.trim()) {
-      setError('Indique la clave de operaciones para guardar los cambios');
-      return;
-    }
     setError('');
     setSaving(true);
     try {
@@ -444,7 +443,7 @@ const TaxSettlementNew = () => {
           period_label: periodLabelFromYM(lp) || lp,
           notes: notes.trim(),
           lines: payloadLines,
-          operation_key: operationKey.trim(),
+          ...(supervisorPdt621Json.trim() ? { pdt621_json: supervisorPdt621Json.trim() } : {}),
         });
         window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación actualizada.' } }));
         navigate(`/tax-settlements/${updated.id}`);
@@ -518,12 +517,21 @@ const TaxSettlementNew = () => {
         </div>
       ) : null}
 
+      {isEdit && hasTaxSectionsData(supervisorPdt621Json) ? (
+        <SupervisorFiscalDataPanel pdt621Json={supervisorPdt621Json} />
+      ) : null}
+
       <form
         onSubmit={(e) => void submit(e)}
         className="w-full min-w-0 space-y-8 bg-white rounded-xl border border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm"
       >
         <section className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos generales</h3>
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2">
+            <h3 className="text-sm font-semibold text-slate-800">Datos generales (Finanzas)</h3>
+            {isEdit && hasTaxSectionsData(supervisorPdt621Json) ? (
+              <p className="text-[11px] text-slate-500">Los montos fiscales del supervisor no se modifican aquí.</p>
+            ) : null}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="min-w-0">
               <label className="block text-xs font-medium text-slate-600 mb-1">Empresa</label>
@@ -580,7 +588,7 @@ const TaxSettlementNew = () => {
 
         <section className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-sm font-semibold text-slate-800">Líneas de liquidación</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Líneas de liquidación (Finanzas)</h3>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -783,26 +791,6 @@ const TaxSettlementNew = () => {
             className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none resize-y min-h-[5rem]"
           />
         </section>
-
-        {isEdit ? (
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2">Confirmación</h3>
-            <div className="max-w-md">
-              <label htmlFor="tax-settle-operation-key" className="block text-xs font-medium text-slate-600 mb-1">
-                Clave de operaciones
-              </label>
-              <input
-                id="tax-settle-operation-key"
-                type="password"
-                autoComplete="off"
-                value={operationKey}
-                onChange={(e) => setOperationKey(e.target.value)}
-                placeholder="Requerida para guardar cambios"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
-              />
-            </div>
-          </section>
-        ) : null}
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
           <Link
