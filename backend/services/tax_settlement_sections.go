@@ -349,20 +349,17 @@ func pdt601DetractableBeforeDetraction(s *TaxSectionPdt601) float64 {
 	if s == nil {
 		return 0
 	}
-	return roundTaxMoney(s.Essalud + s.Sis + s.Onp + s.Rta4ta + s.Rta5ta)
+	return roundTaxMoney(s.Essalud + s.Sis + s.Onp + s.Afp + s.Rta4ta + s.Rta5ta)
 }
 
 func computePdt601Section(s *TaxSectionPdt601, includeDetraction bool) {
 	if s == nil {
 		return
 	}
-	afp := roundTaxMoney(s.Afp)
-	detractable := pdt601DetractableBeforeDetraction(s)
-	gross := roundTaxMoney(afp + detractable)
-	s.DetractionPayment = normalizeDetractionPayment(s.DetractionPayment, detractable, includeDetraction)
+	gross := pdt601DetractableBeforeDetraction(s)
+	s.DetractionPayment = normalizeDetractionPayment(s.DetractionPayment, gross, includeDetraction)
 	if includeDetraction {
-		detractableNet := math.Max(detractable-s.DetractionPayment.AppliedAmount, 0)
-		s.ImpuestoAPagar = roundTaxTotalAmount(afp + detractableNet)
+		s.ImpuestoAPagar = roundTaxTotalAmount(math.Max(gross-s.DetractionPayment.AppliedAmount, 0))
 		return
 	}
 	s.ImpuestoAPagar = roundTaxTotalAmount(gross)

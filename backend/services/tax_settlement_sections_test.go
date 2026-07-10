@@ -155,7 +155,7 @@ func TestComputePdt621DetractionRentaPartial(t *testing.T) {
 	}
 }
 
-func TestComputePdt601DetractionExcludesAfp(t *testing.T) {
+func TestComputePdt601DetractionIncludesAfp(t *testing.T) {
 	p := &TaxSettlementSectionsPayload{
 		Pdt601: &TaxSectionPdt601{
 			Enabled: true,
@@ -167,16 +167,16 @@ func TestComputePdt601DetractionExcludesAfp(t *testing.T) {
 			DetractionPayment: &TaxDetractionPayment{
 				Enabled: true,
 				Mode:    "total",
-				Amount:  200,
+				Amount:  400,
 			},
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
-	if out.Pdt601.ImpuestoAPagar != 200 {
-		t.Fatalf("pdt601 impuesto_a_pagar=%v want 200 (solo AFP)", out.Pdt601.ImpuestoAPagar)
+	if out.Pdt601.ImpuestoAPagar != 0 {
+		t.Fatalf("pdt601 impuesto_a_pagar=%v want 0 (planilla cubierta)", out.Pdt601.ImpuestoAPagar)
 	}
-	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 200 {
-		t.Fatalf("applied detraccion p601=%v want 200", out.Pdt601.DetractionPayment)
+	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 400 {
+		t.Fatalf("applied detraccion p601=%v want 400 (incluye AFP)", out.Pdt601.DetractionPayment)
 	}
 }
 
@@ -276,11 +276,11 @@ func TestComputePdt601DetractionIncludesSis(t *testing.T) {
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
-	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 150 {
-		t.Fatalf("applied detraccion p601=%v want 150 (essalud+sis)", out.Pdt601.DetractionPayment)
+	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 230 {
+		t.Fatalf("applied detraccion p601=%v want 230 (essalud+sis+afp)", out.Pdt601.DetractionPayment)
 	}
-	if out.Pdt601.ImpuestoAPagar != 80 {
-		t.Fatalf("pdt601 impuesto_a_pagar=%v want 80 (solo AFP)", out.Pdt601.ImpuestoAPagar)
+	if out.Pdt601.ImpuestoAPagar != 0 {
+		t.Fatalf("pdt601 impuesto_a_pagar=%v want 0", out.Pdt601.ImpuestoAPagar)
 	}
 }
 

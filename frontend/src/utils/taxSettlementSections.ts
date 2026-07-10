@@ -493,12 +493,10 @@ function normalizePdt621DetractionPayment(
 
 function computePdt601Section(s: TaxSectionPdt601, includeDetraction = true): TaxSectionPdt601 {
   const section: TaxSectionPdt601 = { ...s, sis: roundMoney(s.sis ?? 0) };
-  const afp = roundMoney(section.afp);
-  const detractable = getPdt601DetractableBeforeDetraction(section);
-  const gross = roundMoney(afp + detractable);
-  const detractionPayment = normalizePdt621DetractionPayment(section.detraction_payment, detractable, includeDetraction);
+  const gross = getPdt601DetractableBeforeDetraction(section);
+  const detractionPayment = normalizePdt621DetractionPayment(section.detraction_payment, gross, includeDetraction);
   const impuesto_a_pagar = includeDetraction
-    ? roundTaxTotalAmount(afp + Math.max(detractable - detractionPayment.applied_amount, 0))
+    ? roundTaxTotalAmount(Math.max(gross - detractionPayment.applied_amount, 0))
     : roundTaxTotalAmount(gross);
   return { ...section, detraction_payment: detractionPayment, impuesto_a_pagar };
 }
@@ -689,7 +687,7 @@ export function parseTaxSectionsJson(
 }
 
 export function getPdt601DetractableBeforeDetraction(p601: TaxSectionPdt601): number {
-  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.rta_4ta + p601.rta_5ta);
+  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.afp + p601.rta_4ta + p601.rta_5ta);
 }
 
 export function getPdt601AppliedDetractionAmount(p601: TaxSectionPdt601): number {
@@ -765,9 +763,9 @@ export function getPdt621RentaNetAfterDetraction(p621: TaxSectionPdt621): number
 export function formatPdt621DetractionPaymentNote(payment: Pdt621DetractionPayment | undefined): string | null {
   if (!payment?.enabled || payment.applied_amount <= 0) return null;
   if (payment.mode === 'total') {
-    return `Pago con detracción (total): ${formatTaxMoney(payment.applied_amount)}`;
+    return `Pago con detracción/efectivo (total): ${formatTaxMoney(payment.applied_amount)}`;
   }
-  return `Pago con detracción (parcial): ${formatTaxMoney(payment.applied_amount)}`;
+  return `Pago con detracción/efectivo (parcial): ${formatTaxMoney(payment.applied_amount)}`;
 }
 
 export function formatPdt621DetractionNotesCombined(p621: TaxSectionPdt621): string | null {
@@ -887,5 +885,5 @@ export function formatImpuestoPeriodoPdf(n: number): string {
 
 export function getPdt621DetractionPdfRowLabel(payment: Pdt621DetractionPayment | undefined): string | null {
   if (!payment?.enabled || (payment.applied_amount ?? 0) <= 0) return null;
-  return payment.mode === 'total' ? 'Pago con detracción (total)' : 'Pago con detracción (parcial)';
+  return payment.mode === 'total' ? 'Pago con detracción/efectivo (total)' : 'Pago con detracción/efectivo (parcial)';
 }

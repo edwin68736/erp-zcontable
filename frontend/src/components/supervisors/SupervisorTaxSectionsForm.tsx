@@ -35,6 +35,9 @@ import {
   type TaxSettlementSectionsPayload,
   type Pdt621DetractionMode,
 } from '../../utils/taxSettlementSections';
+
+const DETRACTION_PAYMENT_BUTTON_LABEL = 'Pago detracción/efectivo';
+const DETRACTION_PAYMENT_APPLIED_PREFIX = 'Aplicado con detracción/efectivo';
 import {
   formatRentaRateLabel,
   getRentaMensualRatePct,
@@ -420,11 +423,11 @@ function DetraccionModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar modal de detracción" />
+      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar modal de pago detracción/efectivo" />
       <div className="relative w-full max-w-xl rounded-t-2xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-900">Pago detracción — {sectionLabel}</h3>
-          <p className="mt-1 text-sm text-slate-500">Configure si este impuesto se pagará con detracción y cuánto se aplicará.</p>
+          <h3 className="text-base font-semibold text-slate-900">{DETRACTION_PAYMENT_BUTTON_LABEL} — {sectionLabel}</h3>
+          <p className="mt-1 text-sm text-slate-500">Configure si este impuesto se pagará con detracción o efectivo y cuánto se aplicará.</p>
         </div>
         <div className="px-5 py-4 space-y-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm space-y-1">
@@ -447,11 +450,11 @@ function DetraccionModal({
               disabled={originalAmount <= 0}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            Aplicar pago con detracción para {sectionLabel}
+            Aplicar pago con detracción/efectivo para {sectionLabel}
           </label>
           {originalAmount <= 0 ? (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              No hay monto detraccionable. Ingrese valores en los campos correspondientes (AFP no aplica detracción en planilla).
+              No hay monto aplicable. Ingrese valores en los campos correspondientes.
             </p>
           ) : null}
           <fieldset disabled={!enabled || originalAmount <= 0} className="space-y-3 disabled:opacity-60">
@@ -463,7 +466,7 @@ function DetraccionModal({
                 checked={mode === 'total'}
                 onChange={() => setMode('total')}
               />
-              Total del impuesto detraccionable
+              Total del impuesto aplicable
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -472,11 +475,11 @@ function DetraccionModal({
                 checked={mode === 'parcial'}
                 onChange={() => setMode('parcial')}
               />
-              Parcial del impuesto detraccionable
+              Parcial del impuesto aplicable
             </label>
             {mode === 'parcial' ? (
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Monto con detracción</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Monto con detracción/efectivo</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -489,10 +492,10 @@ function DetraccionModal({
             ) : null}
           </fieldset>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-            <p className="text-emerald-800">Aplicación estimada con detracción: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
-            <p className="text-emerald-900 mt-0.5">Impuesto pendiente luego de detracción: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
+            <p className="text-emerald-800">Aplicación estimada con detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
+            <p className="text-emerald-900 mt-0.5">Impuesto pendiente luego de detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
             {additionalPayableAmount > 0 ? (
-              <p className="text-emerald-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto sin detracción'}: {formatTaxMoney(additionalPayableAmount)}</p>
+              <p className="text-emerald-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto adicional'}: {formatTaxMoney(additionalPayableAmount)}</p>
             ) : null}
           </div>
         </div>
@@ -561,14 +564,14 @@ const SupervisorTaxSectionsForm = ({
     applied_amount: 0,
     original_amount: rentaPayableBeforeDetraction,
   };
-  const p601DetractableBefore = getPdt601DetractableBeforeDetraction(p601);
+  const p601PayableBefore = getPdt601DetractableBeforeDetraction(p601);
   const detractionAppliedP601 = getPdt601AppliedDetractionAmount(p601);
   const detractionInfoP601 = p601.detraction_payment ?? {
     enabled: false,
     mode: 'parcial' as Pdt621DetractionMode,
     amount: 0,
     applied_amount: 0,
-    original_amount: p601DetractableBefore,
+    original_amount: p601PayableBefore,
   };
   const itanPayableBeforeDetraction = getItanPayableBeforeDetraction(itan);
   const detractionAppliedItan = getItanAppliedDetractionAmount(itan);
@@ -585,12 +588,10 @@ const SupervisorTaxSectionsForm = ({
   const showItanDetraction = itan.enabled;
   const p601DetractionInfoText =
     detractionInfoP601.enabled && detractionAppliedP601 > 0
-      ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedP601)} (${detractionInfoP601.mode === 'total' ? 'total' : 'parcial'}). AFP no aplica detracción.`
-      : p601DetractableBefore > 0
-        ? 'ESSALUD, SIS, ONP y renta 4ta/5ta pueden pagarse con detracción. AFP se paga sin detracción.'
-        : p601.afp > 0
-          ? 'Solo hay AFP registrado; AFP no aplica detracción.'
-          : 'Ingrese montos de planilla para configurar pago con detracción (todo excepto AFP).';
+      ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedP601)} (${detractionInfoP601.mode === 'total' ? 'total' : 'parcial'}).`
+      : p601PayableBefore > 0
+        ? 'Indique si la planilla se pagará con detracción/efectivo (total o parcial).'
+        : 'Ingrese montos de planilla para configurar pago con detracción/efectivo.';
 
   const patch = (partial: Partial<TaxSettlementSectionsPayload>) => {
     onChange(computeTaxSettlementSections({ ...value, ...partial }));
@@ -851,12 +852,12 @@ const SupervisorTaxSectionsForm = ({
 
           {showIgvDetraction ? (
           <DetraccionActionBar
-            buttonLabel="Pago detracción"
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
             onOpen={() => setDetractionModalOpenIgv(true)}
             infoText={
               detractionInfoIgv.enabled && detractionAppliedIgv > 0
-                ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedIgv)} (${detractionInfoIgv.mode === 'total' ? 'total' : 'parcial'})`
-                : 'Sin aplicación de detracción.'
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedIgv)} (${detractionInfoIgv.mode === 'total' ? 'total' : 'parcial'})`
+                : 'Sin aplicación de detracción/efectivo.'
             }
             totalLabel={igvBalance.label}
             totalAmount={igvNetAfterDetraction}
@@ -938,12 +939,12 @@ const SupervisorTaxSectionsForm = ({
           </div>
           {showRentaDetraction ? (
           <DetraccionActionBar
-            buttonLabel="Pago detracción"
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
             onOpen={() => setDetractionModalOpenRenta(true)}
             infoText={
               detractionInfoRenta.enabled && detractionAppliedRenta > 0
-                ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedRenta)} (${detractionInfoRenta.mode === 'total' ? 'total' : 'parcial'})`
-                : 'Sin aplicación de detracción.'
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedRenta)} (${detractionInfoRenta.mode === 'total' ? 'total' : 'parcial'})`
+                : 'Sin aplicación de detracción/efectivo.'
             }
             totalLabel="Impuesto a pagar (renta)"
             totalAmount={rentaNetAfterDetraction}
@@ -977,9 +978,9 @@ const SupervisorTaxSectionsForm = ({
         </div>
         {showP601Detraction ? (
         <DetraccionActionBar
-          buttonLabel="Pago detracción"
+          buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
           onOpen={() => setDetractionModalOpenP601(true)}
-          disabled={p601DetractableBefore <= 0}
+          disabled={p601PayableBefore <= 0}
           infoText={p601DetractionInfoText}
           totalLabel="Impuesto a pagar — PDT 601"
           totalAmount={p601.impuesto_a_pagar}
@@ -1011,15 +1012,15 @@ const SupervisorTaxSectionsForm = ({
         </div>
         {showItanDetraction ? (
         <DetraccionActionBar
-          buttonLabel="Pago detracción"
+          buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
           onOpen={() => setDetractionModalOpenItan(true)}
           disabled={itanPayableBeforeDetraction <= 0}
           infoText={
             detractionInfoItan.enabled && detractionAppliedItan > 0
-              ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedItan)} (${detractionInfoItan.mode === 'total' ? 'total' : 'parcial'})`
+              ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedItan)} (${detractionInfoItan.mode === 'total' ? 'total' : 'parcial'})`
               : itanPayableBeforeDetraction > 0
-                ? 'Indique si esta cuota ITAN se pagará con detracción (total o parcial).'
-                : 'Ingrese el impuesto ITAN para configurar pago con detracción.'
+                ? 'Indique si esta cuota ITAN se pagará con detracción/efectivo (total o parcial).'
+                : 'Ingrese el impuesto ITAN para configurar pago con detracción/efectivo.'
           }
           totalLabel="Impuesto a pagar — ITAN"
           totalAmount={itan.impuesto_a_pagar}
@@ -1082,22 +1083,20 @@ const SupervisorTaxSectionsForm = ({
         open={detractionModalOpenP601}
         saving={false}
         sectionLabel="PDT 601"
-        originalAmount={p601DetractableBefore}
-        baseAmountLabel="Monto detraccionable (ESSALUD, SIS, ONP, Rta 4ta/5ta)"
-        additionalPayableAmount={p601.afp}
-        additionalPayableLabel="AFP (sin detracción)"
+        originalAmount={p601PayableBefore}
+        baseAmountLabel="Monto aplicable (ESSALUD, SIS, ONP, AFP, Rta 4ta/5ta)"
         initialEnabled={detractionInfoP601.enabled}
         initialMode={detractionInfoP601.mode}
-        initialAmount={detractionInfoP601.mode === 'total' ? p601DetractableBefore : detractionInfoP601.amount}
+        initialAmount={detractionInfoP601.mode === 'total' ? p601PayableBefore : detractionInfoP601.amount}
         onClose={() => setDetractionModalOpenP601(false)}
         onApply={(next) => {
           patch601({
             detraction_payment: {
-              enabled: next.enabled && p601DetractableBefore > 0,
+              enabled: next.enabled && p601PayableBefore > 0,
               mode: next.mode,
-              amount: next.mode === 'total' ? p601DetractableBefore : next.amount,
+              amount: next.mode === 'total' ? p601PayableBefore : next.amount,
               applied_amount: 0,
-              original_amount: p601DetractableBefore,
+              original_amount: p601PayableBefore,
             },
           });
           setDetractionModalOpenP601(false);

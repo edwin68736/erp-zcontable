@@ -8,8 +8,8 @@ export const PDF_LIQ = {
   white: '#FFFFFF',
   text: '#1A1A1A',
   textMuted: '#475569',
-  /** Fila resaltada de totales (referencia liquidación ZContable). */
-  highlightYellow: '#FFFF00',
+  /** Fila resaltada de totales (amarillo pastel suave). */
+  highlightYellow: '#FFF9C4',
 };
 
 export function formatIssueDateForPdf(raw?: string | null): string {

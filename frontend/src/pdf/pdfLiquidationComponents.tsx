@@ -88,25 +88,25 @@ export function PdfHighlightedTotalRow({
         style={{
           flexDirection: 'row',
           backgroundColor: PDF_LIQ.highlightYellow,
-          borderTopWidth: 1,
-          borderBottomWidth: 1,
-          borderColor: PDF_LIQ.text,
+          borderTopWidth: 0.5,
+          borderBottomWidth: 0.5,
+          borderColor: PDF_LIQ.grayBorder,
         }}
       >
         <View
           style={{
             flex: 1,
-            paddingVertical: 6,
+            paddingVertical: 5,
             paddingHorizontal: 8,
-            borderRightWidth: 1,
-            borderRightColor: PDF_LIQ.text,
+            borderRightWidth: 0.5,
+            borderRightColor: PDF_LIQ.grayBorder,
             justifyContent: 'center',
           }}
         >
           <Text
             style={{
               fontSize: 8,
-              fontWeight: 700,
+              fontWeight: 600,
               color: PDF_LIQ.text,
               textTransform: 'uppercase',
               textAlign: 'right',
@@ -118,24 +118,24 @@ export function PdfHighlightedTotalRow({
         <View
           style={{
             width: 26,
-            paddingVertical: 6,
-            borderRightWidth: 1,
-            borderRightColor: PDF_LIQ.text,
+            paddingVertical: 5,
+            borderRightWidth: 0.5,
+            borderRightColor: PDF_LIQ.grayBorder,
             justifyContent: 'center',
             alignItems: 'center',
           }}
         >
-          <Text style={{ fontSize: 8, fontWeight: 700, color: PDF_LIQ.text }}>S/</Text>
+          <Text style={{ fontSize: 8, fontWeight: 600, color: PDF_LIQ.text }}>S/</Text>
         </View>
         <View
           style={{
             width: 76,
-            paddingVertical: 6,
+            paddingVertical: 5,
             paddingHorizontal: 8,
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 9, fontWeight: 700, color: PDF_LIQ.text, textAlign: 'right' }}>{amount}</Text>
+          <Text style={{ fontSize: 9, fontWeight: 600, color: PDF_LIQ.text, textAlign: 'right' }}>{amount}</Text>
         </View>
       </View>
       {note ? (

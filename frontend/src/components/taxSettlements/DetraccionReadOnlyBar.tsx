@@ -30,20 +30,20 @@ export function DetraccionReadOnlyBar({
   const modeLabel = payment?.mode === 'total' ? 'total' : 'parcial';
 
   const statusLine = enabled
-    ? `Aplicado con detracción: ${formatTaxMoney(appliedAmount)} (${modeLabel}).`
-    : 'Sin aplicación de detracción.';
+    ? `Aplicado con detracción/efectivo: ${formatTaxMoney(appliedAmount)} (${modeLabel}).`
+    : 'Sin aplicación de detracción/efectivo.';
 
   const pendingLine =
     enabled && totalPending > 0
-      ? `Impuesto pendiente luego de detracción: ${formatTaxTotalMoney(totalPending)}`
+      ? `Impuesto pendiente luego de detracción/efectivo: ${formatTaxTotalMoney(totalPending)}`
       : enabled
-        ? 'Sin impuesto pendiente (cubierto con detracción).'
+        ? 'Sin impuesto pendiente (cubierto con detracción/efectivo).'
         : null;
 
   return (
     <div className="mt-3 pt-3 border-t border-emerald-100 bg-emerald-50/40 rounded-lg px-3 py-2.5 flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0 space-y-0.5">
-        <p className="text-xs font-semibold text-slate-800">Pago con detracción</p>
+        <p className="text-xs font-semibold text-slate-800">Pago con detracción/efectivo</p>
         <p className="text-[11px] text-slate-600">{statusLine}</p>
         {pendingLine ? <p className="text-[11px] text-emerald-900">{pendingLine}</p> : null}
         {extraNote ? <p className="text-[11px] text-slate-500">{extraNote}</p> : null}
