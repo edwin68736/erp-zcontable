@@ -17,14 +17,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingTop: 8,
   },
-  paymentRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  bankCol: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', minWidth: 0, marginRight: 10 },
-  bankLogo: { width: 36, height: 36, objectFit: 'contain', marginRight: 8 },
+  paymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bankCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  bankLogo: { width: 36, height: 36, objectFit: 'contain', marginRight: 8, flexShrink: 0 },
   bankTextWrap: { flex: 1, minWidth: 0 },
   bankLine: { fontSize: 6.5, color: PDF_LIQ.blueDark, lineHeight: 1.35, marginBottom: 1.5 },
   bankLineFirst: { fontSize: 7, fontWeight: 700, color: PDF_LIQ.blueDark, marginBottom: 2 },
-  obsLine: { fontSize: 6.5, fontWeight: 700, color: PDF_LIQ.blueDark, lineHeight: 1.35, marginTop: 3 },
-  qrCol: { width: 78, alignItems: 'center' },
+  obsLine: { fontSize: 6.5, fontWeight: 700, color: PDF_LIQ.blueDark, lineHeight: 1.35, marginTop: 5 },
+  qrCol: { width: 82, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
   qrImage: { width: 64, height: 64, objectFit: 'contain' },
   qrCaption: {
     marginTop: 3,
@@ -59,15 +69,12 @@ const styles = StyleSheet.create({
 
 function BankInfoBlock({
   bankInfo,
-  observations,
   bankLogoPng,
 }: {
   bankInfo: string;
-  observations: string;
   bankLogoPng?: Blob | null;
 }) {
   const paragraphs = bankInfo.split(/\r?\n/).filter((p) => p.trim());
-  const obs = observations.trim();
 
   return (
     <View style={styles.bankCol}>
@@ -78,7 +85,6 @@ function BankInfoBlock({
             {para.trim()}
           </Text>
         ))}
-        {obs ? <Text style={styles.obsLine}>OBS: {obs}</Text> : null}
       </View>
     </View>
   );
@@ -112,11 +118,12 @@ export function PdfLiquidationPaymentFooter({
   if (!showPayment) return null;
 
   return (
-    <View style={styles.divider}>
+    <View wrap={false} minPresenceAhead={110} style={styles.divider}>
       <View style={styles.paymentRow}>
-        <BankInfoBlock bankInfo={bankInfo} observations={observations} bankLogoPng={bankLogoPng} />
+        <BankInfoBlock bankInfo={bankInfo} bankLogoPng={bankLogoPng} />
         {paymentQrPng ? <QrBlock qrPng={paymentQrPng} caption={qrCaption} /> : null}
       </View>
+      {observations ? <Text style={styles.obsLine}>OBS: {observations}</Text> : null}
     </View>
   );
 }
