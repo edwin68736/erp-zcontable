@@ -155,7 +155,7 @@ func TestComputePdt621DetractionRentaPartial(t *testing.T) {
 	}
 }
 
-func TestComputePdt601DetractionExcludesAfp(t *testing.T) {
+func TestComputePdt601DetractionIncludesAfp(t *testing.T) {
 	p := &TaxSettlementSectionsPayload{
 		Pdt601: &TaxSectionPdt601{
 			Enabled: true,
@@ -167,16 +167,16 @@ func TestComputePdt601DetractionExcludesAfp(t *testing.T) {
 			DetractionPayment: &TaxDetractionPayment{
 				Enabled: true,
 				Mode:    "total",
-				Amount:  200,
+				Amount:  400,
 			},
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
-	if out.Pdt601.ImpuestoAPagar != 200 {
-		t.Fatalf("pdt601 impuesto_a_pagar=%v want 200 (solo AFP)", out.Pdt601.ImpuestoAPagar)
+	if out.Pdt601.ImpuestoAPagar != 0 {
+		t.Fatalf("pdt601 impuesto_a_pagar=%v want 0 (planilla cubierta)", out.Pdt601.ImpuestoAPagar)
 	}
-	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 200 {
-		t.Fatalf("applied detraccion p601=%v want 200", out.Pdt601.DetractionPayment)
+	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 400 {
+		t.Fatalf("applied detraccion p601=%v want 400 (incluye AFP)", out.Pdt601.DetractionPayment)
 	}
 }
 
@@ -276,11 +276,71 @@ func TestComputePdt601DetractionIncludesSis(t *testing.T) {
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
-	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 150 {
-		t.Fatalf("applied detraccion p601=%v want 150 (essalud+sis)", out.Pdt601.DetractionPayment)
+	if out.Pdt601.DetractionPayment == nil || out.Pdt601.DetractionPayment.AppliedAmount != 230 {
+		t.Fatalf("applied detraccion p601=%v want 230 (essalud+sis+afp)", out.Pdt601.DetractionPayment)
 	}
-	if out.Pdt601.ImpuestoAPagar != 80 {
-		t.Fatalf("pdt601 impuesto_a_pagar=%v want 80 (solo AFP)", out.Pdt601.ImpuestoAPagar)
+	if out.Pdt601.ImpuestoAPagar != 0 {
+		t.Fatalf("pdt601 impuesto_a_pagar=%v want 0", out.Pdt601.ImpuestoAPagar)
+	}
+}
+
+func TestComputePdt617GrossAndDetraction(t *testing.T) {
+	p := &TaxSettlementSectionsPayload{
+		Pdt617: &TaxSectionPdt617{
+			Enabled:                true,
+			RetencionIgvBase:       28913,
+			RetencionIgvImpuesto:   5204,
+			RetencionRentaBase:     28913,
+			RetencionRentaImpuesto: 434,
+		},
+	}
+	out := ComputeTaxSettlementSections(p)
+	if out.Pdt617.ImpuestoAPagar != 5638 {
+		t.Fatalf("pdt617 impuesto_a_pagar=%v want 5638", out.Pdt617.ImpuestoAPagar)
+	}
+	// Con detracción total, la deuda queda en 0.
+	p.Pdt617.DetractionPayment = &TaxDetractionPayment{Enabled: true, Mode: "total"}
+	out = ComputeTaxSettlementSections(p)
+	if out.Pdt617.ImpuestoAPagar != 0 {
+		t.Fatalf("pdt617 impuesto_a_pagar con detracción total=%v want 0", out.Pdt617.ImpuestoAPagar)
+	}
+	if out.Pdt617.DetractionPayment == nil || out.Pdt617.DetractionPayment.AppliedAmount != 5638 {
+		t.Fatalf("pdt617 applied=%v want 5638", out.Pdt617.DetractionPayment)
+	}
+}
+
+func TestComputeBolsasPlasticasSaldoFavor(t *testing.T) {
+	p := &TaxSettlementSectionsPayload{
+		BolsasPlasticas: &TaxSectionBolsasPlasticas{
+			Enabled:            true,
+			Impuesto:           9,
+			SaldoFavorAnterior: 4,
+		},
+	}
+	out := ComputeTaxSettlementSections(p)
+	if out.BolsasPlasticas.ImpuestoAPagar != 5 {
+		t.Fatalf("bolsas impuesto_a_pagar=%v want 5 (9-4)", out.BolsasPlasticas.ImpuestoAPagar)
+	}
+}
+
+func TestComputePdt710PayableAndGrandTotal(t *testing.T) {
+	p := &TaxSettlementSectionsPayload{
+		Pdt710: &TaxSectionPdt710{
+			Enabled:              true,
+			Year:                 2026,
+			RentaAnualResultante: 1000,
+			SaldoFavorAnterior:   300,
+		},
+		BolsasPlasticas: &TaxSectionBolsasPlasticas{Enabled: true, Impuesto: 9},
+		Pdt617:          &TaxSectionPdt617{Enabled: true, RetencionIgvImpuesto: 100, RetencionRentaImpuesto: 20},
+	}
+	out := ComputeTaxSettlementSections(p)
+	if out.Pdt710.ImpuestoAPagar != 700 {
+		t.Fatalf("pdt710 impuesto_a_pagar=%v want 700 (1000-300)", out.Pdt710.ImpuestoAPagar)
+	}
+	want := 700.0 + 9.0 + 120.0
+	if out.GrandTotalImpuesto != want {
+		t.Fatalf("grand=%v want %v", out.GrandTotalImpuesto, want)
 	}
 }
 

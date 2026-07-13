@@ -16,6 +16,9 @@ import { formatIssueDateForPdf, PDF_LIQ } from './pdfLiquidationTheme';
 import { Pdt621PdfSection } from './pdt621PdfSection';
 import { Pdt601PdfSection } from './pdt601PdfSection';
 import { ItanPdfSection } from './itanPdfSection';
+import { Pdt617PdfSection } from './pdt617PdfSection';
+import { BolsasPlasticasPdfSection } from './bolsasPlasticasPdfSection';
+import { Pdt710PdfSection } from './pdt710PdfSection';
 import {
   PdfLiquidationPaymentFooter,
   PdfTaxRecommendationsFooter,
@@ -149,6 +152,21 @@ export function TaxSettlementPdfDocument({ settlement, firm, logoPng, footerAsse
       {sections.itan?.enabled ? (
         <PdfSectionBlock title={`ITAN ${sections.itan.year}`} light>
           <ItanPdfSection itan={sections.itan} />
+        </PdfSectionBlock>
+      ) : null}
+      {sections.pdt617?.enabled ? (
+        <PdfSectionBlock title="PDT 617 — Otras retenciones" light>
+          <Pdt617PdfSection p617={sections.pdt617} />
+        </PdfSectionBlock>
+      ) : null}
+      {sections.bolsas_plasticas?.enabled ? (
+        <PdfSectionBlock title="Impuesto consumo bolsas plásticas" light>
+          <BolsasPlasticasPdfSection bolsas={sections.bolsas_plasticas} />
+        </PdfSectionBlock>
+      ) : null}
+      {sections.pdt710?.enabled ? (
+        <PdfSectionBlock title={`PDT 710 — Renta anual ${sections.pdt710.year}`} light>
+          <Pdt710PdfSection p710={sections.pdt710} />
         </PdfSectionBlock>
       ) : null}
       <View wrap={false} style={docStyles.taxSectionsTail}>

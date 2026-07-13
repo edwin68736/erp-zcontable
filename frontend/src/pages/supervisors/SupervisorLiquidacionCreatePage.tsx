@@ -223,6 +223,9 @@ const SupervisorLiquidacionCreatePage = () => {
               pdt621: parsed.pdt621,
               pdt601: parsed.pdt601,
               itan: parsed.itan,
+              pdt617: parsed.pdt617,
+              bolsas_plasticas: parsed.bolsas_plasticas,
+              pdt710: parsed.pdt710,
               grand_total_impuesto_a_pagar: parsed.grand_total_impuesto_a_pagar,
             });
           }

@@ -68,7 +68,7 @@ export function Pdt601ReadOnlySection({ p601, showFooter = true }: Props) {
   const rows = listPdt601DisplayRows(p601);
   const detractionApplied = getPdt601AppliedDetractionAmount(p601);
   const detractableBefore = getPdt601DetractableBeforeDetraction(p601);
-  const showDetraction = detractableBefore > 0 || p601.afp > 0;
+  const showDetraction = detractableBefore > 0;
   const netAfterDetraction = p601.impuesto_a_pagar;
 
   return (
@@ -93,8 +93,6 @@ export function Pdt601ReadOnlySection({ p601, showFooter = true }: Props) {
             payableBefore={detractableBefore}
             totalLabel="Planilla pendiente"
             netAfterDetraction={netAfterDetraction}
-            extraNote="AFP no aplica detracción."
-            additionalPayableAmount={p601.afp}
           />
         </div>
       ) : null}
@@ -121,8 +119,6 @@ export function Pdt601ReadOnlySection({ p601, showFooter = true }: Props) {
             payableBefore={detractableBefore}
             totalLabel="Planilla pendiente"
             netAfterDetraction={netAfterDetraction}
-            extraNote="AFP no aplica detracción."
-            additionalPayableAmount={p601.afp}
           />
         ) : null}
         {showFooter ? (

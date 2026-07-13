@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   formatRentaRateLabel,
   getRentaMensualRatePct,
@@ -7,6 +8,7 @@ import {
 } from '../../utils/companyTaxRegime';
 import {
   formatTaxAmountInput,
+  formatTaxAmountInputEdit,
   parseTaxAmount,
   sanitizeTaxAmountInput,
 } from '../../utils/taxSettlementSections';
@@ -31,6 +33,16 @@ const LiquidacionRentaRegimenSelect = ({
 }: Props) => {
   const appliedRate = getRentaMensualRatePct(regimen, coeficientePct, companyTaxRegime);
   const isCompanyRegime = regimen !== 'coeficiente' && regimen === companyTaxRegime;
+
+  // Borrador local para permitir escribir libremente el coeficiente (p. ej. "1.85")
+  // sin que el reformateo a 2 decimales interrumpa la digitación en cada tecla.
+  const [coefDraft, setCoefDraft] = useState<string | null>(null);
+  const [coefFocused, setCoefFocused] = useState(false);
+  const coefInputValue = coefFocused
+    ? coefDraft ?? formatTaxAmountInputEdit(coeficientePct)
+    : coeficientePct === 0
+      ? ''
+      : formatTaxAmountInput(coeficientePct, { useGrouping: false });
 
   return (
     <div className="space-y-2">
@@ -61,8 +73,28 @@ const LiquidacionRentaRegimenSelect = ({
               id="liq-renta-coeficiente"
               type="text"
               inputMode="decimal"
-              value={coeficientePct === 0 ? '' : formatTaxAmountInput(coeficientePct, { useGrouping: false })}
-              onChange={(e) => onCoeficienteChange(parseTaxAmount(sanitizeTaxAmountInput(e.target.value)))}
+              value={coefInputValue}
+              onFocus={() => {
+                setCoefFocused(true);
+                setCoefDraft(formatTaxAmountInputEdit(coeficientePct));
+              }}
+              onChange={(e) => {
+                const sanitized = sanitizeTaxAmountInput(e.target.value);
+                setCoefDraft(sanitized);
+                if (sanitized === '' || sanitized === '.') {
+                  if (sanitized === '') onCoeficienteChange(0);
+                  return;
+                }
+                if (sanitized.endsWith('.')) return;
+                onCoeficienteChange(parseTaxAmount(sanitized));
+              }}
+              onBlur={() => {
+                setCoefFocused(false);
+                if (coefDraft !== null) {
+                  onCoeficienteChange(parseTaxAmount(coefDraft));
+                }
+                setCoefDraft(null);
+              }}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
               placeholder="0.00"
               aria-label="Coeficiente (%)"

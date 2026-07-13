@@ -57,7 +57,12 @@ const SupervisorLiquidacionPreviewModal = ({
 
   const rentaRate = getRentaMensualRatePct(rentaRegimen, rentaCoeficientePct, companyTaxRegime);
   const hasSections = Boolean(
-    taxSections.pdt621?.enabled || taxSections.pdt601?.enabled || taxSections.itan?.enabled,
+    taxSections.pdt621?.enabled ||
+      taxSections.pdt601?.enabled ||
+      taxSections.itan?.enabled ||
+      taxSections.pdt617?.enabled ||
+      taxSections.bolsas_plasticas?.enabled ||
+      taxSections.pdt710?.enabled,
   );
 
   return createPortal(

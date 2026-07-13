@@ -265,7 +265,9 @@ function Pdt621RentaPdfPendingRow({ p621 }: { p621: TaxSectionPdt621 }) {
 
 export function Pdt621PdfSection({ p621, rentaRatePct }: Props) {
 
-  const igvRows = listPdt621IgvDisplayRows(p621).filter(({ row }) => isTaxIgvRowVisibleInPdf(row));
+  const igvRows = listPdt621IgvDisplayRows(p621, { forPdf: true }).filter(
+    ({ row, alwaysShowInPdf }) => alwaysShowInPdf || isTaxIgvRowVisibleInPdf(row),
+  );
 
   const rentaRateLabel = rentaRatePct != null ? formatRentaRateLabel(rentaRatePct) : null;
 
@@ -297,7 +299,7 @@ export function Pdt621PdfSection({ p621, rentaRatePct }: Props) {
 
         ? formatPdt621IgvBalanceAmount(igvSaldoFavor)
 
-        : '—',
+        : '-',
 
       emphasized: true,
 
@@ -351,7 +353,7 @@ export function Pdt621PdfSection({ p621, rentaRatePct }: Props) {
 
         ? formatPdt621IgvBalanceAmount({ label: igvBalance.label, amount: igvBalance.amount })
 
-        : '—',
+        : '-',
 
       emphasized: true,
 
@@ -404,23 +406,14 @@ export function Pdt621PdfSection({ p621, rentaRatePct }: Props) {
       <PdfHeaderRow />
 
       {igvRows.map(({ label, row }) => (
-
         <PdfIgvDataRow
-
           key={label}
-
           label={label}
-
           base={formatTaxPdfMoney(row.base)}
-
           noGravadas={formatTaxPdfMoney(row.no_gravadas ?? 0)}
-
           impuesto={formatTaxPdfMoney(row.impuesto)}
-
           total={formatTaxPdfMoney(row.total)}
-
         />
-
       ))}
 
       {summaryRows.map((item) => (

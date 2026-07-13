@@ -8,9 +8,17 @@ import {
 } from '../../utils/companyTaxRegime';
 import {
   computeTaxSettlementSections,
+  formatTaxMoney,
   formatTaxTotalMoney,
   getItanAppliedDetractionAmount,
   getItanPayableBeforeDetraction,
+  getPdt617AppliedDetractionAmount,
+  getPdt617GrossBeforeDetraction,
+  getBolsasPlasticasAppliedDetractionAmount,
+  getBolsasPlasticasPayableBeforeDetraction,
+  getPdt710AppliedDetractionAmount,
+  getPdt710PayableBeforeDetraction,
+  isNonZeroTaxAmount,
   parseTaxSectionsJson,
   type TaxSettlementSectionsPayload,
 } from '../../utils/taxSettlementSections';
@@ -110,7 +118,13 @@ export function TaxSettlementSectionsSummary({
   }, [pdt621Json, sectionsProp]);
   if (!sections) return null;
 
-  const hasAny = sections.pdt621?.enabled || sections.pdt601?.enabled || sections.itan?.enabled;
+  const hasAny =
+    sections.pdt621?.enabled ||
+    sections.pdt601?.enabled ||
+    sections.itan?.enabled ||
+    sections.pdt617?.enabled ||
+    sections.bolsas_plasticas?.enabled ||
+    sections.pdt710?.enabled;
   if (!hasAny) return null;
 
   const p621 = sections.pdt621;
@@ -127,6 +141,15 @@ export function TaxSettlementSectionsSummary({
   const itanPayableBefore = itan ? getItanPayableBeforeDetraction(itan) : 0;
   const itanDetractionApplied = itan ? getItanAppliedDetractionAmount(itan) : 0;
   const showItanDetraction = Boolean(itan?.enabled);
+  const p617 = sections.pdt617;
+  const p617PayableBefore = p617 ? getPdt617GrossBeforeDetraction(p617) : 0;
+  const p617DetractionApplied = p617 ? getPdt617AppliedDetractionAmount(p617) : 0;
+  const bolsas = sections.bolsas_plasticas;
+  const bolsasPayableBefore = bolsas ? getBolsasPlasticasPayableBeforeDetraction(bolsas) : 0;
+  const bolsasDetractionApplied = bolsas ? getBolsasPlasticasAppliedDetractionAmount(bolsas) : 0;
+  const p710 = sections.pdt710;
+  const p710PayableBefore = p710 ? getPdt710PayableBeforeDetraction(p710) : 0;
+  const p710DetractionApplied = p710 ? getPdt710AppliedDetractionAmount(p710) : 0;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -188,6 +211,70 @@ export function TaxSettlementSectionsSummary({
         </SectionBlock>
       ) : null}
 
+      {p617?.enabled ? (
+        <SectionBlock title="PDT 617 — Otras retenciones" collapsible={collapsible} defaultOpen={false}>
+          <Row label="Retenciones de IGV (base)" value={formatTaxMoney(p617.retencion_igv_base)} />
+          <Row label="Retenciones de IGV (impuesto)" value={formatTaxMoney(p617.retencion_igv_impuesto)} />
+          <Row label="Retenciones de renta (base)" value={formatTaxMoney(p617.retencion_renta_base)} />
+          <Row label="Retenciones de renta (impuesto)" value={formatTaxMoney(p617.retencion_renta_impuesto)} />
+          {p617PayableBefore > 0 ? (
+            <DetraccionReadOnlyBar
+              payment={p617.detraction_payment}
+              appliedAmount={p617DetractionApplied}
+              payableBefore={p617PayableBefore}
+              totalLabel="Impuesto a pagar"
+              netAfterDetraction={p617.impuesto_a_pagar}
+            />
+          ) : (
+            <Row label="Impuesto a pagar" value={formatTaxTotalMoney(p617.impuesto_a_pagar)} bold />
+          )}
+        </SectionBlock>
+      ) : null}
+
+      {bolsas?.enabled ? (
+        <SectionBlock title="Impuesto consumo bolsas plásticas" collapsible={collapsible} defaultOpen={false}>
+          <Row label="Impuesto consumo bolsas plásticas" value={formatTaxMoney(bolsas.impuesto)} />
+          {isNonZeroTaxAmount(bolsas.saldo_favor_anterior) ? (
+            <Row label="Saldo a favor periodo anterior" value={formatTaxMoney(bolsas.saldo_favor_anterior)} />
+          ) : null}
+          {bolsasPayableBefore > 0 ? (
+            <DetraccionReadOnlyBar
+              payment={bolsas.detraction_payment}
+              appliedAmount={bolsasDetractionApplied}
+              payableBefore={bolsasPayableBefore}
+              totalLabel="Impuesto a pagar"
+              netAfterDetraction={bolsas.impuesto_a_pagar}
+            />
+          ) : (
+            <Row label="Impuesto a pagar" value={formatTaxTotalMoney(bolsas.impuesto_a_pagar)} bold />
+          )}
+        </SectionBlock>
+      ) : null}
+
+      {p710?.enabled ? (
+        <SectionBlock
+          title={`PDT 710 — Renta anual ${p710.year}`}
+          collapsible={collapsible}
+          defaultOpen={false}
+        >
+          <Row label="Renta anual resultante" value={formatTaxMoney(p710.renta_anual_resultante)} />
+          {isNonZeroTaxAmount(p710.saldo_favor_anterior) ? (
+            <Row label="Saldo a favor periodo anterior" value={formatTaxMoney(p710.saldo_favor_anterior)} />
+          ) : null}
+          {p710PayableBefore > 0 ? (
+            <DetraccionReadOnlyBar
+              payment={p710.detraction_payment}
+              appliedAmount={p710DetractionApplied}
+              payableBefore={p710PayableBefore}
+              totalLabel="Impuesto a pagar"
+              netAfterDetraction={p710.impuesto_a_pagar}
+            />
+          ) : (
+            <Row label="Impuesto a pagar" value={formatTaxTotalMoney(p710.impuesto_a_pagar)} bold />
+          )}
+        </SectionBlock>
+      ) : null}
+
       <div className="rounded-lg border-2 border-primary-200 bg-primary-50/70 px-4 py-3 flex flex-wrap justify-between items-center gap-3">
         <span className="text-sm font-semibold text-primary-900">Total impuestos a pagar</span>
         <span className="text-xl font-bold text-primary-900 tabular-nums">
@@ -201,7 +288,14 @@ export function TaxSettlementSectionsSummary({
 export function hasTaxSectionsData(pdt621Json?: string | null): boolean {
   const s = parseTaxSectionsJson(pdt621Json) as TaxSettlementSectionsPayload | null;
   if (!s) return false;
-  return Boolean(s.pdt621?.enabled || s.pdt601?.enabled || s.itan?.enabled);
+  return Boolean(
+    s.pdt621?.enabled ||
+      s.pdt601?.enabled ||
+      s.itan?.enabled ||
+      s.pdt617?.enabled ||
+      s.bolsas_plasticas?.enabled ||
+      s.pdt710?.enabled,
+  );
 }
 
 export default TaxSettlementSectionsSummary;

@@ -14,6 +14,12 @@ import {
   getPdt601DetractableBeforeDetraction,
   getItanAppliedDetractionAmount,
   getItanPayableBeforeDetraction,
+  getPdt617AppliedDetractionAmount,
+  getPdt617GrossBeforeDetraction,
+  getBolsasPlasticasAppliedDetractionAmount,
+  getBolsasPlasticasPayableBeforeDetraction,
+  getPdt710AppliedDetractionAmount,
+  getPdt710PayableBeforeDetraction,
   getPdt621IgvBalanceLabel,
   getPdt621IgvPayableBeforeDetraction,
   getPdt621IgvSaldoFavorLabel,
@@ -32,9 +38,15 @@ import {
   type TaxSectionItan,
   type TaxSectionPdt601,
   type TaxSectionPdt621,
+  type TaxSectionPdt617,
+  type TaxSectionBolsasPlasticas,
+  type TaxSectionPdt710,
   type TaxSettlementSectionsPayload,
   type Pdt621DetractionMode,
 } from '../../utils/taxSettlementSections';
+
+const DETRACTION_PAYMENT_BUTTON_LABEL = 'Pago detracción/efectivo';
+const DETRACTION_PAYMENT_APPLIED_PREFIX = 'Aplicado con detracción/efectivo';
 import {
   formatRentaRateLabel,
   getRentaMensualRatePct,
@@ -420,11 +432,11 @@ function DetraccionModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar modal de detracción" />
+      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar modal de pago detracción/efectivo" />
       <div className="relative w-full max-w-xl rounded-t-2xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-900">Pago detracción — {sectionLabel}</h3>
-          <p className="mt-1 text-sm text-slate-500">Configure si este impuesto se pagará con detracción y cuánto se aplicará.</p>
+          <h3 className="text-base font-semibold text-slate-900">{DETRACTION_PAYMENT_BUTTON_LABEL} — {sectionLabel}</h3>
+          <p className="mt-1 text-sm text-slate-500">Configure si este impuesto se pagará con detracción o efectivo y cuánto se aplicará.</p>
         </div>
         <div className="px-5 py-4 space-y-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm space-y-1">
@@ -447,11 +459,11 @@ function DetraccionModal({
               disabled={originalAmount <= 0}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            Aplicar pago con detracción para {sectionLabel}
+            Aplicar pago con detracción/efectivo para {sectionLabel}
           </label>
           {originalAmount <= 0 ? (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              No hay monto detraccionable. Ingrese valores en los campos correspondientes (AFP no aplica detracción en planilla).
+              No hay monto aplicable. Ingrese valores en los campos correspondientes.
             </p>
           ) : null}
           <fieldset disabled={!enabled || originalAmount <= 0} className="space-y-3 disabled:opacity-60">
@@ -463,7 +475,7 @@ function DetraccionModal({
                 checked={mode === 'total'}
                 onChange={() => setMode('total')}
               />
-              Total del impuesto detraccionable
+              Total del impuesto aplicable
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -472,11 +484,11 @@ function DetraccionModal({
                 checked={mode === 'parcial'}
                 onChange={() => setMode('parcial')}
               />
-              Parcial del impuesto detraccionable
+              Parcial del impuesto aplicable
             </label>
             {mode === 'parcial' ? (
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Monto con detracción</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Monto con detracción/efectivo</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -489,10 +501,10 @@ function DetraccionModal({
             ) : null}
           </fieldset>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-            <p className="text-emerald-800">Aplicación estimada con detracción: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
-            <p className="text-emerald-900 mt-0.5">Impuesto pendiente luego de detracción: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
+            <p className="text-emerald-800">Aplicación estimada con detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
+            <p className="text-emerald-900 mt-0.5">Impuesto pendiente luego de detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
             {additionalPayableAmount > 0 ? (
-              <p className="text-emerald-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto sin detracción'}: {formatTaxMoney(additionalPayableAmount)}</p>
+              <p className="text-emerald-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto adicional'}: {formatTaxMoney(additionalPayableAmount)}</p>
             ) : null}
           </div>
         </div>
@@ -532,6 +544,9 @@ const SupervisorTaxSectionsForm = ({
   const [detractionModalOpenRenta, setDetractionModalOpenRenta] = useState(false);
   const [detractionModalOpenP601, setDetractionModalOpenP601] = useState(false);
   const [detractionModalOpenItan, setDetractionModalOpenItan] = useState(false);
+  const [detractionModalOpenP617, setDetractionModalOpenP617] = useState(false);
+  const [detractionModalOpenBolsas, setDetractionModalOpenBolsas] = useState(false);
+  const [detractionModalOpenP710, setDetractionModalOpenP710] = useState(false);
   const computed = useMemo(() => computeTaxSettlementSections(value), [value]);
 
   const p621Raw = computed.pdt621 ?? defaultTaxSections(currentYear).pdt621!;
@@ -539,6 +554,9 @@ const SupervisorTaxSectionsForm = ({
   const rentaRatePct = getRentaMensualRatePct(rentaRegimen, p621.renta_coeficiente_pct, companyTaxRegime);
   const p601 = computed.pdt601 ?? defaultTaxSections(currentYear).pdt601!;
   const itan = computed.itan ?? defaultTaxSections(currentYear).itan!;
+  const p617 = computed.pdt617 ?? defaultTaxSections(currentYear).pdt617!;
+  const bolsas = computed.bolsas_plasticas ?? defaultTaxSections(currentYear).bolsas_plasticas!;
+  const p710 = computed.pdt710 ?? defaultTaxSections(currentYear).pdt710!;
   const igvBalance = getPdt621IgvBalanceLabel(p621);
   const igvSaldoFavor = getPdt621IgvSaldoFavorLabel(p621);
   const igvPayableBeforeDetraction = getPdt621IgvPayableBeforeDetraction(p621);
@@ -561,14 +579,14 @@ const SupervisorTaxSectionsForm = ({
     applied_amount: 0,
     original_amount: rentaPayableBeforeDetraction,
   };
-  const p601DetractableBefore = getPdt601DetractableBeforeDetraction(p601);
+  const p601PayableBefore = getPdt601DetractableBeforeDetraction(p601);
   const detractionAppliedP601 = getPdt601AppliedDetractionAmount(p601);
   const detractionInfoP601 = p601.detraction_payment ?? {
     enabled: false,
     mode: 'parcial' as Pdt621DetractionMode,
     amount: 0,
     applied_amount: 0,
-    original_amount: p601DetractableBefore,
+    original_amount: p601PayableBefore,
   };
   const itanPayableBeforeDetraction = getItanPayableBeforeDetraction(itan);
   const detractionAppliedItan = getItanAppliedDetractionAmount(itan);
@@ -579,18 +597,46 @@ const SupervisorTaxSectionsForm = ({
     applied_amount: 0,
     original_amount: itanPayableBeforeDetraction,
   };
+  const p617GrossBefore = getPdt617GrossBeforeDetraction(p617);
+  const detractionAppliedP617 = getPdt617AppliedDetractionAmount(p617);
+  const detractionInfoP617 = p617.detraction_payment ?? {
+    enabled: false,
+    mode: 'parcial' as Pdt621DetractionMode,
+    amount: 0,
+    applied_amount: 0,
+    original_amount: p617GrossBefore,
+  };
+  const bolsasPayableBefore = getBolsasPlasticasPayableBeforeDetraction(bolsas);
+  const detractionAppliedBolsas = getBolsasPlasticasAppliedDetractionAmount(bolsas);
+  const detractionInfoBolsas = bolsas.detraction_payment ?? {
+    enabled: false,
+    mode: 'parcial' as Pdt621DetractionMode,
+    amount: 0,
+    applied_amount: 0,
+    original_amount: bolsasPayableBefore,
+  };
+  const p710PayableBefore = getPdt710PayableBeforeDetraction(p710);
+  const detractionAppliedP710 = getPdt710AppliedDetractionAmount(p710);
+  const detractionInfoP710 = p710.detraction_payment ?? {
+    enabled: false,
+    mode: 'parcial' as Pdt621DetractionMode,
+    amount: 0,
+    applied_amount: 0,
+    original_amount: p710PayableBefore,
+  };
   const showIgvDetraction = p621.saldo_favor_final > 0;
   const showRentaDetraction = rentaPayableBeforeDetraction > 0;
   const showP601Detraction = p601.enabled;
   const showItanDetraction = itan.enabled;
+  const showP617Detraction = p617.enabled;
+  const showBolsasDetraction = bolsas.enabled;
+  const showP710Detraction = p710.enabled;
   const p601DetractionInfoText =
     detractionInfoP601.enabled && detractionAppliedP601 > 0
-      ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedP601)} (${detractionInfoP601.mode === 'total' ? 'total' : 'parcial'}). AFP no aplica detracción.`
-      : p601DetractableBefore > 0
-        ? 'ESSALUD, SIS, ONP y renta 4ta/5ta pueden pagarse con detracción. AFP se paga sin detracción.'
-        : p601.afp > 0
-          ? 'Solo hay AFP registrado; AFP no aplica detracción.'
-          : 'Ingrese montos de planilla para configurar pago con detracción (todo excepto AFP).';
+      ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedP601)} (${detractionInfoP601.mode === 'total' ? 'total' : 'parcial'}).`
+      : p601PayableBefore > 0
+        ? 'Indique si la planilla se pagará con detracción/efectivo (total o parcial).'
+        : 'Ingrese montos de planilla para configurar pago con detracción/efectivo.';
 
   const patch = (partial: Partial<TaxSettlementSectionsPayload>) => {
     onChange(computeTaxSettlementSections({ ...value, ...partial }));
@@ -636,6 +682,18 @@ const SupervisorTaxSectionsForm = ({
 
   const patchItan = (partial: Partial<TaxSectionItan>) => {
     patch({ itan: { ...itan, ...partial } });
+  };
+
+  const patch617 = (partial: Partial<TaxSectionPdt617>) => {
+    patch({ pdt617: { ...p617, ...partial } });
+  };
+
+  const patchBolsas = (partial: Partial<TaxSectionBolsasPlasticas>) => {
+    patch({ bolsas_plasticas: { ...bolsas, ...partial } });
+  };
+
+  const patch710 = (partial: Partial<TaxSectionPdt710>) => {
+    patch({ pdt710: { ...p710, ...partial } });
   };
 
   return (
@@ -851,12 +909,12 @@ const SupervisorTaxSectionsForm = ({
 
           {showIgvDetraction ? (
           <DetraccionActionBar
-            buttonLabel="Pago detracción"
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
             onOpen={() => setDetractionModalOpenIgv(true)}
             infoText={
               detractionInfoIgv.enabled && detractionAppliedIgv > 0
-                ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedIgv)} (${detractionInfoIgv.mode === 'total' ? 'total' : 'parcial'})`
-                : 'Sin aplicación de detracción.'
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedIgv)} (${detractionInfoIgv.mode === 'total' ? 'total' : 'parcial'})`
+                : 'Sin aplicación de detracción/efectivo.'
             }
             totalLabel={igvBalance.label}
             totalAmount={igvNetAfterDetraction}
@@ -938,12 +996,12 @@ const SupervisorTaxSectionsForm = ({
           </div>
           {showRentaDetraction ? (
           <DetraccionActionBar
-            buttonLabel="Pago detracción"
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
             onOpen={() => setDetractionModalOpenRenta(true)}
             infoText={
               detractionInfoRenta.enabled && detractionAppliedRenta > 0
-                ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedRenta)} (${detractionInfoRenta.mode === 'total' ? 'total' : 'parcial'})`
-                : 'Sin aplicación de detracción.'
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedRenta)} (${detractionInfoRenta.mode === 'total' ? 'total' : 'parcial'})`
+                : 'Sin aplicación de detracción/efectivo.'
             }
             totalLabel="Impuesto a pagar (renta)"
             totalAmount={rentaNetAfterDetraction}
@@ -977,9 +1035,9 @@ const SupervisorTaxSectionsForm = ({
         </div>
         {showP601Detraction ? (
         <DetraccionActionBar
-          buttonLabel="Pago detracción"
+          buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
           onOpen={() => setDetractionModalOpenP601(true)}
-          disabled={p601DetractableBefore <= 0}
+          disabled={p601PayableBefore <= 0}
           infoText={p601DetractionInfoText}
           totalLabel="Impuesto a pagar — PDT 601"
           totalAmount={p601.impuesto_a_pagar}
@@ -1011,19 +1069,174 @@ const SupervisorTaxSectionsForm = ({
         </div>
         {showItanDetraction ? (
         <DetraccionActionBar
-          buttonLabel="Pago detracción"
+          buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
           onOpen={() => setDetractionModalOpenItan(true)}
           disabled={itanPayableBeforeDetraction <= 0}
           infoText={
             detractionInfoItan.enabled && detractionAppliedItan > 0
-              ? `Aplicado con detracción: ${formatTaxMoney(detractionAppliedItan)} (${detractionInfoItan.mode === 'total' ? 'total' : 'parcial'})`
+              ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedItan)} (${detractionInfoItan.mode === 'total' ? 'total' : 'parcial'})`
               : itanPayableBeforeDetraction > 0
-                ? 'Indique si esta cuota ITAN se pagará con detracción (total o parcial).'
-                : 'Ingrese el impuesto ITAN para configurar pago con detracción.'
+                ? 'Indique si esta cuota ITAN se pagará con detracción/efectivo (total o parcial).'
+                : 'Ingrese el impuesto ITAN para configurar pago con detracción/efectivo.'
           }
           totalLabel="Impuesto a pagar — ITAN"
           totalAmount={itan.impuesto_a_pagar}
         />
+        ) : null}
+      </SectionToggle>
+
+      <SectionToggle
+        id="sec-pdt617"
+        title="PDT 617 — Otras retenciones"
+        subtitle="Retenciones de IGV y de renta efectuadas como agente de retención."
+        enabled={p617.enabled}
+        onToggle={(enabled) => patch617({ enabled })}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <AmountField
+              label="Retención IGV — Base imponible"
+              value={p617.retencion_igv_base}
+              onChange={(n) => patch617({ retencion_igv_base: n })}
+            />
+            <AmountField
+              label="Retención IGV — Impuesto"
+              value={p617.retencion_igv_impuesto}
+              onChange={(n) => patch617({ retencion_igv_impuesto: n })}
+            />
+            <AmountField
+              label="Retención Renta — Base imponible"
+              value={p617.retencion_renta_base}
+              onChange={(n) => patch617({ retencion_renta_base: n })}
+            />
+            <AmountField
+              label="Retención Renta — Impuesto"
+              value={p617.retencion_renta_impuesto}
+              onChange={(n) => patch617({ retencion_renta_impuesto: n })}
+            />
+          </div>
+          <div className="flex justify-end">
+            <AmountField
+              label="Impuesto a pagar"
+              value={p617.impuesto_a_pagar}
+              readOnly
+              formatValue={formatTaxTotalMoney}
+              className="w-full sm:w-64"
+            />
+          </div>
+        </div>
+        {showP617Detraction ? (
+          <DetraccionActionBar
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
+            onOpen={() => setDetractionModalOpenP617(true)}
+            disabled={p617GrossBefore <= 0}
+            infoText={
+              detractionInfoP617.enabled && detractionAppliedP617 > 0
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedP617)} (${detractionInfoP617.mode === 'total' ? 'total' : 'parcial'})`
+                : p617GrossBefore > 0
+                  ? 'Indique si estas retenciones se pagarán con detracción/efectivo (total o parcial).'
+                  : 'Ingrese los impuestos retenidos para configurar pago con detracción/efectivo.'
+            }
+            totalLabel="Impuesto a pagar — PDT 617"
+            totalAmount={p617.impuesto_a_pagar}
+          />
+        ) : null}
+      </SectionToggle>
+
+      <SectionToggle
+        id="sec-bolsas"
+        title="Impuesto consumo bolsas plásticas"
+        subtitle="ICBPER: impuesto del periodo menos saldo a favor anterior."
+        enabled={bolsas.enabled}
+        onToggle={(enabled) => patchBolsas({ enabled })}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
+          <AmountField
+            label="Impuesto consumo bolsas plásticas"
+            value={bolsas.impuesto}
+            onChange={(n) => patchBolsas({ impuesto: n })}
+          />
+          <AmountField
+            label="Saldo a favor periodo anterior"
+            value={bolsas.saldo_favor_anterior}
+            onChange={(n) => patchBolsas({ saldo_favor_anterior: n })}
+          />
+          <AmountField
+            label="Impuesto a pagar"
+            value={bolsas.impuesto_a_pagar}
+            readOnly
+            formatValue={formatTaxTotalMoney}
+          />
+        </div>
+        {showBolsasDetraction ? (
+          <DetraccionActionBar
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
+            onOpen={() => setDetractionModalOpenBolsas(true)}
+            disabled={bolsasPayableBefore <= 0}
+            infoText={
+              detractionInfoBolsas.enabled && detractionAppliedBolsas > 0
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedBolsas)} (${detractionInfoBolsas.mode === 'total' ? 'total' : 'parcial'})`
+                : bolsasPayableBefore > 0
+                  ? 'Indique si este impuesto se pagará con detracción/efectivo (total o parcial).'
+                  : 'Ingrese el impuesto para configurar pago con detracción/efectivo.'
+            }
+            totalLabel="Impuesto a pagar — Bolsas plásticas"
+            totalAmount={bolsas.impuesto_a_pagar}
+          />
+        ) : null}
+      </SectionToggle>
+
+      <SectionToggle
+        id="sec-pdt710"
+        title="PDT 710 — Renta anual"
+        subtitle="Impuesto a la renta anual resultante menos saldo a favor del periodo anterior."
+        enabled={p710.enabled}
+        onToggle={(enabled) => patch710({ enabled, year: p710.year || currentYear })}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Periodo (año)</label>
+            <input
+              type="number"
+              min={2000}
+              max={2100}
+              value={p710.year || currentYear}
+              onChange={(e) => patch710({ year: Math.max(2000, Math.min(2100, Number(e.target.value) || currentYear)) })}
+              className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 outline-none"
+            />
+          </div>
+          <AmountField
+            label="Renta anual resultante"
+            value={p710.renta_anual_resultante}
+            onChange={(n) => patch710({ renta_anual_resultante: n })}
+          />
+          <AmountField
+            label="Saldo a favor periodo anterior"
+            value={p710.saldo_favor_anterior}
+            onChange={(n) => patch710({ saldo_favor_anterior: n })}
+          />
+          <AmountField
+            label="Impuesto a pagar"
+            value={p710.impuesto_a_pagar}
+            readOnly
+            formatValue={formatTaxTotalMoney}
+          />
+        </div>
+        {showP710Detraction ? (
+          <DetraccionActionBar
+            buttonLabel={DETRACTION_PAYMENT_BUTTON_LABEL}
+            onOpen={() => setDetractionModalOpenP710(true)}
+            disabled={p710PayableBefore <= 0}
+            infoText={
+              detractionInfoP710.enabled && detractionAppliedP710 > 0
+                ? `${DETRACTION_PAYMENT_APPLIED_PREFIX}: ${formatTaxMoney(detractionAppliedP710)} (${detractionInfoP710.mode === 'total' ? 'total' : 'parcial'})`
+                : p710PayableBefore > 0
+                  ? 'Indique si la renta anual se pagará con detracción/efectivo (total o parcial).'
+                  : 'Ingrese la renta anual resultante para configurar pago con detracción/efectivo.'
+            }
+            totalLabel="Impuesto a pagar — PDT 710"
+            totalAmount={p710.impuesto_a_pagar}
+          />
         ) : null}
       </SectionToggle>
 
@@ -1082,22 +1295,20 @@ const SupervisorTaxSectionsForm = ({
         open={detractionModalOpenP601}
         saving={false}
         sectionLabel="PDT 601"
-        originalAmount={p601DetractableBefore}
-        baseAmountLabel="Monto detraccionable (ESSALUD, SIS, ONP, Rta 4ta/5ta)"
-        additionalPayableAmount={p601.afp}
-        additionalPayableLabel="AFP (sin detracción)"
+        originalAmount={p601PayableBefore}
+        baseAmountLabel="Monto aplicable (ESSALUD, SIS, ONP, AFP, Rta 4ta/5ta)"
         initialEnabled={detractionInfoP601.enabled}
         initialMode={detractionInfoP601.mode}
-        initialAmount={detractionInfoP601.mode === 'total' ? p601DetractableBefore : detractionInfoP601.amount}
+        initialAmount={detractionInfoP601.mode === 'total' ? p601PayableBefore : detractionInfoP601.amount}
         onClose={() => setDetractionModalOpenP601(false)}
         onApply={(next) => {
           patch601({
             detraction_payment: {
-              enabled: next.enabled && p601DetractableBefore > 0,
+              enabled: next.enabled && p601PayableBefore > 0,
               mode: next.mode,
-              amount: next.mode === 'total' ? p601DetractableBefore : next.amount,
+              amount: next.mode === 'total' ? p601PayableBefore : next.amount,
               applied_amount: 0,
-              original_amount: p601DetractableBefore,
+              original_amount: p601PayableBefore,
             },
           });
           setDetractionModalOpenP601(false);
@@ -1123,6 +1334,75 @@ const SupervisorTaxSectionsForm = ({
             },
           });
           setDetractionModalOpenItan(false);
+        }}
+      />
+      <DetraccionModal
+        open={detractionModalOpenP617}
+        saving={false}
+        sectionLabel="PDT 617"
+        originalAmount={p617GrossBefore}
+        baseAmountLabel="Impuesto retenido (IGV + renta)"
+        initialEnabled={detractionInfoP617.enabled}
+        initialMode={detractionInfoP617.mode}
+        initialAmount={detractionInfoP617.mode === 'total' ? p617GrossBefore : detractionInfoP617.amount}
+        onClose={() => setDetractionModalOpenP617(false)}
+        onApply={(next) => {
+          patch617({
+            detraction_payment: {
+              enabled: next.enabled && p617GrossBefore > 0,
+              mode: next.mode,
+              amount: next.mode === 'total' ? p617GrossBefore : next.amount,
+              applied_amount: 0,
+              original_amount: p617GrossBefore,
+            },
+          });
+          setDetractionModalOpenP617(false);
+        }}
+      />
+      <DetraccionModal
+        open={detractionModalOpenBolsas}
+        saving={false}
+        sectionLabel="Bolsas plásticas"
+        originalAmount={bolsasPayableBefore}
+        baseAmountLabel="Impuesto a pagar (menos saldo a favor anterior)"
+        initialEnabled={detractionInfoBolsas.enabled}
+        initialMode={detractionInfoBolsas.mode}
+        initialAmount={detractionInfoBolsas.mode === 'total' ? bolsasPayableBefore : detractionInfoBolsas.amount}
+        onClose={() => setDetractionModalOpenBolsas(false)}
+        onApply={(next) => {
+          patchBolsas({
+            detraction_payment: {
+              enabled: next.enabled && bolsasPayableBefore > 0,
+              mode: next.mode,
+              amount: next.mode === 'total' ? bolsasPayableBefore : next.amount,
+              applied_amount: 0,
+              original_amount: bolsasPayableBefore,
+            },
+          });
+          setDetractionModalOpenBolsas(false);
+        }}
+      />
+      <DetraccionModal
+        open={detractionModalOpenP710}
+        saving={false}
+        sectionLabel="PDT 710"
+        originalAmount={p710PayableBefore}
+        baseAmountLabel="Impuesto a pagar (menos saldo a favor anterior)"
+        initialEnabled={detractionInfoP710.enabled}
+        initialMode={detractionInfoP710.mode}
+        initialAmount={detractionInfoP710.mode === 'total' ? p710PayableBefore : detractionInfoP710.amount}
+        onClose={() => setDetractionModalOpenP710(false)}
+        onApply={(next) => {
+          patch710({
+            detraction_payment: {
+              enabled: next.enabled && p710PayableBefore > 0,
+              mode: next.mode,
+              amount: next.mode === 'total' ? p710PayableBefore : next.amount,
+              applied_amount: 0,
+              original_amount: p710PayableBefore,
+            },
+          });
+          setDetractionModalOpenP710(false);
         }}
       />
     </div>

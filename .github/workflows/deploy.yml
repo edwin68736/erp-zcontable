@@ -20,12 +20,26 @@ jobs:
           port: 22
 
           script: |
+            set -euo pipefail
+
             cd /docker/erp-zcontable
 
-            git reset --hard
+            git fetch origin main
+            git reset --hard origin/main
 
-            git pull origin main
+            echo "=== Deploy $(git rev-parse --short HEAD) — $(git log -1 --oneline) ==="
+
+            export BUILD_COMMIT="$(git rev-parse HEAD)"
 
             docker compose down
 
-            docker compose up -d --build
+            # Frontend: sin caché de imagen para que dist/ refleje siempre el último código.
+            docker compose build --no-cache frontend
+
+            # Backend: rebuild normal (más rápido; capas se invalidan al cambiar código).
+            docker compose build backend
+
+            docker compose up -d
+
+            echo "=== Contenedores ==="
+            docker compose ps

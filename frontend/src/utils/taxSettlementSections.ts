@@ -77,11 +77,44 @@ export type TaxSectionItan = {
   impuesto_a_pagar: number;
 };
 
+/** PDT 617 — Otras retenciones (IGV y renta). Base e impuesto se ingresan manualmente. */
+export type TaxSectionPdt617 = {
+  enabled: boolean;
+  retencion_igv_base: number;
+  retencion_igv_impuesto: number;
+  retencion_renta_base: number;
+  retencion_renta_impuesto: number;
+  detraction_payment?: Pdt621DetractionPayment;
+  impuesto_a_pagar: number;
+};
+
+/** Impuesto al consumo de bolsas plásticas (ICBPER). */
+export type TaxSectionBolsasPlasticas = {
+  enabled: boolean;
+  impuesto: number;
+  saldo_favor_anterior: number;
+  detraction_payment?: Pdt621DetractionPayment;
+  impuesto_a_pagar: number;
+};
+
+/** PDT 710 — Renta anual (impuesto resultante menos saldo a favor del periodo anterior). */
+export type TaxSectionPdt710 = {
+  enabled: boolean;
+  year: number;
+  renta_anual_resultante: number;
+  saldo_favor_anterior: number;
+  detraction_payment?: Pdt621DetractionPayment;
+  impuesto_a_pagar: number;
+};
+
 export type TaxSettlementSectionsPayload = {
   version: number;
   pdt621?: TaxSectionPdt621;
   pdt601?: TaxSectionPdt601;
   itan?: TaxSectionItan;
+  pdt617?: TaxSectionPdt617;
+  bolsas_plasticas?: TaxSectionBolsasPlasticas;
+  pdt710?: TaxSectionPdt710;
   grand_total_impuesto_a_pagar: number;
 };
 
@@ -320,12 +353,58 @@ export function defaultItanSection(currentYear: number): TaxSectionItan {
   };
 }
 
+function emptyDetractionPayment(): Pdt621DetractionPayment {
+  return {
+    enabled: false,
+    mode: DEFAULT_PDT621_DETRACTION_MODE,
+    amount: 0,
+    applied_amount: 0,
+    original_amount: 0,
+  };
+}
+
+export function defaultPdt617Section(): TaxSectionPdt617 {
+  return {
+    enabled: false,
+    retencion_igv_base: 0,
+    retencion_igv_impuesto: 0,
+    retencion_renta_base: 0,
+    retencion_renta_impuesto: 0,
+    detraction_payment: emptyDetractionPayment(),
+    impuesto_a_pagar: 0,
+  };
+}
+
+export function defaultBolsasPlasticasSection(): TaxSectionBolsasPlasticas {
+  return {
+    enabled: false,
+    impuesto: 0,
+    saldo_favor_anterior: 0,
+    detraction_payment: emptyDetractionPayment(),
+    impuesto_a_pagar: 0,
+  };
+}
+
+export function defaultPdt710Section(currentYear: number): TaxSectionPdt710 {
+  return {
+    enabled: false,
+    year: currentYear,
+    renta_anual_resultante: 0,
+    saldo_favor_anterior: 0,
+    detraction_payment: emptyDetractionPayment(),
+    impuesto_a_pagar: 0,
+  };
+}
+
 export function defaultTaxSections(currentYear = new Date().getFullYear()): TaxSettlementSectionsPayload {
   return {
     version: TAX_SECTIONS_VERSION,
     pdt621: defaultPdt621Section(),
     pdt601: defaultPdt601Section(),
     itan: defaultItanSection(currentYear),
+    pdt617: defaultPdt617Section(),
+    bolsas_plasticas: defaultBolsasPlasticasSection(),
+    pdt710: defaultPdt710Section(currentYear),
     grand_total_impuesto_a_pagar: 0,
   };
 }
@@ -493,12 +572,10 @@ function normalizePdt621DetractionPayment(
 
 function computePdt601Section(s: TaxSectionPdt601, includeDetraction = true): TaxSectionPdt601 {
   const section: TaxSectionPdt601 = { ...s, sis: roundMoney(s.sis ?? 0) };
-  const afp = roundMoney(section.afp);
-  const detractable = getPdt601DetractableBeforeDetraction(section);
-  const gross = roundMoney(afp + detractable);
-  const detractionPayment = normalizePdt621DetractionPayment(section.detraction_payment, detractable, includeDetraction);
+  const gross = getPdt601DetractableBeforeDetraction(section);
+  const detractionPayment = normalizePdt621DetractionPayment(section.detraction_payment, gross, includeDetraction);
   const impuesto_a_pagar = includeDetraction
-    ? roundTaxTotalAmount(afp + Math.max(detractable - detractionPayment.applied_amount, 0))
+    ? roundTaxTotalAmount(Math.max(gross - detractionPayment.applied_amount, 0))
     : roundTaxTotalAmount(gross);
   return { ...section, detraction_payment: detractionPayment, impuesto_a_pagar };
 }
@@ -545,6 +622,78 @@ function computeItanSectionWithDetractionOption(s: TaxSectionItan, includeDetrac
   };
 }
 
+export function getPdt617GrossBeforeDetraction(s: TaxSectionPdt617): number {
+  return roundMoney(Math.max(s.retencion_igv_impuesto, 0) + Math.max(s.retencion_renta_impuesto, 0));
+}
+
+function computePdt617Section(s: TaxSectionPdt617, includeDetraction = true): TaxSectionPdt617 {
+  const gross = getPdt617GrossBeforeDetraction(s);
+  const detractionPayment = normalizePdt621DetractionPayment(s.detraction_payment, gross, includeDetraction);
+  const impuesto_a_pagar = includeDetraction
+    ? roundTaxTotalAmount(Math.max(gross - detractionPayment.applied_amount, 0))
+    : roundTaxTotalAmount(gross);
+  return { ...s, detraction_payment: detractionPayment, impuesto_a_pagar };
+}
+
+function computePdt617SectionWithDetractionOption(s: TaxSectionPdt617, includeDetraction: boolean): TaxSectionPdt617 {
+  if (includeDetraction) return computePdt617Section(s, true);
+  const gross = getPdt617GrossBeforeDetraction(s);
+  return {
+    ...s,
+    detraction_payment: normalizePdt621DetractionPayment(s.detraction_payment, gross, false),
+    impuesto_a_pagar: roundTaxTotalAmount(gross),
+  };
+}
+
+export function getBolsasPlasticasPayableBeforeDetraction(s: TaxSectionBolsasPlasticas): number {
+  return roundMoney(Math.max(s.impuesto - s.saldo_favor_anterior, 0));
+}
+
+function computeBolsasPlasticasSection(s: TaxSectionBolsasPlasticas, includeDetraction = true): TaxSectionBolsasPlasticas {
+  const payable = getBolsasPlasticasPayableBeforeDetraction(s);
+  const detractionPayment = normalizePdt621DetractionPayment(s.detraction_payment, payable, includeDetraction);
+  const impuesto_a_pagar = includeDetraction
+    ? roundTaxTotalAmount(Math.max(payable - detractionPayment.applied_amount, 0))
+    : roundTaxTotalAmount(payable);
+  return { ...s, detraction_payment: detractionPayment, impuesto_a_pagar };
+}
+
+function computeBolsasPlasticasSectionWithDetractionOption(
+  s: TaxSectionBolsasPlasticas,
+  includeDetraction: boolean,
+): TaxSectionBolsasPlasticas {
+  if (includeDetraction) return computeBolsasPlasticasSection(s, true);
+  const payable = getBolsasPlasticasPayableBeforeDetraction(s);
+  return {
+    ...s,
+    detraction_payment: normalizePdt621DetractionPayment(s.detraction_payment, payable, false),
+    impuesto_a_pagar: roundTaxTotalAmount(payable),
+  };
+}
+
+export function getPdt710PayableBeforeDetraction(s: TaxSectionPdt710): number {
+  return roundMoney(Math.max(s.renta_anual_resultante - s.saldo_favor_anterior, 0));
+}
+
+function computePdt710Section(s: TaxSectionPdt710, includeDetraction = true): TaxSectionPdt710 {
+  const payable = getPdt710PayableBeforeDetraction(s);
+  const detractionPayment = normalizePdt621DetractionPayment(s.detraction_payment, payable, includeDetraction);
+  const impuesto_a_pagar = includeDetraction
+    ? roundTaxTotalAmount(Math.max(payable - detractionPayment.applied_amount, 0))
+    : roundTaxTotalAmount(payable);
+  return { ...s, detraction_payment: detractionPayment, impuesto_a_pagar };
+}
+
+function computePdt710SectionWithDetractionOption(s: TaxSectionPdt710, includeDetraction: boolean): TaxSectionPdt710 {
+  if (includeDetraction) return computePdt710Section(s, true);
+  const payable = getPdt710PayableBeforeDetraction(s);
+  return {
+    ...s,
+    detraction_payment: normalizePdt621DetractionPayment(s.detraction_payment, payable, false),
+    impuesto_a_pagar: roundTaxTotalAmount(payable),
+  };
+}
+
 export type ComputeTaxSettlementSectionsOptions = {
   includeDetraction?: boolean;
 };
@@ -560,12 +709,20 @@ export function computeTaxSettlementSections(
     pdt621: p.pdt621 ? computePdt621SectionWithDetractionOption(p.pdt621, includeDetraction) : undefined,
     pdt601: p.pdt601 ? computePdt601SectionWithDetractionOption(p.pdt601, includeDetraction) : undefined,
     itan: p.itan ? computeItanSectionWithDetractionOption(p.itan, includeDetraction) : undefined,
+    pdt617: p.pdt617 ? computePdt617SectionWithDetractionOption(p.pdt617, includeDetraction) : undefined,
+    bolsas_plasticas: p.bolsas_plasticas
+      ? computeBolsasPlasticasSectionWithDetractionOption(p.bolsas_plasticas, includeDetraction)
+      : undefined,
+    pdt710: p.pdt710 ? computePdt710SectionWithDetractionOption(p.pdt710, includeDetraction) : undefined,
     grand_total_impuesto_a_pagar: 0,
   };
   let grand = 0;
   if (out.pdt621?.enabled) grand += out.pdt621.impuesto_a_pagar;
   if (out.pdt601?.enabled) grand += out.pdt601.impuesto_a_pagar;
   if (out.itan?.enabled) grand += out.itan.impuesto_a_pagar;
+  if (out.pdt617?.enabled) grand += out.pdt617.impuesto_a_pagar;
+  if (out.bolsas_plasticas?.enabled) grand += out.bolsas_plasticas.impuesto_a_pagar;
+  if (out.pdt710?.enabled) grand += out.pdt710.impuesto_a_pagar;
   out.grand_total_impuesto_a_pagar = roundTaxTotalAmount(grand);
   return out;
 }
@@ -595,16 +752,32 @@ function computePdt621SectionWithDetractionOption(
   };
 }
 
+export type Pdt621IgvDisplayRow = {
+  label: string;
+  row: TaxIGVRow;
+  withNoGravadas: boolean;
+  /** PDF PDT 621: ventas/compras por tasa se muestran aunque todos los montos sean cero. */
+  alwaysShowInPdf?: boolean;
+};
+
+const PDF_IGV_VENTAS_RATES: CompanyIgvRate[] = [18, 10.5];
+
 export function listPdt621IgvDisplayRows(
   s: TaxSectionPdt621,
-): Array<{ label: string; row: TaxIGVRow; withNoGravadas: boolean }> {
-  const rates = s.igv_aplicable_ventas?.length ? s.igv_aplicable_ventas : [18 as CompanyIgvRate];
-  const rows: Array<{ label: string; row: TaxIGVRow; withNoGravadas: boolean }> = [];
+  options?: { forPdf?: boolean },
+): Pdt621IgvDisplayRow[] {
+  const rates = options?.forPdf
+    ? PDF_IGV_VENTAS_RATES
+    : s.igv_aplicable_ventas?.length
+      ? s.igv_aplicable_ventas
+      : [18 as CompanyIgvRate];
+  const rows: Pdt621IgvDisplayRow[] = [];
   for (const rate of rates) {
     rows.push({
       label: `Ventas netas (${formatCompanyIgvRateLabel(rate)})`,
       row: getPdt621VentasRow(s, rate),
       withNoGravadas: true,
+      alwaysShowInPdf: options?.forPdf,
     });
     rows.push({
       label: `(−) Notas de crédito (${formatCompanyIgvRateLabel(rate)})`,
@@ -612,8 +785,18 @@ export function listPdt621IgvDisplayRows(
       withNoGravadas: true,
     });
   }
-  rows.push({ label: '(−) Compras 10.5 %', row: s.compras_105, withNoGravadas: true });
-  rows.push({ label: '(−) Compras 18 %', row: s.compras_18, withNoGravadas: true });
+  rows.push({
+    label: '(−) Compras 10.5 %',
+    row: s.compras_105,
+    withNoGravadas: true,
+    alwaysShowInPdf: options?.forPdf,
+  });
+  rows.push({
+    label: '(−) Compras 18 %',
+    row: s.compras_18,
+    withNoGravadas: true,
+    alwaysShowInPdf: options?.forPdf,
+  });
   return rows;
 }
 
@@ -655,7 +838,9 @@ export function parseTaxSectionsJson(
   if (!t) return null;
   try {
     const p = JSON.parse(t) as TaxSettlementSectionsPayload;
-    if (!p.version && !p.pdt621 && !p.pdt601 && !p.itan) return null;
+    if (!p.version && !p.pdt621 && !p.pdt601 && !p.itan && !p.pdt617 && !p.bolsas_plasticas && !p.pdt710) {
+      return null;
+    }
     return computeTaxSettlementSections(p, options);
   } catch {
     return null;
@@ -663,7 +848,7 @@ export function parseTaxSectionsJson(
 }
 
 export function getPdt601DetractableBeforeDetraction(p601: TaxSectionPdt601): number {
-  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.rta_4ta + p601.rta_5ta);
+  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.afp + p601.rta_4ta + p601.rta_5ta);
 }
 
 export function getPdt601AppliedDetractionAmount(p601: TaxSectionPdt601): number {
@@ -678,6 +863,21 @@ export function getItanPayableBeforeDetraction(itan: TaxSectionItan): number {
 export function getItanAppliedDetractionAmount(itan: TaxSectionItan): number {
   const original = getItanPayableBeforeDetraction(itan);
   return normalizePdt621DetractionPayment(itan.detraction_payment, original, true).applied_amount;
+}
+
+export function getPdt617AppliedDetractionAmount(p617: TaxSectionPdt617): number {
+  const gross = getPdt617GrossBeforeDetraction(p617);
+  return normalizePdt621DetractionPayment(p617.detraction_payment, gross, true).applied_amount;
+}
+
+export function getBolsasPlasticasAppliedDetractionAmount(s: TaxSectionBolsasPlasticas): number {
+  const payable = getBolsasPlasticasPayableBeforeDetraction(s);
+  return normalizePdt621DetractionPayment(s.detraction_payment, payable, true).applied_amount;
+}
+
+export function getPdt710AppliedDetractionAmount(s: TaxSectionPdt710): number {
+  const payable = getPdt710PayableBeforeDetraction(s);
+  return normalizePdt621DetractionPayment(s.detraction_payment, payable, true).applied_amount;
 }
 
 export function getPdt621IgvPayableBeforeDetraction(p621: TaxSectionPdt621): number {
@@ -739,9 +939,9 @@ export function getPdt621RentaNetAfterDetraction(p621: TaxSectionPdt621): number
 export function formatPdt621DetractionPaymentNote(payment: Pdt621DetractionPayment | undefined): string | null {
   if (!payment?.enabled || payment.applied_amount <= 0) return null;
   if (payment.mode === 'total') {
-    return `Pago con detracción (total): ${formatTaxMoney(payment.applied_amount)}`;
+    return `Pago con detracción/efectivo (total): ${formatTaxMoney(payment.applied_amount)}`;
   }
-  return `Pago con detracción (parcial): ${formatTaxMoney(payment.applied_amount)}`;
+  return `Pago con detracción/efectivo (parcial): ${formatTaxMoney(payment.applied_amount)}`;
 }
 
 export function formatPdt621DetractionNotesCombined(p621: TaxSectionPdt621): string | null {
@@ -842,7 +1042,7 @@ export function formatTaxRowMoney(n: number): string {
 
 /** PDF: muestra guion cuando el monto es cero. */
 export function formatTaxPdfMoney(n: number): string {
-  if (!isNonZeroTaxAmount(n)) return '—';
+  if (!isNonZeroTaxAmount(n)) return '-';
   return formatTaxMoney(n);
 }
 
@@ -861,5 +1061,5 @@ export function formatImpuestoPeriodoPdf(n: number): string {
 
 export function getPdt621DetractionPdfRowLabel(payment: Pdt621DetractionPayment | undefined): string | null {
   if (!payment?.enabled || (payment.applied_amount ?? 0) <= 0) return null;
-  return payment.mode === 'total' ? 'Pago con detracción (total)' : 'Pago con detracción (parcial)';
+  return payment.mode === 'total' ? 'Pago con detracción/efectivo (total)' : 'Pago con detracción/efectivo (parcial)';
 }
