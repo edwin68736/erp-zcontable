@@ -2,42 +2,48 @@ package services
 
 import "testing"
 
-func TestComputeImpuestoPeriodoNegativeCeil(t *testing.T) {
-	// 180 - 90 - 52.50 - 144 = -106.50 → -107
+func TestComputeImpuestoPeriodoRoundsNearestDown(t *testing.T) {
+	// 3784.11 → 3784 (mismo método que el resto de totales: al entero más cercano, no al techo).
 	p := &TaxSettlementSectionsPayload{
 		Pdt621: &TaxSectionPdt621{
-			Enabled:      true,
-			VentasNetas:  TaxIGVRow{Impuesto: 180},
-			NotasCredito: TaxIGVRow{Impuesto: 90},
-			Compras105:   TaxIGVRow{Impuesto: 52.50},
-			Compras18:    TaxIGVRow{Impuesto: 144},
+			Enabled:     true,
+			VentasNetas: TaxIGVRow{Impuesto: 3784.11},
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
-	if out.Pdt621.ImpuestoPeriodo != -107 {
-		t.Fatalf("impuesto_periodo=%v want -107", out.Pdt621.ImpuestoPeriodo)
+	if out.Pdt621.ImpuestoPeriodo != 3784 {
+		t.Fatalf("impuesto_periodo=%v want 3784", out.Pdt621.ImpuestoPeriodo)
 	}
 }
 
-func TestComputeImpuestoPeriodoCeilFloat(t *testing.T) {
-	if got := roundImpuestoPeriodo(106.499999999999); got != 107 {
-		t.Fatalf("impuesto_periodo float=%v want 107", got)
-	}
-	if got := roundImpuestoPeriodo(-106.50); got != -107 {
-		t.Fatalf("impuesto_periodo negative=%v want -107", got)
-	}
-}
-
-func TestComputeImpuestoPeriodoCeil(t *testing.T) {
+func TestComputeImpuestoPeriodoRoundsHalfUp(t *testing.T) {
+	// 106.50 → 107 (half-up).
 	p := &TaxSettlementSectionsPayload{
 		Pdt621: &TaxSectionPdt621{
-			Enabled:    true,
+			Enabled:     true,
 			VentasNetas: TaxIGVRow{Impuesto: 106.50},
 		},
 	}
 	out := ComputeTaxSettlementSections(p)
 	if out.Pdt621.ImpuestoPeriodo != 107 {
-		t.Fatalf("impuesto_periodo=%v want 107 (ceil)", out.Pdt621.ImpuestoPeriodo)
+		t.Fatalf("impuesto_periodo=%v want 107", out.Pdt621.ImpuestoPeriodo)
+	}
+}
+
+func TestComputeImpuestoPeriodoNegative(t *testing.T) {
+	// 180 - 90 - 52.40 - 144 = -106.40 → -106 (al más cercano).
+	p := &TaxSettlementSectionsPayload{
+		Pdt621: &TaxSectionPdt621{
+			Enabled:      true,
+			VentasNetas:  TaxIGVRow{Impuesto: 180},
+			NotasCredito: TaxIGVRow{Impuesto: 90},
+			Compras105:   TaxIGVRow{Impuesto: 52.40},
+			Compras18:    TaxIGVRow{Impuesto: 144},
+		},
+	}
+	out := ComputeTaxSettlementSections(p)
+	if out.Pdt621.ImpuestoPeriodo != -106 {
+		t.Fatalf("impuesto_periodo=%v want -106", out.Pdt621.ImpuestoPeriodo)
 	}
 }
 

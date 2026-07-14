@@ -290,7 +290,7 @@ func (s *Service) ListLinkedDebts(tx *gorm.DB, settlementID uint) ([]SettlementD
 func (s *Service) ListUnlinkedOpenDebts(tx *gorm.DB, companyID uint) ([]SettlementDebtRow, error) {
 	var docs []models.Document
 	if err := tx.Where("company_id = ? AND tax_settlement_id IS NULL", companyID).
-		Where("status NOT IN ?", []string{StatusPaid, StatusCancelled}).
+		Where("status NOT IN ?", []string{StatusPaid, StatusCancelled, StatusExonerado}).
 		Where("balance_amount > ?", MoneyEpsilon).
 		Where("legacy_status IS NULL OR legacy_status = '' OR legacy_status NOT IN ?", []string{LegacyStatusMerged, LegacyStatusArchived}).
 		Order("issue_date ASC, id ASC").

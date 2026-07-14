@@ -127,6 +127,7 @@ export function TaxSettlementSectionsSummary({
     sections.pdt710?.enabled;
   if (!hasAny) return null;
 
+  const numeroTrabajadores = sections.numero_trabajadores ?? 0;
   const p621 = sections.pdt621;
   const igvRatesLabel =
     p621?.enabled && p621.igv_aplicable_ventas?.length
@@ -156,6 +157,15 @@ export function TaxSettlementSectionsSummary({
       {variant === 'default' ? (
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-slate-800">Detalle fiscal (supervisor)</h3>
+        </div>
+      ) : null}
+
+      {numeroTrabajadores > 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 flex items-center justify-between gap-3">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            N° de trabajadores
+          </span>
+          <span className="text-sm font-semibold text-slate-800 tabular-nums">{numeroTrabajadores}</span>
         </div>
       ) : null}
 

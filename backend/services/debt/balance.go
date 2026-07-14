@@ -62,7 +62,7 @@ func (s *Service) PersistBalanceAndStatusForDoc(tx *gorm.DB, d *models.Document)
 	if d == nil {
 		return nil
 	}
-	if stringsTrimLower(d.Status) == StatusCancelled {
+	if IsTerminalWriteoffStatus(d.Status) {
 		return nil
 	}
 	paid := s.PaidTotal(tx, d.ID)
@@ -93,6 +93,10 @@ func (s *Service) InitBalanceOnCreate(doc *models.Document) {
 // EffectiveBalance lee saldo persistido; si es inconsistente con pagos, recalcula (dual read).
 func (s *Service) EffectiveBalance(tx *gorm.DB, d *models.Document) float64 {
 	if d == nil {
+		return 0
+	}
+	// Deudas dadas de baja (anuladas/exoneradas) no tienen saldo cobrable, aunque no tengan pagos.
+	if IsTerminalWriteoffStatus(d.Status) {
 		return 0
 	}
 	calc := BalanceFromTotalPaid(d.TotalAmount, s.PaidTotal(tx, d.ID))

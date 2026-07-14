@@ -275,6 +275,38 @@ func (ctrl *TaxSettlementController) LinkDebtAPI(c fiber.Ctx) error {
 	return c.JSON(ts)
 }
 
+// WriteOffDebtAPI POST /api/tax-settlements/debts/:documentId/writeoff — exonera o anula (elimina lógicamente)
+// una deuda pendiente no vinculada, con motivo. Acción definitiva.
+func (ctrl *TaxSettlementController) WriteOffDebtAPI(c fiber.Ctx) error {
+	did, err := strconv.ParseUint(c.Params("documentId"), 10, 32)
+	if err != nil || did == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID de deuda inválido"})
+	}
+	doc, err := ctrl.svc.GetDebtByID(uint(did))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Deuda no encontrada"})
+	}
+	if err := ctrl.ensureCompanyAccess(c, doc.CompanyID); err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	}
+	var body struct {
+		Action string `json:"action"`
+		Motivo string `json:"motivo"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	uid, _ := getUserID(c)
+	updated, err := ctrl.svc.WriteOffPendingDebt(uint(did), body.Action, body.Motivo, uid)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(updated)
+}
+
 func (ctrl *TaxSettlementController) GetAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil || id == 0 {

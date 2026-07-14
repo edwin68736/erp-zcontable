@@ -32,6 +32,10 @@ type Document struct {
 	Source           string         `gorm:"size:50;not null" json:"source"`           // tukifac, manual, recurrente_plan, liquidacion
 	LegacyStatus     string         `gorm:"size:32;index;default:''" json:"legacy_status,omitempty"` // vacío=activo; legacy_merged, legacy_promoted, archived
 	MergedIntoDocumentID *uint      `gorm:"index" json:"merged_into_document_id,omitempty"`
+	// Write-off (exoneración/anulación con motivo) de deudas que no se cobrarán. Acción definitiva.
+	WriteoffReason   string         `gorm:"type:text" json:"writeoff_reason,omitempty"`
+	WriteoffBy       *uint          `gorm:"index" json:"writeoff_by,omitempty"`
+	WriteoffAt       *time.Time     `json:"writeoff_at,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`

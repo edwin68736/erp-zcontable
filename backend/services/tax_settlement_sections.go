@@ -12,6 +12,7 @@ const taxSettlementSectionsVersion = 1
 // TaxSettlementSectionsPayload bloque fiscal PDT 621 / 601 / ITAN (JSON en tax_settlements.pdt621_json).
 type TaxSettlementSectionsPayload struct {
 	Version              int                        `json:"version"`
+	NumeroTrabajadores   int                        `json:"numero_trabajadores,omitempty"`
 	Pdt621               *TaxSectionPdt621          `json:"pdt621,omitempty"`
 	Pdt601               *TaxSectionPdt601          `json:"pdt601,omitempty"`
 	Itan                 *TaxSectionItan            `json:"itan,omitempty"`
@@ -145,22 +146,6 @@ func roundTaxAmount(v float64, decimals int) float64 {
 }
 
 const taxAmountMaxDecimals = 6
-
-// roundImpuestoPeriodo redondea al entero superior en magnitud si hay centavos.
-// Positivo: 106.50 → 107. Negativo: -106.50 → -107.
-func roundImpuestoPeriodo(v float64) float64 {
-	normalized := roundTaxMoney(v)
-	cents := int64(math.Round(normalized * 100))
-	whole := cents / 100
-	rem := cents % 100
-	if rem == 0 {
-		return float64(whole)
-	}
-	if cents > 0 {
-		return float64(whole + 1)
-	}
-	return float64(whole - 1)
-}
 
 func computeIGVRowTotal(base, noGravadas, impuesto float64, withNoGravadas bool) float64 {
 	if withNoGravadas {
@@ -343,7 +328,7 @@ func computePdt621Section(s *TaxSectionPdt621, includeDetraction bool) {
 	s.Compras105.Total = computeIGVRowTotal(s.Compras105.Base, s.Compras105.NoGravadas, s.Compras105.Impuesto, true)
 	s.Compras18.Total = computeIGVRowTotal(s.Compras18.Base, s.Compras18.NoGravadas, s.Compras18.Impuesto, true)
 
-	s.ImpuestoPeriodo = roundImpuestoPeriodo(
+	s.ImpuestoPeriodo = roundTaxTotalAmount(
 		ventasImpuesto-notasImpuesto-s.Compras105.Impuesto-s.Compras18.Impuesto,
 	)
 	s.SaldoFavor = roundTaxMoney(s.ImpuestoPeriodo - s.CreditoPeriodoAnt)

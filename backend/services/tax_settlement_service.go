@@ -626,7 +626,7 @@ func (s *TaxSettlementService) UpdateDraft(id uint, in TaxSettlementUpdateInput)
 
 func (s *TaxSettlementService) GetByID(id uint) (*models.TaxSettlement, error) {
 	var ts models.TaxSettlement
-	if err := database.DB.Preload("Company").Preload("Lines", func(db *gorm.DB) *gorm.DB {
+	if err := database.DB.Preload("Company.SubscriptionPlan").Preload("Company").Preload("Lines", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC, id ASC")
 	}).First(&ts, id).Error; err != nil {
 		return nil, err
@@ -1073,6 +1073,34 @@ func (s *TaxSettlementService) LinkDebtToDraft(settlementID uint, in LinkDebtInp
 }
 
 // PendingDebtsFromClosedSettlements deudas abiertas liberadas de liquidaciones cerradas (para alertas al crear nueva).
+// GetDebtByID carga una deuda por id (para verificar acceso antes de darla de baja).
+func (s *TaxSettlementService) GetDebtByID(id uint) (*models.Document, error) {
+	var d models.Document
+	if err := database.DB.First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// WriteOffPendingDebt exonera ('exonerar') o anula ('eliminar') una deuda pendiente no vinculada.
+// Definitivo: conserva el registro con motivo y auditoría, saldo en 0.
+func (s *TaxSettlementService) WriteOffPendingDebt(documentID uint, action, reason string, userID uint) (*models.Document, error) {
+	debtSvc := debtsvc.NewService()
+	var out *models.Document
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		d, e := debtSvc.WriteOffUnlinkedDebt(tx, documentID, action, reason, userID)
+		if e != nil {
+			return e
+		}
+		out = d
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *TaxSettlementService) PendingDebtsFromClosedSettlements(companyID uint) (int, []debtsvc.SettlementDebtRow, error) {
 	debtSvc := debtsvc.NewService()
 	unlinked, err := debtSvc.ListUnlinkedOpenDebts(database.DB, companyID)

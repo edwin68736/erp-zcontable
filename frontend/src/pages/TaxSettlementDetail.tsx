@@ -46,6 +46,11 @@ const TaxSettlementDetail = () => {
   const [editKeyLoading, setEditKeyLoading] = useState(false);
   const [debtsCtx, setDebtsCtx] = useState<SettlementDebtsContext | null>(null);
   const [linkingDebtId, setLinkingDebtId] = useState<number | null>(null);
+  const [writeoffTarget, setWriteoffTarget] = useState<
+    { documentId: number; action: 'exonerar' | 'eliminar'; number?: string } | null
+  >(null);
+  const [writeoffMotivo, setWriteoffMotivo] = useState('');
+  const [writeoffLoading, setWriteoffLoading] = useState(false);
 
   useEffect(() => {
     if (!settlementId) return;
@@ -118,6 +123,35 @@ const TaxSettlementDetail = () => {
       );
     } finally {
       setLinkingDebtId(null);
+    }
+  };
+
+  const submitWriteoff = async () => {
+    if (!writeoffTarget || !writeoffMotivo.trim()) return;
+    setWriteoffLoading(true);
+    try {
+      await taxSettlementsService.writeOffDebt(writeoffTarget.documentId, writeoffTarget.action, writeoffMotivo);
+      await reloadDebtsContext();
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'success',
+            message: writeoffTarget.action === 'exonerar' ? 'Deuda exonerada.' : 'Deuda eliminada (anulada).',
+          },
+        }),
+      );
+      setWriteoffTarget(null);
+      setWriteoffMotivo('');
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+          : 'No se pudo procesar la baja de la deuda';
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error' } }),
+      );
+    } finally {
+      setWriteoffLoading(false);
     }
   };
 
@@ -387,6 +421,14 @@ const TaxSettlementDetail = () => {
             )}
             <span className="mx-2 text-slate-300">·</span>
             <span className="text-slate-500">{settlementStatusLabel(row.status)}</span>
+            {row.company?.subscription_plan?.name ? (
+              <>
+                <span className="mx-2 text-slate-300">·</span>
+                <span className="text-slate-500">
+                  Plan: <span className="font-medium text-slate-700">{row.company.subscription_plan.name}</span>
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -645,7 +687,7 @@ const TaxSettlementDetail = () => {
                     <th className="px-3 py-2 text-left">Deuda</th>
                     <th className="px-3 py-2 text-left">Periodo</th>
                     <th className="px-3 py-2 text-right">Saldo</th>
-                    {row.status === 'borrador' && canUpdate ? (
+                    {canUpdate ? (
                       <th className="px-3 py-2 text-right">Acción</th>
                     ) : null}
                   </tr>
@@ -653,7 +695,7 @@ const TaxSettlementDetail = () => {
                 <tbody className="divide-y divide-slate-100">
                   {debtsCtx.unlinked.length === 0 ? (
                     <tr>
-                      <td colSpan={row.status === 'borrador' && canUpdate ? 4 : 3} className="px-3 py-4 text-slate-500 text-center">
+                      <td colSpan={canUpdate ? 4 : 3} className="px-3 py-4 text-slate-500 text-center">
                         No hay deudas abiertas sin vincular.
                       </td>
                     </tr>
@@ -674,16 +716,40 @@ const TaxSettlementDetail = () => {
                         </td>
                         <td className="px-3 py-2 tabular-nums text-xs">{formatDebtPeriod(d)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoneyPen(d.balance_amount)}</td>
-                        {row.status === 'borrador' && canUpdate ? (
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              disabled={linkingDebtId === d.document_id}
-                              onClick={() => void handleLinkUnlinkedDebt(d.document_id)}
-                              className="text-xs font-medium text-primary-700 hover:text-primary-900 disabled:opacity-50"
-                            >
-                              {linkingDebtId === d.document_id ? '…' : 'Agregar'}
-                            </button>
+                        {canUpdate ? (
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2.5">
+                              {row.status === 'borrador' ? (
+                                <button
+                                  type="button"
+                                  disabled={linkingDebtId === d.document_id}
+                                  onClick={() => void handleLinkUnlinkedDebt(d.document_id)}
+                                  className="text-xs font-medium text-primary-700 hover:text-primary-900 disabled:opacity-50"
+                                >
+                                  {linkingDebtId === d.document_id ? '…' : 'Agregar'}
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setWriteoffTarget({ documentId: d.document_id, action: 'exonerar', number: d.number })
+                                }
+                                className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                                title="Condonar la deuda (no se cobrará). Conserva historial y motivo."
+                              >
+                                Exonerar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setWriteoffTarget({ documentId: d.document_id, action: 'eliminar', number: d.number })
+                                }
+                                className="text-xs font-medium text-red-700 hover:text-red-900"
+                                title="Anular la deuda (quitarla). Conserva historial y motivo."
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         ) : null}
                       </tr>
@@ -866,6 +932,75 @@ const TaxSettlementDetail = () => {
         }}
         onConfirm={() => void confirmEditSettlement()}
       />
+
+      {writeoffTarget ? (
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => {
+              if (!writeoffLoading) {
+                setWriteoffTarget(null);
+                setWriteoffMotivo('');
+              }
+            }}
+            aria-label="Cerrar"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200"
+          >
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h3 className="text-base font-semibold text-slate-900">
+                {writeoffTarget.action === 'exonerar' ? 'Exonerar deuda' : 'Eliminar (anular) deuda'}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {writeoffTarget.action === 'exonerar'
+                  ? 'La deuda se condona y deja de figurar como pendiente. Se conserva el historial y el motivo. Acción definitiva.'
+                  : 'La deuda se anula y deja de figurar como pendiente. Se conserva el historial y el motivo. Acción definitiva.'}
+                {writeoffTarget.number ? ` Deuda: ${writeoffTarget.number}.` : ''}
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Motivo (obligatorio)</label>
+              <textarea
+                value={writeoffMotivo}
+                onChange={(e) => setWriteoffMotivo(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none resize-none"
+                placeholder="Ej.: cliente dado de baja; deuda incobrable…"
+                autoFocus
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/80 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 rounded-b-2xl">
+              <button
+                type="button"
+                disabled={writeoffLoading}
+                onClick={() => {
+                  setWriteoffTarget(null);
+                  setWriteoffMotivo('');
+                }}
+                className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={writeoffLoading || !writeoffMotivo.trim()}
+                onClick={() => void submitWriteoff()}
+                className={`px-4 py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-50 ${
+                  writeoffTarget.action === 'exonerar'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {writeoffLoading ? '…' : writeoffTarget.action === 'exonerar' ? 'Exonerar' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

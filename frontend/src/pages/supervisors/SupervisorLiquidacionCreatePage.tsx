@@ -169,6 +169,13 @@ const SupervisorLiquidacionCreatePage = () => {
 
   const rentaCoeficientePct = taxSectionsComputed.pdt621?.renta_coeficiente_pct ?? 0;
 
+  const numeroTrabajadores = taxSectionsComputed.numero_trabajadores ?? 0;
+
+  const patchNumeroTrabajadores = (n: number) => {
+    const safe = Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+    setTaxSections((prev) => computeTaxSettlementSections({ ...prev, numero_trabajadores: safe }));
+  };
+
   const patchRentaRegimen = (regimen: LiquidationRentaRegime) => {
     setTaxSections((prev) => {
       const base621 = prev.pdt621 ?? defaultTaxSections(currentYear).pdt621!;
@@ -461,7 +468,7 @@ const SupervisorLiquidacionCreatePage = () => {
         </dl>
 
         {igvConfigured && companyIgvRate ? (
-          <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-8">
+          <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-8">
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">IGV aplicable</p>
               <div className="mt-2">
@@ -494,6 +501,26 @@ const SupervisorLiquidacionCreatePage = () => {
                     coeficientePct={rentaCoeficientePct}
                     onRegimenChange={patchRentaRegimen}
                     onCoeficienteChange={patchRentaCoeficiente}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">N° de trabajadores</p>
+              <div className="mt-2">
+                {isView ? (
+                  <p className="text-sm text-slate-800">{numeroTrabajadores}</p>
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={numeroTrabajadores === 0 ? '' : numeroTrabajadores}
+                    onChange={(e) => patchNumeroTrabajadores(Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full max-w-xs px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none bg-white"
+                    aria-label="Número de trabajadores"
                   />
                 )}
               </div>

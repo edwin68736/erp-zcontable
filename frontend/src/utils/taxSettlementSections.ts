@@ -109,6 +109,8 @@ export type TaxSectionPdt710 = {
 
 export type TaxSettlementSectionsPayload = {
   version: number;
+  /** Número de trabajadores de la empresa registrado en la liquidación. */
+  numero_trabajadores?: number;
   pdt621?: TaxSectionPdt621;
   pdt601?: TaxSectionPdt601;
   itan?: TaxSectionItan;
@@ -143,17 +145,6 @@ export function roundTaxTotalAmount(n: number): number {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
-}
-
-/** Impuesto del periodo: entero superior en magnitud si hay centavos (106.50→107, -106.50→-107). */
-export function roundImpuestoPeriodo(v: number): number {
-  const normalized = roundMoney(v);
-  const cents = Math.round(normalized * 100);
-  const whole = Math.trunc(cents / 100);
-  const rem = cents - whole * 100;
-  if (rem === 0) return whole;
-  if (cents > 0) return whole + 1;
-  return whole - 1;
 }
 
 function computeIGVRowTotal(base: number, noGravadas: number, impuesto: number, withNoGravadas: boolean): number {
@@ -399,6 +390,7 @@ export function defaultPdt710Section(currentYear: number): TaxSectionPdt710 {
 export function defaultTaxSections(currentYear = new Date().getFullYear()): TaxSettlementSectionsPayload {
   return {
     version: TAX_SECTIONS_VERSION,
+    numero_trabajadores: 0,
     pdt621: defaultPdt621Section(),
     pdt601: defaultPdt601Section(),
     itan: defaultItanSection(currentYear),
@@ -501,7 +493,7 @@ function computePdt621Section(s: TaxSectionPdt621): TaxSectionPdt621 {
   const compras_105 = computeRateIGVRow(s.compras_105, true);
   const compras_18 = computeRateIGVRow(s.compras_18, true);
 
-  const impuesto_periodo = roundImpuestoPeriodo(
+  const impuesto_periodo = roundTaxTotalAmount(
     ventasImpuesto - notasImpuesto - compras_105.impuesto - compras_18.impuesto,
   );
   const saldo_favor = roundMoney(impuesto_periodo - s.credito_periodo_anterior);

@@ -176,6 +176,18 @@ export const taxSettlementsService = {
     return res.data;
   },
 
+  async writeOffDebt(
+    documentId: number,
+    action: 'exonerar' | 'eliminar',
+    motivo: string,
+  ): Promise<unknown> {
+    const res = await client.post(`/tax-settlements/debts/${documentId}/writeoff`, {
+      action,
+      motivo: motivo.trim(),
+    });
+    return res.data;
+  },
+
   async revertToDraft(id: number): Promise<TaxSettlement> {
     const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/revert-to-draft`, {});
     return res.data;

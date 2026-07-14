@@ -14,6 +14,7 @@ const (
 	DocumentStatusPartial   = "parcial"
 	DocumentStatusPaid      = "pagado"
 	DocumentStatusCancelled = "anulado"
+	DocumentStatusExonerado = "exonerado"
 )
 
 // Situaciones comerciales de cobranza (filtro UI / API).
@@ -96,7 +97,7 @@ func DocumentIsOverdue(d *models.Document, balance float64, at time.Time) bool {
 		return false
 	}
 	st := strings.TrimSpace(strings.ToLower(d.Status))
-	if st == DocumentStatusPaid || st == DocumentStatusCancelled {
+	if st == DocumentStatusPaid || st == DocumentStatusCancelled || st == DocumentStatusExonerado {
 		return false
 	}
 	if balance <= documentMoneyEpsilon {
@@ -123,6 +124,8 @@ func DocumentDisplayStatusLabel(d *models.Document, balance float64, at time.Tim
 		return "pagado"
 	case DocumentStatusCancelled:
 		return "anulado"
+	case DocumentStatusExonerado:
+		return "exonerado"
 	default:
 		return d.Status
 	}

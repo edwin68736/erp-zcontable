@@ -144,6 +144,7 @@ const TaxSettlementNew = () => {
   const liquidationPeriodManualRef = useRef(false);
   const [notes, setNotes] = useState('');
   const [supervisorPdt621Json, setSupervisorPdt621Json] = useState('');
+  const [settlementCompany, setSettlementCompany] = useState<Company | null>(null);
   const [lines, setLines] = useState<LineRow[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -161,6 +162,9 @@ const TaxSettlementNew = () => {
     () => companies.find((c) => String(c.id) === companyId.trim()),
     [companies, companyId],
   );
+
+  const companyPlanName =
+    settlementCompany?.subscription_plan?.name ?? selectedCompany?.subscription_plan?.name ?? '';
 
   /** Al cambiar la fecha de emisión, sugerir el mes calendario anterior al de esa fecha como periodo liquidado (si el usuario no lo fijó a mano). */
   useEffect(() => {
@@ -219,6 +223,7 @@ const TaxSettlementNew = () => {
         liquidationPeriodManualRef.current = true;
         setNotes(ts.notes ?? '');
         setSupervisorPdt621Json((ts.pdt621_json ?? '').trim());
+        setSettlementCompany(ts.company ?? null);
         setLines(
           (ts.lines ?? []).map((ln, i) => {
             const pym = (ln.period_ym ?? '').trim();
@@ -544,6 +549,11 @@ const TaxSettlementNew = () => {
               />
               {isEdit ? (
                 <p className="mt-1 text-[11px] text-slate-500">La empresa no se puede cambiar al editar un borrador.</p>
+              ) : null}
+              {companyPlanName ? (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Plan: <span className="font-medium text-slate-700">{companyPlanName}</span>
+                </p>
               ) : null}
             </div>
             <div className="min-w-0">
