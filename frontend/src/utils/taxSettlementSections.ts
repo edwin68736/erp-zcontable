@@ -830,7 +830,16 @@ export function parseTaxSectionsJson(
   if (!t) return null;
   try {
     const p = JSON.parse(t) as TaxSettlementSectionsPayload;
-    if (!p.version && !p.pdt621 && !p.pdt601 && !p.itan && !p.pdt617 && !p.bolsas_plasticas && !p.pdt710) {
+    if (
+      !p.version &&
+      !p.numero_trabajadores &&
+      !p.pdt621 &&
+      !p.pdt601 &&
+      !p.itan &&
+      !p.pdt617 &&
+      !p.bolsas_plasticas &&
+      !p.pdt710
+    ) {
       return null;
     }
     return computeTaxSettlementSections(p, options);

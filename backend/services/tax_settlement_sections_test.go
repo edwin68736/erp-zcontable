@@ -372,3 +372,58 @@ func TestComputeItanDetractionPartial(t *testing.T) {
 		t.Fatalf("applied detraccion itan=%v want 120", out.Itan.DetractionPayment)
 	}
 }
+
+func TestMarshalKeepsNumeroTrabajadoresWithoutSections(t *testing.T) {
+	// El supervisor puede registrar el conteo antes de activar cualquier sección PDT.
+	p := &TaxSettlementSectionsPayload{NumeroTrabajadores: 7}
+	raw, err := MarshalTaxSettlementSectionsJSON(p)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if raw == "" {
+		t.Fatal("json vacío: se perdió numero_trabajadores")
+	}
+	out, err := ParseTaxSettlementSectionsJSON(raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if out == nil {
+		t.Fatal("parse devolvió nil")
+	}
+	if out.NumeroTrabajadores != 7 {
+		t.Fatalf("numero_trabajadores=%d want 7", out.NumeroTrabajadores)
+	}
+}
+
+func TestMarshalEmptyPayloadStillReturnsBlank(t *testing.T) {
+	raw, err := MarshalTaxSettlementSectionsJSON(&TaxSettlementSectionsPayload{})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if raw != "" {
+		t.Fatalf("json=%q want vacío", raw)
+	}
+}
+
+func TestComputePreservesNumeroTrabajadoresAlongsideSections(t *testing.T) {
+	p := &TaxSettlementSectionsPayload{
+		NumeroTrabajadores: 12,
+		Pdt621: &TaxSectionPdt621{
+			Enabled:     true,
+			VentasNetas: TaxIGVRow{Impuesto: 100},
+		},
+	}
+	out := ComputeTaxSettlementSections(p)
+	if out.NumeroTrabajadores != 12 {
+		t.Fatalf("numero_trabajadores=%d want 12", out.NumeroTrabajadores)
+	}
+}
+
+func TestValidateRejectsNegativeNumeroTrabajadores(t *testing.T) {
+	if err := validateTaxSettlementSections(&TaxSettlementSectionsPayload{NumeroTrabajadores: -1}); err == nil {
+		t.Fatal("se esperaba error para conteo negativo")
+	}
+	if err := validateTaxSettlementSections(&TaxSettlementSectionsPayload{NumeroTrabajadores: 10}); err != nil {
+		t.Fatalf("conteo válido rechazado: %v", err)
+	}
+}

@@ -225,16 +225,9 @@ const SupervisorLiquidacionCreatePage = () => {
           liquidationPeriodManualRef.current = true;
           const parsed = parseTaxSectionsJson(settlement.pdt621_json);
           if (parsed) {
-            setTaxSections({
-              version: parsed.version,
-              pdt621: parsed.pdt621,
-              pdt601: parsed.pdt601,
-              itan: parsed.itan,
-              pdt617: parsed.pdt617,
-              bolsas_plasticas: parsed.bolsas_plasticas,
-              pdt710: parsed.pdt710,
-              grand_total_impuesto_a_pagar: parsed.grand_total_impuesto_a_pagar,
-            });
+            // Fusionar sobre los defaults: preserva todo lo guardado (numero_trabajadores, etc.)
+            // sin tener que enumerar cada campo del payload.
+            setTaxSections(computeTaxSettlementSections({ ...defaultTaxSections(), ...parsed }));
           }
         } else if (Number.isFinite(companyIdFromRoute) && companyIdFromRoute && companyIdFromRoute > 0) {
           coId = companyIdFromRoute;

@@ -118,7 +118,10 @@ export function TaxSettlementSectionsSummary({
   }, [pdt621Json, sectionsProp]);
   if (!sections) return null;
 
+  const numeroTrabajadores = sections.numero_trabajadores ?? 0;
+
   const hasAny =
+    numeroTrabajadores > 0 ||
     sections.pdt621?.enabled ||
     sections.pdt601?.enabled ||
     sections.itan?.enabled ||
@@ -126,8 +129,6 @@ export function TaxSettlementSectionsSummary({
     sections.bolsas_plasticas?.enabled ||
     sections.pdt710?.enabled;
   if (!hasAny) return null;
-
-  const numeroTrabajadores = sections.numero_trabajadores ?? 0;
   const p621 = sections.pdt621;
   const igvRatesLabel =
     p621?.enabled && p621.igv_aplicable_ventas?.length
@@ -160,14 +161,13 @@ export function TaxSettlementSectionsSummary({
         </div>
       ) : null}
 
-      {numeroTrabajadores > 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 flex items-center justify-between gap-3">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-            N° de trabajadores
-          </span>
-          <span className="text-sm font-semibold text-slate-800 tabular-nums">{numeroTrabajadores}</span>
-        </div>
-      ) : null}
+      {/* Siempre visible: un 0 explícito distingue "no registrado" de "oculto". */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 flex items-center justify-between gap-3">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          N° de trabajadores
+        </span>
+        <span className="text-sm font-semibold text-slate-800 tabular-nums">{numeroTrabajadores}</span>
+      </div>
 
       {sections.pdt621?.enabled ? (
         <SectionBlock

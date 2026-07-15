@@ -518,6 +518,21 @@ func ComputeTaxSettlementSections(p *TaxSettlementSectionsPayload) *TaxSettlemen
 	return ComputeTaxSettlementSectionsWithOptions(p, &ComputeTaxSettlementSectionsOptions{IncludeDetraction: true})
 }
 
+// taxSectionsHaveContent indica si el payload tiene algo que persistir: alguna sección
+// activa o datos de nivel superior que el supervisor registra por fuera de las secciones.
+func taxSectionsHaveContent(p *TaxSettlementSectionsPayload) bool {
+	if p == nil {
+		return false
+	}
+	return p.NumeroTrabajadores > 0 ||
+		(p.Pdt621 != nil && p.Pdt621.Enabled) ||
+		(p.Pdt601 != nil && p.Pdt601.Enabled) ||
+		(p.Itan != nil && p.Itan.Enabled) ||
+		(p.Pdt617 != nil && p.Pdt617.Enabled) ||
+		(p.BolsasPlasticas != nil && p.BolsasPlasticas.Enabled) ||
+		(p.Pdt710 != nil && p.Pdt710.Enabled)
+}
+
 // ParseTaxSettlementSectionsJSON interpreta pdt621_json (v1 estructurado o legado).
 func ParseTaxSettlementSectionsJSON(raw string) (*TaxSettlementSectionsPayload, error) {
 	raw = strings.TrimSpace(raw)
@@ -528,7 +543,7 @@ func ParseTaxSettlementSectionsJSON(raw string) (*TaxSettlementSectionsPayload, 
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
 		return nil, err
 	}
-	if p.Version == 0 && p.Pdt621 == nil && p.Pdt601 == nil && p.Itan == nil &&
+	if p.Version == 0 && p.NumeroTrabajadores == 0 && p.Pdt621 == nil && p.Pdt601 == nil && p.Itan == nil &&
 		p.Pdt617 == nil && p.BolsasPlasticas == nil && p.Pdt710 == nil {
 		return nil, nil
 	}
@@ -541,13 +556,7 @@ func MarshalTaxSettlementSectionsJSON(p *TaxSettlementSectionsPayload) (string, 
 		return "", nil
 	}
 	p = ComputeTaxSettlementSections(p)
-	hasSection := (p.Pdt621 != nil && p.Pdt621.Enabled) ||
-		(p.Pdt601 != nil && p.Pdt601.Enabled) ||
-		(p.Itan != nil && p.Itan.Enabled) ||
-		(p.Pdt617 != nil && p.Pdt617.Enabled) ||
-		(p.BolsasPlasticas != nil && p.BolsasPlasticas.Enabled) ||
-		(p.Pdt710 != nil && p.Pdt710.Enabled)
-	if !hasSection {
+	if !taxSectionsHaveContent(p) {
 		return "", nil
 	}
 	b, err := json.Marshal(p)
@@ -560,6 +569,9 @@ func MarshalTaxSettlementSectionsJSON(p *TaxSettlementSectionsPayload) (string, 
 func validateTaxSettlementSections(p *TaxSettlementSectionsPayload) error {
 	if p == nil {
 		return nil
+	}
+	if p.NumeroTrabajadores < 0 || p.NumeroTrabajadores > 9999 {
+		return errors.New("número de trabajadores inválido (0-9999)")
 	}
 	if p.Itan != nil && p.Itan.Enabled {
 		if p.Itan.Year < 2000 || p.Itan.Year > 2100 {
