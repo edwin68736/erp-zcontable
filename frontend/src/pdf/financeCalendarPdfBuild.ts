@@ -25,7 +25,7 @@ const BLUE = rgb(0.1, 0.35, 0.65);
 const BORDER = rgb(0.82, 0.82, 0.82);
 const LIGHT = rgb(0.96, 0.96, 0.96);
 
-const M = 28;
+const M = 30;
 /**
  * Columnas del calendario en el PDF: solo días laborables (Lunes–Sábado).
  * El domingo se omite —no se trabaja— para dar más ancho a los días con actividades.
@@ -35,31 +35,41 @@ const M = 28;
 const PDF_WEEKDAYS = WEEKDAYS.slice(0, 6);
 const PDF_DAYS_PER_WEEK = PDF_WEEKDAYS.length;
 /** Espacio entre margen superior y inicio de la grilla (título justo encima). */
-const TOP_HEADER_H = 28;
-const TITLE_SIZE = 26;
-const TITLE_GRID_GAP = 5;
-const FOOTER_OJO_H = 16;
-const FOOTER_ROW_H = 68;
+const TOP_HEADER_H = 32;
+const TITLE_SIZE = 30;
+const TITLE_GRID_GAP = 6;
+const FOOTER_OJO_H = 18;
+const FOOTER_ROW_H = 78;
 const FOOTER_COL_PAD = 6;
 /** Logo zContable (pie derecho): más pequeño que el ancho de columna. */
-const FOOTER_LOGO_MAX_W = 168;
-const FOOTER_LOGO_MAX_H = 54;
+const FOOTER_LOGO_MAX_W = 190;
+const FOOTER_LOGO_MAX_H = 62;
 const CELL_PAD_X = 4;
 const FOOTER_TOTAL = FOOTER_OJO_H + FOOTER_ROW_H + 6;
-const HEADER_H = 22;
+const HEADER_H = 24;
 /** Espacio entre la fila de días (LUNES–DOMINGO) y la primera semana del calendario. */
 const WEEKDAY_HEADER_BOTTOM_GAP = 8;
-const DAY_BAR_H = 14;
-const MARK_FONT = 6;
+const DAY_BAR_H = 16;
+const MARK_FONT = 7;
 const MARK_LINE_H = MARK_FONT + 2;
 /** Actividades: más grandes y en negrita para que el rojo (y otros colores) se lean en impresión. */
-const ACTIVITY_FONT = 7.5;
+const ACTIVITY_FONT = 8.5;
 const ACTIVITY_LINE_H = ACTIVITY_FONT + 2.5;
 const ACTIVITY_MAX_LINES = 5;
-const MIN_ROW_BODY_H = 48;
-const ROW_GAP = 1;
-const PAGE_W = 842;
-const PAGE_H = 595;
+const MIN_ROW_BODY_H = 52;
+const ROW_GAP = 2;
+/**
+ * Tamaño de hoja: A3 horizontal (en vez de A4) para dar mucho más espacio vertical
+ * y horizontal al calendario, de forma que el texto pueda ser más grande y nítido
+ * y casi nunca haga falta encoger. El algoritmo de ajuste (`fitMetricsForWeeks`)
+ * sigue garantizando que TODO el calendario entra en una sola página aunque el
+ * mes tenga muchísimas actividades.
+ */
+const PAGE_W = 1191;
+const PAGE_H = 842;
+/** Piso mínimo de escala: por debajo de esto el texto deja de ser legible. */
+const MIN_FIT_SCALE = 0.55;
+const FIT_SCALE_STEP = 0.04;
 
 const FOOTER_NOTICE = 'REVISAR BUZONES LOS DIAS MIERCOLES Y SABADO';
 
@@ -74,6 +84,52 @@ type WeekCellData = {
   lines: PdfLine[];
   innerW: number;
 };
+
+/** Métricas de tamaño de celda, escalables para el ajuste "una sola hoja". */
+type SizeMetrics = {
+  scale: number;
+  activityFont: number;
+  activityLineH: number;
+  markFont: number;
+  markLineH: number;
+  minRowBodyH: number;
+  cellPadX: number;
+  dayBarH: number;
+  dayNumFont: number;
+  rowGap: number;
+};
+
+function baseSizeMetrics(): SizeMetrics {
+  return {
+    scale: 1,
+    activityFont: ACTIVITY_FONT,
+    activityLineH: ACTIVITY_LINE_H,
+    markFont: MARK_FONT,
+    markLineH: MARK_LINE_H,
+    minRowBodyH: MIN_ROW_BODY_H,
+    cellPadX: CELL_PAD_X,
+    dayBarH: DAY_BAR_H,
+    dayNumFont: 9,
+    rowGap: ROW_GAP,
+  };
+}
+
+/** Reduce fuentes/alturas proporcionalmente, con piso legible, para encajar en una sola página. */
+function scaledSizeMetrics(scale: number): SizeMetrics {
+  const b = baseSizeMetrics();
+  return {
+    scale,
+    activityFont: Math.max(5.6, b.activityFont * scale),
+    activityLineH: Math.max(7.6, b.activityLineH * scale),
+    markFont: Math.max(4.8, b.markFont * scale),
+    markLineH: Math.max(6.4, b.markLineH * scale),
+    minRowBodyH: Math.max(24, b.minRowBodyH * scale),
+    cellPadX: Math.max(2, b.cellPadX * scale),
+    dayBarH: Math.max(11, b.dayBarH * scale),
+    dayNumFont: Math.max(6.5, b.dayNumFont * scale),
+    rowGap: b.rowGap,
+  };
+}
 
 export type FinanceCalendarPdfOptions = {
   /** Logo del estudio (FirmConfig.logo_url). */
@@ -139,12 +195,12 @@ function maxLinesForKind(kind: PdfLine['kind']): number {
   return kind === 'activity' ? ACTIVITY_MAX_LINES : 2;
 }
 
-function lineHeightForKind(kind: PdfLine['kind']): number {
-  return kind === 'activity' ? ACTIVITY_LINE_H : MARK_LINE_H;
+function lineHeightForKind(kind: PdfLine['kind'], m: SizeMetrics): number {
+  return kind === 'activity' ? m.activityLineH : m.markLineH;
 }
 
-function fontSizeForKind(kind: PdfLine['kind']): number {
-  return kind === 'activity' ? ACTIVITY_FONT : MARK_FONT;
+function fontSizeForKind(kind: PdfLine['kind'], m: SizeMetrics): number {
+  return kind === 'activity' ? m.activityFont : m.markFont;
 }
 
 function fontForKind(kind: PdfLine['kind'], font: PDFFont, fontBold: PDFFont): PDFFont {
@@ -213,10 +269,11 @@ function wrapPdfLines(
   innerW: number,
   font: PDFFont,
   fontBold: PDFFont,
+  m: SizeMetrics,
 ): Array<{ text: string; color: ReturnType<typeof rgb>; kind: PdfLine['kind'] }> {
   const out: Array<{ text: string; color: ReturnType<typeof rgb>; kind: PdfLine['kind'] }> = [];
   for (const item of lines) {
-    const size = fontSizeForKind(item.kind);
+    const size = fontSizeForKind(item.kind, m);
     const face = fontForKind(item.kind, font, fontBold);
     const wrapped = wrapLinesByWidth(item.text, face, size, innerW, maxLinesForKind(item.kind));
     for (const text of wrapped) {
@@ -231,9 +288,10 @@ function totalTextBlockHeight(
   innerW: number,
   font: PDFFont,
   fontBold: PDFFont,
+  m: SizeMetrics,
 ): number {
-  const rendered = wrapPdfLines(lines, innerW, font, fontBold);
-  return rendered.reduce((sum, ln) => sum + lineHeightForKind(ln.kind), 0);
+  const rendered = wrapPdfLines(lines, innerW, font, fontBold, m);
+  return rendered.reduce((sum, ln) => sum + lineHeightForKind(ln.kind, m), 0);
 }
 
 function buildWeekCellData(
@@ -243,8 +301,9 @@ function buildWeekCellData(
   colW: number,
   font: PDFFont,
   fontBold: PDFFont,
+  m: SizeMetrics,
 ): { cellData: WeekCellData[]; rowH: number } {
-  const innerW = colW - 1 - CELL_PAD_X * 2;
+  const innerW = colW - 1 - m.cellPadX * 2;
   let maxTextBlockH = 0;
 
   const cellData = week.map((cell) => {
@@ -253,8 +312,8 @@ function buildWeekCellData(
     }
     const key = localDateKey(cell.date);
     const lines: PdfLine[] = [];
-    for (const m of markMap.get(key) ?? []) {
-      lines.push({ text: m.label.toUpperCase(), color: markColor(m.kind), kind: 'mark' });
+    for (const mark of markMap.get(key) ?? []) {
+      lines.push({ text: mark.label.toUpperCase(), color: markColor(mark.kind), kind: 'mark' });
     }
     for (const a of activitiesForDay(acts ?? [], cell.dayNum)) {
       const { start, end } = activitySpanDays(a);
@@ -265,13 +324,48 @@ function buildWeekCellData(
         kind: 'activity',
       });
     }
-    maxTextBlockH = Math.max(maxTextBlockH, totalTextBlockHeight(lines, innerW, font, fontBold));
+    maxTextBlockH = Math.max(maxTextBlockH, totalTextBlockHeight(lines, innerW, font, fontBold, m));
     return { cell, lines, innerW };
   });
 
-  const bodyH = Math.max(MIN_ROW_BODY_H, maxTextBlockH + CELL_PAD_X * 2);
-  const rowH = DAY_BAR_H + bodyH;
+  const bodyH = Math.max(m.minRowBodyH, maxTextBlockH + m.cellPadX * 2);
+  const rowH = m.dayBarH + bodyH;
   return { cellData, rowH };
+}
+
+/**
+ * Busca la escala más grande (1.0 hacia abajo) con la que TODAS las semanas del mes
+ * caben en `gridArea` (alto disponible bajo el encabezado y sobre el pie), de forma
+ * que el calendario siempre se dibuje en una sola página. Si ni siquiera el piso
+ * legible (`MIN_FIT_SCALE`) alcanza, se usa igual esa escala mínima (nunca se agrega
+ * una segunda página) y el sobrante se recorta proporcionalmente más abajo.
+ */
+function fitMetricsForWeeks(
+  weeks: ReturnType<typeof chunkWeeks>,
+  markMap: ReturnType<typeof marksByDayKey>,
+  acts: FinanceCalendarDetail['activities'],
+  colW: number,
+  font: PDFFont,
+  fontBold: PDFFont,
+  gridArea: number,
+): { metrics: SizeMetrics; weekPlans: Array<{ cellData: WeekCellData[]; rowH: number }> } {
+  let scale = 1;
+  let metrics = scaledSizeMetrics(scale);
+  let weekPlans = weeks.map((week) => buildWeekCellData(week, markMap, acts, colW, font, fontBold, metrics));
+
+  const totalHeight = () => {
+    const rows = weekPlans.reduce((sum, p) => sum + p.rowH, 0);
+    const gaps = Math.max(0, weeks.length - 1) * metrics.rowGap;
+    return rows + gaps;
+  };
+
+  while (totalHeight() > gridArea && scale > MIN_FIT_SCALE) {
+    scale = Math.max(MIN_FIT_SCALE, scale - FIT_SCALE_STEP);
+    metrics = scaledSizeMetrics(scale);
+    weekPlans = weeks.map((week) => buildWeekCellData(week, markMap, acts, colW, font, fontBold, metrics));
+  }
+
+  return { metrics, weekPlans };
 }
 
 function drawWeekdayHeader(page: PDFPage, y: number, colW: number, fontBold: PDFFont) {
@@ -284,11 +378,11 @@ function drawWeekdayHeader(page: PDFPage, y: number, colW: number, fontBold: PDF
       height: HEADER_H,
       color: GREEN,
     });
-    const tw = fontBold.widthOfTextAtSize(day.toUpperCase(), 7);
+    const tw = fontBold.widthOfTextAtSize(day.toUpperCase(), 8);
     page.drawText(day.toUpperCase(), {
       x: x + (colW - 1 - tw) / 2,
-      y: topY(page, y + HEADER_H / 2 + 2.5),
-      size: 7,
+      y: topY(page, y + HEADER_H / 2 + 2.8),
+      size: 8,
       font: fontBold,
       color: WHITE,
     });
@@ -517,7 +611,7 @@ export async function buildFinanceCalendarPdf(
   const notice = (options.footerNotice ?? FOOTER_NOTICE).trim() || FOOTER_NOTICE;
   const periodTitle = formatPeriodPdfTitle(detail.period_ym);
 
-  let page = doc.addPage([PAGE_W, PAGE_H]);
+  const page = doc.addPage([PAGE_W, PAGE_H]);
   const pageW = PAGE_W;
   const pageH = PAGE_H;
   const contentW = pageW - M * 2;
@@ -535,16 +629,25 @@ export async function buildFinanceCalendarPdf(
   const markMap = marksByDayKey(detail.marks ?? []);
   const acts = detail.activities ?? [];
 
-  const weekPlans = weeks.map((week) => buildWeekCellData(week, markMap, acts, colW, font, fontBold));
-  let rowHeights = weekPlans.map((p) => p.rowH);
-
   const bottomReserve = M + FOOTER_TOTAL;
   const gridArea = pageH - y - bottomReserve;
-  const totalGaps = Math.max(0, weeks.length - 1) * ROW_GAP;
+
+  // Encoge fuentes/alturas de fila (si hace falta) hasta que TODO el mes quepa en esta
+  // única página; nunca se agrega una segunda hoja.
+  const { metrics, weekPlans } = fitMetricsForWeeks(weeks, markMap, acts, colW, font, fontBold, gridArea);
+  let rowHeights = weekPlans.map((p) => p.rowH);
+
+  const totalGaps = Math.max(0, weeks.length - 1) * metrics.rowGap;
   const totalRows = rowHeights.reduce((sum, h) => sum + h, 0);
   if (totalRows + totalGaps < gridArea) {
+    // Sobra espacio: reparte el extra entre filas para que el calendario llene la página.
     const extra = (gridArea - totalRows - totalGaps) / weeks.length;
     rowHeights = rowHeights.map((h) => h + extra);
+  } else if (totalRows + totalGaps > gridArea) {
+    // Caso extremo (ni el piso de escala alcanzó): recorta proporcionalmente para
+    // garantizar que la grilla nunca se salga de la página ni empuje una segunda hoja.
+    const shrink = gridArea / (totalRows + totalGaps);
+    rowHeights = rowHeights.map((h) => h * shrink);
   }
 
   const drawWeekRow = (cellData: WeekCellData[], rowH: number) => {
@@ -566,34 +669,34 @@ export async function buildFinanceCalendarPdf(
       if (cell.inMonth) {
         page.drawRectangle({
           x,
-          y: topY(page, cellTop + DAY_BAR_H),
+          y: topY(page, cellTop + metrics.dayBarH),
           width: w,
-          height: DAY_BAR_H,
+          height: metrics.dayBarH,
           color: GREEN,
         });
         const dn = String(cell.dayNum);
-        const dtw = fontBold.widthOfTextAtSize(dn, 8);
+        const dtw = fontBold.widthOfTextAtSize(dn, metrics.dayNumFont);
         page.drawText(dn, {
           x: x + (w - dtw) / 2,
-          y: topY(page, cellTop + DAY_BAR_H / 2 + 2.5),
-          size: 8,
+          y: topY(page, cellTop + metrics.dayBarH / 2 + metrics.dayNumFont * 0.32),
+          size: metrics.dayNumFont,
           font: fontBold,
           color: WHITE,
         });
 
-        const bodyTop = cellTop + DAY_BAR_H;
-        const bodyH = rowH - DAY_BAR_H;
-        const rendered = wrapPdfLines(lines, innerW, font, fontBold);
-        const textBlockH = rendered.reduce((sum, ln) => sum + lineHeightForKind(ln.kind), 0);
-        let ly = bodyTop + Math.max(CELL_PAD_X, (bodyH - textBlockH) / 2);
+        const bodyTop = cellTop + metrics.dayBarH;
+        const bodyH = rowH - metrics.dayBarH;
+        const rendered = wrapPdfLines(lines, innerW, font, fontBold, metrics);
+        const textBlockH = rendered.reduce((sum, ln) => sum + lineHeightForKind(ln.kind, metrics), 0);
+        let ly = bodyTop + Math.max(metrics.cellPadX, (bodyH - textBlockH) / 2);
         for (const item of rendered) {
-          const size = item.kind === 'activity' ? ACTIVITY_FONT : MARK_FONT;
-          const lineH = lineHeightForKind(item.kind);
+          const size = fontSizeForKind(item.kind, metrics);
+          const lineH = lineHeightForKind(item.kind, metrics);
           const face = item.kind === 'activity' ? fontBold : font;
-          if (ly + size > cellTop + rowH - CELL_PAD_X) break;
+          if (ly + size > cellTop + rowH - metrics.cellPadX) break;
           const lw = face.widthOfTextAtSize(item.text, size);
           page.drawText(item.text, {
-            x: x + CELL_PAD_X + Math.max(0, (innerW - lw) / 2),
+            x: x + metrics.cellPadX + Math.max(0, (innerW - lw) / 2),
             y: topY(page, ly + size),
             size,
             font: face,
@@ -604,35 +707,15 @@ export async function buildFinanceCalendarPdf(
       }
     });
 
-    y += rowH + ROW_GAP;
+    y += rowH + metrics.rowGap;
   };
 
   for (let wi = 0; wi < weeks.length; wi++) {
-    const rowH = rowHeights[wi] ?? MIN_ROW_BODY_H + DAY_BAR_H;
-    const pageBottom = pageH - bottomReserve;
-    if (y + rowH > pageBottom && wi > 0) {
-      page = doc.addPage([PAGE_W, PAGE_H]);
-      y = M;
-      drawWeekdayHeader(page, y, colW, fontBold);
-      y += HEADER_H + WEEKDAY_HEADER_BOTTOM_GAP;
-      const remaining = weeks.length - wi;
-      const remainingHeights = rowHeights.slice(wi);
-      const area = pageH - y - M;
-      const gaps = Math.max(0, remaining - 1) * ROW_GAP;
-      const sum = remainingHeights.reduce((a, b) => a + b, 0);
-      if (sum + gaps < area) {
-        const extra = (area - sum - gaps) / remaining;
-        for (let j = wi; j < weeks.length; j++) {
-          rowHeights[j] = (rowHeights[j] ?? rowH) + extra;
-        }
-      }
-    }
-    drawWeekRow(weekPlans[wi]!.cellData, rowHeights[wi]!);
+    const rowH = rowHeights[wi] ?? metrics.minRowBodyH + metrics.dayBarH;
+    drawWeekRow(weekPlans[wi]!.cellData, rowH);
   }
 
-  const pages = doc.getPages();
-  const lastPage = pages[pages.length - 1]!;
-  drawPageFooter(lastPage, fontBold, footerLeftImg, footerLogoImg, notice);
+  drawPageFooter(page, fontBold, footerLeftImg, footerLogoImg, notice);
 
   return doc.save();
 }
