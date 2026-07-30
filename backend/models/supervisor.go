@@ -186,6 +186,42 @@ type SupervisorTaxLiquidation struct {
 
 func (SupervisorTaxLiquidation) TableName() string { return "supervisor_tax_liquidations" }
 
+// SupervisorPdt601Planilla planilla electrónica PDT 601 del control (una por empresa+período).
+// Datos ingresados manualmente por el supervisor; se cuelga del control mensual como
+// SupervisorTaxLiquidation, así queda naturalmente scopeada por (company_id, period_ym).
+type SupervisorPdt601Planilla struct {
+	ID               uint `gorm:"primaryKey" json:"id"`
+	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
+	// La empresa no tiene planilla en este período: no se exige registrar nada más.
+	SinPlanilla bool `gorm:"not null;default:false" json:"sin_planilla"`
+	// Nro. de trabajadores (el TOTAL se deriva: ONP + AFP).
+	TrabajadoresONP int `gorm:"not null;default:0" json:"trabajadores_onp"`
+	TrabajadoresAFP int `gorm:"not null;default:0" json:"trabajadores_afp"`
+	// Importes PDT 601.
+	Essalud float64 `gorm:"type:decimal(15,2);not null;default:0" json:"essalud"`
+	Onp     float64 `gorm:"type:decimal(15,2);not null;default:0" json:"onp"`
+	Afp     float64 `gorm:"type:decimal(15,2);not null;default:0" json:"afp"`
+	Sis     float64 `gorm:"type:decimal(15,2);not null;default:0" json:"sis"`
+	Rta4ta  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rta_4ta"`
+	Rta5ta  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rta_5ta"`
+	Rh      float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rh"`
+	// Seguimiento.
+	FechaEntrega                *time.Time `gorm:"type:date" json:"fecha_entrega,omitempty"`
+	Observaciones               string     `gorm:"type:text" json:"observaciones,omitempty"`
+	FechaDeclaracionPdt         *time.Time `gorm:"type:date" json:"fecha_declaracion_pdt,omitempty"`
+	NPS                         string     `gorm:"size:120" json:"nps,omitempty"`
+	TicketAFP                   string     `gorm:"size:120" json:"ticket_afp,omitempty"`
+	EstadoEnvioBoletas          string     `gorm:"size:60" json:"estado_envio_boletas,omitempty"`
+	FechaEnvioNpsTicketsBoletas *time.Time `gorm:"type:date" json:"fecha_envio_nps_tickets_boletas,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           gorm.DeletedAt `gorm:"index" json:"-"`
+
+	MonthlyControl *SupervisorMonthlyControl `gorm:"foreignKey:MonthlyControlID" json:"monthly_control,omitempty"`
+}
+
+func (SupervisorPdt601Planilla) TableName() string { return "supervisor_pdt601_planillas" }
+
 // SupervisorNPS registro de NPS por control.
 type SupervisorNPS struct {
 	ID               uint           `gorm:"primaryKey" json:"id"`

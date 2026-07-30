@@ -15,6 +15,23 @@ function setsEqual(a: Set<number>, b: Set<number>): boolean {
   return true;
 }
 
+type CatalogPerm = NonNullable<ModuleRow['permissions']>[number];
+
+/** Agrupa los permisos de un módulo por subgrupo (`group`), preservando el orden del catálogo. */
+function groupPermsBySubgroup(perms: CatalogPerm[]): Array<{ group: string; items: CatalogPerm[] }> {
+  const order: string[] = [];
+  const byGroup = new Map<string, CatalogPerm[]>();
+  for (const p of perms) {
+    const g = p.group?.trim() ?? '';
+    if (!byGroup.has(g)) {
+      byGroup.set(g, []);
+      order.push(g);
+    }
+    byGroup.get(g)!.push(p);
+  }
+  return order.map((g) => ({ group: g, items: byGroup.get(g)! }));
+}
+
 /** Texto visible del permiso (nombre o descripción; nunca el código técnico). */
 function permissionDisplayLabel(perm: { name: string; description?: string }): string {
   const name = perm.name.trim();
@@ -543,7 +560,7 @@ const RolesAndPermissionsView = () => {
                   </div>
                 ) : null}
 
-                <div className="space-y-7">
+                <div className="space-y-5">
                   {modules.map((mod) => {
                   const perms = mod.permissions ?? [];
                   if (perms.length === 0) return null;
@@ -551,50 +568,69 @@ const RolesAndPermissionsView = () => {
                   const selectedInMod = modIds.filter((id) => selected.has(id)).length;
                   const allOn = modIds.length > 0 && selectedInMod === modIds.length;
                   return (
-                    <section key={mod.id}>
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            {mod.name}
-                            <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">
-                              {selectedInMod}/{modIds.length}
-                            </span>
-                          </h3>
+                    <section key={mod.id} className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                      {/* Cabecera del módulo (mismo nombre e icono que el sidebar) */}
+                      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
+                            <i className={mod.icon || 'fas fa-folder'} aria-hidden />
+                          </span>
+                          <h3 className="text-sm font-bold text-slate-800 truncate">{mod.name}</h3>
+                          <span className="shrink-0 text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-0.5 tabular-nums">
+                            {selectedInMod}/{modIds.length}
+                          </span>
+                        </div>
                         {canEditPermissions ? (
                           <button
                             type="button"
                             onClick={() => selectAllInModule(mod, !allOn)}
-                            className="shrink-0 text-xs text-slate-500 hover:text-emerald-800 transition-colors"
+                            className="shrink-0 text-xs font-medium text-slate-500 hover:text-emerald-800 transition-colors"
                           >
                             {allOn ? 'Quitar todos' : 'Marcar todos'}
                           </button>
                         ) : null}
                       </div>
-                      <ul className="flex flex-wrap gap-2">
-                        {perms.map((perm) => {
-                          const checked = selected.has(perm.id);
-                          const disabled = !canEditPermissions;
-                          return (
-                            <li key={perm.id} className="min-w-0">
-                              <label
-                                className={`inline-flex items-center gap-2 max-w-full py-1.5 px-2.5 rounded-lg border text-sm leading-snug transition-colors ${
-                                  checked
-                                    ? 'border-emerald-200 bg-emerald-50/80 text-slate-900'
-                                    : 'border-slate-100 bg-slate-50/40 text-slate-600'
-                                } ${disabled ? 'opacity-70 cursor-default' : 'cursor-pointer hover:border-slate-200 hover:bg-slate-50'}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="shrink-0 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500"
-                                  checked={checked}
-                                  disabled={disabled}
-                                  onChange={() => togglePerm(perm.id)}
-                                />
-                                <span className="min-w-0">{permissionDisplayLabel(perm)}</span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      {/* Cuerpo: funciones (submenús) y sus acciones */}
+                      <div className="p-4 space-y-4">
+                        {groupPermsBySubgroup(perms).map((sub) => (
+                          <div key={sub.group || '_default'}>
+                            {sub.group ? (
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 shrink-0">
+                                  {sub.group}
+                                </span>
+                                <span className="flex-1 h-px bg-slate-100" />
+                              </div>
+                            ) : null}
+                            <ul className="flex flex-wrap gap-2">
+                              {sub.items.map((perm) => {
+                                const checked = selected.has(perm.id);
+                                const disabled = !canEditPermissions;
+                                return (
+                                  <li key={perm.id} className="min-w-0">
+                                    <label
+                                      className={`inline-flex items-center gap-2 max-w-full py-1.5 px-2.5 rounded-lg border text-sm leading-snug transition-colors ${
+                                        checked
+                                          ? 'border-emerald-200 bg-emerald-50/80 text-slate-900'
+                                          : 'border-slate-100 bg-slate-50/40 text-slate-600'
+                                      } ${disabled ? 'opacity-70 cursor-default' : 'cursor-pointer hover:border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="shrink-0 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500"
+                                        checked={checked}
+                                        disabled={disabled}
+                                        onChange={() => togglePerm(perm.id)}
+                                      />
+                                      <span className="min-w-0">{permissionDisplayLabel(perm)}</span>
+                                    </label>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
                     </section>
                   );
                   })}

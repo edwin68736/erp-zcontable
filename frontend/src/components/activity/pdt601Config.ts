@@ -15,7 +15,10 @@ export const PDT601_STATUSES = [
   { value: 'cerrado', label: 'Cerrado' },
 ] as const;
 
-export const PDT601_STATUS_FILTER = buildStatusFilter(PDT601_STATUSES);
+export const PDT601_STATUS_FILTER = [
+  ...buildStatusFilter(PDT601_STATUSES),
+  { value: 'sin_planilla', label: 'Sin planilla' },
+];
 
 const PDT601_COMPLETE = new Set(['aprobado', 'presentado', 'cerrado']);
 
@@ -46,8 +49,9 @@ export function resolvePdt601DueDate(declDue?: string, controlDue?: string): str
 export function computePdt601DueMeta(
   status: string,
   dueDate?: string,
+  sinPlanilla?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || PDT601_COMPLETE.has(status) || status === 'observado') {
+  if (!dueDate || sinPlanilla || PDT601_COMPLETE.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();

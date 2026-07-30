@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { taxSettlementsService } from '../services/taxSettlements';
@@ -8,7 +8,7 @@ import CompanySearchInput from '../components/CompanySearchInput';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OperationsKeyDialog from '../components/OperationsKeyDialog';
 import TableRowMoreMenu from '../components/TableRowMoreMenu';
-import { auth } from '../services/auth';
+import { usePermission } from '../rbac/access';
 import { P } from '../rbac/codes';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
@@ -64,10 +64,10 @@ const TaxSettlements = () => {
   const page = parsePositiveInt(searchParams.get('page'), 1);
   const perPage = parsePositiveInt(searchParams.get('per_page'), 20);
 
-  const canCreate = useMemo(() => auth.hasPermission(P.taxSettlementsCreate), []);
-  const canUpdate = useMemo(() => auth.hasPermission(P.taxSettlementsUpdate), []);
-  const canDelete = useMemo(() => auth.hasPermission(P.taxSettlementsDelete), []);
-  const canRegisterPayment = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
+  const canCreate = usePermission(P.taxSettlementsCreate);
+  const canUpdate = usePermission(P.taxSettlementsUpdate);
+  const canDelete = usePermission(P.taxSettlementsDelete);
+  const canRegisterPayment = usePermission(P.paymentsCreate);
 
   const [list, setList] = useState<TaxSettlement[]>([]);
   const [loading, setLoading] = useState(true);

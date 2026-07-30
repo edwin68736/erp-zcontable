@@ -26,9 +26,17 @@ const BORDER = rgb(0.82, 0.82, 0.82);
 const LIGHT = rgb(0.96, 0.96, 0.96);
 
 const M = 28;
+/**
+ * Columnas del calendario en el PDF: solo días laborables (Lunes–Sábado).
+ * El domingo se omite —no se trabaja— para dar más ancho a los días con actividades.
+ * La grilla de datos (buildMonthGrid/chunkWeeks) sigue siendo de 7 días; el domingo
+ * se recorta al dibujar. No se toca WEEKDAYS compartido con el calendario web.
+ */
+const PDF_WEEKDAYS = WEEKDAYS.slice(0, 6);
+const PDF_DAYS_PER_WEEK = PDF_WEEKDAYS.length;
 /** Espacio entre margen superior y inicio de la grilla (título justo encima). */
-const TOP_HEADER_H = 32;
-const TITLE_SIZE = 34;
+const TOP_HEADER_H = 28;
+const TITLE_SIZE = 26;
 const TITLE_GRID_GAP = 5;
 const FOOTER_OJO_H = 16;
 const FOOTER_ROW_H = 68;
@@ -267,7 +275,7 @@ function buildWeekCellData(
 }
 
 function drawWeekdayHeader(page: PDFPage, y: number, colW: number, fontBold: PDFFont) {
-  WEEKDAYS.forEach((day, i) => {
+  PDF_WEEKDAYS.forEach((day, i) => {
     const x = M + i * colW;
     page.drawRectangle({
       x,
@@ -513,7 +521,7 @@ export async function buildFinanceCalendarPdf(
   const pageW = PAGE_W;
   const pageH = PAGE_H;
   const contentW = pageW - M * 2;
-  const colW = contentW / 7;
+  const colW = contentW / PDF_DAYS_PER_WEEK;
 
   drawPageHeader(page, periodTitle, firmLogoImg, fontTitle);
 
@@ -522,7 +530,8 @@ export async function buildFinanceCalendarPdf(
   y += HEADER_H + WEEKDAY_HEADER_BOTTOM_GAP;
 
   const cells = buildMonthGrid(detail.period_ym);
-  const weeks = chunkWeeks(cells);
+  // chunkWeeks devuelve semanas de 7 días (Lun–Dom); recortamos el domingo (7ª celda).
+  const weeks = chunkWeeks(cells).map((week) => week.slice(0, PDF_DAYS_PER_WEEK));
   const markMap = marksByDayKey(detail.marks ?? []);
   const acts = detail.activities ?? [];
 

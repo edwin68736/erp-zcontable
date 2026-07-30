@@ -34,6 +34,7 @@ func Setup(app *fiber.App) {
 	calendarCtrl := controllers.NewFinanceCalendarController()
 	activityTplCtrl := controllers.NewActivityTemplateController()
 	credCtrl := controllers.NewCompanyAccessCredentialController()
+	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
 
@@ -250,6 +251,8 @@ func Setup(app *fiber.App) {
 	sup.Post("/activity-modules/distractions/declarations/:declarationId/validate", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesValidateAPI)
 	sup.Get("/activity-modules/pdt-601", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt601ListAPI)
 	sup.Get("/activity-modules/pdt-601/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt601DetailAPI)
+	sup.Get("/activity-modules/pdt-601/companies/:companyId/planilla", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt601PlanillaOnlyAPI)
+	sup.Put("/activity-modules/pdt-601/companies/:companyId/planilla", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.Pdt601SavePlanillaAPI)
 	sup.Get("/activity-modules/pdt-621", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621ListAPI)
 	sup.Get("/activity-modules/pdt-621/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621DetailAPI)
 	sup.Get("/tax-settlements/drafts-by-companies", middleware.RequirePermission(rbac.SupervisorsLiquidationsView), supervisorCtrl.TaxSettlementDraftsByCompaniesAPI)
@@ -292,4 +295,8 @@ func Setup(app *fiber.App) {
 	creds.Get("/import/template", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportTemplateAPI)
 	creds.Post("/import", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportAPI)
 	creds.Put("/:companyId", middleware.RequirePermission(rbac.CompanyCredentialsManage), credCtrl.UpdateAPI)
+
+	// Cronograma de vencimientos SUNAT (referencia del estudio; solo se edita, nunca se crea)
+	api.Get("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatDueDateCtrl.ListAPI)
+	api.Put("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesManage), sunatDueDateCtrl.UpdateAPI)
 }

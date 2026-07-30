@@ -35,17 +35,15 @@ const (
 	ContactsUpdate = "contacts.update"
 	ContactsDelete = "contacts.delete"
 
-	DocumentsView        = "documents.view"
-	DocumentsCreate      = "documents.create"
-	DocumentsUpdate      = "documents.update"
-	DocumentsDelete      = "documents.delete"
-	DocumentsSyncTukifac = "documents.sync_tukifac"
+	DocumentsView   = "documents.view"
+	DocumentsCreate = "documents.create"
+	DocumentsUpdate = "documents.update"
+	DocumentsDelete = "documents.delete"
 
 	PaymentsView             = "payments.view"
 	PaymentsCreate           = "payments.create"
 	PaymentsUpdate           = "payments.update"
 	PaymentsDelete           = "payments.delete"
-	PaymentsIssueTukifac     = "payments.issue_tukifac" // legacy (migrado a issue_comprobante)
 	PaymentsIssueComprobante = "payments.issue_comprobante"
 	PaymentsUploadAttachment = "payments.upload_attachment"
 
@@ -63,13 +61,6 @@ const (
 	FiscalReceiptsLinkPayment    = "fiscal.receipts_link_payment"
 	FiscalReceiptsPatchTax       = "fiscal.receipts_patch_tax_settlement"
 	FiscalReceiptsDiscard        = "fiscal.receipts_discard"
-
-	// Alias legacy (misma pantalla de comprobantes)
-	TukifacFiscalReceiptsList  = FiscalReceiptsList
-	TukifacFiscalCreatePayment = FiscalReceiptsCreatePayment
-	TukifacFiscalLinkPayment   = FiscalReceiptsLinkPayment
-	TukifacFiscalPatchTax      = FiscalReceiptsPatchTax
-	TukifacFiscalDiscard       = FiscalReceiptsDiscard
 
 	ProductsView        = "products.view"
 	ProductsCreate      = "products.create"
@@ -154,6 +145,9 @@ const (
 	CompanyCredentialsManage = "finance.company_credentials_manage"
 	CompanyCredentialsImport = "finance.company_credentials_import"
 
+	FinanceSunatDueDatesView   = "finance.sunat_due_dates_view"
+	FinanceSunatDueDatesManage = "finance.sunat_due_dates_manage"
+
 	SalesEmit           = "sales.emit"
 	SalesHistory        = "sales.history"
 	SalesCatalogPick    = "sales.catalog_pick"
@@ -161,36 +155,5 @@ const (
 	SalesLinePriceEdit  = "sales.line_price_edit"
 )
 
-// AllPermissionCodes lista completa para seed y tests.
-var AllPermissionCodes = []string{
-	AccessStudio,
-	DashboardView,
-	SettingsFirmView, SettingsFirmBrandingView, SettingsFirmUpdate, SettingsFirmUploadLogo, SettingsFirmUploadBankLogo, SettingsFirmUploadPaymentQR,
-	CompaniesValidateRUC, CompaniesValidateDNI, CompaniesNextCode, CompaniesImportTemplate, CompaniesImportSpreadsheet, CompaniesCreate, CompaniesUpdate, CompaniesStatus, CompaniesDelete, CompaniesView,
-	CompaniesAssignAccountant, CompaniesAssignSupervisor, CompaniesAssignAssistant, CompaniesExternalView, CompaniesConvertToStudio,
-	ContactsView, ContactsCreate, ContactsUpdate, ContactsDelete,
-	DocumentsView, DocumentsCreate, DocumentsUpdate, DocumentsDelete,
-	PaymentsView, PaymentsCreate, PaymentsUpdate, PaymentsDelete, PaymentsIssueTukifac, PaymentsIssueComprobante, PaymentsUploadAttachment,
-	UsersView, UsersCreate, UsersUpdate, UsersDelete,
-	ReportsFinancialView,
-	FiscalSeriesView, FiscalSeriesManage, FiscalReceiptsList, FiscalReceiptsCreatePayment, FiscalReceiptsLinkPayment, FiscalReceiptsPatchTax, FiscalReceiptsDiscard,
-	ProductsView, ProductsCreate, ProductsUpdate, ProductsDelete,
-	ProductCategoriesView, ProductCategoriesCreate,
-	PlanCategoriesView, PlanCategoriesCreate, PlanCategoriesUpdate, PlanCategoriesDelete,
-	SubscriptionPlansView, SubscriptionPlansCreate, SubscriptionPlansUpdate, SubscriptionPlansTiers, SubscriptionPlansDelete,
-	LiquidationRun,
-	TaxSettlementsPreview, TaxSettlementsList, TaxSettlementsView, TaxSettlementsPaymentSuggestions, TaxSettlementsCreate, TaxSettlementsUpdate, TaxSettlementsEmit, TaxSettlementsDelete,
-	RBACRolesView, RBACRolesManage, RBACPermissionsCatalog,
-	SupervisorsDashboardView,
-	SupervisorsPeriodsView, SupervisorsPeriodsCreate, SupervisorsPeriodsUpdate, SupervisorsPeriodsDelete, SupervisorsPeriodsClose, SupervisorsPeriodsBootstrap,
-	SupervisorsControlsView, SupervisorsControlsCreate, SupervisorsControlsUpdate, SupervisorsControlsDelete,
-	SupervisorsDeclarationsView, SupervisorsDeclarationsCreate, SupervisorsDeclarationsUpdate, SupervisorsDeclarationsDelete, SupervisorsDeclarationsApprove, SupervisorsDeclarationsObserve,
-	SupervisorsLiquidationsView, SupervisorsLiquidationsCreate, SupervisorsLiquidationsUpdate, SupervisorsLiquidationsDelete, SupervisorsLiquidationsApprove,
-	SupervisorsNPSView, SupervisorsNPSCreate, SupervisorsNPSUpdate, SupervisorsNPSDelete, SupervisorsNPSGenerate,
-	SupervisorsReportsView,
-	SupervisorsObservationsView, SupervisorsObservationsCreate, SupervisorsHistoryView,
-	SupervisorsAttachmentsUpload, SupervisorsNotificationsView, SupervisorsNPSRegisterPayment,
-	FinanceCalendarView, FinanceCalendarManage,
-	CompanyCredentialsView, CompanyCredentialsManage, CompanyCredentialsImport,
-	SalesEmit, SalesHistory, SalesCatalogPick, SalesCompaniesPick, SalesLinePriceEdit,
-}
+// AllPermissionCodes y la matriz rol→permiso se derivan del registro declarativo
+// (ver registry.go). Este archivo solo define las constantes de código.

@@ -9,6 +9,8 @@ type Permission struct {
 	Code        string    `gorm:"size:120;not null;uniqueIndex" json:"code"`
 	Action      string    `gorm:"size:50;not null" json:"action"`
 	Name        string    `gorm:"size:160;not null" json:"name"`
+	Group       string    `gorm:"column:perm_group;size:80" json:"group,omitempty"`
+	SortOrder   int       `gorm:"not null;default:0" json:"sort_order"`
 	Description string    `gorm:"type:text" json:"description,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

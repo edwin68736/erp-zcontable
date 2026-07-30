@@ -12,19 +12,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Códigos de rol usados solo en semilla / migración de datos (no en reglas de negocio en servicios).
-const (
-	seedRoleSuperusuario  = "super_usuario"
-	seedRoleAdministrador = "Administrador"
-	seedRoleSupervisor    = "Supervisor"
-	seedRoleContador      = "Contador"
-	seedRoleAsistente     = "Asistente"
-	seedRoleAnalista      = "Analista"
-	seedRoleGerencia          = "Gerencia"
-	seedRoleEmisorComprobantes = "EmisorComprobantes"
-)
-
-// SeedRBAC crea módulos, permisos, roles del sistema, matriz role↔permiso y asigna roles por defecto a usuarios sin user_roles.
+// SeedRBAC construye TODO el RBAC a partir de la fuente única (paquete rbac):
+// módulos, permisos, roles de sistema y la matriz rol↔permiso reconciliada
+// (agrega faltantes y quita sobrantes en roles de sistema). Idempotente.
 func SeedRBAC(db *gorm.DB) error {
 	if err := seedRBACModules(db); err != nil {
 		return err
@@ -35,53 +25,33 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := seedRBACSystemRoles(db); err != nil {
 		return err
 	}
-	if err := RunRBACMigrations(db); err != nil {
+	if err := reconcileSystemRolePermissions(db); err != nil {
 		return err
 	}
-	if err := ensureSystemRoleMissingPermissions(db); err != nil {
+	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
-	if err := ensureFinanceCalendarRolePermissions(db); err != nil {
-		return err
-	}
-	if err := ensureCompanyCredentialsRolePermissions(db); err != nil {
-		return err
-	}
-	if err := ensureFiscalComprobanteRolePermissions(db); err != nil {
-		return err
-	}
-	if err := ensureEmisorComprobantesRolePermissions(db); err != nil {
-		return err
-	}
-	if err := ensureRBACUserRoleAssignments(db); err != nil {
+	if err := assignDefaultRoleWhereNoRoles(db); err != nil {
 		return err
 	}
 	return ensureAdminSuperusuarioUser(db)
 }
 
-func seedRBACModules(db *gorm.DB) error {
-	rows := []models.Module{
-		{Code: "dashboard", Name: "Dashboard", Icon: "fas fa-th-large", SortOrder: 0, Active: true},
-		{Code: "access", Name: "Alcance del estudio", Icon: "fas fa-globe", SortOrder: 5, Active: true},
-		{Code: "settings", Name: "Configuración del estudio", Icon: "fas fa-gear", SortOrder: 10, Active: true},
-		{Code: "companies", Name: "Empresas", Icon: "fas fa-building", SortOrder: 20, Active: true},
-		{Code: "contacts", Name: "Contactos", Icon: "fas fa-address-book", SortOrder: 30, Active: true},
-		{Code: "documents", Name: "Deudas / documentos", Icon: "fas fa-file-invoice-dollar", SortOrder: 40, Active: true},
-		{Code: "payments", Name: "Pagos", Icon: "fas fa-wallet", SortOrder: 50, Active: true},
-		{Code: "users", Name: "Usuarios", Icon: "fas fa-users-cog", SortOrder: 60, Active: true},
-		{Code: "reports", Name: "Reportes", Icon: "fas fa-chart-line", SortOrder: 70, Active: true},
-		{Code: "fiscal", Name: "Comprobantes fiscales", Icon: "fas fa-file-invoice", SortOrder: 80, Active: true},
-		{Code: "products", Name: "Productos", Icon: "fas fa-box-open", SortOrder: 90, Active: true},
-		{Code: "product_categories", Name: "Categorías de producto", Icon: "fas fa-tags", SortOrder: 100, Active: true},
-		{Code: "plan_categories", Name: "Categorías de plan", Icon: "fas fa-folder", SortOrder: 110, Active: true},
-		{Code: "subscription_plans", Name: "Planes de suscripción", Icon: "fas fa-layer-group", SortOrder: 120, Active: true},
-		{Code: "liquidation", Name: "Liquidación masiva", Icon: "fas fa-calculator", SortOrder: 130, Active: true},
-		{Code: "tax_settlements", Name: "Liquidaciones de impuestos", Icon: "fas fa-file-signature", SortOrder: 140, Active: true},
-		{Code: "rbac", Name: "Roles y permisos", Icon: "fas fa-user-shield", SortOrder: 150, Active: true},
-		{Code: "supervisors", Name: "Supervisores contables", Icon: "fas fa-user-check", SortOrder: 155, Active: true},
-		{Code: "finance", Name: "Calendario y finanzas operativas", Icon: "fas fa-calendar-days", SortOrder: 45, Active: true},
-		{Code: "sales", Name: "Ventas / POS", Icon: "fas fa-cash-register", SortOrder: 25, Active: true},
+// ─────────────────────────────── Módulos ───────────────────────────────
+
+// operationalModules — módulos de la matriz de permisos, alineados con el sidebar.
+func operationalModules() []models.Module {
+	return []models.Module{
+		{Code: rbac.ModRecursos, Name: "Recursos", Icon: "fas fa-globe", SortOrder: 10, Active: true},
+		{Code: rbac.ModFinanzas, Name: "Finanzas del estudio", Icon: "fas fa-coins", SortOrder: 20, Active: true},
+		{Code: rbac.ModSupervisores, Name: "Supervisores", Icon: "fas fa-user-check", SortOrder: 30, Active: true},
+		{Code: rbac.ModVentas, Name: "Ventas", Icon: "fas fa-cash-register", SortOrder: 40, Active: true},
+		{Code: rbac.ModEstudio, Name: "Estudio", Icon: "fas fa-building-columns", SortOrder: 50, Active: true},
 	}
+}
+
+func seedRBACModules(db *gorm.DB) error {
+	rows := operationalModules()
 	for i := range rows {
 		r := rows[i]
 		if err := db.Clauses(clause.OnConflict{
@@ -94,6 +64,16 @@ func seedRBACModules(db *gorm.DB) error {
 	return nil
 }
 
+// cleanupOrphanModules elimina módulos que ya no existen en la taxonomía operativa
+// (p. ej. los antiguos módulos de dominio). Seguro: los permisos ya fueron repuntados.
+func cleanupOrphanModules(db *gorm.DB) error {
+	valid := make([]string, 0)
+	for _, m := range operationalModules() {
+		valid = append(valid, m.Code)
+	}
+	return db.Where("code NOT IN ?", valid).Delete(&models.Module{}).Error
+}
+
 func moduleIDByCode(db *gorm.DB, code string) (uint, error) {
 	var m models.Module
 	if err := db.Where("code = ?", code).First(&m).Error; err != nil {
@@ -102,200 +82,93 @@ func moduleIDByCode(db *gorm.DB, code string) (uint, error) {
 	return m.ID, nil
 }
 
+// ───────────────────────────── Permisos ─────────────────────────────
+
+// seedRBACPermissions inserta/actualiza cada permiso del registro y ELIMINA los
+// que ya no existan en el registro (limpieza de permisos retirados).
 func seedRBACPermissions(db *gorm.DB) error {
-	meta := map[string]struct{ Mod, Name string }{
-		rbac.AccessStudio: {Mod: "access", Name: "Vista global del estudio (todas las empresas)"},
+	defs := rbac.PermDefs()
 
-		rbac.DashboardView: {Mod: "dashboard", Name: "Ver dashboard"},
-
-		rbac.SettingsFirmView:            {Mod: "settings", Name: "Ver configuración fiscal completa"},
-		rbac.SettingsFirmBrandingView:   {Mod: "settings", Name: "Ver branding / datos públicos"},
-		rbac.SettingsFirmUpdate:         {Mod: "settings", Name: "Actualizar configuración del estudio"},
-		rbac.SettingsFirmUploadLogo:     {Mod: "settings", Name: "Subir logo del estudio"},
-		rbac.SettingsFirmUploadBankLogo: {Mod: "settings", Name: "Subir logo banco en estado de cuenta"},
-		rbac.SettingsFirmUploadPaymentQR: {Mod: "settings", Name: "Subir QR de pagos en estado de cuenta"},
-
-		rbac.CompaniesValidateRUC:          {Mod: "companies", Name: "Validar RUC SUNAT"},
-		rbac.CompaniesNextCode:           {Mod: "companies", Name: "Siguiente código interno"},
-		rbac.CompaniesImportTemplate:     {Mod: "companies", Name: "Descargar plantilla importación"},
-		rbac.CompaniesImportSpreadsheet:  {Mod: "companies", Name: "Importar empresas desde Excel"},
-		rbac.CompaniesCreate:             {Mod: "companies", Name: "Crear empresa"},
-		rbac.CompaniesUpdate:             {Mod: "companies", Name: "Editar empresa"},
-		rbac.CompaniesStatus:             {Mod: "companies", Name: "Cambiar estado de empresa"},
-		rbac.CompaniesDelete:             {Mod: "companies", Name: "Eliminar empresa"},
-		rbac.CompaniesView:               {Mod: "companies", Name: "Ver empresas y detalle"},
-		rbac.CompaniesAssignAccountant:   {Mod: "companies", Name: "Puede asignarse como contador de empresa"},
-		rbac.CompaniesAssignSupervisor:   {Mod: "companies", Name: "Puede asignarse como supervisor de empresa"},
-		rbac.CompaniesAssignAssistant:    {Mod: "companies", Name: "Puede asignarse como asistente de empresa"},
-		rbac.CompaniesExternalView:       {Mod: "companies", Name: "Ver clientes externos (POS)"},
-		rbac.CompaniesConvertToStudio:    {Mod: "companies", Name: "Convertir cliente externo a cliente del estudio"},
-		rbac.CompaniesValidateDNI:        {Mod: "companies", Name: "Consultar DNI (RENIEC)"},
-
-		rbac.ContactsView:   {Mod: "contacts", Name: "Ver contactos"},
-		rbac.ContactsCreate: {Mod: "contacts", Name: "Crear contacto"},
-		rbac.ContactsUpdate: {Mod: "contacts", Name: "Editar contacto"},
-		rbac.ContactsDelete: {Mod: "contacts", Name: "Eliminar contacto"},
-
-		rbac.DocumentsView:        {Mod: "documents", Name: "Ver deudas / documentos"},
-		rbac.DocumentsCreate:      {Mod: "documents", Name: "Crear documento de deuda"},
-		rbac.DocumentsUpdate:      {Mod: "documents", Name: "Editar documento de deuda"},
-		rbac.DocumentsDelete:      {Mod: "documents", Name: "Eliminar documento de deuda"},
-		rbac.PaymentsView:             {Mod: "payments", Name: "Ver pagos"},
-		rbac.PaymentsCreate:           {Mod: "payments", Name: "Registrar pago"},
-		rbac.PaymentsUpdate:           {Mod: "payments", Name: "Editar pago"},
-		rbac.PaymentsDelete:           {Mod: "payments", Name: "Eliminar pago"},
-		rbac.PaymentsIssueTukifac:     {Mod: "payments", Name: "Emitir comprobante (legacy)"},
-		rbac.PaymentsIssueComprobante: {Mod: "payments", Name: "Emitir comprobante desde pago"},
-		rbac.PaymentsUploadAttachment: {Mod: "payments", Name: "Subir adjunto de pago"},
-
-		rbac.UsersView:   {Mod: "users", Name: "Ver usuarios"},
-		rbac.UsersCreate: {Mod: "users", Name: "Crear usuario"},
-		rbac.UsersUpdate: {Mod: "users", Name: "Editar usuario"},
-		rbac.UsersDelete: {Mod: "users", Name: "Eliminar usuario"},
-
-		rbac.ReportsFinancialView: {Mod: "reports", Name: "Reporte financiero resumido"},
-
-		rbac.FiscalSeriesView:            {Mod: "fiscal", Name: "Ver series y correlativos"},
-		rbac.FiscalSeriesManage:          {Mod: "fiscal", Name: "Gestionar series y correlativos"},
-		rbac.FiscalReceiptsList:          {Mod: "fiscal", Name: "Listar comprobantes fiscales"},
-		rbac.FiscalReceiptsCreatePayment: {Mod: "fiscal", Name: "Crear pago desde comprobante"},
-		rbac.FiscalReceiptsLinkPayment:   {Mod: "fiscal", Name: "Vincular pago a comprobante"},
-		rbac.FiscalReceiptsPatchTax:      {Mod: "fiscal", Name: "Asociar liquidación a comprobante"},
-		rbac.FiscalReceiptsDiscard:       {Mod: "fiscal", Name: "Descartar comprobante fiscal"},
-
-		rbac.ProductsView:        {Mod: "products", Name: "Ver productos"},
-		rbac.ProductsCreate:      {Mod: "products", Name: "Crear producto"},
-		rbac.ProductsUpdate:      {Mod: "products", Name: "Editar producto"},
-		rbac.ProductsDelete:      {Mod: "products", Name: "Eliminar producto"},
-		rbac.ProductCategoriesView:   {Mod: "product_categories", Name: "Ver categorías de producto"},
-		rbac.ProductCategoriesCreate: {Mod: "product_categories", Name: "Crear categoría de producto"},
-
-		rbac.PlanCategoriesView:   {Mod: "plan_categories", Name: "Ver categorías de plan"},
-		rbac.PlanCategoriesCreate: {Mod: "plan_categories", Name: "Crear categoría de plan"},
-		rbac.PlanCategoriesUpdate: {Mod: "plan_categories", Name: "Editar categoría de plan"},
-		rbac.PlanCategoriesDelete: {Mod: "plan_categories", Name: "Eliminar categoría de plan"},
-
-		rbac.SubscriptionPlansView:   {Mod: "subscription_plans", Name: "Ver planes de suscripción"},
-		rbac.SubscriptionPlansCreate: {Mod: "subscription_plans", Name: "Crear plan de suscripción"},
-		rbac.SubscriptionPlansUpdate: {Mod: "subscription_plans", Name: "Editar plan de suscripción"},
-		rbac.SubscriptionPlansTiers: {Mod: "subscription_plans", Name: "Gestionar tramos del plan"},
-		rbac.SubscriptionPlansDelete: {Mod: "subscription_plans", Name: "Eliminar plan de suscripción"},
-
-		rbac.LiquidationRun: {Mod: "liquidation", Name: "Ejecutar liquidación masiva"},
-
-		rbac.TaxSettlementsPreview:            {Mod: "tax_settlements", Name: "Vista previa liquidaciones impuestos"},
-		rbac.TaxSettlementsList:               {Mod: "tax_settlements", Name: "Listar liquidaciones de impuestos"},
-		rbac.TaxSettlementsView:               {Mod: "tax_settlements", Name: "Ver detalle liquidación"},
-		rbac.TaxSettlementsPaymentSuggestions: {Mod: "tax_settlements", Name: "Sugerencias de pago liquidación"},
-		rbac.TaxSettlementsCreate:             {Mod: "tax_settlements", Name: "Crear liquidación de impuestos"},
-		rbac.TaxSettlementsUpdate:             {Mod: "tax_settlements", Name: "Editar liquidación de impuestos"},
-		rbac.TaxSettlementsEmit:               {Mod: "tax_settlements", Name: "Emitir liquidación de impuestos"},
-		rbac.TaxSettlementsDelete:             {Mod: "tax_settlements", Name: "Eliminar liquidación de impuestos"},
-
-		rbac.RBACRolesView:          {Mod: "rbac", Name: "Ver roles y matriz de permisos"},
-		rbac.RBACRolesManage:        {Mod: "rbac", Name: "Administrar roles y permisos"},
-		rbac.RBACPermissionsCatalog: {Mod: "rbac", Name: "Ver catálogo de permisos"},
-
-		rbac.SupervisorsDashboardView: {Mod: "supervisors", Name: "Dashboard supervisores"},
-
-		rbac.SupervisorsPeriodsView:   {Mod: "supervisors", Name: "Ver períodos contables"},
-		rbac.SupervisorsPeriodsCreate: {Mod: "supervisors", Name: "Crear período contable"},
-		rbac.SupervisorsPeriodsUpdate: {Mod: "supervisors", Name: "Editar período contable"},
-		rbac.SupervisorsPeriodsDelete: {Mod: "supervisors", Name: "Eliminar período contable"},
-		rbac.SupervisorsPeriodsClose:     {Mod: "supervisors", Name: "Cerrar período contable"},
-		rbac.SupervisorsPeriodsBootstrap: {Mod: "supervisors", Name: "Generar controles masivos del período"},
-
-		rbac.SupervisorsControlsView:   {Mod: "supervisors", Name: "Ver control mensual"},
-		rbac.SupervisorsControlsCreate: {Mod: "supervisors", Name: "Crear control mensual"},
-		rbac.SupervisorsControlsUpdate: {Mod: "supervisors", Name: "Editar control mensual"},
-		rbac.SupervisorsControlsDelete: {Mod: "supervisors", Name: "Eliminar control mensual"},
-
-		rbac.SupervisorsDeclarationsView:  {Mod: "supervisors", Name: "Ver declaraciones"},
-		rbac.SupervisorsDeclarationsCreate:  {Mod: "supervisors", Name: "Crear declaración"},
-		rbac.SupervisorsDeclarationsUpdate:  {Mod: "supervisors", Name: "Editar declaración"},
-		rbac.SupervisorsDeclarationsDelete:  {Mod: "supervisors", Name: "Eliminar declaración"},
-		rbac.SupervisorsDeclarationsApprove: {Mod: "supervisors", Name: "Aprobar declaración"},
-		rbac.SupervisorsDeclarationsObserve: {Mod: "supervisors", Name: "Observar declaración"},
-
-		rbac.SupervisorsLiquidationsView:    {Mod: "supervisors", Name: "Ver liquidación tributaria"},
-		rbac.SupervisorsLiquidationsCreate:  {Mod: "supervisors", Name: "Crear liquidación tributaria"},
-		rbac.SupervisorsLiquidationsUpdate:  {Mod: "supervisors", Name: "Editar liquidación tributaria"},
-		rbac.SupervisorsLiquidationsDelete:  {Mod: "supervisors", Name: "Eliminar liquidación tributaria"},
-		rbac.SupervisorsLiquidationsApprove: {Mod: "supervisors", Name: "Aprobar liquidación tributaria"},
-
-		rbac.SupervisorsNPSView:     {Mod: "supervisors", Name: "Ver NPS"},
-		rbac.SupervisorsNPSCreate:   {Mod: "supervisors", Name: "Crear NPS"},
-		rbac.SupervisorsNPSUpdate:   {Mod: "supervisors", Name: "Editar NPS"},
-		rbac.SupervisorsNPSDelete:   {Mod: "supervisors", Name: "Eliminar NPS"},
-		rbac.SupervisorsNPSGenerate: {Mod: "supervisors", Name: "Generar código NPS"},
-
-		rbac.SupervisorsReportsView: {Mod: "supervisors", Name: "Reportes supervisores"},
-
-		rbac.SupervisorsObservationsView:   {Mod: "supervisors", Name: "Ver observaciones"},
-		rbac.SupervisorsObservationsCreate: {Mod: "supervisors", Name: "Registrar observaciones"},
-		rbac.SupervisorsHistoryView:        {Mod: "supervisors", Name: "Ver historial de cambios"},
-		rbac.SupervisorsAttachmentsUpload:  {Mod: "supervisors", Name: "Subir adjuntos supervisores"},
-		rbac.SupervisorsNotificationsView:  {Mod: "supervisors", Name: "Ver notificaciones supervisores"},
-		rbac.SupervisorsNPSRegisterPayment: {Mod: "supervisors", Name: "Registrar pago NPS"},
-
-		rbac.FinanceCalendarView:   {Mod: "finance", Name: "Ver calendario contable global"},
-		rbac.FinanceCalendarManage: {Mod: "finance", Name: "Gestionar calendario contable global"},
-
-		rbac.CompanyCredentialsView:   {Mod: "finance", Name: "Ver claves de acceso por empresa"},
-		rbac.CompanyCredentialsManage: {Mod: "finance", Name: "Editar claves de acceso por empresa"},
-		rbac.CompanyCredentialsImport: {Mod: "finance", Name: "Importar claves de acceso desde Excel"},
-
-		rbac.SalesEmit:          {Mod: "sales", Name: "Emitir comprobante (venta rápida)"},
-		rbac.SalesHistory:       {Mod: "sales", Name: "Historial de ventas emitidas"},
-		rbac.SalesCatalogPick:   {Mod: "sales", Name: "Buscar productos en venta"},
-		rbac.SalesCompaniesPick: {Mod: "sales", Name: "Seleccionar cliente en venta"},
-		rbac.SalesLinePriceEdit: {Mod: "sales", Name: "Modificar precio al vender"},
+	// Cache module_id por código para no consultar por cada permiso.
+	moduleIDs := map[string]uint{}
+	for _, d := range defs {
+		if _, ok := moduleIDs[d.Module]; ok {
+			continue
+		}
+		mid, err := moduleIDByCode(db, d.Module)
+		if err != nil {
+			return fmt.Errorf("módulo %s: %w", d.Module, err)
+		}
+		moduleIDs[d.Module] = mid
 	}
 
-	for _, code := range rbac.AllPermissionCodes {
-		mn, ok := meta[code]
-		if !ok {
-			return fmt.Errorf("falta meta para permiso %s", code)
+	for i, d := range defs {
+		parts := strings.SplitN(d.Code, ".", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("código de permiso inválido: %s", d.Code)
 		}
-		mid, err := moduleIDByCode(db, mn.Mod)
-		if err != nil {
-			return fmt.Errorf("módulo %s: %w", mn.Mod, err)
-		}
-		parts := strings.SplitN(code, ".", 2)
-		action := parts[1]
 		p := models.Permission{
-			ModuleID:    mid,
-			Code:        code,
-			Action:      action,
-			Name:        mn.Name,
-			Description: "",
+			ModuleID:  moduleIDs[d.Module],
+			Code:      d.Code,
+			Action:    parts[1],
+			Name:      d.Name,
+			Group:     d.Group,
+			SortOrder: i, // el orden del registro define el orden en la matriz
 		}
 		if err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "code"}},
-			DoUpdates: clause.AssignmentColumns([]string{"module_id", "action", "name", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"module_id", "action", "name", "perm_group", "sort_order", "updated_at"}),
 		}).Create(&p).Error; err != nil {
-			return fmt.Errorf("permiso %s: %w", code, err)
+			return fmt.Errorf("permiso %s: %w", d.Code, err)
+		}
+	}
+
+	if err := cleanupOrphanPermissions(db, defs); err != nil {
+		return err
+	}
+	return cleanupOrphanModules(db)
+}
+
+// cleanupOrphanPermissions borra permisos (y sus vínculos rol↔permiso) que ya no
+// están en el registro. Evita que códigos retirados sigan apareciendo en el catálogo.
+func cleanupOrphanPermissions(db *gorm.DB, defs []rbac.PermDef) error {
+	valid := make([]string, 0, len(defs))
+	for _, d := range defs {
+		valid = append(valid, d.Code)
+	}
+	var orphans []models.Permission
+	if err := db.Where("code NOT IN ?", valid).Find(&orphans).Error; err != nil {
+		return err
+	}
+	for _, op := range orphans {
+		if err := db.Where("permission_id = ?", op.ID).Delete(&models.RolePermission{}).Error; err != nil {
+			return fmt.Errorf("limpiar vínculos permiso %s: %w", op.Code, err)
+		}
+		if err := db.Delete(&models.Permission{}, op.ID).Error; err != nil {
+			return fmt.Errorf("eliminar permiso huérfano %s: %w", op.Code, err)
 		}
 	}
 	return nil
 }
 
+// ───────────────────────────── Roles ─────────────────────────────
+
 func seedRBACSystemRoles(db *gorm.DB) error {
 	system := []models.Role{
-		{Code: seedRoleSuperusuario, Name: "Super usuario", Description: "Acceso total al sistema y alcance global del estudio", IsSystem: true},
-		{Code: seedRoleAdministrador, Name: "Administrador", Description: "Administración de área o equipo (permisos configurables)", IsSystem: true},
-		{Code: seedRoleSupervisor, Name: "Supervisor", Description: "Supervisión operativa", IsSystem: true},
-		{Code: seedRoleContador, Name: "Contador", Description: "Gestión contable y fiscal", IsSystem: true},
-		{Code: seedRoleAsistente, Name: "Asistente", Description: "Apoyo operativo", IsSystem: true},
-		{Code: seedRoleAnalista, Name: "Analista", Description: "Analista contable (avance y liquidaciones)", IsSystem: true},
-		{Code: seedRoleGerencia, Name: "Gerencia", Description: "Gerencia — supervisión y cierre (mismo alcance que supervisor)", IsSystem: true},
-		{Code: seedRoleEmisorComprobantes, Name: "Emisor de Comprobantes", Description: "Emisión rápida de comprobantes (POS)", IsSystem: true},
+		{Code: rbac.RoleSuperusuario, Name: "Super usuario", Description: "Acceso total al sistema y alcance global del estudio", IsSystem: true},
+		{Code: rbac.RoleAdministrador, Name: "Administrador", Description: "Administración de área o equipo (permisos configurables)", IsSystem: true},
+		{Code: rbac.RoleSupervisor, Name: "Supervisor", Description: "Supervisión operativa", IsSystem: true},
+		{Code: rbac.RoleContador, Name: "Contador", Description: "Gestión contable y fiscal", IsSystem: true},
+		{Code: rbac.RoleAsistente, Name: "Asistente", Description: "Apoyo operativo", IsSystem: true},
+		{Code: rbac.RoleAnalista, Name: "Analista", Description: "Analista contable (avance y liquidaciones)", IsSystem: true},
+		{Code: rbac.RoleGerencia, Name: "Gerencia", Description: "Gerencia — supervisión y cierre (mismo alcance que supervisor)", IsSystem: true},
+		{Code: rbac.RoleEmisorComprobantes, Name: "Emisor de Comprobantes", Description: "Emisión rápida de comprobantes (POS)", IsSystem: true},
 	}
 	for i := range system {
 		r := system[i]
 		if err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "code"}},
-			DoNothing: true,
+			DoUpdates: clause.AssignmentColumns([]string{"name", "description", "is_system", "updated_at"}),
 		}).Create(&r).Error; err != nil {
 			return fmt.Errorf("rol %s: %w", r.Code, err)
 		}
@@ -303,537 +176,96 @@ func seedRBACSystemRoles(db *gorm.DB) error {
 	return nil
 }
 
-func permissionIDsAll(db *gorm.DB) ([]uint, error) {
-	var ids []uint
-	if err := db.Model(&models.Permission{}).Order("id ASC").Pluck("id", &ids).Error; err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-func permissionIDsByCodes(db *gorm.DB, codes []string) ([]uint, error) {
-	if len(codes) == 0 {
-		return nil, nil
-	}
+// reconcileSystemRolePermissions fija la matriz rol↔permiso de CADA rol de sistema
+// EXACTAMENTE a su conjunto canónico (agrega faltantes y quita sobrantes). Los roles
+// personalizados (is_system=false) no se tocan.
+// reconcileSystemRolePermissions siembra los permisos POR DEFECTO de los roles de sistema.
+//
+// Importante (evita que un deploy pise la configuración del administrador):
+//   - super_usuario: se mantiene SIEMPRE con el catálogo completo (rol omnipotente / red de
+//     seguridad; además el enforcement depende de que tenga todos los permisos).
+//   - demás roles de sistema: se siembran con su set canónico SOLO la primera vez (cuando aún
+//     no tienen permisos). Si ya están configurados, se respeta lo que haya definido el
+//     administrador por la UI — no se restablece en cada arranque.
+//
+// La limpieza de permisos huérfanos (código retirado del registro) sí ocurre siempre, en
+// seedRBACPermissions; eso no es "restablecer un rol", es quitar referencias muertas.
+func reconcileSystemRolePermissions(db *gorm.DB) error {
 	var perms []models.Permission
-	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
-		return nil, err
+	if err := db.Find(&perms).Error; err != nil {
+		return err
 	}
-	ids := make([]uint, 0, len(perms))
+	idByCode := make(map[string]uint, len(perms))
 	for _, p := range perms {
-		ids = append(ids, p.ID)
+		idByCode[p.Code] = p.ID
 	}
-	return ids, nil
-}
 
-// ensureFinanceCalendarRolePermissions enlaza permisos de calendario en roles del sistema (idempotente en cada arranque).
-func ensureFinanceCalendarRolePermissions(db *gorm.DB) error {
-	var viewP, manageP models.Permission
-	if err := db.Where("code = ?", rbac.FinanceCalendarView).First(&viewP).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+	setCanonical := func(role *models.Role, roleCode string) error {
+		codes := rbac.RolePermissionCodes(roleCode)
+		want := make([]models.Permission, 0, len(codes))
+		for _, c := range codes {
+			if id, ok := idByCode[c]; ok {
+				want = append(want, models.Permission{ID: id})
+			}
 		}
-		return err
-	}
-	if err := db.Where("code = ?", rbac.FinanceCalendarManage).First(&manageP).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+		if err := db.Model(role).Association("Permissions").Replace(want); err != nil {
+			return fmt.Errorf("sembrar rol %s: %w", roleCode, err)
 		}
-		return err
+		return nil
 	}
-	link := func(roleCode string, permIDs ...uint) error {
+
+	for _, roleCode := range rbac.SystemRoleCodes() {
 		var role models.Role
-		if err := db.Where("code = ?", roleCode).First(&role).Error; err != nil {
+		if err := db.Where("code = ? AND is_system = ?", roleCode, true).First(&role).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
+				continue
 			}
 			return err
 		}
-		for _, pid := range permIDs {
-			var cnt int64
-			if err := db.Model(&models.RolePermission{}).
-				Where("role_id = ? AND permission_id = ?", role.ID, pid).
-				Count(&cnt).Error; err != nil {
+
+		// super_usuario siempre completo.
+		if roleCode == rbac.RoleSuperusuario {
+			if err := setCanonical(&role, roleCode); err != nil {
 				return err
 			}
-			if cnt > 0 {
-				continue
-			}
-			if err := db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
-				return fmt.Errorf("rol %s permiso %d: %w", roleCode, pid, err)
-			}
+			continue
 		}
-		return nil
-	}
-	viewRoles := []string{
-		seedRoleSuperusuario, seedRoleContador, seedRoleSupervisor, seedRoleAdministrador,
-		seedRoleGerencia, seedRoleAsistente, seedRoleAnalista,
-	}
-	for _, rc := range viewRoles {
-		if err := link(rc, viewP.ID); err != nil {
+
+		// Resto: sembrar solo si el rol aún no tiene permisos (primera vez / rol recién creado).
+		var count int64
+		if err := db.Model(&models.RolePermission{}).Where("role_id = ?", role.ID).Count(&count).Error; err != nil {
 			return err
 		}
-	}
-	for _, rc := range []string{seedRoleSuperusuario, seedRoleContador} {
-		if err := link(rc, manageP.ID); err != nil {
+		if count > 0 {
+			continue // ya configurado; respetar al administrador
+		}
+		if err := setCanonical(&role, roleCode); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// ensureCompanyCredentialsRolePermissions enlaza permisos de claves de acceso (idempotente en cada arranque).
-func ensureCompanyCredentialsRolePermissions(db *gorm.DB) error {
-	codes := []string{
-		rbac.CompanyCredentialsView,
-		rbac.CompanyCredentialsManage,
-		rbac.CompanyCredentialsImport,
-	}
-	var perms []models.Permission
-	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
+// ensureDefaultRole marca el rol por defecto si ninguno lo es todavía.
+func ensureDefaultRole(db *gorm.DB) error {
+	var n int64
+	if err := db.Model(&models.Role{}).Where("is_default = ?", true).Count(&n).Error; err != nil {
 		return err
 	}
-	if len(perms) == 0 {
+	if n > 0 {
 		return nil
 	}
-	byCode := make(map[string]uint, len(perms))
-	for _, p := range perms {
-		byCode[p.Code] = p.ID
-	}
-	link := func(roleCode string, permCodes ...string) error {
-		var role models.Role
-		if err := db.Where("code = ?", roleCode).First(&role).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		for _, pc := range permCodes {
-			pid, ok := byCode[pc]
-			if !ok {
-				continue
-			}
-			var cnt int64
-			if err := db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", role.ID, pid).Count(&cnt).Error; err != nil {
-				return err
-			}
-			if cnt > 0 {
-				continue
-			}
-			if err := db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
-				return fmt.Errorf("rol %s permiso %s: %w", roleCode, pc, err)
-			}
-		}
-		return nil
-	}
-	viewRoles := []string{
-		seedRoleSuperusuario, seedRoleContador, seedRoleSupervisor, seedRoleAdministrador,
-		seedRoleGerencia, seedRoleAsistente, seedRoleAnalista,
-	}
-	for _, rc := range viewRoles {
-		if err := link(rc, rbac.CompanyCredentialsView); err != nil {
-			return err
-		}
-	}
-	manageRoles := []string{seedRoleSuperusuario, seedRoleContador}
-	for _, rc := range manageRoles {
-		if err := link(rc, rbac.CompanyCredentialsManage, rbac.CompanyCredentialsImport); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ensureFiscalComprobanteRolePermissions asigna permisos de series/emisión local a roles operativos (idempotente).
-func ensureFiscalComprobanteRolePermissions(db *gorm.DB) error {
-	codes := []string{
-		rbac.FiscalSeriesView, rbac.FiscalSeriesManage,
-		rbac.FiscalReceiptsList, rbac.FiscalReceiptsCreatePayment, rbac.FiscalReceiptsLinkPayment,
-		rbac.FiscalReceiptsPatchTax, rbac.FiscalReceiptsDiscard,
-		rbac.PaymentsIssueComprobante,
-	}
-	var perms []models.Permission
-	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
-		return err
-	}
-	if len(perms) == 0 {
-		return nil
-	}
-	permByCode := make(map[string]uint, len(perms))
-	for _, p := range perms {
-		permByCode[p.Code] = p.ID
-	}
-	link := func(roleCode string, permCodes ...string) error {
-		var role models.Role
-		if err := db.Where("code = ?", roleCode).First(&role).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		for _, pc := range permCodes {
-			pid, ok := permByCode[pc]
-			if !ok {
-				continue
-			}
-			var cnt int64
-			if err := db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", role.ID, pid).Count(&cnt).Error; err != nil {
-				return err
-			}
-			if cnt > 0 {
-				continue
-			}
-			if err := db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
-				return fmt.Errorf("rol %s permiso %s: %w", roleCode, pc, err)
-			}
-		}
-		return nil
-	}
-	viewOnly := []string{
-		rbac.FiscalSeriesView, rbac.FiscalReceiptsList, rbac.FiscalReceiptsLinkPayment,
-		rbac.FiscalReceiptsPatchTax, rbac.FiscalReceiptsDiscard,
-	}
-	manage := append(viewOnly, rbac.FiscalSeriesManage, rbac.FiscalReceiptsCreatePayment, rbac.PaymentsIssueComprobante)
-	for _, rc := range []string{seedRoleSuperusuario, seedRoleContador} {
-		if err := link(rc, manage...); err != nil {
-			return err
-		}
-	}
-	for _, rc := range []string{seedRoleSupervisor, seedRoleAdministrador, seedRoleGerencia, seedRoleAsistente, seedRoleAnalista} {
-		if err := link(rc, viewOnly...); err != nil {
-			return err
-		}
-		if err := link(rc, rbac.PaymentsIssueComprobante); err != nil {
-			return err
-		}
-	}
-	// Migrar roles que tenían payments.issue_tukifac → issue_comprobante
-	var legacyPerm models.Permission
-	if err := db.Where("code = ?", rbac.PaymentsIssueTukifac).First(&legacyPerm).Error; err == nil {
-		var roleIDs []uint
-		_ = db.Model(&models.RolePermission{}).Where("permission_id = ?", legacyPerm.ID).Distinct("role_id").Pluck("role_id", &roleIDs)
-		newID, ok := permByCode[rbac.PaymentsIssueComprobante]
-		if ok {
-			for _, rid := range roleIDs {
-				var cnt int64
-				_ = db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", rid, newID).Count(&cnt)
-				if cnt == 0 {
-					_ = db.Create(&models.RolePermission{RoleID: rid, PermissionID: newID}).Error
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// ensureEmisorComprobantesRolePermissions asigna permisos mínimos al rol emisor POS (idempotente).
-func ensureEmisorComprobantesRolePermissions(db *gorm.DB) error {
-	codes := []string{
-		rbac.SalesEmit, rbac.SalesHistory, rbac.SalesCatalogPick, rbac.SalesCompaniesPick, rbac.SalesLinePriceEdit,
-		rbac.SettingsFirmBrandingView,
-	}
-	var perms []models.Permission
-	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
-		return err
-	}
-	if len(perms) == 0 {
-		return nil
-	}
-	permByCode := make(map[string]uint, len(perms))
-	for _, p := range perms {
-		permByCode[p.Code] = p.ID
-	}
-	var role models.Role
-	if err := db.Where("code = ?", seedRoleEmisorComprobantes).First(&role).Error; err != nil {
+	var r models.Role
+	if err := db.Where("code = ?", rbac.DefaultRoleCode).First(&r).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return err
 	}
-	for _, pc := range codes {
-		pid, ok := permByCode[pc]
-		if !ok {
-			continue
-		}
-		var cnt int64
-		if err := db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", role.ID, pid).Count(&cnt).Error; err != nil {
-			return err
-		}
-		if cnt > 0 {
-			continue
-		}
-		if err := db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
-			return fmt.Errorf("emisor permiso %s: %w", pc, err)
-		}
-	}
-	return nil
+	return db.Model(&r).Update("is_default", true).Error
 }
 
-func permissionCodesExcept(excl map[string]struct{}) []string {
-	out := make([]string, 0, len(rbac.AllPermissionCodes))
-	for _, c := range rbac.AllPermissionCodes {
-		if _, skip := excl[c]; !skip {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-// supervisorPermissionCodes conjunto de permisos del rol Supervisor y del Administrador de área (sin access.studio).
-func supervisorPermissionCodes() []string {
-	exclSupervisor := map[string]struct{}{
-		rbac.AccessStudio: {},
-		rbac.UsersView: {}, rbac.UsersCreate: {}, rbac.UsersUpdate: {}, rbac.UsersDelete: {},
-		rbac.RBACRolesView: {}, rbac.RBACRolesManage: {}, rbac.RBACPermissionsCatalog: {},
-		rbac.SettingsFirmView: {}, rbac.SettingsFirmUpdate: {}, rbac.SettingsFirmUploadLogo: {},
-		rbac.SettingsFirmUploadBankLogo: {}, rbac.SettingsFirmUploadPaymentQR: {},
-		rbac.CompaniesDelete: {}, rbac.SubscriptionPlansDelete: {}, rbac.PlanCategoriesDelete: {},
-		rbac.PaymentsDelete: {},
-		rbac.FinanceCalendarManage: {},
-		rbac.CompanyCredentialsManage: {}, rbac.CompanyCredentialsImport: {},
-	}
-	return permissionCodesExcept(exclSupervisor)
-}
-
-// analistaPermissionCodes permisos del analista: actualizar avance, sin asignar ni aprobar.
-func analistaPermissionCodes() []string {
-	return []string{
-		rbac.SupervisorsDashboardView,
-		rbac.SupervisorsPeriodsView,
-		rbac.SupervisorsControlsView, rbac.SupervisorsControlsUpdate,
-		rbac.SupervisorsDeclarationsView, rbac.SupervisorsDeclarationsUpdate,
-		rbac.SupervisorsLiquidationsView, rbac.SupervisorsLiquidationsCreate, rbac.SupervisorsLiquidationsUpdate,
-		rbac.SupervisorsNPSView, rbac.SupervisorsNPSUpdate,
-		rbac.SupervisorsReportsView,
-		rbac.SupervisorsObservationsView, rbac.SupervisorsObservationsCreate,
-		rbac.SupervisorsHistoryView, rbac.SupervisorsAttachmentsUpload,
-		rbac.SupervisorsNotificationsView,
-		rbac.FinanceCalendarView,
-		rbac.CompanyCredentialsView,
-	}
-}
-
-// asistentePermissionCodes permisos del rol Asistente (lista cerrada).
-func asistentePermissionCodes() []string {
-	return []string{
-		rbac.DashboardView,
-		rbac.CompaniesView,
-		rbac.ContactsView, rbac.ContactsCreate, rbac.ContactsUpdate, rbac.ContactsDelete,
-		rbac.DocumentsView,
-		rbac.PaymentsView, rbac.PaymentsCreate, rbac.PaymentsIssueComprobante, rbac.PaymentsUploadAttachment,
-		rbac.ProductsView, rbac.ProductCategoriesView,
-		rbac.PlanCategoriesView,
-		rbac.SubscriptionPlansView,
-		rbac.FiscalSeriesView, rbac.FiscalReceiptsList, rbac.FiscalReceiptsCreatePayment, rbac.FiscalReceiptsLinkPayment,
-		rbac.TaxSettlementsPreview, rbac.TaxSettlementsList, rbac.TaxSettlementsView, rbac.TaxSettlementsPaymentSuggestions,
-		rbac.CompaniesAssignAssistant,
-		rbac.FinanceCalendarView,
-		rbac.CompanyCredentialsView,
-		rbac.SupervisorsDashboardView,
-		rbac.SupervisorsPeriodsView,
-		rbac.SupervisorsControlsView, rbac.SupervisorsControlsUpdate,
-		rbac.SupervisorsDeclarationsView, rbac.SupervisorsDeclarationsUpdate,
-		rbac.SupervisorsLiquidationsView, rbac.SupervisorsLiquidationsUpdate,
-		rbac.SupervisorsNPSView, rbac.SupervisorsNPSUpdate,
-		rbac.SupervisorsObservationsView, rbac.SupervisorsObservationsCreate,
-		rbac.SupervisorsHistoryView, rbac.SupervisorsAttachmentsUpload,
-		rbac.SupervisorsNotificationsView,
-	}
-}
-
-// contadorPermissionCodes permisos del rol Contador (catálogo menos exclusiones).
-// El módulo supervisores queda reservado a Supervisor/Asistente/Gerencia (C2).
-func contadorPermissionCodes() []string {
-	exclContador := map[string]struct{}{
-		rbac.AccessStudio: {},
-		rbac.UsersView: {}, rbac.UsersCreate: {}, rbac.UsersUpdate: {}, rbac.UsersDelete: {},
-		rbac.RBACRolesView: {}, rbac.RBACRolesManage: {}, rbac.RBACPermissionsCatalog: {},
-		rbac.SettingsFirmView: {}, rbac.SettingsFirmUpdate: {},
-		rbac.SettingsFirmUploadLogo: {}, rbac.SettingsFirmUploadBankLogo: {}, rbac.SettingsFirmUploadPaymentQR: {},
-		rbac.CompaniesValidateRUC: {}, rbac.CompaniesNextCode: {}, rbac.CompaniesImportTemplate: {},
-		rbac.CompaniesImportSpreadsheet: {}, rbac.CompaniesCreate: {}, rbac.CompaniesUpdate: {}, rbac.CompaniesStatus: {}, rbac.CompaniesDelete: {},
-		rbac.SubscriptionPlansCreate: {}, rbac.SubscriptionPlansUpdate: {}, rbac.SubscriptionPlansTiers: {}, rbac.SubscriptionPlansDelete: {},
-		rbac.PlanCategoriesDelete: {},
-		rbac.PaymentsDelete: {},
-		rbac.ProductsDelete: {},
-	}
-	for _, code := range rbac.AllPermissionCodes {
-		if strings.HasPrefix(code, "supervisors.") {
-			exclContador[code] = struct{}{}
-		}
-	}
-	return permissionCodesExcept(exclContador)
-}
-
-// systemRolesForCanonicalRepair roles sistema reparados por migración y ensure (sin EmisorComprobantes).
-func systemRolesForCanonicalRepair() []string {
-	return []string{
-		seedRoleSuperusuario,
-		seedRoleAdministrador,
-		seedRoleGerencia,
-		seedRoleSupervisor,
-		seedRoleContador,
-		seedRoleAsistente,
-		seedRoleAnalista,
-	}
-}
-
-// canonicalPermissionCodesForRole devuelve la matriz canónica de un rol sistema.
-func canonicalPermissionCodesForRole(roleCode string) ([]string, bool) {
-	switch roleCode {
-	case seedRoleSuperusuario:
-		return rbac.AllPermissionCodes, true
-	case seedRoleAdministrador, seedRoleGerencia, seedRoleSupervisor:
-		return supervisorPermissionCodes(), true
-	case seedRoleContador:
-		return contadorPermissionCodes(), true
-	case seedRoleAsistente:
-		return asistentePermissionCodes(), true
-	case seedRoleAnalista:
-		return analistaPermissionCodes(), true
-	default:
-		return nil, false
-	}
-}
-
-// linkMissingRolePermissionCodes inserta permisos faltantes sin eliminar existentes.
-func linkMissingRolePermissionCodes(db *gorm.DB, roleID uint, codes []string) error {
-	if len(codes) == 0 {
-		return nil
-	}
-	var perms []models.Permission
-	if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
-		return err
-	}
-	permByCode := make(map[string]uint, len(perms))
-	for _, p := range perms {
-		permByCode[p.Code] = p.ID
-	}
-	for _, code := range codes {
-		pid, ok := permByCode[code]
-		if !ok {
-			continue
-		}
-		var cnt int64
-		if err := db.Model(&models.RolePermission{}).
-			Where("role_id = ? AND permission_id = ?", roleID, pid).
-			Count(&cnt).Error; err != nil {
-			return err
-		}
-		if cnt > 0 {
-			continue
-		}
-		if err := db.Create(&models.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
-			return fmt.Errorf("permiso %s: %w", code, err)
-		}
-	}
-	return nil
-}
-
-// linkMissingCanonicalPermissionsForSystemRole agrega permisos canónicos faltantes a un rol is_system.
-func linkMissingCanonicalPermissionsForSystemRole(db *gorm.DB, roleCode string) error {
-	codes, ok := canonicalPermissionCodesForRole(roleCode)
-	if !ok {
-		return nil
-	}
-	var role models.Role
-	if err := db.Where("code = ? AND is_system = ?", roleCode, true).First(&role).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	return linkMissingRolePermissionCodes(db, role.ID, codes)
-}
-
-// ensureSystemRoleMissingPermissions sincroniza permisos canónicos faltantes en cada arranque (add-missing only).
-func ensureSystemRoleMissingPermissions(db *gorm.DB) error {
-	for _, roleCode := range systemRolesForCanonicalRepair() {
-		if err := linkMissingCanonicalPermissionsForSystemRole(db, roleCode); err != nil {
-			return fmt.Errorf("ensure rol %s: %w", roleCode, err)
-		}
-	}
-	return nil
-}
-
-func ensureRBACUserRoleAssignments(db *gorm.DB) error {
-	return assignDefaultRoleWhereNoRoles(db)
-}
-
-// ensureSuperusuarioFullPermissions agrega permisos del catálogo faltantes al rol super_usuario (add-missing only).
-func ensureSuperusuarioFullPermissions(db *gorm.DB) error {
-	var superRole models.Role
-	if err := db.Where("code = ?", seedRoleSuperusuario).First(&superRole).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	return linkMissingRolePermissionCodes(db, superRole.ID, rbac.AllPermissionCodes)
-}
-
-func findUserByAdminUsername(db *gorm.DB) (*models.User, error) {
-	var admin models.User
-	err := db.Where("LOWER(TRIM(username)) = ?", "admin").First(&admin).Error
-	if err == nil {
-		return &admin, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func ensureSuperusuarioRole(db *gorm.DB) (*models.Role, error) {
-	var superRole models.Role
-	if err := db.Where("code = ?", seedRoleSuperusuario).First(&superRole).Error; err == nil {
-		return &superRole, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
-	if err := seedRBACSystemRoles(db); err != nil {
-		return nil, err
-	}
-	if err := db.Where("code = ?", seedRoleSuperusuario).First(&superRole).Error; err != nil {
-		return nil, fmt.Errorf("falta rol %s tras semilla: %w", seedRoleSuperusuario, err)
-	}
-	return &superRole, nil
-}
-
-func assignUserRolesExplicit(db *gorm.DB, userID, roleID uint) error {
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", userID).Delete(&models.UserRole{}).Error; err != nil {
-			return err
-		}
-		return tx.Create(&models.UserRole{UserID: userID, RoleID: roleID}).Error
-	})
-}
-
-// ensureAdminSuperusuarioUser: si existe username "admin" (sin distinguir mayúsculas), super_usuario con todos los permisos.
-func ensureAdminSuperusuarioUser(db *gorm.DB) error {
-	admin, err := findUserByAdminUsername(db)
-	if err != nil {
-		return err
-	}
-	if admin == nil {
-		return nil
-	}
-	superRole, err := ensureSuperusuarioRole(db)
-	if err != nil {
-		return fmt.Errorf("usuario admin: %w", err)
-	}
-	if err := ensureSuperusuarioFullPermissions(db); err != nil {
-		return fmt.Errorf("admin super_usuario permisos: %w", err)
-	}
-	if err := assignUserRolesExplicit(db, admin.ID, superRole.ID); err != nil {
-		return fmt.Errorf("usuario admin: asignar rol: %w", err)
-	}
-	// Mantener asociación GORM coherente para otros flujos.
-	if err := db.Model(admin).Association("Roles").Replace([]models.Role{*superRole}); err != nil {
-		return fmt.Errorf("usuario admin: sync roles: %w", err)
-	}
-	return nil
-}
+// ─────────────────────── Asignación de roles a usuarios ───────────────────────
 
 func assignDefaultRoleWhereNoRoles(db *gorm.DB) error {
 	var def models.Role
@@ -858,82 +290,46 @@ func assignDefaultRoleWhereNoRoles(db *gorm.DB) error {
 	return nil
 }
 
-// migrateLegacyAdministradorToSuperusuario: si el rol Administrador aún tenía access.studio (modelo antiguo),
-// crea el conjunto completo en super_usuario, mueve usuarios con ese rol a super_usuario y deja Administrador como rol de área.
-func migrateLegacyAdministradorToSuperusuario(db *gorm.DB) error {
-	var adm models.Role
-	if err := db.Where("code = ?", seedRoleAdministrador).First(&adm).Error; err != nil {
-		return nil
+func findUserByAdminUsername(db *gorm.DB) (*models.User, error) {
+	var admin models.User
+	err := db.Where("LOWER(TRIM(username)) = ?", "admin").First(&admin).Error
+	if err == nil {
+		return &admin, nil
 	}
-	var studioPerm models.Permission
-	if err := db.Where("code = ?", rbac.AccessStudio).First(&studioPerm).Error; err != nil {
-		return nil
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
-	var n int64
-	if err := db.Model(&models.RolePermission{}).
-		Where("role_id = ? AND permission_id = ?", adm.ID, studioPerm.ID).
-		Count(&n).Error; err != nil {
+	return nil, nil
+}
+
+func assignUserRolesExplicit(db *gorm.DB, userID, roleID uint) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserRole{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&models.UserRole{UserID: userID, RoleID: roleID}).Error
+	})
+}
+
+// ensureAdminSuperusuarioUser: si existe el usuario "admin", le asigna super_usuario
+// (cuyos permisos ya reconcilió reconcileSystemRolePermissions).
+func ensureAdminSuperusuarioUser(db *gorm.DB) error {
+	admin, err := findUserByAdminUsername(db)
+	if err != nil {
 		return err
 	}
-	if n == 0 {
+	if admin == nil {
 		return nil
 	}
 	var superRole models.Role
-	if err := db.Where("code = ?", seedRoleSuperusuario).First(&superRole).Error; err != nil {
-		return fmt.Errorf("migración RBAC: falta rol %s: %w", seedRoleSuperusuario, err)
+	if err := db.Where("code = ?", rbac.RoleSuperusuario).First(&superRole).Error; err != nil {
+		return fmt.Errorf("usuario admin: falta rol %s: %w", rbac.RoleSuperusuario, err)
 	}
-	allIDs, err := permissionIDsAll(db)
-	if err != nil {
-		return err
+	if err := assignUserRolesExplicit(db, admin.ID, superRole.ID); err != nil {
+		return fmt.Errorf("usuario admin: asignar rol: %w", err)
 	}
-	var plistAll []models.Permission
-	if err := db.Where("id IN ?", allIDs).Find(&plistAll).Error; err != nil {
-		return err
-	}
-	if err := db.Model(&superRole).Association("Permissions").Replace(plistAll); err != nil {
-		return fmt.Errorf("migración RBAC: permisos super usuario: %w", err)
-	}
-	var userIDs []uint
-	if err := db.Table("user_roles").Distinct("user_id").Where("role_id = ?", adm.ID).Pluck("user_id", &userIDs).Error; err != nil {
-		return err
-	}
-	for _, uid := range userIDs {
-		var u models.User
-		if err := db.Preload("Roles").First(&u, uid).Error; err != nil {
-			continue
-		}
-		newRoles := make([]models.Role, 0, len(u.Roles))
-		replaced := false
-		for _, rr := range u.Roles {
-			if rr.Code == seedRoleAdministrador {
-				replaced = true
-				continue
-			}
-			newRoles = append(newRoles, rr)
-		}
-		if !replaced {
-			continue
-		}
-		newRoles = append(newRoles, superRole)
-		if err := db.Model(&u).Association("Roles").Replace(newRoles); err != nil {
-			return fmt.Errorf("migración RBAC usuario %d: %w", uid, err)
-		}
-	}
-	superCodes := supervisorPermissionCodes()
-	ids, err := permissionIDsByCodes(db, superCodes)
-	if err != nil {
-		return err
-	}
-	var plistAdm []models.Permission
-	if err := db.Where("id IN ?", ids).Find(&plistAdm).Error; err != nil {
-		return err
-	}
-	var admReload models.Role
-	if err := db.First(&admReload, adm.ID).Error; err != nil {
-		return err
-	}
-	if err := db.Model(&admReload).Association("Permissions").Replace(plistAdm); err != nil {
-		return fmt.Errorf("migración RBAC: ajustar administrador: %w", err)
+	if err := db.Model(admin).Association("Roles").Replace([]models.Role{superRole}); err != nil {
+		return fmt.Errorf("usuario admin: sync roles: %w", err)
 	}
 	return nil
 }

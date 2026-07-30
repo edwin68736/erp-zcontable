@@ -91,6 +91,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
         items: [
           { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', public: true },
           { to: '/finance/claves-sol', icon: 'fas fa-key', label: 'Claves sol', public: true },
+          {
+            to: '/finance/sunat-due-dates',
+            icon: 'fas fa-calendar-check',
+            label: 'Vencimientos SUNAT',
+            permission: P.financeSunatDueDatesView,
+          },
         ],
       },
     ],

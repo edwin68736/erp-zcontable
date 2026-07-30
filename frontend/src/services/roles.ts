@@ -19,7 +19,14 @@ export type ModuleRow = {
   icon?: string;
   sort_order: number;
   active: boolean;
-  permissions?: { id: number; code: string; name: string; action: string; description?: string }[];
+  permissions?: {
+    id: number;
+    code: string;
+    name: string;
+    action: string;
+    group?: string;
+    description?: string;
+  }[];
 };
 
 export type RoleCreateInput = {

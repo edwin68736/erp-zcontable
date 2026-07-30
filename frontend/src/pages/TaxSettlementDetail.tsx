@@ -12,6 +12,10 @@ import {
   settlementTotalsForPdf,
   taxSettlementPdfFilename,
 } from '../pdf/taxSettlementDocument';
+import {
+  generateTaxSettlementPdfV2Blob,
+  taxSettlementPdfV2Filename,
+} from '../pdf/taxSettlementDocumentV2';
 import { getLogoPngBlobForAccountPdf } from '../pdf/companyAccountStatementPdf';
 import {
   formatMoneyPen,
@@ -39,6 +43,7 @@ const TaxSettlementDetail = () => {
   const [closing, setClosing] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPdfV2, setExportingPdfV2] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteKeyOpen, setDeleteKeyOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -253,10 +258,13 @@ const TaxSettlementDetail = () => {
     }
   };
 
-  const downloadPdf = async () => {
-    if (!row || exportingPdf) return;
+  /** Genera el PDF de la liquidación. `variant` elige el diseño (v1 clásico, v2 alterno). */
+  const downloadPdf = async (variant: 'v1' | 'v2' = 'v1') => {
+    const busy = variant === 'v2' ? exportingPdfV2 : exportingPdf;
+    const setBusy = variant === 'v2' ? setExportingPdfV2 : setExportingPdf;
+    if (!row || busy) return;
     try {
-      setExportingPdf(true);
+      setBusy(true);
       const [firm, fresh] = await Promise.all([
         configService.getFirmBranding().catch(() => null),
         taxSettlementsService.get(settlementId),
@@ -269,8 +277,12 @@ const TaxSettlementDetail = () => {
         bankLogoUrl ? getLogoPngBlobForAccountPdf(bankLogoUrl) : Promise.resolve(null),
         payQrUrl ? getLogoPngBlobForAccountPdf(payQrUrl) : Promise.resolve(null),
       ]);
-      const blob = await generateTaxSettlementPdfBlob(fresh, firm, logoPng, { bankLogoPng, paymentQrPng });
-      saveAs(blob, taxSettlementPdfFilename(fresh));
+      const assets = { bankLogoPng, paymentQrPng };
+      const blob =
+        variant === 'v2'
+          ? await generateTaxSettlementPdfV2Blob(fresh, firm, logoPng, assets)
+          : await generateTaxSettlementPdfBlob(fresh, firm, logoPng, assets);
+      saveAs(blob, variant === 'v2' ? taxSettlementPdfV2Filename(fresh) : taxSettlementPdfFilename(fresh));
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'PDF listo para entregar al cliente.' } }),
       );
@@ -280,7 +292,7 @@ const TaxSettlementDetail = () => {
         new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo generar el PDF.' } }),
       );
     } finally {
-      setExportingPdf(false);
+      setBusy(false);
     }
   };
 
@@ -515,12 +527,25 @@ const TaxSettlementDetail = () => {
           ) : null}
           <button
             type="button"
-            onClick={() => void downloadPdf()}
+            onClick={() => void downloadPdf('v1')}
             disabled={exportingPdf}
             className={`${btnBase} border-slate-700 bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 shadow-sm`}
           >
             <i className={`fas ${exportingPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'} text-xs shrink-0`} aria-hidden />
             {exportingPdf ? 'Generando PDF…' : 'PDF cliente'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void downloadPdf('v2')}
+            disabled={exportingPdfV2}
+            title="Mismo contenido, diseño alternativo"
+            className={`${btnBase} border-primary-700 bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 shadow-sm`}
+          >
+            <i
+              className={`fas ${exportingPdfV2 ? 'fa-spinner fa-spin' : 'fa-file-invoice'} text-xs shrink-0`}
+              aria-hidden
+            />
+            {exportingPdfV2 ? 'Generando PDF…' : 'PDF cliente v2'}
           </button>
           {canUpdate && row.status !== 'cerrada' ? (
             <button

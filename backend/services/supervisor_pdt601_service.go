@@ -16,6 +16,8 @@ type Pdt601ListParams struct {
 	PeriodYM          string
 	Status            string
 	Q                 string
+	Dig               string
+	AssistantUserID   uint
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
@@ -23,20 +25,21 @@ type Pdt601ListParams struct {
 
 // Pdt601ListRow fila del listado (empresa + período + módulo pdt_601).
 type Pdt601ListRow struct {
-	CompanyID         uint       `json:"company_id"`
-	Code              string     `json:"code"`
-	Dig               string     `json:"dig"`
-	BusinessName      string     `json:"business_name"`
-	RUC               string     `json:"ruc"`
-	AssistantUsername string     `json:"assistant_username"`
-	ControlID         *uint      `json:"control_id,omitempty"`
-	DeclarationID     *uint      `json:"declaration_id,omitempty"`
-	Status            string     `json:"status"`
-	DueDate           *string    `json:"due_date,omitempty"`
-	IsOverdue         bool       `json:"is_overdue"`
-	DaysRemaining     *int       `json:"days_remaining"`
-	AttachmentCount   int64      `json:"attachment_count"`
-	LastStoredAt      *time.Time `json:"last_stored_at,omitempty"`
+	CompanyID         uint               `json:"company_id"`
+	Code              string             `json:"code"`
+	Dig               string             `json:"dig"`
+	BusinessName      string             `json:"business_name"`
+	RUC               string             `json:"ruc"`
+	AssistantUsername string             `json:"assistant_username"`
+	ControlID         *uint              `json:"control_id,omitempty"`
+	DeclarationID     *uint              `json:"declaration_id,omitempty"`
+	Status            string             `json:"status"`
+	DueDate           *string            `json:"due_date,omitempty"`
+	IsOverdue         bool               `json:"is_overdue"`
+	DaysRemaining     *int               `json:"days_remaining"`
+	AttachmentCount   int64              `json:"attachment_count"`
+	LastStoredAt      *time.Time         `json:"last_stored_at,omitempty"`
+	Planilla          *Pdt601PlanillaDTO `json:"planilla,omitempty"`
 }
 
 // Pdt601Detail detalle tras EnsurePdt601 (lazy create o reutiliza bootstrap).
@@ -51,6 +54,110 @@ type Pdt601Detail struct {
 	ControlID         uint                         `json:"control_id"`
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
+	Planilla          *Pdt601PlanillaDTO           `json:"planilla,omitempty"`
+}
+
+// pdt601StatusFilterSinPlanilla filtro sintético del listado: empresas marcadas sin planilla.
+const pdt601StatusFilterSinPlanilla = "sin_planilla"
+
+// Pdt601PlanillaDTO datos de planilla PDT 601 del período (salida a UI).
+type Pdt601PlanillaDTO struct {
+	SinPlanilla                 bool    `json:"sin_planilla"`
+	TrabajadoresONP             int     `json:"trabajadores_onp"`
+	TrabajadoresAFP             int     `json:"trabajadores_afp"`
+	TrabajadoresTotal           int     `json:"trabajadores_total"`
+	Essalud                     float64 `json:"essalud"`
+	Onp                         float64 `json:"onp"`
+	Afp                         float64 `json:"afp"`
+	Sis                         float64 `json:"sis"`
+	Rta4ta                      float64 `json:"rta_4ta"`
+	Rta5ta                      float64 `json:"rta_5ta"`
+	Rh                          float64 `json:"rh"`
+	TotalAportes                float64 `json:"total_aportes"`
+	FechaEntrega                *string `json:"fecha_entrega,omitempty"`
+	Observaciones               string  `json:"observaciones"`
+	FechaDeclaracionPdt         *string `json:"fecha_declaracion_pdt,omitempty"`
+	NPS                         string  `json:"nps"`
+	TicketAFP                   string  `json:"ticket_afp"`
+	EstadoEnvioBoletas          string  `json:"estado_envio_boletas"`
+	FechaEnvioNpsTicketsBoletas *string `json:"fecha_envio_nps_tickets_boletas,omitempty"`
+}
+
+// Pdt601PlanillaInput datos de planilla enviados por el supervisor (fechas como AAAA-MM-DD).
+type Pdt601PlanillaInput struct {
+	SinPlanilla                 bool    `json:"sin_planilla"`
+	TrabajadoresONP             int     `json:"trabajadores_onp"`
+	TrabajadoresAFP             int     `json:"trabajadores_afp"`
+	Essalud                     float64 `json:"essalud"`
+	Onp                         float64 `json:"onp"`
+	Afp                         float64 `json:"afp"`
+	Sis                         float64 `json:"sis"`
+	Rta4ta                      float64 `json:"rta_4ta"`
+	Rta5ta                      float64 `json:"rta_5ta"`
+	Rh                          float64 `json:"rh"`
+	FechaEntrega                string  `json:"fecha_entrega"`
+	Observaciones               string  `json:"observaciones"`
+	FechaDeclaracionPdt         string  `json:"fecha_declaracion_pdt"`
+	NPS                         string  `json:"nps"`
+	TicketAFP                   string  `json:"ticket_afp"`
+	EstadoEnvioBoletas          string  `json:"estado_envio_boletas"`
+	FechaEnvioNpsTicketsBoletas string  `json:"fecha_envio_nps_tickets_boletas"`
+}
+
+// pdt601ParseDate interpreta AAAA-MM-DD en hora local; vacío → nil.
+func pdt601ParseDate(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	t, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	if err != nil {
+		return nil
+	}
+	return &t
+}
+
+func pdt601DateString(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format("2006-01-02")
+	return &s
+}
+
+func maxInt0(n int) int {
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
+// pdt601PlanillaToDTO arma el DTO de salida (deriva total de trabajadores y total de aportes).
+func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO {
+	if p == nil {
+		return nil
+	}
+	return &Pdt601PlanillaDTO{
+		SinPlanilla:                 p.SinPlanilla,
+		TrabajadoresONP:             p.TrabajadoresONP,
+		TrabajadoresAFP:             p.TrabajadoresAFP,
+		TrabajadoresTotal:           p.TrabajadoresONP + p.TrabajadoresAFP,
+		Essalud:                     p.Essalud,
+		Onp:                         p.Onp,
+		Afp:                         p.Afp,
+		Sis:                         p.Sis,
+		Rta4ta:                      p.Rta4ta,
+		Rta5ta:                      p.Rta5ta,
+		Rh:                          p.Rh,
+		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta + p.Rh,
+		FechaEntrega:                pdt601DateString(p.FechaEntrega),
+		Observaciones:               p.Observaciones,
+		FechaDeclaracionPdt:         pdt601DateString(p.FechaDeclaracionPdt),
+		NPS:                         p.NPS,
+		TicketAFP:                   p.TicketAFP,
+		EstadoEnvioBoletas:          p.EstadoEnvioBoletas,
+		FechaEnvioNpsTicketsBoletas: pdt601DateString(p.FechaEnvioNpsTicketsBoletas),
+	}
 }
 
 type pdt601ListResult struct {
@@ -93,6 +200,32 @@ func pdt601DueDateString(due *time.Time) *string {
 	}
 	s := due.Format("2006-01-02")
 	return &s
+}
+
+// GetPdt601PlanillaOnly lee la planilla PDT 601 del período sin crear control/declaración
+// (a diferencia de EnsurePdt601). Pensado para "jalar" datos desde otras pantallas (p. ej.
+// liquidaciones) sin el efecto secundario de crear un registro de seguimiento PDT 601.
+// Devuelve nil si no existe control o planilla para ese período.
+func (s *SupervisorService) GetPdt601PlanillaOnly(companyID uint, periodYM string) (*Pdt601PlanillaDTO, error) {
+	periodYM = strings.TrimSpace(periodYM)
+	if !validPeriodYM(periodYM) {
+		return nil, errors.New("período inválido (YYYY-MM)")
+	}
+	var ctrl models.SupervisorMonthlyControl
+	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var pl models.SupervisorPdt601Planilla
+	if err := database.DB.Where("monthly_control_id = ?", ctrl.ID).First(&pl).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return pdt601PlanillaToDTO(&pl), nil
 }
 
 // EnsurePdt601 crea control y declaración pdt_601 al abrir detalle; reutiliza registro de bootstrap si existe.
@@ -148,6 +281,14 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		return nil, err
 	}
 
+	var planilla models.SupervisorPdt601Planilla
+	var planillaDTO *Pdt601PlanillaDTO
+	if err := database.DB.Where("monthly_control_id = ?", ctrl.ID).First(&planilla).Error; err == nil {
+		planillaDTO = pdt601PlanillaToDTO(&planilla)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
 	return &Pdt601Detail{
 		PeriodYM:          periodYM,
 		CompanyID:         company.ID,
@@ -159,7 +300,50 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		ControlID:         ctrl.ID,
 		ControlDueDate:    ctrl.DueDate,
 		Declaration:       decl,
+		Planilla:          planillaDTO,
 	}, nil
+}
+
+// SavePdt601Planilla crea o actualiza la planilla PDT 601 del período (empresa+periodo).
+// Reutiliza EnsurePdt601 para garantizar que exista el control mensual y validar acceso/periodo.
+func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, in Pdt601PlanillaInput) (*Pdt601Detail, error) {
+	detail, err := s.EnsurePdt601(companyID, periodYM)
+	if err != nil {
+		return nil, err
+	}
+
+	var pl models.SupervisorPdt601Planilla
+	err = database.DB.Where("monthly_control_id = ?", detail.ControlID).First(&pl).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		pl = models.SupervisorPdt601Planilla{MonthlyControlID: detail.ControlID}
+	}
+
+	pl.SinPlanilla = in.SinPlanilla
+	pl.TrabajadoresONP = maxInt0(in.TrabajadoresONP)
+	pl.TrabajadoresAFP = maxInt0(in.TrabajadoresAFP)
+	pl.Essalud = in.Essalud
+	pl.Onp = in.Onp
+	pl.Afp = in.Afp
+	pl.Sis = in.Sis
+	pl.Rta4ta = in.Rta4ta
+	pl.Rta5ta = in.Rta5ta
+	pl.Rh = in.Rh
+	pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
+	pl.Observaciones = strings.TrimSpace(in.Observaciones)
+	pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
+	pl.NPS = strings.TrimSpace(in.NPS)
+	pl.TicketAFP = strings.TrimSpace(in.TicketAFP)
+	pl.EstadoEnvioBoletas = strings.TrimSpace(in.EstadoEnvioBoletas)
+	pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
+
+	if err := database.DB.Save(&pl).Error; err != nil {
+		return nil, err
+	}
+	detail.Planilla = pdt601PlanillaToDTO(&pl)
+	return detail, nil
 }
 
 // ListPdt601 listado empresa+período; sin lazy create.
@@ -192,6 +376,17 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 		}, nil
 	}
 
+	if p.AssistantUserID > 0 {
+		q = q.Where("companies.assistant_user_id = ?", p.AssistantUserID)
+	}
+
+	if dig := strings.TrimSpace(p.Dig); dig != "" {
+		q = q.Where(`EXISTS (
+			SELECT 1 FROM company_access_credentials cac
+			WHERE cac.company_id = companies.id AND cac.dig = ?
+		)`, dig)
+	}
+
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {
 		like := "%" + term + "%"
@@ -208,6 +403,12 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 			INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ?
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
 		)`, models.SupervisorDeclPDT601, p.PeriodYM)
+	} else if statusFilter == pdt601StatusFilterSinPlanilla {
+		q = q.Where(`EXISTS (
+			SELECT 1 FROM supervisor_monthly_controls c
+			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
+			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.sin_planilla = ?
+		)`, p.PeriodYM, true)
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
@@ -287,6 +488,23 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 		credDig[cr.CompanyID] = strings.TrimSpace(cr.Dig)
 	}
 
+	// Planilla PDT 601 del período por empresa (LEFT JOIN vía control mensual).
+	type planillaRow struct {
+		CompanyID uint
+		models.SupervisorPdt601Planilla
+	}
+	planillaByCompany := map[uint]*Pdt601PlanillaDTO{}
+	var planillas []planillaRow
+	_ = database.DB.Table("supervisor_pdt601_planillas AS p").
+		Select("c.company_id, p.*").
+		Joins("INNER JOIN supervisor_monthly_controls c ON c.id = p.monthly_control_id AND c.deleted_at IS NULL").
+		Where("c.company_id IN ? AND c.period_ym = ? AND p.deleted_at IS NULL", ids, p.PeriodYM).
+		Scan(&planillas).Error
+	for i := range planillas {
+		pl := planillas[i].SupervisorPdt601Planilla
+		planillaByCompany[planillas[i].CompanyID] = pdt601PlanillaToDTO(&pl)
+	}
+
 	for _, co := range companies {
 		row := Pdt601ListRow{
 			CompanyID:         co.ID,
@@ -296,6 +514,7 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 			RUC:               strings.TrimSpace(co.RUC),
 			AssistantUsername: assistantUsername(co.Assistant),
 			Status:            models.SupervisorSunatSinRegistro,
+			Planilla:          planillaByCompany[co.ID],
 		}
 		if d, ok := declByCompany[co.ID]; ok {
 			cid, did := d.ControlID, d.DeclarationID
@@ -309,6 +528,10 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 				row.AttachmentCount = st.Cnt
 				row.LastStoredAt = st.LastAt
 			}
+		}
+		if row.Planilla != nil && row.Planilla.SinPlanilla {
+			row.IsOverdue = false
+			row.DaysRemaining = nil
 		}
 		rows = append(rows, row)
 	}

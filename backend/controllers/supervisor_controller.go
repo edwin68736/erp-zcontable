@@ -1387,10 +1387,13 @@ func (ctrl *SupervisorController) Pdt601ListAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	page, perPage := paginationFromQuery(c)
+	assistantID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("assistant_user_id", "")), 10, 64)
 	out, err := ctrl.svc.ListPdt601(services.Pdt601ListParams{
 		PeriodYM:          c.Query("period_ym", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		Dig:               c.Query("dig", ""),
+		AssistantUserID:   uint(assistantID),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1433,6 +1436,71 @@ func (ctrl *SupervisorController) Pdt601DetailAPI(c fiber.Ctx) error {
 		}
 	}
 	row, err := ctrl.svc.EnsurePdt601(uint(companyID), periodYM)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// Pdt601PlanillaOnlyAPI GET /api/supervisors/activity-modules/pdt-601/companies/:companyId/planilla
+// Lectura pura (sin lazy create) para otras pantallas que necesiten "jalar" datos de la planilla.
+func (ctrl *SupervisorController) Pdt601PlanillaOnlyAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	planilla, err := ctrl.svc.GetPdt601PlanillaOnly(uint(companyID), periodYM)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": planilla})
+}
+
+// Pdt601SavePlanillaAPI PUT /api/supervisors/activity-modules/pdt-601/companies/:companyId/planilla
+func (ctrl *SupervisorController) Pdt601SavePlanillaAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	var body services.Pdt601PlanillaInput
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	row, err := ctrl.svc.SavePdt601Planilla(uint(companyID), periodYM, body)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

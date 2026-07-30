@@ -6,6 +6,7 @@ import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { companiesService } from '../../services/companies';
 import { companyAccessCredentialsService } from '../../services/companyAccessCredentials';
 import { supervisorTaxSettlementsService } from '../../services/supervisorTaxSettlements';
+import { pdt601Service } from '../../services/pdt601';
 import type { Company } from '../../types/dashboard';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import SupervisorTaxSectionsForm from '../../components/supervisors/SupervisorTaxSectionsForm';
@@ -137,6 +138,53 @@ const SupervisorLiquidacionCreatePage = () => {
       return computeTaxSettlementSections({ ...prev, pdt621: normalized });
     });
   }, [companyIgvRate, companyTaxRegime, currentYear]);
+
+  // "Jala" datos ya registrados en la planilla PDT 601 (control de planillas del supervisor) al
+  // crear una liquidación nueva: N° de trabajadores e importes que ambas pantallas comparten
+  // (essalud, sis, onp, afp, rta_4ta, rta_5ta — la planilla también tiene "rh", que la liquidación
+  // no maneja). Solo una vez, para no pisar ediciones manuales hechas después en el mismo formulario.
+  const pdt601AutoFillRef = useRef(false);
+  useEffect(() => {
+    if (isEdit || isView) return;
+    if (pdt601AutoFillRef.current) return;
+    if (!companyId || companyId <= 0) return;
+    if (!/^\d{4}-\d{2}$/.test(liquidationPeriod)) return;
+    pdt601AutoFillRef.current = true;
+    void (async () => {
+      try {
+        const planilla = await pdt601Service.getPlanillaOnly(companyId, liquidationPeriod);
+        if (!planilla || planilla.sin_planilla) return;
+        const hasData =
+          planilla.essalud > 0 ||
+          planilla.sis > 0 ||
+          planilla.onp > 0 ||
+          planilla.afp > 0 ||
+          planilla.rta_4ta > 0 ||
+          planilla.rta_5ta > 0 ||
+          planilla.trabajadores_total > 0;
+        if (!hasData) return;
+        setTaxSections((prev) => {
+          const base601 = prev.pdt601 ?? defaultTaxSections(currentYear).pdt601!;
+          return computeTaxSettlementSections({
+            ...prev,
+            numero_trabajadores: prev.numero_trabajadores || planilla.trabajadores_total,
+            pdt601: {
+              ...base601,
+              enabled: true,
+              essalud: planilla.essalud,
+              sis: planilla.sis,
+              onp: planilla.onp,
+              afp: planilla.afp,
+              rta_4ta: planilla.rta_4ta,
+              rta_5ta: planilla.rta_5ta,
+            },
+          });
+        });
+      } catch {
+        // Sin planilla registrada o sin acceso: no se autocompleta, el supervisor llena manualmente.
+      }
+    })();
+  }, [isEdit, isView, companyId, liquidationPeriod, currentYear]);
 
   const taxSectionsComputed = useMemo(() => computeTaxSettlementSections(taxSections), [taxSections]);
   const igvAplicableVentas = useMemo((): CompanyIgvRate[] => {
@@ -283,6 +331,44 @@ const SupervisorLiquidacionCreatePage = () => {
     setLiquidationPeriod(previousMonthYMFromDate(d));
   }, [issueDate, isEdit]);
 
+  // Sincroniza de vuelta a la planilla PDT 601 los importes que la liquidación comparte con ella
+  // (essalud, sis, onp, afp, rta_4ta, rta_5ta) para que un ajuste hecho aquí (p. ej. corregir AFP)
+  // no quede desactualizado en Control Planillas PDT 601. Solo si hay algo que sincronizar: evita
+  // sobrescribir con ceros una planilla ya llena cuando la sección se activó sin cargar datos.
+  const syncPdt601Planilla = async (targetCompanyId: number, periodYm: string) => {
+    const p601 = taxSectionsComputed.pdt601;
+    if (!p601?.enabled) return;
+    const hasMoney =
+      p601.essalud > 0 || p601.sis > 0 || p601.onp > 0 || p601.afp > 0 || p601.rta_4ta > 0 || p601.rta_5ta > 0;
+    if (!hasMoney) return;
+    try {
+      const current = await pdt601Service.getDetail(targetCompanyId, periodYm);
+      const base = current.planilla;
+      await pdt601Service.savePlanilla(targetCompanyId, periodYm, {
+        sin_planilla: false,
+        trabajadores_onp: base?.trabajadores_onp ?? 0,
+        trabajadores_afp: base?.trabajadores_afp ?? 0,
+        essalud: p601.essalud,
+        sis: p601.sis,
+        onp: p601.onp,
+        afp: p601.afp,
+        rta_4ta: p601.rta_4ta,
+        rta_5ta: p601.rta_5ta,
+        rh: base?.rh ?? 0,
+        fecha_entrega: base?.fecha_entrega ?? '',
+        observaciones: base?.observaciones ?? '',
+        fecha_declaracion_pdt: base?.fecha_declaracion_pdt ?? '',
+        nps: base?.nps ?? '',
+        ticket_afp: base?.ticket_afp ?? '',
+        estado_envio_boletas: base?.estado_envio_boletas ?? '',
+        fecha_envio_nps_tickets_boletas: base?.fecha_envio_nps_tickets_boletas ?? '',
+      });
+    } catch (err) {
+      // No bloquea el guardado de la liquidación: la planilla PDT 601 se puede corregir aparte.
+      console.error('No se pudo sincronizar la planilla PDT 601:', err);
+    }
+  };
+
   const saveLiquidacion = async () => {
     if (!company || !companyId || companyId <= 0) return false;
     if (!companyIgvRate) {
@@ -331,6 +417,7 @@ const SupervisorLiquidacionCreatePage = () => {
           }),
         );
       }
+      await syncPdt601Planilla(companyId, lp);
       setPreviewOpen(false);
       navigate(listBackTo);
       return true;

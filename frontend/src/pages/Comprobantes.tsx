@@ -59,9 +59,9 @@ const Comprobantes = () => {
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 25);
 
   const canView = auth.hasPermission(P.fiscalReceiptsList);
-  const canLinkSettlement = auth.hasPermission(P.tukifacFiscalPatchTax);
-  const canCreatePayment = auth.hasPermission(P.tukifacFiscalCreatePayment);
-  const canDiscard = auth.hasPermission(P.tukifacFiscalDiscard);
+  const canLinkSettlement = auth.hasPermission(P.fiscalReceiptsPatchTax);
+  const canCreatePayment = auth.hasPermission(P.fiscalReceiptsCreatePayment);
+  const canDiscard = auth.hasPermission(P.fiscalReceiptsDiscard);
   const isPendingView = initialStatus === 'pendiente_vincular';
 
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);

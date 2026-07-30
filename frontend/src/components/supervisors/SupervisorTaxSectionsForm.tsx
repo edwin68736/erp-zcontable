@@ -1021,7 +1021,7 @@ const SupervisorTaxSectionsForm = ({
       <SectionToggle
         id="sec-pdt601"
         title="PDT 601 — Planilla electrónica"
-        subtitle="ESSALUD, SIS, ONP, AFP y renta de 4ta y 5ta categoría."
+        subtitle="ESSALUD, SIS, ONP, AFP y renta de 4ta y 5ta categoría. Se autocompleta desde Control Planillas PDT 601 al crear la liquidación; si corrige un valor aquí, se sincroniza con la planilla al guardar."
         enabled={p601.enabled}
         onToggle={(enabled) => patch601({ enabled })}
       >

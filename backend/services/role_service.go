@@ -65,11 +65,11 @@ func (s *RoleService) invalidateUsersWithRole(roleID uint) {
 	}
 }
 
-// CatalogModules permisos agrupados por módulo para la UI matriz.
+// CatalogModules permisos agrupados por módulo (y subgrupo) para la UI matriz.
 func (s *RoleService) CatalogModules() ([]models.Module, error) {
 	var mods []models.Module
 	if err := database.DB.Where("active = ?", true).Order("sort_order ASC, id ASC").Preload("Permissions", func(db *gorm.DB) *gorm.DB {
-		return db.Order("permissions.code ASC")
+		return db.Order("permissions.sort_order ASC, permissions.id ASC")
 	}).Find(&mods).Error; err != nil {
 		return nil, err
 	}
