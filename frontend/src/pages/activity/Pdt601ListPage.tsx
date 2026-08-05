@@ -3,9 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
+import { RowActionLink } from '../../components/activity/RowActionLink';
 import {
   pdt601StatusBadgeClass,
   pdt601StatusLabel,
+  pdt601RowBgClass,
   PDT601_STATUS_FILTER,
 } from '../../components/activity/pdt601Config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
@@ -21,6 +23,8 @@ import {
 } from '../../services/companyAccessCredentials';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { useElementHeight } from '../../hooks/useElementHeight';
+import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -35,8 +39,8 @@ type Pdt601ListPageProps = {
   workspace: ActivityWorkspace;
 };
 
-const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500';
-const SUBTH = 'px-3 py-2 text-center text-[11px] font-semibold uppercase text-slate-500';
+const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
+const SUBTH = 'px-3 py-2 text-center text-[11px] font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-4 py-3 text-sm text-slate-700 border-t border-slate-100';
 const TDN = `${TD} tabular-nums text-center whitespace-nowrap`;
 const TDM = `${TD} tabular-nums text-right whitespace-nowrap`;
@@ -45,8 +49,33 @@ const GROUP_BORDER = 'border-l border-slate-200';
 /** Total de columnas hoja (para el colSpan de filas vacías). */
 const COL_COUNT = 24;
 
+// ───────────────────── Encabezado y columnas fijas (sticky) ─────────────────────
+// Encabezado: `position: sticky` respecto al contenedor con scroll vertical real (el propio
+// panel de scroll de la tabla — ver comentario más abajo) — no requiere saber si el sidebar
+// está colapsado, porque no usamos `position: fixed` con offsets manuales.
+// Columnas Código→Asistente: `position: sticky` respecto al contenedor con scroll horizontal
+// (el mismo panel) — por la misma razón, tampoco depende del ancho del sidebar: el offset es
+// relativo al propio contenedor de scroll de la tabla.
+// Anchos y helpers compartidos con las demás tablas de Supervisor/Asistente — ver
+// components/activity/stickyTable.ts.
+
 function formatMoney(n: number): string {
   return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Fondo de fila por estado (sin planilla / a tiempo / atrasado), OPACO siempre — para las
+ * celdas fijas (Código…Asistente). A diferencia de `pdt601RowBgClass` (usada en el resto de la
+ * fila), acá el hover NUNCA usa opacidad `/NN`: durante el scroll horizontal el contenido de las
+ * columnas no fijas pasa por debajo de estas celdas, y cualquier transparencia dejaría verlo "a
+ * través" (ver components/activity/stickyTable.ts). Mismos estados/colores que
+ * `pdt601RowBgClass`, solo que con `group-hover` opaco en vez de `hover` translúcido.
+ */
+function frozenRowBgClass(sinPlanilla: boolean | undefined, timeliness: string | undefined): string {
+  if (sinPlanilla) return 'bg-slate-100 group-hover:bg-slate-200';
+  if (timeliness === 'on_time') return 'bg-emerald-50 group-hover:bg-emerald-100';
+  if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 group-hover:bg-red-100';
+  return 'bg-white group-hover:bg-slate-50';
 }
 
 const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
@@ -69,6 +98,16 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Altura real de la 1ª fila del encabezado — medida sobre la celda "N° de trabajadores"
+  // (colSpan, NO rowSpan): es la única celda de la fila 1 que pertenece SOLO a esa fila, así que
+  // su alto natural coincide exactamente con el alto real de la fila 1. Las demás celdas de la
+  // fila 1 (Código, Dígito, RUC, Estado, ...) son `rowSpan={2}` — su alto abarca fila 1 + fila 2
+  // combinadas, así que medirlas daría un alto MAYOR al de la fila 1 sola, dejando un hueco en
+  // blanco debajo de "N° de trabajadores"/"PDT 601" antes de que empiece la 2ª fila. La 2ª fila
+  // (subtítulos ONP/AFP/...) usa este valor como su `top` para apilarse justo debajo, sin hueco
+  // ni superposición, cuando ambas quedan fijas.
+  const [headRow1Ref, headRow1H] = useElementHeight<HTMLTableCellElement>();
 
   const loadFacets = useCallback(async () => {
     try {
@@ -139,11 +178,16 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control Planillas PDT 601</h1>
-        <p className="text-slate-500 mt-1 text-sm">
-          Seguimiento manual de planillas PDT 601 por empresa y período. Sin integración con SUNAT.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control Planillas PDT 601</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Seguimiento manual de planillas PDT 601 por empresa y período. Sin integración con SUNAT.
+          </p>
+        </div>
+        <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
+          ← Volver
+        </Link>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
@@ -205,18 +249,34 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       ) : null}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      {/*
+        La tabla es su PROPIO panel de scroll (alto MÁXIMO acotado + overflow-auto), en vez de
+        dejar que <main> (la página completa) haga el scroll vertical de la tabla en sí. Es
+        necesario por una regla real de CSS: en cuanto un contenedor tiene `overflow-x: auto`
+        (indispensable aquí para poder desplazar las 24 columnas), el navegador fuerza también su
+        `overflow-y` a comportarse como `auto` — aunque no se haya pedido — y ESE contenedor pasa
+        a ser el ancestro de scroll que usa `position: sticky`, no <main>.
+        El alto es un MÁXIMO (`max-h-[75vh]`, no un alto fijo): si hay pocas filas, la tabla se
+        ajusta a su contenido real (sin espacio en blanco forzado ni scroll innecesario); si hay
+        más filas de las que caben, recién ahí se activa el scroll propio al llegar a ese tope.
+        Se usa un porcentaje del viewport (no medido con JS) porque es más robusto entre
+        navegadores/zoom reales — una medición exacta en píxeles resultó desincronizada en
+        algunos entornos.
+        La página en sí sigue siendo scroll normal de <main> — la paginación queda después de la
+        tabla, dentro de ese scroll, no fija a la vista.
+      */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-clip">
+        <div className="overflow-auto max-h-[75vh]">
           <table className="min-w-full w-full text-left">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className={TH} rowSpan={2}>Código</th>
-                <th className={TH} rowSpan={2}>Dígito</th>
-                <th className={TH} rowSpan={2}>Razón social</th>
-                <th className={TH} rowSpan={2}>RUC</th>
-                <th className={TH} rowSpan={2}>Asistente</th>
+            <thead>
+              <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW1 }}>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('code')}>Código</th>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH} rowSpan={2}>Estado</th>
-                <th className={`${TH} text-center ${GROUP_BORDER}`} colSpan={3}>
+                <th ref={headRow1Ref} className={`${TH} text-center ${GROUP_BORDER}`} colSpan={3}>
                   N° de trabajadores
                 </th>
                 <th className={`${TH} text-center ${GROUP_BORDER}`} colSpan={7}>
@@ -231,7 +291,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th className={TH} rowSpan={2}>Fecha de envío de NPS, tickets y boletas</th>
                 <th className={TH} rowSpan={2} />
               </tr>
-              <tr>
+              <tr className="bg-slate-50" style={{ position: 'sticky', top: headRow1H, zIndex: Z_HEAD_ROW }}>
                 <th className={`${SUBTH} ${GROUP_BORDER}`}>ONP</th>
                 <th className={SUBTH}>AFP</th>
                 <th className={SUBTH}>Total</th>
@@ -262,14 +322,39 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 rows.map((row) => {
                   const pl = row.planilla;
                   return (
-                    <tr key={row.company_id} className="hover:bg-slate-50/80">
-                      <td className={`${TD} font-mono`}>{row.code || '—'}</td>
-                      <td className={TD}>{row.dig || '—'}</td>
-                      <td className={`${TD} max-w-[14rem] font-medium`} title={row.business_name}>
+                    <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness)}`}>
+                      <td
+                        className={`${TD} font-mono ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        style={frozenIdBodyCellStyle('code')}
+                      >
+                        {row.code || '—'}
+                      </td>
+                      <td
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        style={frozenIdBodyCellStyle('dig')}
+                      >
+                        {row.dig || '—'}
+                      </td>
+                      <td
+                        className={`${TD} font-medium ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        style={frozenIdBodyCellStyle('name')}
+                        title={row.business_name}
+                      >
                         <span className="block truncate">{row.business_name || '—'}</span>
                       </td>
-                      <td className={`${TD} font-mono whitespace-nowrap`}>{row.ruc || '—'}</td>
-                      <td className={TD}>{row.assistant_username || '—'}</td>
+                      <td
+                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        style={frozenIdBodyCellStyle('ruc')}
+                      >
+                        {row.ruc || '—'}
+                      </td>
+                      <td
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        style={frozenIdBodyCellStyle('assistant')}
+                        title={row.assistant_username}
+                      >
+                        <span className="block truncate">{row.assistant_username || '—'}</span>
+                      </td>
                       <td className={TD}>
                         <span
                           className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(row.status)}`}
@@ -308,12 +393,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       <td className={`${TD} whitespace-nowrap`}>{pl?.estado_envio_boletas || ''}</td>
                       <td className={`${TD} whitespace-nowrap`}>{pl?.fecha_envio_nps_tickets_boletas || ''}</td>
                       <td className={TD}>
-                        <Link
-                          to={detailLink(row.company_id)}
-                          className="text-primary-700 text-sm font-medium hover:underline whitespace-nowrap"
-                        >
-                          Editar planilla
-                        </Link>
+                        <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
                       </td>
                     </tr>
                   );
@@ -334,12 +414,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
           setPage(1);
         }}
       />
-
-      <p className="text-xs text-slate-400">
-        <Link to={homePath} className="text-primary-700 hover:underline">
-          ← Volver
-        </Link>
-      </p>
     </div>
   );
 };

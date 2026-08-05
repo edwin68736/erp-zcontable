@@ -44,7 +44,7 @@ import { formatIssueDateForPdf } from './pdfLiquidationTheme';
 import { PdfIcon, type PdfIconName } from './pdfIcons';
 import { PDF_TAX_RECOMMENDATIONS, PDF_TAX_RECOMMENDATIONS_TITLE } from './pdfTaxRecommendations';
 import type { LiquidationPdfAssets } from './pdfLiquidationFooter';
-import { lineTypeLabelForPdf, settlementTotalsForPdf, taxSettlementPdfFilename } from './taxSettlementDocument';
+import { settlementTotalsForPdf, taxSettlementPdfFilename } from './taxSettlementDocument';
 
 /**
  * Diseño v2 de la liquidación: misma información que `taxSettlementDocument`,
@@ -82,7 +82,7 @@ const s = StyleSheet.create({
   },
 
   /* Encabezado */
-  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   headerLeft: { width: '52%', paddingRight: 14 },
   logo: { width: 132, height: 34, objectFit: 'contain', marginBottom: 3 },
   firmName: { fontSize: 15, fontWeight: 700, color: V2.green, marginBottom: 3 },
@@ -119,8 +119,8 @@ const s = StyleSheet.create({
     borderColor: V2.border,
     borderRadius: 5,
     backgroundColor: V2.white,
-    paddingVertical: 8,
-    marginBottom: 9,
+    paddingVertical: 6,
+    marginBottom: 6,
   },
   infoCellDivider: { borderLeftWidth: 1, borderLeftColor: V2.rule },
   infoLabel: { fontSize: 5.8, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
@@ -135,10 +135,10 @@ const s = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: V2.amber,
     backgroundColor: V2.amberSoft,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: 3,
-    marginBottom: 9,
+    marginBottom: 6,
   },
   draftText: { fontSize: 7, fontWeight: 700, color: V2.amber },
 
@@ -147,10 +147,10 @@ const s = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: V2.blue,
     backgroundColor: V2.bg,
-    paddingVertical: 7,
+    paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 3,
-    marginBottom: 11,
+    marginBottom: 7,
   },
   introText: { fontSize: 7.6, color: V2.text, lineHeight: 1.4 },
 
@@ -160,34 +160,39 @@ const s = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: V2.navy,
     borderRadius: 4,
-    paddingVertical: 7,
+    paddingVertical: 5,
     paddingHorizontal: 10,
-    marginBottom: 9,
+    marginBottom: 6,
   },
   bandText: { fontSize: 9, fontWeight: 700, color: V2.white, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   /* Título de bloque fiscal */
-  subHeading: { marginBottom: 6 },
+  subHeading: { marginBottom: 4 },
   subHeadingText: { fontSize: 9, fontWeight: 700, color: V2.blue, textTransform: 'uppercase', letterSpacing: 0.3 },
-  subHeadingRule: { borderBottomWidth: 1, borderBottomColor: V2.rule, marginTop: 4 },
+  subHeadingRule: { borderBottomWidth: 1, borderBottomColor: V2.rule, marginTop: 3 },
 
-  /* Split principal / lateral */
-  split: { flexDirection: 'row', marginBottom: 10 },
-  splitMain: { width: '64%', paddingRight: 12 },
-  splitAside: { width: '36%' },
+  /* Tarjetas de resumen: SIEMPRE debajo de la tabla, nunca al lado en la misma fila flex.
+   * react-pdf no reparte bien una fila que mezcla una columna partible (tabla larga) con una
+   * columna no-partible (tarjeta) cuando esa fila debe cruzar una página: produce texto
+   * superpuesto/duplicado. Poniendo la tabla a ancho completo y las tarjetas debajo, en flujo
+   * normal de arriba hacia abajo, se elimina ese riesgo. Ancho fijo (no flex) para que una sola
+   * tarjeta no se estire a todo el ancho cuando no hay pareja (p. ej. honorarios).
+   */
+  cardsRow: { flexDirection: 'row', marginTop: 2, marginBottom: 10 },
+  cardsRowItem: { width: '48%', marginRight: '4%' },
 
   /* Título numerado */
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   stepText: { fontSize: 8.4, fontWeight: 700, color: V2.text, textTransform: 'uppercase', letterSpacing: 0.3 },
 
   /* Tabla */
   table: { borderWidth: 1, borderColor: V2.border, borderRadius: 4, overflow: 'hidden' },
   tHead: { flexDirection: 'row', backgroundColor: V2.bg, borderBottomWidth: 1, borderBottomColor: V2.border },
-  tHeadCell: { paddingVertical: 5, paddingHorizontal: 5 },
+  tHeadCell: { paddingVertical: 3.5, paddingHorizontal: 5 },
   tHeadText: { fontSize: 5.9, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
   tRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: V2.rule },
   tRowLast: { borderBottomWidth: 0 },
-  tCell: { paddingVertical: 4.5, paddingHorizontal: 5 },
+  tCell: { paddingVertical: 3, paddingHorizontal: 5 },
   tText: { fontSize: 7, color: V2.text },
   tNum: { fontSize: 7, color: V2.text, textAlign: 'right' },
 
@@ -195,7 +200,7 @@ const s = StyleSheet.create({
   sumRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 2.5,
     paddingHorizontal: 5,
     borderBottomWidth: 0.5,
     borderBottomColor: V2.rule,
@@ -217,9 +222,9 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#C9EBD9',
     borderRadius: 5,
-    paddingVertical: 9,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    marginBottom: 7,
+    marginBottom: 5,
   },
   pendLabel: { fontSize: 6.6, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.3 },
   pendAmount: { fontSize: 13, fontWeight: 700, color: V2.greenDark, marginTop: 1 },
@@ -230,11 +235,11 @@ const s = StyleSheet.create({
     borderColor: V2.border,
     borderRadius: 5,
     backgroundColor: V2.white,
-    paddingVertical: 8,
+    paddingVertical: 5,
     paddingHorizontal: 10,
-    marginBottom: 7,
+    marginBottom: 4,
   },
-  infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   infoCardTitle: { fontSize: 7.6, fontWeight: 700, color: V2.navy },
   infoCardText: { fontSize: 6.8, color: V2.muted, lineHeight: 1.45 },
 
@@ -244,9 +249,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: V2.navy,
     borderRadius: 4,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    marginBottom: 11,
+    marginBottom: 7,
   },
   totalBandLabel: { flex: 1, fontSize: 9, fontWeight: 700, color: V2.white, textTransform: 'uppercase', letterSpacing: 0.5 },
   totalBandBox: {
@@ -362,18 +367,32 @@ function Band({ title, icon }: { title: string; icon: PdfIconName }) {
   );
 }
 
-function SubHeading({ title }: { title: string }) {
+/**
+ * `minPresenceAhead` reserva espacio mínimo antes de dibujar el título: si no queda suficiente
+ * hueco en la página actual, react-pdf difiere TODO el bloque (título incluido) a la siguiente
+ * página, evitando el título huérfano solo al pie de página con su contenido en la otra hoja.
+ * A diferencia de `wrap={false}`, esto no obliga a que el resto del bloque quepa entero.
+ */
+function SubHeading({ title, minPresenceAhead = 60 }: { title: string; minPresenceAhead?: number }) {
   return (
-    <View style={s.subHeading}>
+    <View minPresenceAhead={minPresenceAhead} style={s.subHeading}>
       <Text style={s.subHeadingText}>{title}</Text>
       <View style={s.subHeadingRule} />
     </View>
   );
 }
 
-function StepTitle({ title, icon }: { title: string; icon: PdfIconName }) {
+function StepTitle({
+  title,
+  icon,
+  minPresenceAhead = 60,
+}: {
+  title: string;
+  icon: PdfIconName;
+  minPresenceAhead?: number;
+}) {
   return (
-    <View style={s.stepRow}>
+    <View minPresenceAhead={minPresenceAhead} style={s.stepRow}>
       <View style={{ marginRight: 6 }}>
         <PdfIcon name={icon} size={10} color={V2.green} />
       </View>
@@ -383,24 +402,23 @@ function StepTitle({ title, icon }: { title: string; icon: PdfIconName }) {
 }
 
 /**
- * Fila principal + columna lateral. `keepTogether` evita que la tarjeta lateral
- * quede huérfana en la página siguiente cuando el bloque es compacto.
+ * Fila de tarjetas cortas debajo de una tabla (nunca al lado de contenido partible — ver nota
+ * en el estilo `cardsRow`). Cada hijo directo debe ser un `CardsRowItem`.
+ *
+ * `wrap={false}` aquí SÍ es seguro (a diferencia del extinto `Split`): los hijos de esta fila
+ * son siempre tarjetas cortas ya atómicas (PendingCard/InfoCard, ~50-70pt), nunca una tabla de
+ * longitud variable. Mantiene ambas tarjetas juntas en la misma página en vez de partir el par.
  */
-function Split({
-  main,
-  aside,
-  keepTogether = false,
-}: {
-  main: ReactNode;
-  aside: ReactNode;
-  keepTogether?: boolean;
-}) {
+function CardsRow({ children }: { children: ReactNode }) {
   return (
-    <View wrap={keepTogether ? false : undefined} style={s.split}>
-      <View style={s.splitMain}>{main}</View>
-      <View style={s.splitAside}>{aside}</View>
+    <View wrap={false} style={s.cardsRow}>
+      {children}
     </View>
   );
+}
+
+function CardsRowItem({ children }: { children: ReactNode }) {
+  return <View style={s.cardsRowItem}>{children}</View>;
 }
 
 function PendingCard({
@@ -458,7 +476,7 @@ function AmountTable({ rows }: { rows: Array<{ label: string; value: string }> }
   if (rows.length === 0) return null;
   return (
     <View style={s.table}>
-      <View style={s.tHead}>
+      <View wrap={false} style={s.tHead}>
         <View style={[s.tHeadCell, { width: '68%' }]}>
           <Text style={s.tHeadText}>Concepto</Text>
         </View>
@@ -467,7 +485,11 @@ function AmountTable({ rows }: { rows: Array<{ label: string; value: string }> }
         </View>
       </View>
       {rows.map((r, idx) => (
-        <View key={`${r.label}-${idx}`} style={[s.tRow, idx === rows.length - 1 ? s.tRowLast : {}]}>
+        <View
+          key={`${r.label}-${idx}`}
+          wrap={false}
+          style={[s.tRow, idx === rows.length - 1 ? s.tRowLast : {}]}
+        >
           <View style={[s.tCell, { width: '68%' }]}>
             <Text style={s.tText}>{r.label}</Text>
           </View>
@@ -505,7 +527,7 @@ function HeaderV2({
     <View style={s.header}>
       <View style={s.headerLeft}>
         {logoPng ? <Image style={s.logo} src={logoPng} /> : <Text style={s.firmName}>{firmName}</Text>}
-        <Text style={s.tagline}>Contabilidad clara, decisiones inteligentes.</Text>
+        <Text style={s.tagline}>Comprometidos con el éxito de tu empresa.</Text>
         {contactLines.map((line) => (
           <View key={line.icon} style={s.contactRow}>
             <View style={{ width: 9, marginRight: 5, marginTop: 1, alignItems: 'center' }}>
@@ -576,7 +598,7 @@ function IgvTable({ p621 }: { p621: TaxSectionPdt621 }) {
   );
   return (
     <View style={s.table}>
-      <View style={s.tHead}>
+      <View wrap={false} style={s.tHead}>
         <View style={[s.tHeadCell, { width: COL_C }]}>
           <Text style={s.tHeadText}>Concepto</Text>
         </View>
@@ -587,7 +609,7 @@ function IgvTable({ p621 }: { p621: TaxSectionPdt621 }) {
         ))}
       </View>
       {rows.map(({ label, row }, idx) => (
-        <View key={label} style={[s.tRow, idx === rows.length - 1 ? s.tRowLast : {}]}>
+        <View key={label} wrap={false} style={[s.tRow, idx === rows.length - 1 ? s.tRowLast : {}]}>
           <View style={[s.tCell, { width: COL_C }]}>
             <Text style={s.tText}>{label}</Text>
           </View>
@@ -665,76 +687,67 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
     <Fragment>
       <SubHeading title="PDT 621 — IGV y Renta" />
 
-      <Split
-        main={
-          <Fragment>
-            <StepTitle title="1. IGV mensual" icon="cartShopping" />
-            <IgvTable p621={p621} />
-            <View style={{ marginTop: 4 }}>
-              {igvSummary.map((r) => (
-                <SumRow key={r.label} label={r.label} value={r.value} tone={r.tone} />
-              ))}
-              {detrLabelIgv ? (
-                <SumRow label={detrLabelIgv} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmount(p621))} />
-              ) : null}
-              <SumRow
-                label={igvBalance.label}
-                value={
-                  isNonZeroTaxAmount(igvBalance.amount)
-                    ? formatPdt621IgvBalanceAmount({ label: igvBalance.label, amount: igvBalance.amount })
-                    : '-'
-                }
-                tone="green"
-              />
-            </View>
-          </Fragment>
-        }
-        aside={
-          <Fragment>
-            {igvPayableBefore > 0 ? (
-              <PendingCard
-                label="IGV pendiente"
-                amount={formatTaxPdfTotalMoney(getPdt621IgvNetAfterDetraction(p621))}
-                icon="receipt"
-              />
-            ) : null}
-            <InfoCard
-              title="¿Qué es el IGV?"
-              text="Impuesto General a las Ventas. Se aplica a la venta de bienes y prestación de servicios."
+      <StepTitle title="1. IGV mensual" icon="cartShopping" />
+      <IgvTable p621={p621} />
+      <View style={{ marginTop: 4, marginBottom: 6 }}>
+        {igvSummary.map((r) => (
+          <SumRow key={r.label} label={r.label} value={r.value} tone={r.tone} />
+        ))}
+        {detrLabelIgv ? (
+          <SumRow label={detrLabelIgv} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmount(p621))} />
+        ) : null}
+        <SumRow
+          label={igvBalance.label}
+          value={
+            isNonZeroTaxAmount(igvBalance.amount)
+              ? formatPdt621IgvBalanceAmount({ label: igvBalance.label, amount: igvBalance.amount })
+              : '-'
+          }
+          tone="green"
+        />
+      </View>
+      <CardsRow>
+        {igvPayableBefore > 0 ? (
+          <CardsRowItem>
+            <PendingCard
+              label="IGV pendiente"
+              amount={formatTaxPdfTotalMoney(getPdt621IgvNetAfterDetraction(p621))}
+              icon="receipt"
             />
-          </Fragment>
-        }
-      />
+          </CardsRowItem>
+        ) : null}
+        <CardsRowItem>
+          <InfoCard
+            title="¿Qué es el IGV?"
+            text="Impuesto General a las Ventas. Se aplica a la venta de bienes y prestación de servicios."
+          />
+        </CardsRowItem>
+      </CardsRow>
 
-      <Split
-        keepTogether
-        main={
-          <Fragment>
-            <StepTitle title="2. Renta mensual" icon="chartColumn" />
-            <AmountTable rows={rentaSummary.map((r) => ({ label: r.label, value: r.value }))} />
-            {detrLabelRenta ? (
-              <View style={{ marginTop: 4 }}>
-                <SumRow label={detrLabelRenta} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmountRenta(p621))} />
-              </View>
-            ) : null}
-          </Fragment>
-        }
-        aside={
-          <Fragment>
-            {rentaPayableBefore > 0 ? (
-              <PendingCard
-                label="Renta pendiente"
-                amount={formatTaxPdfTotalMoney(getPdt621RentaNetAfterDetraction(p621))}
-                icon="chartColumn"
-              />
-            ) : null}
-            <InfoCard
-              title="¿Qué es la Renta?"
-              text="Impuesto a las utilidades obtenidas por la actividad económica de la empresa."
+      <StepTitle title="2. Renta mensual" icon="chartColumn" />
+      <AmountTable rows={rentaSummary.map((r) => ({ label: r.label, value: r.value }))} />
+      {detrLabelRenta ? (
+        <View style={{ marginTop: 4, marginBottom: 6 }}>
+          <SumRow label={detrLabelRenta} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmountRenta(p621))} />
+        </View>
+      ) : null}
+      <CardsRow>
+        {rentaPayableBefore > 0 ? (
+          <CardsRowItem>
+            <PendingCard
+              label="Renta pendiente"
+              amount={formatTaxPdfTotalMoney(getPdt621RentaNetAfterDetraction(p621))}
+              icon="chartColumn"
             />
-          </Fragment>
-        }
-      />
+          </CardsRowItem>
+        ) : null}
+        <CardsRowItem>
+          <InfoCard
+            title="¿Qué es la Renta?"
+            text="Impuesto a las utilidades obtenidas por la actividad económica de la empresa."
+          />
+        </CardsRowItem>
+      </CardsRow>
     </Fragment>
   );
 }
@@ -756,19 +769,22 @@ function SimpleBlock({
   infoText: string;
 }) {
   return (
-    <View wrap={false} minPresenceAhead={90}>
+    <Fragment>
+      {/* Sin wrap={false} aquí: solo el título reserva espacio mínimo (minPresenceAhead).
+          La tabla puede partirse entre filas si la sección no cabe entera en la página; las
+          tarjetas van DEBAJO de la tabla (nunca al lado) para no cruzar una página junto a
+          contenido partible. */}
       <SubHeading title={title} />
-      <Split
-        keepTogether
-        main={<AmountTable rows={rows} />}
-        aside={
-          <Fragment>
-            <PendingCard label={pendingLabel} amount={formatTaxPdfTotalMoney(pendingAmount)} />
-            <InfoCard title={infoTitle} text={infoText} />
-          </Fragment>
-        }
-      />
-    </View>
+      <AmountTable rows={rows} />
+      <CardsRow>
+        <CardsRowItem>
+          <PendingCard label={pendingLabel} amount={formatTaxPdfTotalMoney(pendingAmount)} />
+        </CardsRowItem>
+        <CardsRowItem>
+          <InfoCard title={infoTitle} text={infoText} />
+        </CardsRowItem>
+      </CardsRow>
+    </Fragment>
   );
 }
 
@@ -1043,63 +1059,62 @@ export function TaxSettlementPdfDocumentV2({ settlement, firm, logoPng, footerAs
 
         {sections ? renderSections(sections) : null}
 
-        <Band title="Honorarios y cargos del estudio" icon="userTie" />
-        <Split
-          main={
-            <View style={s.table}>
-              <View style={s.tHead}>
-                <View style={[s.tHeadCell, { width: '18%' }]}>
-                  <Text style={s.tHeadText}>Tipo</Text>
+        {/* Regla del PDF de liquidación: la 2ª página siempre empieza en Honorarios. */}
+        <View break>
+          <Band title="Honorarios y cargos del estudio" icon="userTie" />
+          <View style={s.table}>
+            <View wrap={false} style={s.tHead}>
+              <View style={[s.tHeadCell, { width: '52%' }]}>
+                <Text style={s.tHeadText}>Concepto</Text>
+              </View>
+              <View style={[s.tHeadCell, { width: '24%' }]}>
+                <Text style={s.tHeadText}>Periodo</Text>
+              </View>
+              <View style={[s.tHeadCell, { width: '24%' }]}>
+                <Text style={[s.tHeadText, { textAlign: 'right' }]}>Monto</Text>
+              </View>
+            </View>
+            {sortedLines.length > 0 ? (
+              sortedLines.map((ln, idx) => (
+                <View
+                  key={ln.id ?? idx}
+                  wrap={false}
+                  style={[s.tRow, idx === sortedLines.length - 1 ? s.tRowLast : {}]}
+                >
+                  <View style={[s.tCell, { width: '52%' }]}>
+                    <Text style={s.tText}>{ln.concept}</Text>
+                  </View>
+                  <View style={[s.tCell, { width: '24%' }]}>
+                    <Text style={s.tText}>
+                      {(ln.period_ym ?? '').trim() ||
+                        (ln.period_date && ln.period_date.length >= 10 ? ln.period_date.slice(0, 10) : '') ||
+                        settlement.liquidation_period ||
+                        '—'}
+                    </Text>
+                  </View>
+                  <View style={[s.tCell, { width: '24%' }]}>
+                    <Text style={s.tNum}>{formatTaxMoney(ln.amount)}</Text>
+                  </View>
                 </View>
-                <View style={[s.tHeadCell, { width: '16%' }]}>
-                  <Text style={s.tHeadText}>Periodo</Text>
-                </View>
-                <View style={[s.tHeadCell, { width: '44%' }]}>
-                  <Text style={s.tHeadText}>Concepto</Text>
-                </View>
-                <View style={[s.tHeadCell, { width: '24%' }]}>
-                  <Text style={[s.tHeadText, { textAlign: 'right' }]}>Monto</Text>
+              ))
+            ) : (
+              <View style={[s.tRow, s.tRowLast]}>
+                <View style={[s.tCell, { width: '100%' }]}>
+                  <Text style={s.tText}>Sin líneas.</Text>
                 </View>
               </View>
-              {sortedLines.length > 0 ? (
-                sortedLines.map((ln, idx) => (
-                  <View key={ln.id ?? idx} style={[s.tRow, idx === sortedLines.length - 1 ? s.tRowLast : {}]}>
-                    <View style={[s.tCell, { width: '18%' }]}>
-                      <Text style={s.tText}>{lineTypeLabelForPdf(ln.line_type)}</Text>
-                    </View>
-                    <View style={[s.tCell, { width: '16%' }]}>
-                      <Text style={s.tText}>
-                        {(ln.period_ym ?? '').trim() ||
-                          (ln.period_date && ln.period_date.length >= 10 ? ln.period_date.slice(0, 10) : '') ||
-                          settlement.liquidation_period ||
-                          '—'}
-                      </Text>
-                    </View>
-                    <View style={[s.tCell, { width: '44%' }]}>
-                      <Text style={s.tText}>{ln.concept}</Text>
-                    </View>
-                    <View style={[s.tCell, { width: '24%' }]}>
-                      <Text style={s.tNum}>{formatTaxMoney(ln.amount)}</Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View style={[s.tRow, s.tRowLast]}>
-                  <View style={[s.tCell, { width: '100%' }]}>
-                    <Text style={s.tText}>Sin líneas.</Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          }
-          aside={
-            <PendingCard
-              label="Total honorarios a pagar"
-              amount={formatTaxMoney(totals.honorarios)}
-              icon="wallet"
-            />
-          }
-        />
+            )}
+          </View>
+          <CardsRow>
+            <CardsRowItem>
+              <PendingCard
+                label="Total honorarios a pagar"
+                amount={formatTaxMoney(totals.honorarios)}
+                icon="wallet"
+              />
+            </CardsRowItem>
+          </CardsRow>
+        </View>
 
         {settlement.notes?.trim() ? (
           <View wrap={false} style={s.notes}>

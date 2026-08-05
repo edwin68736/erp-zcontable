@@ -97,4 +97,22 @@ export function formatPdt621DueDetail(
   return base;
 }
 
+/** Opciones del campo "¿Se envió SIRE?" — valor vacío = aún sin definir ("Seleccione"). */
+export const SIRE_ENVIO_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Seleccione' },
+  { value: 'si', label: 'Sí' },
+  { value: 'no', label: 'No' },
+];
+
+/**
+ * Fondo de fila del listado según cumplimiento de la fecha de declaración PDT 621 vs. el
+ * cronograma SUNAT por dígito de RUC (ver /finance/sunat-due-dates): verde si se declaró dentro
+ * de plazo, rojo si sigue pendiente o se declaró tarde y ya venció.
+ */
+export function pdt621RowBgClass(timeliness: string | undefined): string {
+  if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
+  if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';
+  return 'hover:bg-slate-50/80';
+}
+
 export { formatStoredAt };

@@ -5,6 +5,9 @@
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #064e3b transparent;
+  /* Reserva el espacio de la barra siempre, para que el contenido no se encoja/expanda
+     cuando el scroll aparece o desaparece (p. ej. al abrir/cerrar un módulo del sidebar). */
+  scrollbar-gutter: stable;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

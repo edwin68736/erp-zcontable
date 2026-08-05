@@ -1517,10 +1517,13 @@ func (ctrl *SupervisorController) Pdt621ListAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	page, perPage := paginationFromQuery(c)
+	assistantID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("assistant_user_id", "")), 10, 64)
 	out, err := ctrl.svc.ListPdt621(services.Pdt621ListParams{
 		PeriodYM:          c.Query("period_ym", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		Dig:               c.Query("dig", ""),
+		AssistantUserID:   uint(assistantID),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1563,6 +1566,71 @@ func (ctrl *SupervisorController) Pdt621DetailAPI(c fiber.Ctx) error {
 		}
 	}
 	row, err := ctrl.svc.EnsurePdt621(uint(companyID), periodYM)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// Pdt621RecordOnlyAPI GET /api/supervisors/activity-modules/pdt-621/companies/:companyId/record
+// Lectura pura (sin lazy create) para otras pantallas que necesiten consultar el registro.
+func (ctrl *SupervisorController) Pdt621RecordOnlyAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	record, err := ctrl.svc.GetPdt621Record(uint(companyID), periodYM)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": record})
+}
+
+// Pdt621SaveRecordAPI PUT /api/supervisors/activity-modules/pdt-621/companies/:companyId/record
+func (ctrl *SupervisorController) Pdt621SaveRecordAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	var body services.Pdt621RecordInput
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	row, err := ctrl.svc.SavePdt621Record(uint(companyID), periodYM, body)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

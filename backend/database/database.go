@@ -23,7 +23,7 @@ func Connect() error {
 	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:      logger.Default.LogMode(logger.Info),
 		PrepareStmt: true,
 	})
 	if err != nil {
@@ -65,6 +65,7 @@ func AutoMigrate() error {
 		&models.SupervisorDeclaration{},
 		&models.SupervisorTaxLiquidation{},
 		&models.SupervisorPdt601Planilla{},
+		&models.SupervisorPdt621Record{},
 		&models.SupervisorNPS{},
 		&models.SupervisorChangeLog{},
 		&models.SupervisorObservation{},

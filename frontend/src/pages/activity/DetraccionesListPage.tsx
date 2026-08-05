@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import DetraccionesRowActions from '../../components/activity/DetraccionesRowActions';
+import { RowActionLink } from '../../components/activity/RowActionLink';
 import {
   formatStoredAt,
   DETRACCIONES_STATUS_FILTER,
@@ -23,6 +24,7 @@ import { P } from '../../rbac/codes';
 import { detraccionesService, type DetraccionesListRow } from '../../services/detracciones';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -37,7 +39,7 @@ type DetraccionesListPageProps = {
   workspace: ActivityWorkspace;
 };
 
-const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500';
+const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-4 py-3 text-sm text-slate-700 border-t border-slate-100';
 
 const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
@@ -155,11 +157,16 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control de Detracciones SUNAT</h1>
-        <p className="text-slate-500 mt-1 text-sm">
-          Carga de comprobante PDF por el asistente y verificación por el supervisor.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control de Detracciones SUNAT</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Carga de comprobante PDF por el asistente y verificación por el supervisor.
+          </p>
+        </div>
+        <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
+          ← Volver
+        </Link>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
@@ -201,16 +208,25 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">{actionError}</div>
       ) : null}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      {/*
+        La tabla es su PROPIO panel de scroll (alto acotado + overflow-auto), en vez de dejar
+        que <main> (la página completa) haga el scroll vertical de la tabla en sí. En cuanto un
+        contenedor tiene `overflow-x: auto`, el navegador fuerza también su `overflow-y` a
+        comportarse como `auto` — aunque no se haya pedido — y ESE contenedor pasa a ser el
+        ancestro de scroll que usa `position: sticky`, no <main>. La página en sí sigue siendo
+        scroll normal de <main> — la paginación queda después de la tabla, dentro de ese scroll,
+        no fija a la vista. Ver Pdt601ListPage.tsx para más detalle.
+      */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-clip">
+        <div className="overflow-auto max-h-[75vh]">
           <table className="min-w-full w-full text-left">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className={TH}>Código</th>
-                <th className={TH}>Dígito</th>
-                <th className={TH}>Razón social</th>
-                <th className={TH}>RUC</th>
-                <th className={TH}>Asistente</th>
+            <thead>
+              <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW }}>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH}>Estado</th>
                 <th className={TH}>Cumplimiento</th>
                 <th className={TH}>Fecha almacenamiento</th>
@@ -235,15 +251,30 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                 rows.map((row) => (
                   <tr
                     key={row.company_id}
-                    className={`hover:bg-slate-50/80 border-l-4 ${timelinessRowBorderClass(row.timeliness?.timeliness)}`}
+                    className={`group hover:bg-slate-50/80 border-l-4 ${timelinessRowBorderClass(row.timeliness?.timeliness)}`}
                   >
-                    <td className={`${TD} font-mono`}>{row.code || '—'}</td>
-                    <td className={TD}>{row.dig || '—'}</td>
-                    <td className={`${TD} max-w-[14rem] font-medium`} title={row.business_name}>
+                    <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
+                      {row.code || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
+                      {row.dig || '—'}
+                    </td>
+                    <td
+                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('name')}
+                      title={row.business_name}
+                    >
                       <span className="block truncate">{row.business_name || '—'}</span>
                     </td>
-                    <td className={`${TD} font-mono whitespace-nowrap`}>{row.ruc || '—'}</td>
-                    <td className={TD}>{row.assistant_username || '—'}</td>
+                    <td
+                      className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('ruc')}
+                    >
+                      {row.ruc || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')} title={row.assistant_username}>
+                      <span className="block truncate">{row.assistant_username || '—'}</span>
+                    </td>
                     <td className={TD}>
                       <DetraccionesRowActions
                         row={row}
@@ -272,12 +303,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                     </td>
                     <td className={`${TD} whitespace-nowrap text-slate-600`}>{formatStoredAt(row.last_stored_at)}</td>
                     <td className={TD}>
-                      <Link
-                        to={detailLink(row.company_id)}
-                        className="text-primary-700 text-sm font-medium hover:underline"
-                      >
-                        Ver
-                      </Link>
+                      <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Ver" />
                     </td>
                   </tr>
                 ))
@@ -297,12 +323,6 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
           setPage(1);
         }}
       />
-
-      <p className="text-xs text-slate-400">
-        <Link to={homePath} className="text-primary-700 hover:underline">
-          ← Volver
-        </Link>
-      </p>
     </div>
   );
 };

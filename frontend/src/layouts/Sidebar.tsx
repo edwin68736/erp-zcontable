@@ -22,12 +22,28 @@ interface SidebarProps {
 
 type LinkVariant = 'desktop-expanded' | 'desktop-flyout' | 'mobile';
 
+/**
+ * Estado activo de un ítem de navegación: fondo blanco sólido —el mismo blanco de fondo
+ * de la vista/contenido— con texto en el verde oscuro del propio sidebar (#06343C), para
+ * que contraste con claridad. El degradado verde-oscuro anterior tenía casi el mismo brillo
+ * que el fondo del sidebar y se perdía visualmente. (Clases Tailwind literales: deben
+ * aparecer completas en el código fuente para que el compilador las genere.)
+ */
+const ACTIVE_NAV_CLASS =
+  'bg-white text-[#06343C] font-bold shadow-[0_6px_16px_-4px_rgba(2,20,24,0.35)] ring-1 ring-black/5';
+/** Icono/acento activo: mismo verde oscuro que el texto del ítem activo. */
+const ACTIVE_ICON_CLASS = 'text-[#06343C]';
+const ACTIVE_DOT_CLASS = 'bg-[#06343C]';
+
 const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const location = useLocation();
   const [, setPermissionsTick] = useState(0);
   const visibleOperationalModules = getVisibleOperationalModules();
   const studioVisible = isStudioSectionVisible();
   const studioItems = STUDIO_SECTION.items.filter((l) => isSidebarLinkVisible(l));
+
+  /** Módulo dueño de la ruta actual: el header del módulo se marca activo aunque su acordeón esté cerrado. */
+  const activeModuleId = resolveSidebarModuleIdFromPathname(location.pathname);
 
   const asideRef = useRef<HTMLElement>(null);
 
@@ -72,23 +88,21 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
 
   const getDesktopExpandedLinkClass = ({ isActive }: { isActive: boolean }) => {
     const base =
-      'group flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[13px] leading-snug transition-all duration-200';
-    const active = 'bg-gradient-to-r from-[#0B8A72] to-[#0A7C66] text-white font-semibold';
+      'group flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] leading-snug transition-all duration-200';
     const inactive = 'text-white/75 hover:bg-white/10 hover:text-white/95 font-medium';
-    return `${base} ${isActive ? active : inactive}`;
+    return `${base} ${isActive ? ACTIVE_NAV_CLASS : inactive}`;
   };
 
   const getDesktopFlyoutLinkClass = ({ isActive }: { isActive: boolean }) => {
-    const base = 'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs leading-snug transition-colors';
-    const active = 'bg-white/15 text-white font-semibold';
+    const base = 'flex items-center gap-2 px-2.5 py-[5px] rounded-lg text-xs leading-snug transition-colors';
     const inactive = 'text-white/80 hover:bg-white/10 hover:text-white/95 font-medium';
-    return `${base} ${isActive ? active : inactive}`;
+    return `${base} ${isActive ? ACTIVE_NAV_CLASS : inactive}`;
   };
 
   const getIconClass = (isActive: boolean, variant: LinkVariant) => {
     const dim =
       variant === 'desktop-flyout' ? 'text-sm' : variant === 'desktop-expanded' ? 'text-[15px]' : 'text-lg';
-    return `flex items-center justify-center shrink-0 ${dim} ${isActive ? 'text-white' : 'text-white/60 group-hover:text-white/85'}`;
+    return `flex items-center justify-center shrink-0 ${dim} ${isActive ? ACTIVE_ICON_CLASS : 'text-white/60 group-hover:text-white/85'}`;
   };
 
   const renderNavLink = (
@@ -106,9 +120,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
           : ({ isActive }: { isActive: boolean }) => {
               const base =
                 'group flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] leading-snug transition-colors';
-              const active = 'bg-white/15 text-white font-semibold';
               const inactive = 'text-white/75 hover:bg-white/10 hover:text-white/95 font-medium';
-              return `${base} ${isActive ? active : inactive}`;
+              return `${base} ${isActive ? ACTIVE_NAV_CLASS : inactive}`;
             };
 
     return (
@@ -128,7 +141,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
             </span>
             <span className="min-w-0 flex-1 truncate text-left">{link.label}</span>
             {variant === 'desktop-expanded' && isActive && link.label === 'Dashboard' ? (
-              <span className="ml-auto w-1.5 h-1.5 shrink-0 rounded-full bg-white" />
+              <span className={`ml-auto w-1.5 h-1.5 shrink-0 rounded-full ${ACTIVE_DOT_CLASS}`} />
             ) : null}
           </>
         )}
@@ -136,6 +149,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
     );
   };
 
+  /**
+   * Lista plana de enlaces del módulo: sin subtítulos de grupo ("OPERACIÓN", etc.)
+   * ni cajas separadoras entre grupos, para un desplegable compacto y directo.
+   */
   const renderEntries = (
     mod: OperationalModuleConfig,
     entries: SidebarModuleEntry[],
@@ -144,35 +161,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   ) => {
     const filtered = filterSidebarEntries(entries);
     if (filtered.length === 0) return null;
+    const links = filtered.flatMap((entry) => (entry.type === 'link' ? [entry] : entry.items));
 
     return (
-      <div className="space-y-1">
-        {filtered.map((entry) => {
-          if (entry.type === 'link') {
-            return renderNavLink(entry, mod.label, variant, onNavigate);
-          }
-          return (
-            <div
-              key={`${mod.id}-${entry.label || 'g'}`}
-              className="rounded-xl border border-white/10 bg-white/10 backdrop-blur-sm"
-            >
-              {entry.label ? (
-                <p
-                  className={
-                    variant === 'desktop-flyout'
-                      ? 'px-3 pt-2 pb-0.5 text-[10px] font-semibold text-white/50 uppercase tracking-[0.12em]'
-                      : 'px-3 pt-2 pb-0.5 text-[10px] font-semibold text-white/45 uppercase tracking-[0.14em]'
-                  }
-                >
-                  {entry.label}
-                </p>
-              ) : null}
-              <div className="space-y-0.5 px-1 pb-1.5">
-                {entry.items.map((link) => renderNavLink(link, mod.label, variant, onNavigate))}
-              </div>
-            </div>
-          );
-        })}
+      <div className="space-y-0.5">
+        {links.map((link) => renderNavLink(link, mod.label, variant, onNavigate))}
       </div>
     );
   };
@@ -192,6 +185,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   ) => {
     const { showLabel, moduleIndex } = opts;
     const isOpenMod = openModuleId === mod.id;
+    const isRouteActive = activeModuleId === mod.id;
     const topPad =
       moduleIndex > 0 ? (isCollapsed ? 'mt-2 pt-2 border-t border-white/10' : 'mt-3 pt-3 border-t border-white/10') : '';
 
@@ -199,23 +193,33 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       <div key={mod.id} className={`relative ${topPad}`}>
         <button
           type="button"
-          className={`flex w-full items-center rounded-2xl text-left transition-colors hover:bg-white/10 ${
+          className={`flex w-full items-center rounded-2xl text-left transition-colors ${
             showLabel ? 'gap-3 px-4 py-2.5' : 'justify-center px-3 py-2.5'
-          } ${isOpenMod ? 'bg-white/10' : ''}`}
+          } ${isRouteActive ? ACTIVE_NAV_CLASS : `hover:bg-white/10 ${isOpenMod ? 'bg-white/10' : ''}`}`}
           onClick={() => toggleModule(mod.id)}
           aria-expanded={isOpenMod}
           title={showLabel ? undefined : mod.label}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-lg text-white/90">
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${
+              isRouteActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+            }`}
+          >
             <i className={mod.icon} aria-hidden />
           </span>
           {showLabel ? (
             <>
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/95">{mod.label}</span>
-              <i
-                className={`fas fa-chevron-down shrink-0 text-xs text-white/50 transition-transform duration-200 ${
-                  isOpenMod ? '-rotate-180' : ''
+              <span
+                className={`min-w-0 flex-1 truncate text-sm font-semibold ${
+                  isRouteActive ? ACTIVE_ICON_CLASS : 'text-white/95'
                 }`}
+              >
+                {mod.label}
+              </span>
+              <i
+                className={`fas fa-chevron-down shrink-0 text-xs transition-transform duration-200 ${
+                  isRouteActive ? `${ACTIVE_ICON_CLASS} opacity-60` : 'text-white/50'
+                } ${isOpenMod ? '-rotate-180' : ''}`}
                 aria-hidden
               />
             </>
@@ -230,7 +234,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
           >
             <p className="mb-2 truncate px-2 text-xs font-bold uppercase tracking-wide text-white/50">{mod.label}</p>
             <div className="custom-scrollbar max-h-[min(70vh,24rem)] overflow-y-auto pr-1">
-              <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/10 px-1 py-1.5 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/15 bg-white/[0.16] px-1 py-1 backdrop-blur-sm">
                 {renderEntries(mod, mod.entries, 'desktop-flyout')}
               </div>
             </div>
@@ -238,7 +242,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         ) : null}
 
         {!isCollapsed && isOpenMod ? (
-          <div className="mt-1.5 space-y-1.5 rounded-xl border border-white/10 bg-white/10 px-1.5 py-2 backdrop-blur-sm">
+          <div className="mt-1 rounded-xl border border-white/15 bg-white/[0.16] px-1 py-1 backdrop-blur-sm">
             {renderEntries(mod, mod.entries, 'desktop-expanded')}
           </div>
         ) : null}
@@ -250,6 +254,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
     const { showLabel, moduleIndex } = opts;
     const id = STUDIO_SECTION.id as SidebarAccordionId;
     const isOpenMod = openModuleId === id;
+    const isRouteActive = activeModuleId === id;
     const topPad =
       moduleIndex > 0 ? (isCollapsed ? 'mt-2 pt-2 border-t border-white/10' : 'mt-3 pt-3 border-t border-white/10') : '';
 
@@ -257,23 +262,33 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       <div key={STUDIO_SECTION.id} className={`relative ${topPad}`}>
         <button
           type="button"
-          className={`flex w-full items-center rounded-2xl text-left transition-colors hover:bg-white/10 ${
+          className={`flex w-full items-center rounded-2xl text-left transition-colors ${
             showLabel ? 'gap-3 px-4 py-2.5' : 'justify-center px-3 py-2.5'
-          } ${isOpenMod ? 'bg-white/10' : ''}`}
+          } ${isRouteActive ? ACTIVE_NAV_CLASS : `hover:bg-white/10 ${isOpenMod ? 'bg-white/10' : ''}`}`}
           onClick={() => toggleModule(id)}
           aria-expanded={isOpenMod}
           title={showLabel ? undefined : STUDIO_SECTION.label}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-lg text-white/90">
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${
+              isRouteActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+            }`}
+          >
             <i className={STUDIO_SECTION.icon} aria-hidden />
           </span>
           {showLabel ? (
             <>
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/95">{STUDIO_SECTION.label}</span>
-              <i
-                className={`fas fa-chevron-down shrink-0 text-xs text-white/50 transition-transform duration-200 ${
-                  isOpenMod ? '-rotate-180' : ''
+              <span
+                className={`min-w-0 flex-1 truncate text-sm font-semibold ${
+                  isRouteActive ? ACTIVE_ICON_CLASS : 'text-white/95'
                 }`}
+              >
+                {STUDIO_SECTION.label}
+              </span>
+              <i
+                className={`fas fa-chevron-down shrink-0 text-xs transition-transform duration-200 ${
+                  isRouteActive ? `${ACTIVE_ICON_CLASS} opacity-60` : 'text-white/50'
+                } ${isOpenMod ? '-rotate-180' : ''}`}
                 aria-hidden
               />
             </>
@@ -294,7 +309,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         ) : null}
 
         {!isCollapsed && isOpenMod ? (
-          <div className="mt-1.5 rounded-xl border border-white/10 bg-white/10 px-1.5 py-2 backdrop-blur-sm">
+          <div className="mt-1 rounded-xl border border-white/15 bg-white/[0.16] px-1 py-1 backdrop-blur-sm">
             {renderStudioEntries('desktop-expanded')}
           </div>
         ) : null}
@@ -305,9 +320,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const homeLinkClass = ({ isActive }: { isActive: boolean }) => {
     const base =
       'group flex items-center gap-3 rounded-2xl text-[13px] leading-snug transition-all duration-200 mb-2';
-    const active = 'bg-gradient-to-r from-[#0B8A72] to-[#0A7C66] text-white font-semibold';
     const inactive = 'text-white/75 hover:bg-white/10 hover:text-white/95 font-medium';
-    return `${base} ${isActive ? active : inactive} ${isCollapsed ? 'justify-center px-3 py-2.5' : 'px-4 py-2.5'}`;
+    return `${base} ${isActive ? ACTIVE_NAV_CLASS : inactive} ${isCollapsed ? 'justify-center px-3 py-2.5' : 'px-4 py-2.5'}`;
   };
 
   const renderHomeLink = (variant: LinkVariant, onNavigate?: () => void) => (
@@ -320,21 +334,25 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         variant === 'mobile'
           ? ({ isActive }) =>
               `flex items-center gap-4 rounded-xl px-4 py-3 text-sm font-medium ${
-                isActive ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'
+                isActive ? ACTIVE_NAV_CLASS : 'text-white/80 hover:bg-white/10'
               }`
           : homeLinkClass
       }
     >
-      <span
-        className={`flex shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/90 ${
-          variant === 'mobile' ? 'h-8 w-8' : 'h-9 w-9'
-        }`}
-      >
-        <i className={HOME_LINK.icon} aria-hidden />
-      </span>
-      {variant === 'mobile' || !isCollapsed ? (
-        <span className="truncate">{HOME_LINK.label}</span>
-      ) : null}
+      {({ isActive }) => (
+        <>
+          <span
+            className={`flex shrink-0 items-center justify-center rounded-lg ${
+              isActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+            } ${variant === 'mobile' ? 'h-8 w-8' : 'h-9 w-9'}`}
+          >
+            <i className={HOME_LINK.icon} aria-hidden />
+          </span>
+          {variant === 'mobile' || !isCollapsed ? (
+            <span className="truncate">{HOME_LINK.label}</span>
+          ) : null}
+        </>
+      )}
     </NavLink>
   );
 

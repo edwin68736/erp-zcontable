@@ -88,6 +88,8 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
 }
 
 const ESTADO_BOLETAS_OPTIONS = ['', 'Pendiente', 'Enviado', 'No corresponde'];
+const NPS_OPTIONS = ['', 'OK', 'Detracciones', 'Parcial Detracc', 'No corresponde'];
+const TICKET_AFP_OPTIONS = ['', 'Enviado', 'No corresponde'];
 
 const PLANILLA_INPUT =
   'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500';
@@ -192,6 +194,16 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   const handleSavePlanilla = async () => {
     if (!canUpdate) return;
+    if (!planilla.sin_planilla) {
+      if (!planilla.nps) {
+        setMsg('Seleccione un valor para NPS.');
+        return;
+      }
+      if (!planilla.ticket_afp) {
+        setMsg('Seleccione un valor para Ticket AFP.');
+        return;
+      }
+    }
     try {
       setPlanillaSaving(true);
       setMsg('');
@@ -501,25 +513,35 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                 </div>
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">NPS</label>
-                  <input
-                    type="text"
+                  <select
+                    required
                     disabled={!canUpdate}
                     value={planilla.nps}
                     onChange={(e) => patchPlanilla({ nps: e.target.value })}
-                    placeholder="—"
                     className={PLANILLA_INPUT}
-                  />
+                  >
+                    {NPS_OPTIONS.map((opt) => (
+                      <option key={opt || 'none'} value={opt}>
+                        {opt || 'Seleccione'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">Ticket AFP</label>
-                  <input
-                    type="text"
+                  <select
+                    required
                     disabled={!canUpdate}
                     value={planilla.ticket_afp}
                     onChange={(e) => patchPlanilla({ ticket_afp: e.target.value })}
-                    placeholder="—"
                     className={PLANILLA_INPUT}
-                  />
+                  >
+                    {TICKET_AFP_OPTIONS.map((opt) => (
+                      <option key={opt || 'none'} value={opt}>
+                        {opt || 'Seleccione'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">Estado de envío boletas de trabajadores</label>

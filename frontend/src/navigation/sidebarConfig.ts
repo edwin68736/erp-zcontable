@@ -399,9 +399,8 @@ function normalizeNavPath(p: string): string {
 }
 
 function collectNavPaths(): NavPathRow[] {
-  const rows: NavPathRow[] = [
-    { moduleId: 'finance', path: '/', exact: true },
-  ];
+  // '/' es HOME_LINK (Inicio), independiente de todo módulo — no debe mapearse a ninguno.
+  const rows: NavPathRow[] = [];
   for (const mod of OPERATIONAL_MODULES) {
     for (const e of mod.entries) {
       if (e.type === 'link') {

@@ -40,6 +40,10 @@ type Pdt601ListRow struct {
 	AttachmentCount   int64              `json:"attachment_count"`
 	LastStoredAt      *time.Time         `json:"last_stored_at,omitempty"`
 	Planilla          *Pdt601PlanillaDTO `json:"planilla,omitempty"`
+	// Timeliness cumplimiento de la fecha de entrega vs. la regla configurada en
+	// /settings/activity-configuration para la actividad "PDT 601" del calendario
+	// financiero del período (on_time | late | pending | missing | exempt | no_rule).
+	Timeliness string `json:"timeliness"`
 }
 
 // Pdt601Detail detalle tras EnsurePdt601 (lazy create o reutiliza bootstrap).
@@ -123,6 +127,17 @@ func pdt601DateString(t *time.Time) *string {
 	}
 	s := t.Format("2006-01-02")
 	return &s
+}
+
+// findPdt601CalendarActivity busca la instancia "PDT 601" del calendario financiero
+// para el período (tipo pdt_601), de donde se resuelve la regla de cumplimiento
+// configurada en /settings/activity-configuration. Nil si aún no está en el calendario.
+func findPdt601CalendarActivity(periodYM string) *models.FinanceCalendarActivity {
+	act, err := FindCalendarActivityByType(periodYM, models.CalendarActivityPDT601)
+	if err != nil {
+		return nil
+	}
+	return act
 }
 
 func maxInt0(n int) int {
@@ -442,12 +457,12 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 	}
 
 	type declRow struct {
-		CompanyID       uint
-		ControlID       uint
-		DeclarationID   uint
-		Status          string
-		DeclDueDate     *time.Time
-		ControlDueDate  *time.Time
+		CompanyID      uint
+		ControlID      uint
+		DeclarationID  uint
+		Status         string
+		DeclDueDate    *time.Time
+		ControlDueDate *time.Time
 	}
 	var decls []declRow
 	_ = database.DB.Table("supervisor_monthly_controls AS c").
@@ -505,6 +520,10 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 		planillaByCompany[planillas[i].CompanyID] = pdt601PlanillaToDTO(&pl)
 	}
 
+	// Instancia "PDT 601" del calendario financiero del período (una sola consulta,
+	// no por empresa): trae la regla de cumplimiento asignada en Ajustes.
+	pdt601Act := findPdt601CalendarActivity(p.PeriodYM)
+
 	for _, co := range companies {
 		row := Pdt601ListRow{
 			CompanyID:         co.ID,
@@ -529,10 +548,16 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 				row.LastStoredAt = st.LastAt
 			}
 		}
-		if row.Planilla != nil && row.Planilla.SinPlanilla {
+		exempt := row.Planilla != nil && row.Planilla.SinPlanilla
+		if exempt {
 			row.IsOverdue = false
 			row.DaysRemaining = nil
 		}
+		var deliveredAt *time.Time
+		if row.Planilla != nil && row.Planilla.FechaEntrega != nil {
+			deliveredAt = pdt601ParseDate(*row.Planilla.FechaEntrega)
+		}
+		row.Timeliness = ComputeCalendarActivityTimeliness(p.PeriodYM, pdt601Act, deliveredAt, exempt).Timeliness
 		rows = append(rows, row)
 	}
 

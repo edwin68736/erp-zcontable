@@ -45,6 +45,13 @@ export interface Pdt601PlanillaInput {
   fecha_envio_nps_tickets_boletas: string;
 }
 
+/**
+ * Cumplimiento de la fecha de entrega vs. la regla configurada en
+ * /settings/activity-configuration para la actividad "PDT 601" del calendario financiero
+ * del período. 'no_rule' si esa actividad aún no está en el calendario de ese período.
+ */
+export type Pdt601Timeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exempt' | 'no_rule';
+
 export interface Pdt601ListRow {
   company_id: number;
   code: string;
@@ -61,6 +68,7 @@ export interface Pdt601ListRow {
   attachment_count: number;
   last_stored_at?: string;
   planilla?: Pdt601Planilla | null;
+  timeliness: Pdt601Timeliness;
 }
 
 export interface Pdt601Detail {

@@ -8,6 +8,7 @@ import {
   pdt621StatusLabel,
   PDT621_STATUSES,
   resolvePdt621DueDate,
+  SIRE_ENVIO_OPTIONS,
 } from '../../components/activity/pdt621Config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { activityModulePath, type ActivityWorkspace } from '../../navigation/activityRoutes';
@@ -19,11 +20,49 @@ import {
   type SupervisorDeclaration,
   type SupervisorObservation,
 } from '../../services/supervisors';
-import { pdt621Service, type Pdt621Detail } from '../../services/pdt621';
+import { pdt621Service, type Pdt621Detail, type Pdt621Record, type Pdt621RecordInput } from '../../services/pdt621';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 
 const PDT621_APPROVED_STATUSES = new Set(['aprobado', 'presentado', 'cerrado']);
+
+const EMPTY_RECORD: Pdt621RecordInput = {
+  primera_entrega_fecha: '',
+  primera_entrega_hora: '',
+  observacion: '',
+  segunda_entrega_fecha: '',
+  segunda_entrega_hora: '',
+  fecha_declaracion: '',
+  total_ventas: 0,
+  total_compras: 0,
+  igv: 0,
+  rta: 0,
+  envio_sire: '',
+  fecha_envio_sire: '',
+  motivo_no_envio: '',
+};
+
+function recordToInput(r: Pdt621Record | null | undefined): Pdt621RecordInput {
+  if (!r) return { ...EMPTY_RECORD };
+  return {
+    primera_entrega_fecha: r.primera_entrega_fecha ?? '',
+    primera_entrega_hora: r.primera_entrega_hora ?? '',
+    observacion: r.observacion ?? '',
+    segunda_entrega_fecha: r.segunda_entrega_fecha ?? '',
+    segunda_entrega_hora: r.segunda_entrega_hora ?? '',
+    fecha_declaracion: r.fecha_declaracion ?? '',
+    total_ventas: r.total_ventas ?? 0,
+    total_compras: r.total_compras ?? 0,
+    igv: r.igv ?? 0,
+    rta: r.rta ?? 0,
+    envio_sire: r.envio_sire ?? '',
+    fecha_envio_sire: r.fecha_envio_sire ?? '',
+    motivo_no_envio: r.motivo_no_envio ?? '',
+  };
+}
+
+const FIELD_INPUT =
+  'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500';
 
 type Pdt621DetailPageProps = {
   workspace: ActivityWorkspace;
@@ -54,6 +93,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const [obsSaving, setObsSaving] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [record, setRecord] = useState<Pdt621RecordInput>({ ...EMPTY_RECORD });
+  const [recordSaving, setRecordSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const declaration = detail?.declaration;
@@ -86,6 +127,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       setError('');
       const data = await pdt621Service.getDetail(companyId, periodYm);
       setDetail(data);
+      setRecord(recordToInput(data.record));
       await Promise.all([
         loadAttachments(data.declaration.id),
         loadObservations(data.declaration.id),
@@ -192,6 +234,30 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       setMsg(extractApiErrorMessage(err, 'No se pudo observar.'));
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const patchRecord = (patch: Partial<Pdt621RecordInput>) => {
+    setRecord((prev) => ({ ...prev, ...patch }));
+  };
+
+  const handleSaveRecord = async () => {
+    if (!canUpdate) return;
+    if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) {
+      setMsg('Ingrese el motivo por el que no se envió SIRE.');
+      return;
+    }
+    try {
+      setRecordSaving(true);
+      setMsg('');
+      const updated = await pdt621Service.saveRecord(companyId, periodYm, record);
+      setDetail((d) => (d ? { ...d, record: updated.record } : d));
+      setRecord(recordToInput(updated.record));
+      setMsg('Registro guardado.');
+    } catch (err) {
+      setMsg(extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
+    } finally {
+      setRecordSaving(false);
     }
   };
 
@@ -310,6 +376,181 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             ) : null}
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
+        <h2 className="text-sm font-semibold text-slate-800">Revisión de archivadores</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">1ra entrega — Fecha</label>
+            <input
+              type="date"
+              disabled={!canUpdate}
+              value={record.primera_entrega_fecha}
+              onChange={(e) => patchRecord({ primera_entrega_fecha: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">1ra entrega — Hora</label>
+            <input
+              type="time"
+              disabled={!canUpdate}
+              value={record.primera_entrega_hora}
+              onChange={(e) => patchRecord({ primera_entrega_hora: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">2da entrega — Fecha</label>
+            <input
+              type="date"
+              disabled={!canUpdate}
+              value={record.segunda_entrega_fecha}
+              onChange={(e) => patchRecord({ segunda_entrega_fecha: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">2da entrega — Hora</label>
+            <input
+              type="time"
+              disabled={!canUpdate}
+              value={record.segunda_entrega_hora}
+              onChange={(e) => patchRecord({ segunda_entrega_hora: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <label className="block text-xs text-slate-500 mb-1">Observación</label>
+            <textarea
+              disabled={!canUpdate}
+              value={record.observacion}
+              onChange={(e) => patchRecord({ observacion: e.target.value })}
+              rows={2}
+              className={FIELD_INPUT}
+              placeholder="Observación sobre la revisión del archivador…"
+            />
+          </div>
+        </div>
+
+        <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">
+          Fecha de declaración e importes PDT 621
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Fecha de declaración</label>
+            <input
+              type="date"
+              disabled={!canUpdate}
+              value={record.fecha_declaracion}
+              onChange={(e) => patchRecord({ fecha_declaracion: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Total ventas</label>
+            <input
+              type="number"
+              step="0.01"
+              disabled={!canUpdate}
+              value={record.total_ventas}
+              onChange={(e) => patchRecord({ total_ventas: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Total compras</label>
+            <input
+              type="number"
+              step="0.01"
+              disabled={!canUpdate}
+              value={record.total_compras}
+              onChange={(e) => patchRecord({ total_compras: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">IGV</label>
+            <input
+              type="number"
+              step="0.01"
+              disabled={!canUpdate}
+              value={record.igv}
+              onChange={(e) => patchRecord({ igv: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Renta</label>
+            <input
+              type="number"
+              step="0.01"
+              disabled={!canUpdate}
+              value={record.rta}
+              onChange={(e) => patchRecord({ rta: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+        </div>
+
+        <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">SIRE</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">¿Se envió SIRE?</label>
+            <select
+              disabled={!canUpdate}
+              value={record.envio_sire}
+              onChange={(e) => {
+                const envio_sire = e.target.value;
+                patchRecord(envio_sire === 'si' ? { envio_sire, motivo_no_envio: '' } : { envio_sire });
+              }}
+              className={FIELD_INPUT}
+            >
+              {SIRE_ENVIO_OPTIONS.map((opt) => (
+                <option key={opt.value || 'none'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Fecha de envío</label>
+            <input
+              type="date"
+              disabled={!canUpdate}
+              value={record.fecha_envio_sire}
+              onChange={(e) => patchRecord({ fecha_envio_sire: e.target.value })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">
+              Motivo por el que no se envió{record.envio_sire === 'no' ? ' *' : ''}
+            </label>
+            <input
+              type="text"
+              disabled={!canUpdate || record.envio_sire !== 'no'}
+              value={record.motivo_no_envio}
+              onChange={(e) => patchRecord({ motivo_no_envio: e.target.value })}
+              placeholder={record.envio_sire === 'no' ? 'Indique el motivo…' : '—'}
+              className={FIELD_INPUT}
+            />
+          </div>
+        </div>
+
+        {canUpdate ? (
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              disabled={recordSaving}
+              onClick={() => void handleSaveRecord()}
+              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+            >
+              {recordSaving ? 'Guardando…' : 'Guardar registro'}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">

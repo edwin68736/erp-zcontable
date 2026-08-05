@@ -17,6 +17,7 @@ import {
 } from '../../services/companyAccessCredentials';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import type { ActivityWorkspace } from '../../navigation/activityRoutes';
+import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -27,7 +28,7 @@ function useDebouncedValue<T>(value: T, ms: number): T {
   return debounced;
 }
 
-const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500';
+const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-4 py-3 text-sm text-slate-700 border-t border-slate-100';
 
 type AssignedCompaniesListPageProps = {
@@ -110,16 +111,25 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       ) : null}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      {/*
+        La tabla es su PROPIO panel de scroll (alto acotado + overflow-auto), en vez de dejar
+        que <main> (la página completa) haga el scroll vertical de la tabla en sí. En cuanto un
+        contenedor tiene `overflow-x: auto`, el navegador fuerza también su `overflow-y` a
+        comportarse como `auto` — aunque no se haya pedido — y ESE contenedor pasa a ser el
+        ancestro de scroll que usa `position: sticky`, no <main>. La página en sí sigue siendo
+        scroll normal de <main> — la paginación queda después de la tabla, dentro de ese scroll,
+        no fija a la vista. Ver Pdt601ListPage.tsx para más detalle.
+      */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-clip">
+        <div className="overflow-auto max-h-[75vh]">
           <table className="min-w-full w-full text-left">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className={TH}>Código</th>
-                <th className={TH}>Dígito</th>
-                <th className={TH}>Razón social</th>
-                <th className={TH}>RUC</th>
-                <th className={TH}>Asistente</th>
+            <thead>
+              <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW }}>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
               </tr>
             </thead>
             <tbody>
@@ -138,14 +148,29 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.company_id} className="hover:bg-slate-50/80">
-                    <td className={`${TD} font-mono`}>{row.code || '—'}</td>
-                    <td className={TD}>{row.dig || '—'}</td>
-                    <td className={`${TD} max-w-[16rem] font-medium`} title={row.business_name}>
+                  <tr key={row.company_id} className="group hover:bg-slate-50/80">
+                    <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
+                      {row.code || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
+                      {row.dig || '—'}
+                    </td>
+                    <td
+                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('name')}
+                      title={row.business_name}
+                    >
                       <span className="block truncate">{row.business_name || '—'}</span>
                     </td>
-                    <td className={`${TD} font-mono whitespace-nowrap`}>{row.ruc || '—'}</td>
-                    <td className={TD}>{row.assistant_username || '—'}</td>
+                    <td
+                      className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('ruc')}
+                    >
+                      {row.ruc || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')}>
+                      {row.assistant_username || '—'}
+                    </td>
                   </tr>
                 ))
               )}

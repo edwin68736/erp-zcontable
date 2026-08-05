@@ -101,4 +101,16 @@ export function formatPdt601DueDetail(
   return base;
 }
 
+/**
+ * Fondo de fila del listado según cumplimiento del plazo (regla del calendario financiero,
+ * ver /settings/activity-configuration): gris si la empresa no tiene planilla, verde si se
+ * entregó dentro de plazo, rojo si sigue pendiente (no entregada) o se entregó tarde y ya venció.
+ */
+export function pdt601RowBgClass(sinPlanilla: boolean | undefined, timeliness: string | undefined): string {
+  if (sinPlanilla) return 'bg-slate-100 hover:bg-slate-200/70';
+  if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
+  if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';
+  return 'hover:bg-slate-50/80';
+}
+
 export { formatStoredAt };

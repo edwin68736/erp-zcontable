@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -24,6 +25,10 @@ func setupPdt601TestDB(t *testing.T) *gorm.DB {
 		&models.SupervisorPdt601Planilla{},
 		&models.SupervisorAttachment{},
 		&models.CompanyAccessCredential{},
+		&models.ActivityRule{},
+		&models.ActivityTemplate{},
+		&models.FinanceCalendar{},
+		&models.FinanceCalendarActivity{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -270,5 +275,151 @@ func TestSavePdt601PlanillaSinPlanilla(t *testing.T) {
 	}
 	if filtered.Rows[0].IsOverdue {
 		t.Fatalf("fila sin_planilla no debería marcarse vencida")
+	}
+}
+
+// seedPdt601CalendarRule crea Regla + Plantilla (activity_type=pdt_601) + instancia en el
+// calendario financiero del período, replicando lo que un admin configura en
+// /settings/activity-configuration + /finance/calendar. dueDay es el día del mes en que
+// vence la actividad dentro de ese período.
+func seedPdt601CalendarRule(t *testing.T, db *gorm.DB, periodYM string, dueDay, graceDays int) {
+	t.Helper()
+	rule := models.ActivityRule{
+		Name:        "Fecha simple",
+		CompareMode: models.ActivityRuleCompareDate,
+		GraceDays:   graceDays,
+		Active:      true,
+	}
+	if err := db.Create(&rule).Error; err != nil {
+		t.Fatalf("seed rule: %v", err)
+	}
+	tmpl := models.ActivityTemplate{
+		Code:           "AC-TEST-PDT601",
+		Name:           "PDT 601",
+		ActivityType:   models.CalendarActivityPDT601,
+		ActivityRuleID: &rule.ID,
+		Active:         true,
+	}
+	if err := db.Create(&tmpl).Error; err != nil {
+		t.Fatalf("seed template: %v", err)
+	}
+	cal := models.FinanceCalendar{PeriodYM: periodYM}
+	if err := db.Create(&cal).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
+	act := models.FinanceCalendarActivity{
+		CalendarID:           cal.ID,
+		ActivityTemplateID:   tmpl.ID,
+		NameSnapshot:         tmpl.Name,
+		ActivityTypeSnapshot: models.CalendarActivityPDT601,
+		PrioritySnapshot:     "media",
+		TextColorSnapshot:    "#1d4ed8",
+		StartDay:             dueDay,
+		EndDay:               dueDay,
+		DueDay:               dueDay,
+		ActivityRuleID:       &rule.ID,
+	}
+	if err := db.Create(&act).Error; err != nil {
+		t.Fatalf("seed calendar activity: %v", err)
+	}
+}
+
+// TestListPdt601TimelinessOnTimeAndLate cubre entrega dentro y fuera de plazo según la
+// regla del calendario financiero: la comparación fecha_entrega vs. vencimiento no depende
+// de la hora real de ejecución del test (solo el caso "missing" la necesita).
+func TestListPdt601TimelinessOnTimeAndLate(t *testing.T) {
+	db := setupPdt601TestDB(t)
+	svc := NewSupervisorService()
+	coOnTime := seedEstudioCompany(t, db, "P010")
+	coLate := seedEstudioCompany(t, db, "P011")
+
+	periodYM := "2026-07"
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+
+	if _, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{Essalud: 100, FechaEntrega: "2026-07-15"}); err != nil {
+		t.Fatalf("SavePdt601Planilla on_time: %v", err)
+	}
+	if _, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{Essalud: 100, FechaEntrega: "2026-07-20"}); err != nil {
+		t.Fatalf("SavePdt601Planilla late: %v", err)
+	}
+
+	res, err := svc.ListPdt601(Pdt601ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt601: %v", err)
+	}
+	byCompany := map[uint]Pdt601ListRow{}
+	for _, r := range res.Rows {
+		byCompany[r.CompanyID] = r
+	}
+	if got := byCompany[coOnTime.ID].Timeliness; got != TimelinessOnTime {
+		t.Fatalf("empresa entregada el día del vencimiento: timeliness=%q want %q", got, TimelinessOnTime)
+	}
+	if got := byCompany[coLate.ID].Timeliness; got != TimelinessLate {
+		t.Fatalf("empresa entregada después del vencimiento: timeliness=%q want %q", got, TimelinessLate)
+	}
+}
+
+// TestListPdt601TimelinessMissingWhenOverdue cubre el caso "pendiente y fuera de plazo"
+// (naranja en la UI). Usa un período dos meses antes de "ahora" para que el vencimiento
+// quede en el pasado sin importar la fecha real en la que corra el test.
+func TestListPdt601TimelinessMissingWhenOverdue(t *testing.T) {
+	db := setupPdt601TestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "P012")
+
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+
+	// No se guarda planilla para esta empresa: sigue "sin_registro" y sin fecha_entrega.
+	res, err := svc.ListPdt601(Pdt601ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt601: %v", err)
+	}
+	var row Pdt601ListRow
+	for _, r := range res.Rows {
+		if r.CompanyID == co.ID {
+			row = r
+		}
+	}
+	if row.Timeliness != TimelinessMissing {
+		t.Fatalf("empresa sin entrega y con vencimiento pasado: timeliness=%q want %q", row.Timeliness, TimelinessMissing)
+	}
+}
+
+// TestListPdt601TimelinessExemptWhenSinPlanilla cubre el caso "sin planilla" (gris en la
+// UI): debe salir exempt sin importar la regla configurada.
+func TestListPdt601TimelinessExemptWhenSinPlanilla(t *testing.T) {
+	db := setupPdt601TestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "P013")
+
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+
+	if _, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{SinPlanilla: true}); err != nil {
+		t.Fatalf("SavePdt601Planilla: %v", err)
+	}
+
+	res, err := svc.ListPdt601(Pdt601ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt601: %v", err)
+	}
+	var row Pdt601ListRow
+	for _, r := range res.Rows {
+		if r.CompanyID == co.ID {
+			row = r
+		}
+	}
+	if row.Timeliness != TimelinessExempt {
+		t.Fatalf("empresa sin planilla: timeliness=%q want %q", row.Timeliness, TimelinessExempt)
 	}
 }

@@ -6,6 +6,7 @@ import {
   MailboxCaptureSlotCell,
   MailboxCaptureSlotHeader,
 } from '../../components/activity/MailboxCaptureSlotCell';
+import { RowActionLink } from '../../components/activity/RowActionLink';
 import {
   mailboxStatusBadgeClass,
   mailboxStatusLabel,
@@ -30,6 +31,7 @@ import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLa
 import { countMailboxWeekProgress, summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportSunatInboxReportExcel } from '../../utils/sunatInboxExcelExport';
+import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -44,7 +46,7 @@ type SunatInboxListPageProps = {
   workspace: ActivityWorkspace;
 };
 
-const TH = 'px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500';
+const TH = 'px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-3 py-3 text-sm text-slate-700 border-t border-slate-100 align-top';
 
 const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
@@ -233,12 +235,17 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Buzón SOL SUNAT – SUNAFIL</h1>
-        <p className="text-slate-500 mt-1 text-sm">
-          Capturas por semana laborable (lun–sáb). Configuración actual: {capturesPerWeek} carga
-          {capturesPerWeek === 1 ? '' : 's'} por semana en Ajustes.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Buzón SOL SUNAT – SUNAFIL</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Capturas por semana laborable (lun–sáb). Configuración actual: {capturesPerWeek} carga
+            {capturesPerWeek === 1 ? '' : 's'} por semana en Ajustes.
+          </p>
+        </div>
+        <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
+          ← Volver
+        </Link>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
@@ -320,19 +327,28 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       ) : null}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm max-w-full">
+      {/*
+        La tabla es su PROPIO panel de scroll (alto acotado + overflow-auto), en vez de dejar
+        que <main> (la página completa) haga el scroll vertical de la tabla en sí. En cuanto un
+        contenedor tiene `overflow-x: auto`, el navegador fuerza también su `overflow-y` a
+        comportarse como `auto` — aunque no se haya pedido — y ESE contenedor pasa a ser el
+        ancestro de scroll que usa `position: sticky`, no <main>. La página en sí sigue siendo
+        scroll normal de <main> — la paginación queda después de la tabla, dentro de ese scroll,
+        no fija a la vista. Ver Pdt601ListPage.tsx para más detalle.
+      */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm max-w-full overflow-clip">
         <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80 text-xs text-slate-600">
           {weekContextLabel}
         </div>
-        <div className="overflow-x-auto max-w-full custom-scrollbar">
+        <div className="overflow-auto max-w-full max-h-[75vh] custom-scrollbar">
           <table className="w-max min-w-full text-left table-auto">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className={`${TH} sticky left-0 z-10 bg-slate-50`}>Código</th>
-                <th className={TH}>Dígito</th>
-                <th className={TH}>Razón social</th>
-                <th className={TH}>RUC</th>
-                <th className={TH}>Asistente</th>
+            <thead>
+              <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW }}>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH}>Resumen</th>
                 <th className={TH} />
                 {slotIndices.map((idx) => (
@@ -356,14 +372,29 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.company_id} className="hover:bg-slate-50/80">
-                    <td className={`${TD} font-mono sticky left-0 z-10 bg-white`}>{row.code || '—'}</td>
-                    <td className={TD}>{row.dig || '—'}</td>
-                    <td className={`${TD} max-w-[12rem] font-medium`} title={row.business_name}>
+                  <tr key={row.company_id} className="group hover:bg-slate-50/80">
+                    <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
+                      {row.code || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
+                      {row.dig || '—'}
+                    </td>
+                    <td
+                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('name')}
+                      title={row.business_name}
+                    >
                       <span className="block truncate">{row.business_name || '—'}</span>
                     </td>
-                    <td className={`${TD} font-mono whitespace-nowrap`}>{row.ruc || '—'}</td>
-                    <td className={TD}>{row.assistant_username || '—'}</td>
+                    <td
+                      className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
+                      style={frozenIdBodyCellStyle('ruc')}
+                    >
+                      {row.ruc || '—'}
+                    </td>
+                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')} title={row.assistant_username}>
+                      <span className="block truncate">{row.assistant_username || '—'}</span>
+                    </td>
                     <td className={TD}>
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(row.summary_status)}`}
@@ -372,12 +403,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                       </span>
                     </td>
                     <td className={TD}>
-                      <Link
-                        to={detailLink(row.company_id)}
-                        className="text-primary-700 text-sm font-medium hover:underline whitespace-nowrap"
-                      >
-                        Detalle
-                      </Link>
+                      <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
                     </td>
                     {slotIndices.map((idx) => {
                       const slot = row.slots.find((s) => s.slot_index === idx) ?? {
@@ -420,12 +446,6 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           setPage(1);
         }}
       />
-
-      <p className="text-xs text-slate-400">
-        <Link to={homePath} className="text-primary-700 hover:underline">
-          ← Volver
-        </Link>
-      </p>
     </div>
   );
 };
