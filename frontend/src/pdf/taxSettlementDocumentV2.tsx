@@ -1059,62 +1059,67 @@ export function TaxSettlementPdfDocumentV2({ settlement, firm, logoPng, footerAs
 
         {sections ? renderSections(sections) : null}
 
-        {/* Regla del PDF de liquidación: la 2ª página siempre empieza en Honorarios. */}
-        <View break>
-          <Band title="Honorarios y cargos del estudio" icon="userTie" />
-          <View style={s.table}>
-            <View wrap={false} style={s.tHead}>
-              <View style={[s.tHeadCell, { width: '52%' }]}>
-                <Text style={s.tHeadText}>Concepto</Text>
+        {/*
+          Honorarios fluye en el flujo normal (SIN `break` forzado): forzar que siempre empiece
+          en una página nueva se probó y rompe la regla real del documento — "máximo el contenido
+          necesario, sin espacio en blanco" — cuando el bloque anterior (p. ej. un PDT 601 con
+          varias líneas) ya se desborda un poco a la página 2 antes de llegar aquí: el resto de
+          esa página 2 queda vacío y Honorarios se empuja a una 3ª página innecesaria. Dejarlo en
+          flujo normal hace que arranque donde alcance el espacio, sin desperdiciarlo.
+        */}
+        <Band title="Honorarios y cargos del estudio" icon="userTie" />
+        <View style={s.table}>
+          <View wrap={false} style={s.tHead}>
+            <View style={[s.tHeadCell, { width: '52%' }]}>
+              <Text style={s.tHeadText}>Concepto</Text>
+            </View>
+            <View style={[s.tHeadCell, { width: '24%' }]}>
+              <Text style={s.tHeadText}>Periodo</Text>
+            </View>
+            <View style={[s.tHeadCell, { width: '24%' }]}>
+              <Text style={[s.tHeadText, { textAlign: 'right' }]}>Monto</Text>
+            </View>
+          </View>
+          {sortedLines.length > 0 ? (
+            sortedLines.map((ln, idx) => (
+              <View
+                key={ln.id ?? idx}
+                wrap={false}
+                style={[s.tRow, idx === sortedLines.length - 1 ? s.tRowLast : {}]}
+              >
+                <View style={[s.tCell, { width: '52%' }]}>
+                  <Text style={s.tText}>{ln.concept}</Text>
+                </View>
+                <View style={[s.tCell, { width: '24%' }]}>
+                  <Text style={s.tText}>
+                    {(ln.period_ym ?? '').trim() ||
+                      (ln.period_date && ln.period_date.length >= 10 ? ln.period_date.slice(0, 10) : '') ||
+                      settlement.liquidation_period ||
+                      '—'}
+                  </Text>
+                </View>
+                <View style={[s.tCell, { width: '24%' }]}>
+                  <Text style={s.tNum}>{formatTaxMoney(ln.amount)}</Text>
+                </View>
               </View>
-              <View style={[s.tHeadCell, { width: '24%' }]}>
-                <Text style={s.tHeadText}>Periodo</Text>
-              </View>
-              <View style={[s.tHeadCell, { width: '24%' }]}>
-                <Text style={[s.tHeadText, { textAlign: 'right' }]}>Monto</Text>
+            ))
+          ) : (
+            <View style={[s.tRow, s.tRowLast]}>
+              <View style={[s.tCell, { width: '100%' }]}>
+                <Text style={s.tText}>Sin líneas.</Text>
               </View>
             </View>
-            {sortedLines.length > 0 ? (
-              sortedLines.map((ln, idx) => (
-                <View
-                  key={ln.id ?? idx}
-                  wrap={false}
-                  style={[s.tRow, idx === sortedLines.length - 1 ? s.tRowLast : {}]}
-                >
-                  <View style={[s.tCell, { width: '52%' }]}>
-                    <Text style={s.tText}>{ln.concept}</Text>
-                  </View>
-                  <View style={[s.tCell, { width: '24%' }]}>
-                    <Text style={s.tText}>
-                      {(ln.period_ym ?? '').trim() ||
-                        (ln.period_date && ln.period_date.length >= 10 ? ln.period_date.slice(0, 10) : '') ||
-                        settlement.liquidation_period ||
-                        '—'}
-                    </Text>
-                  </View>
-                  <View style={[s.tCell, { width: '24%' }]}>
-                    <Text style={s.tNum}>{formatTaxMoney(ln.amount)}</Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={[s.tRow, s.tRowLast]}>
-                <View style={[s.tCell, { width: '100%' }]}>
-                  <Text style={s.tText}>Sin líneas.</Text>
-                </View>
-              </View>
-            )}
-          </View>
-          <CardsRow>
-            <CardsRowItem>
-              <PendingCard
-                label="Total honorarios a pagar"
-                amount={formatTaxMoney(totals.honorarios)}
-                icon="wallet"
-              />
-            </CardsRowItem>
-          </CardsRow>
+          )}
         </View>
+        <CardsRow>
+          <CardsRowItem>
+            <PendingCard
+              label="Total honorarios a pagar"
+              amount={formatTaxMoney(totals.honorarios)}
+              icon="wallet"
+            />
+          </CardsRowItem>
+        </CardsRow>
 
         {settlement.notes?.trim() ? (
           <View wrap={false} style={s.notes}>
