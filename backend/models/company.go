@@ -27,11 +27,14 @@ const (
 
 // Company representa una empresa cliente del estudio
 type Company struct {
-	ID             uint           `gorm:"primaryKey" json:"id"`
-	ClientType     string         `gorm:"size:20;not null;default:'estudio';index" json:"client_type"`
-	RUC            string         `gorm:"size:20;not null;index" json:"ruc"`
-	BusinessName   string         `gorm:"size:255;not null" json:"business_name"`          // Razón social
-	InternalCode   string         `gorm:"size:50;not null;uniqueIndex" json:"code"`        // Código interno del estudio
+	ID           uint   `gorm:"primaryKey" json:"id"`
+	ClientType   string `gorm:"size:20;not null;default:'estudio';index" json:"client_type"`
+	RUC          string `gorm:"size:20;not null;index" json:"ruc"`
+	BusinessName string `gorm:"size:255;not null" json:"business_name"` // Razón social
+	// Código interno del estudio. Único solo entre empresas ACTIVAS (validado en
+	// services/company_service.go, no por constraint de BD) — al desactivar una empresa su
+	// código queda libre para asignarse a otra; al reactivarla se revalida contra las activas.
+	InternalCode   string         `gorm:"size:50;not null" json:"code"`
 	Status         string         `gorm:"size:50;not null;default:'activo'" json:"status"` // Estado del cliente
 	TradeName      string         `gorm:"size:255" json:"trade_name"`                      // Nombre comercial (opcional)
 	IgvRate        string         `gorm:"size:10" json:"igv_rate"`                         // 18 | 10.5 (% IGV aplicable); vacío = sin configurar

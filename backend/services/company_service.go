@@ -20,13 +20,17 @@ func NewCompanyService() *CompanyService {
 	return &CompanyService{}
 }
 
+// companyInternalCodeTaken indica si `code` ya está en uso por OTRA empresa ACTIVA (excluye
+// `excludeID`). Las empresas inactivas NO bloquean el código: una vez desactivada una empresa,
+// su código queda libre para asignarse a otra (ver database/company_migrations.go, que retira el
+// índice único global que antes lo impedía).
 func companyInternalCodeTaken(db *gorm.DB, code string, excludeID uint) (bool, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return false, nil
 	}
 	var count int64
-	q := db.Model(&models.Company{}).Where("internal_code = ?", code)
+	q := db.Model(&models.Company{}).Where("internal_code = ? AND status = ?", code, "activo")
 	if excludeID > 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -34,6 +38,40 @@ func companyInternalCodeTaken(db *gorm.DB, code string, excludeID uint) (bool, e
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// ErrCompanyCodeConflict se devuelve al reactivar una empresa (inactivo → activo) cuando su
+// código interno ya lo tomó otra empresa activa mientras estaba inactiva: hace falta indicar un
+// código nuevo para poder reactivarla. Si el código sigue libre, la reactivación no la produce.
+type ErrCompanyCodeConflict struct {
+	Code string
+}
+
+func (e *ErrCompanyCodeConflict) Error() string {
+	return fmt.Sprintf("el código %q ya está en uso por otra empresa activa; indique un código nuevo para reactivar esta empresa", e.Code)
+}
+
+// applyReactivationCode aplica la regla de reactivación sobre `c` (ya cargado de BD, aún sin
+// guardar): si `newStatus` es "activo" y el estado actual de `c` es "inactivo", revalida su
+// código interno (o `requestedCode`, si se indicó uno distinto) contra las empresas activas y lo
+// asigna a `c.InternalCode`. No hace nada si la empresa ya estaba activa o sigue inactiva.
+func applyReactivationCode(db *gorm.DB, c *models.Company, newStatus string, requestedCode string) error {
+	if newStatus != "activo" || c.Status == "activo" {
+		return nil
+	}
+	code := strings.TrimSpace(c.InternalCode)
+	if trimmed := strings.TrimSpace(requestedCode); trimmed != "" {
+		code = trimmed
+	}
+	taken, err := companyInternalCodeTaken(db, code, c.ID)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return &ErrCompanyCodeConflict{Code: code}
+	}
+	c.InternalCode = code
+	return nil
 }
 
 func teamUserIDValue(id *uint) uint {
@@ -364,10 +402,12 @@ func (s *CompanyService) ValidateExternalCompanyForCreate(db *gorm.DB, input *mo
 		return errors.New("el código interno es requerido")
 	}
 
-	var count int64
-	db.Model(&models.Company{}).Where("internal_code = ?", input.InternalCode).Count(&count)
-	if count > 0 {
-		return errors.New("el código interno ya existe")
+	taken, err := companyInternalCodeTaken(db, input.InternalCode, 0)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return errors.New("el código interno ya existe en otra empresa activa")
 	}
 	if input.Status == "" {
 		input.Status = "activo"
@@ -505,7 +545,22 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	if input.BusinessName != "" {
 		c.BusinessName = strings.TrimSpace(input.BusinessName)
 	}
-	if trimmedCode := strings.TrimSpace(input.InternalCode); trimmedCode != "" {
+	// Código + estado se validan juntos: si esta actualización REACTIVA la empresa (inactivo →
+	// activo), el código (el nuevo si vino en `input.InternalCode`, o el actual si no) se
+	// revalida contra las empresas activas — puede exigir uno distinto si otra empresa activa ya
+	// lo tomó mientras esta estaba inactiva (ver applyReactivationCode). Fuera de una
+	// reactivación, un cambio de código normal solo se valida si de verdad cambió.
+	requestedStatus := strings.TrimSpace(input.Status)
+	newStatus := c.Status
+	if requestedStatus != "" {
+		newStatus = requestedStatus
+	}
+	trimmedCode := strings.TrimSpace(input.InternalCode)
+	if newStatus == "activo" && c.Status == "inactivo" {
+		if err := applyReactivationCode(database.DB, &c, newStatus, trimmedCode); err != nil {
+			return err
+		}
+	} else if trimmedCode != "" {
 		currentCode := strings.TrimSpace(c.InternalCode)
 		if trimmedCode != currentCode {
 			taken, err := companyInternalCodeTaken(database.DB, trimmedCode, id)
@@ -513,10 +568,13 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 				return err
 			}
 			if taken {
-				return errors.New("el código interno ya existe en otra empresa")
+				return errors.New("el código interno ya existe en otra empresa activa")
 			}
 		}
 		c.InternalCode = trimmedCode
+	}
+	if requestedStatus != "" {
+		c.Status = newStatus
 	}
 	if input.TradeName != "" {
 		c.TradeName = strings.TrimSpace(input.TradeName)
@@ -543,9 +601,6 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	}
 	if input.Email != "" {
 		c.Email = strings.TrimSpace(input.Email)
-	}
-	if input.Status != "" {
-		c.Status = strings.TrimSpace(input.Status)
 	}
 	c.ServiceStartAt = input.ServiceStartAt
 
@@ -630,21 +685,25 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	return database.DB.Save(&c).Error
 }
 
-// SetStatus actualiza solo el estado (activo/inactivo) sin tocar el resto del registro.
-func (s *CompanyService) SetStatus(id uint, status string) error {
+// SetStatus actualiza el estado (activo/inactivo). Al REACTIVAR (inactivo → activo) revalida el
+// código interno de la empresa contra las empresas activas: si sigue libre lo conserva tal cual;
+// si otra empresa activa ya lo tomó, exige `newCode` (puede ir vacío en el primer intento — el
+// llamador debe reintentar con un código nuevo si recibe *ErrCompanyCodeConflict).
+func (s *CompanyService) SetStatus(id uint, status string, newCode string) error {
 	status = strings.TrimSpace(strings.ToLower(status))
 	if status != "activo" && status != "inactivo" {
 		return errors.New("estado inválido")
 	}
-	var count int64
-	if err := database.DB.Model(&models.Company{}).Where("id = ?", id).Count(&count).Error; err != nil {
+	var c models.Company
+	if err := database.DB.First(&c, id).Error; err != nil {
 		return err
 	}
-	if count == 0 {
-		return gorm.ErrRecordNotFound
+	if err := applyReactivationCode(database.DB, &c, status, newCode); err != nil {
+		return err
 	}
-	// No usar RowsAffected: en varios drivers un UPDATE idempotente (mismo valor) devuelve 0 filas.
-	return database.DB.Model(&models.Company{}).Where("id = ?", id).Update("status", status).Error
+	c.Status = status
+	return database.DB.Model(&models.Company{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"status": c.Status, "internal_code": c.InternalCode}).Error
 }
 
 // companyListBaseQuery construye el FROM/WHERE común para listados de empresas.
@@ -666,8 +725,11 @@ func (s *CompanyService) companyListBaseQuery(params CompanyListParams) *gorm.DB
 		q = q.Where("client_type = ?", ct)
 	}
 	if params.Query != "" {
+		// El código interno del estudio ya NO es criterio de búsqueda: puede reasignarse a otra
+		// empresa cuando la anterior queda inactiva, así que dejó de ser un identificador
+		// confiable para filtrar. RUC (u otros filtros explícitos) es la única fuente de verdad.
 		like := "%" + params.Query + "%"
-		q = q.Where("ruc LIKE ? OR business_name LIKE ? OR internal_code LIKE ?", like, like, like)
+		q = q.Where("ruc LIKE ? OR business_name LIKE ?", like, like)
 	}
 	return q
 }
@@ -728,7 +790,7 @@ func (s *CompanyService) ListPaged(params CompanyListParams, page int, perPage i
 	if err := s.companyListBaseQuery(params).
 		Order(companyListOrderByCode(params.CodeOrder)).
 		Limit(perPage).
-		Offset((page - 1) * perPage).
+		Offset((page-1)*perPage).
 		Pluck("id", &ids).Error; err != nil {
 		return nil, 0, err
 	}

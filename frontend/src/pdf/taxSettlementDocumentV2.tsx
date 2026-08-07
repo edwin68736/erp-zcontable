@@ -21,7 +21,6 @@ import {
   getPdt621DetractionPdfRowLabel,
   getPdt621IgvBalanceLabel,
   getPdt621IgvNetAfterDetraction,
-  getPdt621IgvPayableBeforeDetraction,
   getPdt621IgvSaldoFavorLabel,
   getPdt621PercepcionesRetencionesFieldLabel,
   getPdt621RentaNetAfterDetraction,
@@ -118,7 +117,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: V2.border,
     borderRadius: 5,
-    backgroundColor: V2.white,
+    backgroundColor: V2.blueSoft,
     paddingVertical: 6,
     marginBottom: 6,
   },
@@ -636,7 +635,6 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
   const igvBalance = getPdt621IgvBalanceLabel(p621);
   const detrLabelIgv = getPdt621DetractionPdfRowLabel(p621.detraction_payment_igv);
   const detrLabelRenta = getPdt621DetractionPdfRowLabel(p621.detraction_payment_renta);
-  const igvPayableBefore = getPdt621IgvPayableBeforeDetraction(p621);
   const rentaPayableBefore = getPdt621RentaPayableBeforeDetraction(p621);
   const rentaRateLabel = rentaRatePct != null ? formatRentaRateLabel(rentaRatePct) : null;
 
@@ -707,15 +705,13 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
         />
       </View>
       <CardsRow>
-        {igvPayableBefore > 0 ? (
-          <CardsRowItem>
-            <PendingCard
-              label="IGV pendiente"
-              amount={formatTaxPdfTotalMoney(getPdt621IgvNetAfterDetraction(p621))}
-              icon="receipt"
-            />
-          </CardsRowItem>
-        ) : null}
+        <CardsRowItem>
+          <PendingCard
+            label="IGV pendiente"
+            amount={formatTaxPdfTotalMoney(getPdt621IgvNetAfterDetraction(p621))}
+            icon="receipt"
+          />
+        </CardsRowItem>
         <CardsRowItem>
           <InfoCard
             title="¿Qué es el IGV?"
@@ -1111,15 +1107,15 @@ export function TaxSettlementPdfDocumentV2({ settlement, firm, logoPng, footerAs
             </View>
           )}
         </View>
-        <CardsRow>
-          <CardsRowItem>
-            <PendingCard
-              label="Total honorarios a pagar"
-              amount={formatTaxMoney(totals.honorarios)}
-              icon="wallet"
-            />
-          </CardsRowItem>
-        </CardsRow>
+        <View wrap={false} style={s.totalBand}>
+          <View style={{ marginRight: 7 }}>
+            <PdfIcon name="wallet" size={12} color={V2.white} />
+          </View>
+          <Text style={s.totalBandLabel}>Total honorarios a pagar</Text>
+          <View style={s.totalBandBox}>
+            <Text style={s.totalBandAmount}>{formatTaxMoney(totals.honorarios)}</Text>
+          </View>
+        </View>
 
         {settlement.notes?.trim() ? (
           <View wrap={false} style={s.notes}>

@@ -182,7 +182,7 @@ const SupervisorLiquidacionesListPage = () => {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="RUC, razón social o código (mín. 2 caracteres)…"
+            placeholder="RUC o razón social (mín. 2 caracteres)…"
           />
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">

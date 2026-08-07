@@ -343,9 +343,12 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {
 		like := "%" + term + "%"
+		// El código interno del estudio NO es criterio de búsqueda: puede reasignarse a otra
+		// empresa (ver services/company_service.go), así que RUC/razón social son la única
+		// fuente de verdad para filtrar.
 		q = q.Where(
-			"companies.ruc LIKE ? OR companies.business_name LIKE ? OR companies.internal_code LIKE ?",
-			like, like, like,
+			"companies.ruc LIKE ? OR companies.business_name LIKE ?",
+			like, like,
 		)
 	}
 

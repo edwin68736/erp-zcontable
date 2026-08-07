@@ -23,17 +23,17 @@ type DetraccionesListParams struct {
 
 // DetraccionesListRow fila del listado (empresa + período + módulo detracciones).
 type DetraccionesListRow struct {
-	CompanyID         uint       `json:"company_id"`
-	Code              string     `json:"code"`
-	Dig               string     `json:"dig"`
-	BusinessName      string     `json:"business_name"`
-	RUC               string     `json:"ruc"`
-	AssistantUsername string     `json:"assistant_username"`
-	ControlID         *uint      `json:"control_id,omitempty"`
-	DeclarationID     *uint      `json:"declaration_id,omitempty"`
-	Status            string     `json:"status"`
-	AttachmentCount   int64      `json:"attachment_count"`
-	LastStoredAt      *time.Time `json:"last_stored_at,omitempty"`
+	CompanyID         uint                      `json:"company_id"`
+	Code              string                    `json:"code"`
+	Dig               string                    `json:"dig"`
+	BusinessName      string                    `json:"business_name"`
+	RUC               string                    `json:"ruc"`
+	AssistantUsername string                    `json:"assistant_username"`
+	ControlID         *uint                     `json:"control_id,omitempty"`
+	DeclarationID     *uint                     `json:"declaration_id,omitempty"`
+	Status            string                    `json:"status"`
+	AttachmentCount   int64                     `json:"attachment_count"`
+	LastStoredAt      *time.Time                `json:"last_stored_at,omitempty"`
 	FileName          string                    `json:"file_name,omitempty"`
 	FileURL           string                    `json:"file_url,omitempty"`
 	Timeliness        DetraccionesTimelinessDTO `json:"timeliness"`
@@ -188,9 +188,12 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {
 		like := "%" + term + "%"
+		// El código interno del estudio NO es criterio de búsqueda: puede reasignarse a otra
+		// empresa (ver services/company_service.go), así que RUC/razón social son la única
+		// fuente de verdad para filtrar.
 		q = q.Where(
-			"companies.ruc LIKE ? OR companies.business_name LIKE ? OR companies.internal_code LIKE ?",
-			like, like, like,
+			"companies.ruc LIKE ? OR companies.business_name LIKE ?",
+			like, like,
 		)
 	}
 

@@ -19,10 +19,10 @@ const (
 
 // SunatInboxWeekOption semana laborable selectable dentro de un period_ym (lun–sáb, sin domingo).
 type SunatInboxWeekOption struct {
-	WeekStart  string `json:"week_start"`
-	WeekIndex  int    `json:"week_index"`
-	Label      string `json:"label"`
-	DateRange  string `json:"date_range,omitempty"`
+	WeekStart string `json:"week_start"`
+	WeekIndex int    `json:"week_index"`
+	Label     string `json:"label"`
+	DateRange string `json:"date_range,omitempty"`
 }
 
 // SunatInboxListParams filtros del listado Buzón SOL por empresa, período y semana.
@@ -57,17 +57,17 @@ type SunatInboxCaptureSlot struct {
 
 // SunatInboxListRow fila del listado.
 type SunatInboxListRow struct {
-	CompanyID         uint                    `json:"company_id"`
-	Code              string                  `json:"code"`
-	Dig               string                  `json:"dig"`
-	BusinessName      string                  `json:"business_name"`
-	RUC               string                  `json:"ruc"`
+	CompanyID          uint                    `json:"company_id"`
+	Code               string                  `json:"code"`
+	Dig                string                  `json:"dig"`
+	BusinessName       string                  `json:"business_name"`
+	RUC                string                  `json:"ruc"`
 	AssistantUsername  string                  `json:"assistant_username"`
 	SupervisorUsername string                  `json:"supervisor_username"`
 	ControlID          *uint                   `json:"control_id,omitempty"`
-	DeclarationID     *uint                   `json:"declaration_id,omitempty"`
-	SummaryStatus     string                  `json:"summary_status"`
-	Slots             []SunatInboxCaptureSlot `json:"slots"`
+	DeclarationID      *uint                   `json:"declaration_id,omitempty"`
+	SummaryStatus      string                  `json:"summary_status"`
+	Slots              []SunatInboxCaptureSlot `json:"slots"`
 }
 
 // SunatInboxListMeta metadatos del listado (config y semanas).
@@ -152,7 +152,7 @@ func mondayOfWeekContaining(t time.Time) time.Time {
 	if wd == 0 {
 		wd = 7
 	}
-	return t.AddDate(0, 0, -(wd-1))
+	return t.AddDate(0, 0, -(wd - 1))
 }
 
 // businessWeekEnd sábado de la semana laborable (lun–sáb; domingo no laborable).
@@ -600,9 +600,12 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {
 		like := "%" + term + "%"
+		// El código interno del estudio NO es criterio de búsqueda: puede reasignarse a otra
+		// empresa (ver services/company_service.go), así que RUC/razón social son la única
+		// fuente de verdad para filtrar.
 		q = q.Where(
-			"companies.ruc LIKE ? OR companies.business_name LIKE ? OR companies.internal_code LIKE ?",
-			like, like, like,
+			"companies.ruc LIKE ? OR companies.business_name LIKE ?",
+			like, like,
 		)
 	}
 
@@ -668,17 +671,17 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			continue
 		}
 		filteredRows = append(filteredRows, SunatInboxListRow{
-			CompanyID:         co.ID,
-			Code:              strings.TrimSpace(co.InternalCode),
-			Dig:               credDig[co.ID],
-			BusinessName:      strings.TrimSpace(co.BusinessName),
-			RUC:               strings.TrimSpace(co.RUC),
+			CompanyID:          co.ID,
+			Code:               strings.TrimSpace(co.InternalCode),
+			Dig:                credDig[co.ID],
+			BusinessName:       strings.TrimSpace(co.BusinessName),
+			RUC:                strings.TrimSpace(co.RUC),
 			AssistantUsername:  assistantUsername(co.Assistant),
 			SupervisorUsername: userUsername(co.Supervisor),
-			ControlID:         controlID,
-			DeclarationID:     declID,
-			SummaryStatus:     summary,
-			Slots:             dtoSlots,
+			ControlID:          controlID,
+			DeclarationID:      declID,
+			SummaryStatus:      summary,
+			Slots:              dtoSlots,
 		})
 	}
 

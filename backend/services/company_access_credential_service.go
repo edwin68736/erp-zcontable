@@ -20,11 +20,11 @@ func NewCompanyAccessCredentialService() *CompanyAccessCredentialService {
 
 // CompanyAccessCredentialRow fila de listado (empresa + credenciales).
 type CompanyAccessCredentialRow struct {
-	CompanyID uint `json:"company_id"`
-	Code      string `json:"code"`
-	Dig       string `json:"dig"`
-	RUC       string `json:"ruc"`
-	BusinessName string `json:"business_name"`
+	CompanyID          uint   `json:"company_id"`
+	Code               string `json:"code"`
+	Dig                string `json:"dig"`
+	RUC                string `json:"ruc"`
+	BusinessName       string `json:"business_name"`
 	AssistantUserID    *uint  `json:"assistant_user_id,omitempty"`
 	SupervisorUserID   *uint  `json:"supervisor_user_id,omitempty"`
 	AssistantUsername  string `json:"assistant_username"`
@@ -67,9 +67,9 @@ type CredentialFilterUserOption struct {
 
 // CompanyAccessCredentialFilterFacets opciones de filtro y colores por dígito.
 type CompanyAccessCredentialFilterFacets struct {
-	Assistants           []CredentialFilterUserOption `json:"assistants"`
-	Supervisors          []CredentialFilterUserOption `json:"supervisors"`
-	ClavesSolDigColorsJSON string                     `json:"claves_sol_dig_colors_json,omitempty"`
+	Assistants             []CredentialFilterUserOption `json:"assistants"`
+	Supervisors            []CredentialFilterUserOption `json:"supervisors"`
+	ClavesSolDigColorsJSON string                       `json:"claves_sol_dig_colors_json,omitempty"`
 }
 
 type CompanyAccessCredentialListResult struct {
@@ -175,9 +175,12 @@ func (s *CompanyAccessCredentialService) List(p CompanyAccessCredentialListParam
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {
 		like := "%" + term + "%"
+		// El código interno del estudio NO es criterio de búsqueda: puede reasignarse a otra
+		// empresa (ver services/company_service.go), así que RUC/razón social son la única
+		// fuente de verdad para filtrar.
 		q = q.Where(
-			"ruc LIKE ? OR business_name LIKE ? OR internal_code LIKE ?",
-			like, like, like,
+			"ruc LIKE ? OR business_name LIKE ?",
+			like, like,
 		)
 	}
 

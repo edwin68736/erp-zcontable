@@ -107,8 +107,14 @@ export const companiesService = {
     return res.data;
   },
 
-  async patchStatus(id: number, status: 'activo' | 'inactivo'): Promise<Company> {
-    const res = await client.patch<Company>(`/companies/${id}/status`, { status });
+  /**
+   * `newCode` solo aplica al REACTIVAR (inactivo → activo): si el código de la empresa ya lo
+   * tomó otra empresa activa mientras esta estaba inactiva, el backend responde 409 con
+   * `code_conflict: true` — hay que reintentar pasando un código nuevo. Si el código sigue
+   * libre, la reactivación no lo necesita.
+   */
+  async patchStatus(id: number, status: 'activo' | 'inactivo', newCode?: string): Promise<Company> {
+    const res = await client.patch<Company>(`/companies/${id}/status`, { status, new_code: newCode });
     return res.data;
   },
 

@@ -130,20 +130,35 @@ const Companies = () => {
     }, { replace: true });
   }, [setSearchParams, success]);
 
-  const handleCompanyStatusChange = async (company: Company, next: 'activo' | 'inactivo') => {
-    if (company.status === next) return;
+  const handleCompanyStatusChange = async (company: Company, next: 'activo' | 'inactivo', newCode?: string) => {
+    if (company.status === next && !newCode) return;
     try {
       setStatusUpdatingId(company.id);
-      await companiesService.patchStatus(company.id, next);
-      setCompanies((prev) => prev.map((c) => (c.id === company.id ? { ...c, status: next } : c)));
+      const updated = await companiesService.patchStatus(company.id, next, newCode);
+      setCompanies((prev) => prev.map((c) => (c.id === company.id ? { ...c, status: next, code: updated.code } : c)));
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Estado de la empresa actualizado.' } }),
       );
     } catch (e) {
       console.error(e);
-      const ax = e as { response?: { data?: { error?: string } } };
-      const msg = ax.response?.data?.error ?? 'No se pudo actualizar el estado';
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }));
+      const ax = e as { response?: { data?: { error?: string; code_conflict?: boolean } } };
+      // Al REACTIVAR (inactivo → activo), si el código de la empresa ya lo tomó otra empresa
+      // activa mientras esta estaba inactiva, el backend responde 409 con code_conflict: true —
+      // se pide un código nuevo y se reintenta con él, en vez de solo mostrar el error.
+      if (next === 'activo' && ax.response?.data?.code_conflict) {
+        const suggestion = window.prompt(
+          `${ax.response.data.error ?? 'El código actual ya está en uso.'}\n\nIngrese el nuevo código interno para reactivar "${company.business_name}":`,
+        );
+        const trimmed = suggestion?.trim();
+        if (trimmed) {
+          setStatusUpdatingId(null);
+          await handleCompanyStatusChange(company, next, trimmed);
+          return;
+        }
+      } else {
+        const msg = ax.response?.data?.error ?? 'No se pudo actualizar el estado';
+        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }));
+      }
       void reloadCompanies();
     } finally {
       setStatusUpdatingId(null);
@@ -479,7 +494,7 @@ const Companies = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-            placeholder="RUC, razón social o código (mín. 3 caracteres)…"
+            placeholder="RUC o razón social (mín. 3 caracteres)…"
             autoComplete="off"
           />
         </div>

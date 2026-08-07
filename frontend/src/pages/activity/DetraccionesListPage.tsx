@@ -177,7 +177,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="RUC, razón social o código (mín. 2 caracteres)…"
+            placeholder="RUC o razón social (mín. 2 caracteres)…"
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>

@@ -194,6 +194,10 @@ func (ctrl *CompanyController) UpdateAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
 	if err := ctrl.companyService.Update(uint(id), &input); err != nil {
+		var conflict *services.ErrCompanyCodeConflict
+		if errors.As(err, &conflict) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error(), "code_conflict": true})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	company, _ := ctrl.companyService.GetByID(uint(id))
@@ -222,13 +226,21 @@ func (ctrl *CompanyController) PatchStatusAPI(c fiber.Ctx) error {
 
 	var body struct {
 		Status string `json:"status"`
+		// NewCode: código a asignar SOLO cuando esta llamada reactiva la empresa (inactivo →
+		// activo) y su código anterior ya lo tomó otra empresa activa. Opcional en el primer
+		// intento — si el código actual sigue libre, la reactivación no lo necesita.
+		NewCode string `json:"new_code"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
-	if err := ctrl.companyService.SetStatus(uint(id), body.Status); err != nil {
+	if err := ctrl.companyService.SetStatus(uint(id), body.Status, body.NewCode); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Empresa no encontrada"})
+		}
+		var conflict *services.ErrCompanyCodeConflict
+		if errors.As(err, &conflict) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error(), "code_conflict": true})
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

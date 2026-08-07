@@ -79,7 +79,9 @@ const Reports = () => {
       companyOptions.map((c) => ({
         value: String(c.id),
         label: `${c.business_name} (${c.code})`,
-        searchText: `${c.business_name} ${c.code}`,
+        // El código interno del estudio no es criterio de búsqueda (puede reasignarse a otra
+        // empresa) — se sigue mostrando en el label, pero el filtro usa RUC/razón social.
+        searchText: `${c.business_name} ${c.ruc}`,
       })),
     [companyOptions],
   );
