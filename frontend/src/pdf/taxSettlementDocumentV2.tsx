@@ -247,7 +247,9 @@ const s = StyleSheet.create({
   infoCardTitle: { fontSize: 7.6, fontWeight: 700, color: V2.navy },
   infoCardText: { fontSize: 6.8, color: V2.muted, lineHeight: 1.45 },
 
-  /* Banda total */
+  /* Banda total. La caja blanca va con el margen normal dentro de la banda (sin pegarse al
+   * borde); lo que se ajusta es el padding INTERNO de la caja — más angosto a la derecha para
+   * que el monto se acerque a su propio borde derecho. */
   totalBand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -261,9 +263,11 @@ const s = StyleSheet.create({
   totalBandBox: {
     backgroundColor: V2.white,
     borderRadius: 3,
+    alignItems: 'flex-end',
     paddingVertical: 5,
-    paddingHorizontal: 12,
-    minWidth: 96,
+    paddingLeft: 9,
+    paddingRight: 6,
+    minWidth: 66,
   },
   totalBandAmount: { fontSize: 11, fontWeight: 700, color: V2.navy, textAlign: 'right' },
 
@@ -290,9 +294,11 @@ const s = StyleSheet.create({
   honorariosTotalBandBox: {
     backgroundColor: V2.white,
     borderRadius: 3,
+    alignItems: 'flex-end',
     paddingVertical: 2.5,
-    paddingHorizontal: 9,
-    minWidth: 80,
+    paddingLeft: 7,
+    paddingRight: 5,
+    minWidth: 54,
   },
   honorariosTotalBandAmount: { fontSize: 9, fontWeight: 700, color: V2.navy, textAlign: 'right' },
 
