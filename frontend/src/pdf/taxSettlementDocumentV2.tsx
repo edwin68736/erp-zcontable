@@ -420,8 +420,12 @@ function Band({
  * hueco en la página actual, react-pdf difiere TODO el bloque (título incluido) a la siguiente
  * página, evitando el título huérfano solo al pie de página con su contenido en la otra hoja.
  * A diferencia de `wrap={false}`, esto no obliga a que el resto del bloque quepa entero.
+ *
+ * 130pt (no 60): el mínimo real de un bloque completo (título + tabla + tarjeta lateral) nunca
+ * baja de ~150pt incluso para secciones cortas como ITAN; con 60pt el título igual quedaba
+ * huérfano a centímetros del pie de página, con su tabla recién empezando en la hoja siguiente.
  */
-function SubHeading({ title, minPresenceAhead = 60 }: { title: string; minPresenceAhead?: number }) {
+function SubHeading({ title, minPresenceAhead = 130 }: { title: string; minPresenceAhead?: number }) {
   return (
     <View minPresenceAhead={minPresenceAhead} style={s.subHeading}>
       <Text style={s.subHeadingText}>{title}</Text>
@@ -433,7 +437,7 @@ function SubHeading({ title, minPresenceAhead = 60 }: { title: string; minPresen
 function StepTitle({
   title,
   icon,
-  minPresenceAhead = 60,
+  minPresenceAhead = 110,
 }: {
   title: string;
   icon: PdfIconName;
@@ -924,6 +928,110 @@ function buildPdt710Rows(p710: TaxSectionPdt710): Array<{ label: string; value: 
   return rows;
 }
 
+/* ---------- Estimador de altura: ¿cabe "Detalle de impuestos" entero en la página 1? ---------- */
+
+/**
+ * Constantes calibradas midiendo la posición Y real (en pt, vía `textContent` de pdf.js) de
+ * cada elemento en PDFs generados con este mismo componente — no son un cálculo teórico desde
+ * el CSS. Se usan solo para decidir si conviene forzar el salto de página de "Honorarios" (ver
+ * `forcePageBreak` en `TaxSettlementPdfDocumentV2`): si el detalle de impuestos ya se desborda
+ * de la página 1 por sí solo, forzar el salto es innecesario y deja media página en blanco.
+ */
+const HEIGHT_EST = {
+  ROW: 14.5,
+  STEPTITLE: 16,
+  SUBHEADING: 18,
+  SUMMARY_TRANSITION: 18.3,
+  SUMROW: 13.6,
+  /** Piso conservador (peor caso ~3 líneas) para la columna de tarjetas al costado de cada
+   * bloque: cuando la tabla tiene pocas filas, la tarjeta+explicación puede ser más alta. */
+  CARD_FLOOR: 84,
+  GAP_WITHIN_PDT621: 23,
+  GAP_BETWEEN_BLOCKS: 29,
+  TOTAL_BAND: 44,
+  PREFIX_NO_DRAFT: 236,
+  DRAFT_EXTRA: 22,
+  PAGE_CONTENT_BOTTOM: 798,
+  SAFETY_MARGIN: 15,
+};
+
+function estimateIgvSplitHeight(p621: TaxSectionPdt621): number {
+  const igvRows = listPdt621IgvDisplayRows(p621, { forPdf: true }).filter(
+    ({ row, alwaysShowInPdf }) => alwaysShowInPdf || isTaxIgvRowVisibleInPdf(row),
+  ).length;
+  const igvSummaryRows = 7 + (getPdt621DetractionPdfRowLabel(p621.detraction_payment_igv) ? 1 : 0) + 1;
+  const tableColumn =
+    igvRows * HEIGHT_EST.ROW + HEIGHT_EST.SUMMARY_TRANSITION + (igvSummaryRows - 1) * HEIGHT_EST.SUMROW;
+  return Math.max(tableColumn, HEIGHT_EST.CARD_FLOOR);
+}
+
+function estimateRentaSplitHeight(p621: TaxSectionPdt621): number {
+  const rentaRows =
+    (isNonZeroTaxAmount(p621.renta_ventas_base) ? 1 : 0) +
+    2 + // impuesto renta + saldo a favor ITAN
+    (getPdt621DetractionPdfRowLabel(p621.detraction_payment_renta) ? 1 : 0) +
+    1; // fila total
+  return Math.max(rentaRows * HEIGHT_EST.ROW, HEIGHT_EST.CARD_FLOOR);
+}
+
+function estimatePdt621Height(p621: TaxSectionPdt621): number {
+  return (
+    HEIGHT_EST.SUBHEADING +
+    HEIGHT_EST.STEPTITLE +
+    estimateIgvSplitHeight(p621) +
+    HEIGHT_EST.GAP_WITHIN_PDT621 +
+    HEIGHT_EST.STEPTITLE +
+    estimateRentaSplitHeight(p621)
+  );
+}
+
+/** Bloque genérico (PDT 601, ITAN, PDT 617, ICBPER, PDT 710): título + tabla (+1 fila de total). */
+function estimateSimpleBlockHeight(rowCount: number): number {
+  const tableColumn = (rowCount + 1) * HEIGHT_EST.ROW;
+  return HEIGHT_EST.SUBHEADING + Math.max(tableColumn, HEIGHT_EST.CARD_FLOOR);
+}
+
+/**
+ * Altura estimada (en pt) del bloque "Detalle de impuestos" completo, desde el título de la
+ * banda hasta el final de la banda "Total impuestos a pagar" — es decir, todo lo que precede a
+ * "Honorarios" en el flujo normal de la página 1.
+ */
+function estimateDetalleImpuestosHeight(sec: TaxSettlementSectionsPayload): number {
+  let height = 0;
+  let firstBlock = true;
+  const addBlock = (blockHeight: number) => {
+    if (!firstBlock) height += HEIGHT_EST.GAP_BETWEEN_BLOCKS;
+    height += blockHeight;
+    firstBlock = false;
+  };
+  if (sec.pdt621?.enabled) addBlock(estimatePdt621Height(sec.pdt621));
+  if (sec.pdt601?.enabled) addBlock(estimateSimpleBlockHeight(buildPdt601Rows(sec.pdt601).length));
+  if (sec.itan?.enabled) addBlock(estimateSimpleBlockHeight(buildItanRows(sec.itan).length));
+  if (sec.pdt617?.enabled) addBlock(estimateSimpleBlockHeight(buildPdt617Rows(sec.pdt617).length));
+  if (sec.bolsas_plasticas?.enabled) {
+    addBlock(estimateSimpleBlockHeight(buildBolsasRows(sec.bolsas_plasticas).length));
+  }
+  if (sec.pdt710?.enabled) addBlock(estimateSimpleBlockHeight(buildPdt710Rows(sec.pdt710).length));
+  return height + HEIGHT_EST.TOTAL_BAND;
+}
+
+/**
+ * true → forzar que "Honorarios" arranque en una página nueva (el detalle de impuestos cabe
+ * entero en la página 1, así que sin forzar el salto Honorarios compartiría esa página).
+ * false → dejarlo fluir en flujo normal (el detalle ya se desborda de la página 1 por su cuenta,
+ * forzar aquí solo empujaría Honorarios a una página más, dejando la anterior con mucho espacio
+ * en blanco — exactamente el bug reportado en producción).
+ */
+function shouldForceHonorariosPageBreak(
+  sections: TaxSettlementSectionsPayload | null,
+  draftBannerShown: boolean,
+): boolean {
+  if (!sections) return true;
+  const prefix = HEIGHT_EST.PREFIX_NO_DRAFT + (draftBannerShown ? HEIGHT_EST.DRAFT_EXTRA : 0);
+  const estimatedEnd = prefix + estimateDetalleImpuestosHeight(sections);
+  return estimatedEnd <= HEIGHT_EST.PAGE_CONTENT_BOTTOM - HEIGHT_EST.SAFETY_MARGIN;
+}
+
 /* ---------- Pagos y recomendaciones ---------- */
 
 function PaymentBlockV2({ firm, assets }: { firm: FirmConfig | null; assets?: LiquidationPdfAssets | null }) {
@@ -1140,11 +1248,19 @@ export function TaxSettlementPdfDocumentV2({ settlement, firm, logoPng, footerAs
         {sections ? renderSections(sections) : null}
 
         {/*
-          Honorarios siempre arranca desde la página 2 en adelante (nunca comparte la página 1
-          con el detalle de impuestos), aunque sobre espacio en la página 1 — regla de negocio
-          explícita, no una optimización de espacio. `forcePageBreak` fuerza el salto.
+          Honorarios nunca debe compartir la página 1 con el detalle de impuestos — regla de
+          negocio explícita. Pero forzar el salto SIEMPRE (sin condición) causaba el bug real:
+          cuando el detalle de impuestos ya se desborda de la página 1 por su cuenta (el caso
+          común con varios PDT), forzar otro salto empuja Honorarios a una página de más y deja
+          la anterior con muchísimo espacio en blanco. `shouldForceHonorariosPageBreak` estima
+          (a partir de conteos de filas reales, calibrado contra PDFs renderizados) si el detalle
+          alcanza a caber entero en la página 1; solo en ese caso se fuerza el salto.
         */}
-        <Band title="Honorarios y cargos del estudio" icon="userTie" forcePageBreak />
+        <Band
+          title="Honorarios y cargos del estudio"
+          icon="userTie"
+          forcePageBreak={shouldForceHonorariosPageBreak(sections, !totals.emitted)}
+        />
         <View style={s.table}>
           <View wrap={false} style={s.tHead}>
             <View style={[s.tHeadCell, { width: '52%' }]}>
