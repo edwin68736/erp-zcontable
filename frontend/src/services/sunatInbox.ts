@@ -1,5 +1,4 @@
 import client from '../api/client';
-import { defaultWeekStartForPeriod } from '../utils/mailboxWeek';
 
 export type MailboxType = 'sunat' | 'sunafil';
 
@@ -79,6 +78,37 @@ export interface SunatInboxListResponse {
   };
 }
 
+/** Fila por empresa para el reporte Excel: capturas de TODAS las semanas del período (no solo una). */
+export interface SunatInboxExportRow {
+  company_id: number;
+  code: string;
+  dig: string;
+  business_name: string;
+  ruc: string;
+  assistant_username: string;
+  supervisor_username: string;
+  weeks: Record<string, SunatInboxCaptureSlot[]>;
+}
+
+export interface SunatInboxExportResponse {
+  meta: SunatInboxListMeta;
+  data: SunatInboxExportRow[];
+}
+
+/** Vista "Mes completo" en pantalla: mismas filas que el reporte Excel, pero paginadas. */
+export interface SunatInboxMonthListResponse {
+  meta: SunatInboxListMeta;
+  data: SunatInboxExportRow[];
+  pagination: {
+    page: number;
+    per_page: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+export type SunatInboxScope = 'week' | 'month';
+
 export const sunatInboxService = {
   async list(params: {
     period_ym: string;
@@ -130,46 +160,36 @@ export const sunatInboxService = {
     return res.data.data;
   },
 
-  /** Todas las empresas del período, por cada semana laborable (para exportación Excel). */
-  async fetchAllWeeksData(params: {
+  /**
+   * Todas las empresas que matchean los filtros (q, status), con sus capturas — para el reporte
+   * Excel. scope="week" exporta solo week_start (igual que la tabla en modo semana); scope="month"
+   * (o si se omite) exporta todas las semanas del período. Una sola llamada al backend (antes se
+   * hacía una llamada paginada por cada semana del período, repitiendo trabajo de BD).
+   */
+  async fetchExportData(params: {
+    period_ym: string;
+    week_start?: string;
+    q?: string;
+    status?: string;
+    scope?: SunatInboxScope;
+  }): Promise<SunatInboxExportResponse> {
+    const res = await client.get<SunatInboxExportResponse>('/supervisors/activity-modules/sunat-inbox/export', {
+      params,
+    });
+    return res.data;
+  },
+
+  /** Vista "Mes completo": cada fila trae las capturas de TODAS las semanas del período, paginada. */
+  async listMonth(params: {
     period_ym: string;
     q?: string;
     status?: string;
-  }): Promise<{
-    captures_per_week: number;
-    weeks: SunatInboxWeekOption[];
-    weeksData: Record<string, SunatInboxListRow[]>;
-  }> {
-    const probe = await this.list({
-      period_ym: params.period_ym,
-      week_start: defaultWeekStartForPeriod(params.period_ym),
-      per_page: 1,
-      page: 1,
+    page?: number;
+    per_page?: number;
+  }): Promise<SunatInboxMonthListResponse> {
+    const res = await client.get<SunatInboxMonthListResponse>('/supervisors/activity-modules/sunat-inbox/month', {
+      params,
     });
-    const weeks = probe.meta?.weeks ?? [];
-    const capturesPerWeek = probe.meta?.captures_per_week ?? 2;
-    const weeksData: Record<string, SunatInboxListRow[]> = {};
-
-    for (const week of weeks) {
-      const rows: SunatInboxListRow[] = [];
-      let page = 1;
-      let totalPages = 1;
-      while (page <= totalPages) {
-        const res = await this.list({
-          period_ym: params.period_ym,
-          week_start: week.week_start,
-          q: params.q,
-          status: params.status,
-          page,
-          per_page: 200,
-        });
-        rows.push(...(res.data ?? []));
-        totalPages = res.pagination?.total_pages ?? 1;
-        page += 1;
-      }
-      weeksData[week.week_start] = rows;
-    }
-
-    return { captures_per_week: capturesPerWeek, weeks, weeksData };
+    return res.data;
   },
 };

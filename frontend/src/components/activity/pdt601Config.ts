@@ -20,7 +20,9 @@ export const PDT601_STATUS_FILTER = [
   { value: 'sin_planilla', label: 'Sin planilla' },
 ];
 
-const PDT601_COMPLETE = new Set(['aprobado', 'presentado', 'cerrado']);
+/** Estados en los que el supervisor ya cerró su revisión — a partir de acá el asistente ya no
+ * puede seguir editando (ver Pdt601DetailPage/Pdt601ListPage). Fuente única: no duplicar este set. */
+export const PDT601_APPROVED_STATUSES = new Set(['aprobado', 'presentado', 'cerrado']);
 
 const PDT601_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
@@ -31,9 +33,13 @@ const PDT601_BADGE: Record<string, string> = {
   presentado: 'bg-teal-100 text-teal-800',
   cerrado: 'bg-slate-200 text-slate-800',
   sin_registro: 'bg-slate-100 text-slate-500',
+  // "sin_planilla" no es un estado de la declaración (es planilla.sin_planilla) — se muestra acá
+  // como si lo fuera para que el badge/select del detalle lo reflejen de forma consistente.
+  sin_planilla: 'bg-amber-100 text-amber-900',
 };
 
 export function pdt601StatusLabel(status: string): string {
+  if (status === 'sin_planilla') return 'Sin planilla';
   return activityStatusLabel(status, PDT601_STATUSES);
 }
 
@@ -51,7 +57,7 @@ export function computePdt601DueMeta(
   dueDate?: string,
   sinPlanilla?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || sinPlanilla || PDT601_COMPLETE.has(status) || status === 'observado') {
+  if (!dueDate || sinPlanilla || PDT601_APPROVED_STATUSES.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();

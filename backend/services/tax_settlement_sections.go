@@ -55,6 +55,9 @@ type TaxSectionPdt621 struct {
 	SaldoFavorFinal      float64   `json:"saldo_favor_final"`
 	DetractionPaymentIGV   *TaxDetractionPayment `json:"detraction_payment_igv,omitempty"`
 	DetractionPaymentRenta *TaxDetractionPayment `json:"detraction_payment_renta,omitempty"`
+	// IgvJusto: acogimiento al régimen "IGV Justo" (postergación del pago del IGV para MYPE).
+	// Bandera manual del supervisor, no se recalcula.
+	IgvJusto             bool      `json:"igv_justo,omitempty"`
 	RentaImpuestoPagar   float64   `json:"renta_impuesto_a_pagar"`
 	ImpuestoAPagar       float64   `json:"impuesto_a_pagar"`
 }

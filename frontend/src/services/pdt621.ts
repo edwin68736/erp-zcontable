@@ -57,6 +57,10 @@ export interface Pdt621ListRow {
   record?: Pdt621Record | null;
   schedule_due_date?: string;
   declaration_timeliness: Pdt621Timeliness;
+  /** Cumplimiento del plazo INTERNO del estudio (calendario de actividades, tipo "pdt_621") para
+   * que el asistente haga la primera entrega — distinto de declaration_timeliness (cronograma
+   * SUNAT). No valida nada contra SUNAT, solo la entrega interna del asistente. */
+  assistant_timeliness: Pdt621Timeliness;
 }
 
 export interface Pdt621Detail {

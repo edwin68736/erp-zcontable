@@ -8,6 +8,7 @@ import {
   pdt601StatusBadgeClass,
   pdt601StatusLabel,
   pdt601RowBgClass,
+  PDT601_APPROVED_STATUSES,
   PDT601_STATUS_FILTER,
 } from '../../components/activity/pdt601Config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
@@ -23,6 +24,8 @@ import {
 } from '../../services/companyAccessCredentials';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { exportPdt601ReportExcel } from '../../utils/pdt601ExcelExport';
+import { timelinessBadgeClass, timelinessLabel } from '../../components/activity/timelinessConfig';
 import { useElementHeight } from '../../hooks/useElementHeight';
 import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
@@ -98,6 +101,8 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Altura real de la 1ª fila del encabezado — medida sobre la celda "N° de trabajadores"
   // (colSpan, NO rowSpan): es la única celda de la fila 1 que pertenece SOLO a esa fila, así que
@@ -176,6 +181,28 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
     return `${path}?period_ym=${encodeURIComponent(periodYm)}`;
   };
 
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    try {
+      setExportingExcel(true);
+      setError('');
+      setMsg('');
+      const exportRows = await pdt601Service.fetchExportData({
+        period_ym: periodYm,
+        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
+        status: statusFilter || undefined,
+        dig: filterDig ?? undefined,
+        assistant_user_id: filterAssistantId ?? undefined,
+      });
+      await exportPdt601ReportExcel({ periodYm, rows: exportRows });
+      setMsg('Excel generado correctamente.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex items-start justify-between gap-3">
@@ -242,8 +269,24 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleExportExcel()}
+          disabled={loading || exportingExcel}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+        >
+          <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
+          Excel
+        </button>
         </div>
       </div>
+
+      {msg ? (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-center gap-2">
+          <i className="fas fa-check-circle" aria-hidden />
+          {msg}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
@@ -276,6 +319,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH} rowSpan={2}>Estado</th>
+                <th className={TH} rowSpan={2} />
                 <th ref={headRow1Ref} className={`${TH} text-center ${GROUP_BORDER}`} colSpan={3}>
                   N° de trabajadores
                 </th>
@@ -289,7 +333,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th className={TH} rowSpan={2}>Ticket AFP</th>
                 <th className={TH} rowSpan={2}>Estado de envío boletas de trabajadores</th>
                 <th className={TH} rowSpan={2}>Fecha de envío de NPS, tickets y boletas</th>
-                <th className={TH} rowSpan={2} />
               </tr>
               <tr className="bg-slate-50" style={{ position: 'sticky', top: headRow1H, zIndex: Z_HEAD_ROW }}>
                 <th className={`${SUBTH} ${GROUP_BORDER}`}>ONP</th>
@@ -356,19 +399,49 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                         <span className="block truncate">{row.assistant_username || '—'}</span>
                       </td>
                       <td className={TD}>
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(row.status)}`}
-                        >
-                          {pdt601StatusLabel(row.status)}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          {/* Igual que en el detalle (combinedStatusValue): "sin_planilla" no es un
+                              estado real de la declaración, pero se muestra acá en vez del estado
+                              de revisión para no decir "Pendiente" en una empresa sin planilla. */}
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(pl?.sin_planilla ? 'sin_planilla' : row.status)}`}
+                          >
+                            {pdt601StatusLabel(pl?.sin_planilla ? 'sin_planilla' : row.status)}
+                          </span>
+                          {/* Cumplimiento del plazo del calendario de actividades (tipo "pdt_601")
+                              para la entrega del asistente (fecha_entrega) — antes solo coloreaba
+                              el fondo de la fila (pdt601RowBgClass), sin texto explícito acá.
+                              Sin planilla no tiene plazo de entrega que cumplir: se omite. */}
+                          {!pl?.sin_planilla ? (
+                            <span
+                              title="Cumplimiento del plazo de entrega según el calendario de actividades"
+                              className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.timeliness)}`}
+                            >
+                              {timelinessLabel(row.timeliness)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className={TD}>
+                        {/* El asistente ya no puede editar (ni entrar al detalle) una vez que el
+                            supervisor aprobó — a diferencia del resto de las tablas, acá el check
+                            verde NO es un link: es solo la señal de "ya no hay nada que hacer". */}
+                        {workspace === 'assistant' && PDT601_APPROVED_STATUSES.has(row.status) ? (
+                          <span
+                            title={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
+                            aria-label={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600 text-white shadow-sm cursor-default"
+                          >
+                            <i className="fas fa-check text-xs" aria-hidden />
+                          </span>
+                        ) : (
+                          <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
+                        )}
                       </td>
                       {pl?.sin_planilla ? (
-                        <td colSpan={10} className={`${TD} ${GROUP_BORDER} text-center`}>
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">
-                            <i className="fas fa-ban" aria-hidden />
-                            Sin planilla
-                          </span>
-                        </td>
+                        // "Sin planilla" ya se indica en la columna Estado — acá solo se dejan
+                        // en blanco los campos numéricos (no aplica), sin repetir la etiqueta.
+                        <td colSpan={10} className={`${TD} ${GROUP_BORDER}`} />
                       ) : (
                         <>
                           <td className={`${TDN} ${GROUP_BORDER}`}>{pl ? pl.trabajadores_onp : ''}</td>
@@ -392,9 +465,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       <td className={`${TD} whitespace-nowrap`}>{pl?.ticket_afp || ''}</td>
                       <td className={`${TD} whitespace-nowrap`}>{pl?.estado_envio_boletas || ''}</td>
                       <td className={`${TD} whitespace-nowrap`}>{pl?.fecha_envio_nps_tickets_boletas || ''}</td>
-                      <td className={TD}>
-                        <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
-                      </td>
                     </tr>
                   );
                 })

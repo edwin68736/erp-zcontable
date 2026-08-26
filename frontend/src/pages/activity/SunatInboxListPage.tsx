@@ -23,15 +23,19 @@ import { P } from '../../rbac/codes';
 import {
   sunatInboxService,
   type MailboxType,
+  type SunatInboxCaptureSlot,
+  type SunatInboxExportRow,
   type SunatInboxListMeta,
   type SunatInboxListRow,
+  type SunatInboxScope,
 } from '../../services/sunatInbox';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLabel, weeksInPeriodYM } from '../../utils/mailboxWeek';
 import { countMailboxWeekProgress, summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportSunatInboxReportExcel } from '../../utils/sunatInboxExcelExport';
-import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
+import { useElementHeight } from '../../hooks/useElementHeight';
+import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -49,6 +53,12 @@ type SunatInboxListPageProps = {
 const TH = 'px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-3 py-3 text-sm text-slate-700 border-t border-slate-100 align-top';
 
+const EMPTY_SLOT_FALLBACK = (slotIndex: number): SunatInboxCaptureSlot => ({
+  slot_index: slotIndex,
+  sunat: { status: 'pendiente' },
+  sunafil: { status: 'pendiente' },
+});
+
 const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const homePath = workspaceHomePath(workspace);
   const canUpload = useMemo(
@@ -64,9 +74,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const initialPeriod = searchParams.get('period_ym') || currentPeriodYM();
   const initialWeek =
     searchParams.get('week_start') || defaultWeekStartForPeriod(initialPeriod);
+  const initialScope: SunatInboxScope = searchParams.get('scope') === 'month' ? 'month' : 'week';
 
   const [periodYm, setPeriodYm] = useState(initialPeriod);
   const [weekStart, setWeekStart] = useState(initialWeek);
+  const [scope, setScope] = useState<SunatInboxScope>(initialScope);
   const [meta, setMeta] = useState<SunatInboxListMeta | null>(null);
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
@@ -74,12 +86,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [rows, setRows] = useState<SunatInboxListRow[]>([]);
+  const [monthRows, setMonthRows] = useState<SunatInboxExportRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [headRow1Ref, headRow1H] = useElementHeight<HTMLTableCellElement>();
 
   const capturesPerWeek = meta?.captures_per_week ?? 2;
   const weekOptions = meta?.weeks?.length ? meta.weeks : weeksInPeriodYM(periodYm);
@@ -88,18 +102,29 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     [weekOptions, weekStart],
   );
   const weekContextLabel = formatMailboxWeekContext(selectedWeek, capturesPerWeek, periodYm);
+  const contextLabel =
+    scope === 'month'
+      ? `Mes completo · ${weekOptions.length} semana${weekOptions.length === 1 ? '' : 's'} · ${capturesPerWeek} carga${capturesPerWeek === 1 ? '' : 's'} por semana · ${periodYm}`
+      : weekContextLabel;
 
   const weekProgress = useMemo(() => {
     const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0 };
-    for (const row of rows) {
-      const p = countMailboxWeekProgress(row.slots);
+    const addSlots = (slots: SunatInboxCaptureSlot[]) => {
+      const p = countMailboxWeekProgress(slots);
       acc.total += p.total;
       acc.pendiente += p.pendiente;
       acc.cargado += p.cargado;
       acc.verificado += p.verificado;
+    };
+    if (scope === 'month') {
+      for (const row of monthRows) {
+        for (const slots of Object.values(row.weeks)) addSlots(slots);
+      }
+    } else {
+      for (const row of rows) addSlots(row.slots);
     }
     return acc;
-  }, [rows]);
+  }, [rows, monthRows, scope]);
 
   useEffect(() => {
     setSearchParams(
@@ -107,11 +132,12 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         const next = new URLSearchParams(prev);
         next.set('period_ym', periodYm);
         next.set('week_start', weekStart);
+        next.set('scope', scope);
         return next;
       },
       { replace: true },
     );
-  }, [periodYm, weekStart, setSearchParams]);
+  }, [periodYm, weekStart, scope, setSearchParams]);
 
   const handlePeriodChange = (nextPeriod: string) => {
     setPeriodYm(nextPeriod);
@@ -122,29 +148,46 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     try {
       setLoading(true);
       setError('');
-      const res = await sunatInboxService.list({
-        period_ym: periodYm,
-        week_start: weekStart,
-        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
-        status: statusFilter || undefined,
-        page,
-        per_page: perPage,
-      });
-      setMeta(res.meta);
-      setRows(res.data ?? []);
-      setTotal(res.pagination?.total ?? 0);
-      if (res.meta?.week_start && res.meta.week_start !== weekStart) {
-        setWeekStart(res.meta.week_start);
+      const qParam = debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined;
+      if (scope === 'month') {
+        const res = await sunatInboxService.listMonth({
+          period_ym: periodYm,
+          q: qParam,
+          status: statusFilter || undefined,
+          page,
+          per_page: perPage,
+        });
+        setMeta(res.meta);
+        setMonthRows(res.data ?? []);
+        setRows([]);
+        setTotal(res.pagination?.total ?? 0);
+      } else {
+        const res = await sunatInboxService.list({
+          period_ym: periodYm,
+          week_start: weekStart,
+          q: qParam,
+          status: statusFilter || undefined,
+          page,
+          per_page: perPage,
+        });
+        setMeta(res.meta);
+        setRows(res.data ?? []);
+        setMonthRows([]);
+        setTotal(res.pagination?.total ?? 0);
+        if (res.meta?.week_start && res.meta.week_start !== weekStart) {
+          setWeekStart(res.meta.week_start);
+        }
       }
     } catch (err) {
       console.error(err);
       setError(extractApiErrorMessage(err, 'No se pudo cargar el Buzón SOL.'));
       setRows([]);
+      setMonthRows([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [periodYm, weekStart, debouncedQ, statusFilter, page, perPage]);
+  }, [scope, periodYm, weekStart, debouncedQ, statusFilter, page, perPage]);
 
   useEffect(() => {
     void load();
@@ -152,7 +195,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
   useEffect(() => {
     setPage(1);
-  }, [periodYm, weekStart, debouncedQ, statusFilter]);
+  }, [periodYm, weekStart, debouncedQ, statusFilter, scope]);
 
   const detailLink = (companyId: number) => {
     const path = `${activityModulePath(workspace, 'sunat-inbox')}/${companyId}`;
@@ -198,23 +241,79 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     }
   };
 
+  // Vista "Mes completo": cada celda pertenece a una semana distinta, así que a diferencia de
+  // handleUpload/handleVerify (que usan el `weekStart` único de la página), estos reciben la semana
+  // de la columna concreta que se editó.
+  const patchMonthRowSlot = (
+    companyId: number,
+    weekStartKey: string,
+    updatedSlotIndex: number,
+    slotData: SunatInboxCaptureSlot,
+  ) => {
+    setMonthRows((prev) =>
+      prev.map((row) => {
+        if (row.company_id !== companyId) return row;
+        const weekSlots = (row.weeks[weekStartKey] ?? []).map((s) => (s.slot_index === updatedSlotIndex ? slotData : s));
+        return { ...row, weeks: { ...row.weeks, [weekStartKey]: weekSlots } };
+      }),
+    );
+  };
+
+  const handleMonthUpload = async (
+    companyId: number,
+    weekStartKey: string,
+    slotIndex: number,
+    mailboxType: MailboxType,
+    file: File,
+  ) => {
+    try {
+      setMsg('');
+      const slot = await sunatInboxService.uploadCapture(companyId, slotIndex, file, mailboxType, periodYm, weekStartKey);
+      patchMonthRowSlot(companyId, weekStartKey, slotIndex, slot);
+      setMsg('Archivo subido correctamente.');
+    } catch (err) {
+      setMsg(extractApiErrorMessage(err, 'Error al subir archivo.'));
+    }
+  };
+
+  const handleMonthVerify = async (companyId: number, weekStartKey: string, slotId: number, mailboxType: MailboxType) => {
+    if (!slotId) {
+      setVerifyError('No hay slot de captura registrado. Abra el detalle de la empresa primero.');
+      return;
+    }
+    try {
+      setMsg('');
+      setVerifyError('');
+      const slot = await sunatInboxService.verifyCapture(slotId, mailboxType);
+      patchMonthRowSlot(companyId, weekStartKey, slot.slot_index, slot);
+      setMsg('Buzón verificado.');
+    } catch (err) {
+      const text = extractApiErrorMessage(err, 'No se pudo verificar.');
+      setVerifyError(text);
+      setMsg('');
+    }
+  };
+
   const handleExportExcel = async () => {
     if (exportingExcel) return;
     try {
       setExportingExcel(true);
       setError('');
       const qParam = debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined;
-      const { captures_per_week, weeks, weeksData } = await sunatInboxService.fetchAllWeeksData({
+      const { meta: exportMeta, data } = await sunatInboxService.fetchExportData({
         period_ym: periodYm,
+        week_start: scope === 'week' ? weekStart : undefined,
         q: qParam,
         status: statusFilter || undefined,
+        scope,
       });
       await exportSunatInboxReportExcel({
         periodYm,
-        weeks,
-        weeksData,
-        capturesPerWeek: captures_per_week,
+        weeks: exportMeta.weeks,
+        rows: data,
+        capturesPerWeek: exportMeta.captures_per_week,
         workspace,
+        scope,
       });
       setMsg('Excel generado correctamente.');
     } catch (err) {
@@ -231,7 +330,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   );
 
   const fixedColSpan = 7;
-  const totalCols = fixedColSpan + capturesPerWeek;
+  const totalCols = scope === 'month' ? fixedColSpan + weekOptions.length * capturesPerWeek : fixedColSpan + capturesPerWeek;
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -250,20 +349,45 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
         <ActivityPeriodFilter value={periodYm} onChange={handlePeriodChange} />
-        <div className="min-w-[14rem]">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Semana</label>
-          <select
-            value={weekStart}
-            onChange={(e) => setWeekStart(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            {(weekOptions.length ? weekOptions : [{ week_start: weekStart, week_index: 1, label: 'Semana 1' }]).map((w) => (
-              <option key={w.week_start} value={w.week_start}>
-                {formatWeekOptionLabel(w)}
-              </option>
-            ))}
-          </select>
+        <div className="min-w-[11rem]">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Vista</label>
+          <div className="inline-flex w-full rounded-lg border border-slate-300 overflow-hidden text-sm">
+            <button
+              type="button"
+              onClick={() => setScope('week')}
+              className={`flex-1 px-3 py-2 font-medium transition-colors ${
+                scope === 'week' ? 'bg-primary-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Semana
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('month')}
+              className={`flex-1 px-3 py-2 font-medium border-l border-slate-300 transition-colors ${
+                scope === 'month' ? 'bg-primary-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Mes completo
+            </button>
+          </div>
         </div>
+        {scope === 'week' ? (
+          <div className="min-w-[14rem]">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Semana</label>
+            <select
+              value={weekStart}
+              onChange={(e) => setWeekStart(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {(weekOptions.length ? weekOptions : [{ week_start: weekStart, week_index: 1, label: 'Semana 1' }]).map((w) => (
+                <option key={w.week_start} value={w.week_start}>
+                  {formatWeekOptionLabel(w)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="flex-1 min-w-[200px]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
           <input
@@ -311,7 +435,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
         >
           <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
-          Excel
+          Excel {scope === 'month' ? '(mes completo)' : '(semana)'}
         </button>
       </div>
 
@@ -338,100 +462,212 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm max-w-full overflow-clip">
         <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80 text-xs text-slate-600">
-          {weekContextLabel}
+          {contextLabel}
         </div>
         <div className="overflow-auto max-w-full max-h-[75vh] custom-scrollbar">
           <table className="w-max min-w-full text-left table-auto">
-            <thead>
-              <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW }}>
-                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
-                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
-                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
-                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
-                <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
-                <th className={TH}>Resumen</th>
-                <th className={TH} />
-                {slotIndices.map((idx) => (
-                  <MailboxCaptureSlotHeader key={idx} slotIndex={idx} totalSlots={capturesPerWeek} />
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
-                    <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
-                    Cargando…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
-                    No hay empresas para mostrar.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.company_id} className="group hover:bg-slate-50/80">
-                    <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
-                      {row.code || '—'}
-                    </td>
-                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
-                      {row.dig || '—'}
-                    </td>
-                    <td
-                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
-                      style={frozenIdBodyCellStyle('name')}
-                      title={row.business_name}
-                    >
-                      <span className="block truncate">{row.business_name || '—'}</span>
-                    </td>
-                    <td
-                      className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
-                      style={frozenIdBodyCellStyle('ruc')}
-                    >
-                      {row.ruc || '—'}
-                    </td>
-                    <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')} title={row.assistant_username}>
-                      <span className="block truncate">{row.assistant_username || '—'}</span>
-                    </td>
-                    <td className={TD}>
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(row.summary_status)}`}
-                      >
-                        {mailboxStatusLabel(row.summary_status)}
-                      </span>
-                    </td>
-                    <td className={TD}>
-                      <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
-                    </td>
-                    {slotIndices.map((idx) => {
-                      const slot = row.slots.find((s) => s.slot_index === idx) ?? {
-                        slot_index: idx,
-                        sunat: { status: 'pendiente' },
-                        sunafil: { status: 'pendiente' },
-                      };
-                      return (
-                        <td key={idx} className="px-2 py-2 text-sm text-slate-700 border-t border-slate-100 align-top min-w-[36.5rem] w-[36.5rem]">
-                          <MailboxCaptureSlotCell
-                            slot={slot}
-                            canUpload={canUpload}
-                            canVerify={canVerify}
-                            uploadKey={`${row.company_id}-${weekStart}`}
-                            onUpload={(slotIndex, mailboxType, file) =>
-                              handleUpload(row.company_id, slotIndex, mailboxType, file)
-                            }
-                            onVerify={(slotId, mailboxType) =>
-                              handleVerify(row.company_id, slotId, mailboxType)
-                            }
-                          />
-                        </td>
-                      );
-                    })}
+            {scope === 'week' ? (
+              <>
+                <thead>
+                  <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW }}>
+                    <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
+                    <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                    <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                    <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                    <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
+                    <th className={TH}>Resumen</th>
+                    <th className={TH} />
+                    {slotIndices.map((idx) => (
+                      <MailboxCaptureSlotHeader key={idx} slotIndex={idx} totalSlots={capturesPerWeek} />
+                    ))}
                   </tr>
-                ))
-              )}
-            </tbody>
+                </thead>
+                <tbody>
+                  {loading && rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
+                        <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
+                        Cargando…
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
+                        No hay empresas para mostrar.
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row) => (
+                      <tr key={row.company_id} className="group hover:bg-slate-50/80">
+                        <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
+                          {row.code || '—'}
+                        </td>
+                        <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
+                          {row.dig || '—'}
+                        </td>
+                        <td
+                          className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                          style={frozenIdBodyCellStyle('name')}
+                          title={row.business_name}
+                        >
+                          <span className="block truncate">{row.business_name || '—'}</span>
+                        </td>
+                        <td
+                          className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
+                          style={frozenIdBodyCellStyle('ruc')}
+                        >
+                          {row.ruc || '—'}
+                        </td>
+                        <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')} title={row.assistant_username}>
+                          <span className="block truncate">{row.assistant_username || '—'}</span>
+                        </td>
+                        <td className={TD}>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(row.summary_status)}`}
+                          >
+                            {mailboxStatusLabel(row.summary_status)}
+                          </span>
+                        </td>
+                        <td className={TD}>
+                          <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                        </td>
+                        {slotIndices.map((idx) => {
+                          const slot = row.slots.find((s) => s.slot_index === idx) ?? EMPTY_SLOT_FALLBACK(idx);
+                          return (
+                            <td key={idx} className="px-2 py-2 text-sm text-slate-700 border-t border-slate-100 align-top min-w-[36.5rem] w-[36.5rem]">
+                              <MailboxCaptureSlotCell
+                                slot={slot}
+                                canUpload={canUpload}
+                                canVerify={canVerify}
+                                uploadKey={`${row.company_id}-${weekStart}`}
+                                onUpload={(slotIndex, mailboxType, file) =>
+                                  handleUpload(row.company_id, slotIndex, mailboxType, file)
+                                }
+                                onVerify={(slotId, mailboxType) =>
+                                  handleVerify(row.company_id, slotId, mailboxType)
+                                }
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </>
+            ) : (
+              <>
+                <thead>
+                  <tr className="bg-slate-50" style={{ position: 'sticky', top: 0, zIndex: Z_HEAD_ROW1 }}>
+                    <th rowSpan={2} className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('code')}>Código</th>
+                    <th rowSpan={2} className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
+                    <th rowSpan={2} className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
+                    <th rowSpan={2} className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                    <th rowSpan={2} className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
+                    <th rowSpan={2} className={TH}>Resumen (mes)</th>
+                    <th rowSpan={2} className={TH} />
+                    {weekOptions.map((w, i) => (
+                      <th
+                        key={w.week_start}
+                        ref={i === 0 ? headRow1Ref : undefined}
+                        colSpan={capturesPerWeek}
+                        className="px-2 py-2.5 text-center text-xs font-semibold uppercase text-slate-500 whitespace-nowrap border-l border-slate-200"
+                      >
+                        {formatWeekOptionLabel(w)}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="bg-slate-50" style={{ position: 'sticky', top: headRow1H, zIndex: Z_HEAD_ROW }}>
+                    {weekOptions.flatMap((w) =>
+                      slotIndices.map((idx) => (
+                        <MailboxCaptureSlotHeader key={`${w.week_start}-${idx}`} slotIndex={idx} totalSlots={capturesPerWeek} />
+                      )),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && monthRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
+                        <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
+                        Cargando…
+                      </td>
+                    </tr>
+                  ) : monthRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
+                        No hay empresas para mostrar.
+                      </td>
+                    </tr>
+                  ) : (
+                    monthRows.map((row) => {
+                      const monthSummary = summarizeMailboxSlots(Object.values(row.weeks).flat());
+                      return (
+                        <tr key={row.company_id} className="group hover:bg-slate-50/80">
+                          <td className={`${TD} font-mono bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('code')}>
+                            {row.code || '—'}
+                          </td>
+                          <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('dig')}>
+                            {row.dig || '—'}
+                          </td>
+                          <td
+                            className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                            style={frozenIdBodyCellStyle('name')}
+                            title={row.business_name}
+                          >
+                            <span className="block truncate">{row.business_name || '—'}</span>
+                          </td>
+                          <td
+                            className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
+                            style={frozenIdBodyCellStyle('ruc')}
+                          >
+                            {row.ruc || '—'}
+                          </td>
+                          <td className={`${TD} bg-white group-hover:bg-slate-50`} style={frozenIdBodyCellStyle('assistant')} title={row.assistant_username}>
+                            <span className="block truncate">{row.assistant_username || '—'}</span>
+                          </td>
+                          <td className={TD}>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(monthSummary)}`}
+                            >
+                              {mailboxStatusLabel(monthSummary)}
+                            </span>
+                          </td>
+                          <td className={TD}>
+                            <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                          </td>
+                          {weekOptions.flatMap((w) => {
+                            const weekSlots = row.weeks[w.week_start] ?? [];
+                            return slotIndices.map((idx) => {
+                              const slot = weekSlots.find((s) => s.slot_index === idx) ?? EMPTY_SLOT_FALLBACK(idx);
+                              return (
+                                <td
+                                  key={`${w.week_start}-${idx}`}
+                                  className="px-2 py-2 text-sm text-slate-700 border-t border-slate-100 align-top min-w-[36.5rem] w-[36.5rem]"
+                                >
+                                  <MailboxCaptureSlotCell
+                                    slot={slot}
+                                    canUpload={canUpload}
+                                    canVerify={canVerify}
+                                    uploadKey={`${row.company_id}-${w.week_start}`}
+                                    onUpload={(slotIndex, mailboxType, file) =>
+                                      handleMonthUpload(row.company_id, w.week_start, slotIndex, mailboxType, file)
+                                    }
+                                    onVerify={(slotId, mailboxType) =>
+                                      handleMonthVerify(row.company_id, w.week_start, slotId, mailboxType)
+                                    }
+                                  />
+                                </td>
+                              );
+                            });
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </>
+            )}
           </table>
         </div>
       </div>

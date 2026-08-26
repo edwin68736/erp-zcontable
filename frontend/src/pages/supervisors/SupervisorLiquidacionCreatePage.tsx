@@ -7,6 +7,7 @@ import { companiesService } from '../../services/companies';
 import { companyAccessCredentialsService } from '../../services/companyAccessCredentials';
 import { supervisorTaxSettlementsService } from '../../services/supervisorTaxSettlements';
 import { pdt601Service } from '../../services/pdt601';
+import { pdt621Service } from '../../services/pdt621';
 import type { Company } from '../../types/dashboard';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import SupervisorTaxSectionsForm from '../../components/supervisors/SupervisorTaxSectionsForm';
@@ -26,11 +27,16 @@ import {
   clearPdt621IgvRateRows,
   computeTaxSettlementSections,
   defaultTaxSections,
+  getPdt621IgvPayableBeforeDetraction,
+  getPdt621RentaPayableBeforeDetraction,
+  getPdt621SyncTotals,
   normalizePdt621IgvVentas,
+  patchPdt621VentasRow,
   parseTaxSectionsJson,
   type TaxSettlementSectionsPayload,
 } from '../../utils/taxSettlementSections';
 import {
+  computeIgvFromBase,
   defaultLiquidationIgvRates,
   formatCompanyIgvRateLabel,
   LIQUIDATION_IGV_RATES,
@@ -185,6 +191,62 @@ const SupervisorLiquidacionCreatePage = () => {
       }
     })();
   }, [isEdit, isView, companyId, liquidationPeriod, currentYear]);
+
+  // "Jala" datos ya registrados en el Control de Vencimientos PDT 621 al crear una liquidación
+  // nueva: total_ventas/total_compras van como base de la fila de ventas/compras en la tasa IGV
+  // por defecto de la empresa (company.igv_rate) — el impuesto de esa fila se recalcula solo.
+  // igv/rta del control NO se copian: son resultados del periodo, no insumos; se recalculan aquí.
+  // Guardamos el período ya autocompletado (no un simple booleano) para no repetir el fetch en
+  // cada render, pero sí volver a traer datos si el supervisor cambia el período del formulario
+  // antes de guardar — de lo contrario quedaría guardando (y luego re-sincronizando hacia atrás)
+  // los importes del período equivocado.
+  const pdt621AutoFilledPeriodRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isEdit || isView) return;
+    if (!companyId || companyId <= 0) return;
+    if (!/^\d{4}-\d{2}$/.test(liquidationPeriod)) return;
+    if (!companyIgvRate) return;
+    if (pdt621AutoFilledPeriodRef.current === liquidationPeriod) return;
+    pdt621AutoFilledPeriodRef.current = liquidationPeriod;
+    void (async () => {
+      try {
+        const record = await pdt621Service.getRecord(companyId, liquidationPeriod);
+        if (!record) return;
+        const hasData = record.total_ventas > 0 || record.total_compras > 0;
+        if (!hasData) return;
+        setTaxSections((prev) => {
+          const base621 = prev.pdt621 ?? defaultTaxSections(currentYear).pdt621!;
+          // El Control solo trae un total sin desglose por tasa: si para cuando resuelve el
+          // fetch el supervisor ya activó más de una tasa IGV (18% y 10.5%), no hay forma segura
+          // de repartir el total — mejor no autocompletar que meter todo en una sola tasa.
+          if ((base621.igv_aplicable_ventas?.length ?? 0) > 1) return prev;
+          const comprasKey = companyIgvRate === 10.5 ? 'compras_105' : 'compras_18';
+          const withVentas = patchPdt621VentasRow(base621, companyIgvRate, {
+            base: record.total_ventas,
+            impuesto: computeIgvFromBase(record.total_ventas, companyIgvRate),
+          });
+          return computeTaxSettlementSections({
+            ...prev,
+            pdt621: {
+              ...withVentas,
+              enabled: true,
+              igv_aplicable_ventas: base621.igv_aplicable_ventas?.length
+                ? base621.igv_aplicable_ventas
+                : defaultLiquidationIgvRates(companyIgvRate),
+              [comprasKey]: {
+                ...base621[comprasKey],
+                base: record.total_compras,
+                impuesto: computeIgvFromBase(record.total_compras, companyIgvRate),
+              },
+            },
+          });
+        });
+      } catch (err) {
+        // Sin registro de Control PDT 621 o sin acceso: no se autocompleta, el supervisor llena manualmente.
+        console.error('No se pudo autocompletar desde el Control PDT 621:', err);
+      }
+    })();
+  }, [isEdit, isView, companyId, liquidationPeriod, companyIgvRate, currentYear]);
 
   const taxSectionsComputed = useMemo(() => computeTaxSettlementSections(taxSections), [taxSections]);
   const igvAplicableVentas = useMemo((): CompanyIgvRate[] => {
@@ -356,6 +418,7 @@ const SupervisorLiquidacionCreatePage = () => {
         rta_5ta: p601.rta_5ta,
         rh: base?.rh ?? 0,
         fecha_entrega: base?.fecha_entrega ?? '',
+        hora_entrega: base?.hora_entrega ?? '',
         observaciones: base?.observaciones ?? '',
         fecha_declaracion_pdt: base?.fecha_declaracion_pdt ?? '',
         nps: base?.nps ?? '',
@@ -366,6 +429,48 @@ const SupervisorLiquidacionCreatePage = () => {
     } catch (err) {
       // No bloquea el guardado de la liquidación: la planilla PDT 601 se puede corregir aparte.
       console.error('No se pudo sincronizar la planilla PDT 601:', err);
+    }
+  };
+
+  // Sincroniza de vuelta al Control de Vencimientos PDT 621 el resumen de la liquidación:
+  // - total_ventas / total_compras: suma de base + no gravadas de las filas activas (todas las
+  //   tasas IGV habilitadas en la liquidación), no solo la tasa por defecto de la empresa.
+  // - igv / rta: el impuesto DECLARADO del periodo (antes de aplicar detracción) — coincide con
+  //   lo presentado en el PDT ante SUNAT, independiente del medio de pago usado después.
+  // Solo al CREAR (igual que el autocompletar es de una sola vez): si se sincronizara en cada
+  // edición posterior, una corrección menor a la liquidación (ajena al PDT 621) sobreescribiría
+  // silenciosamente cifras del Control que el supervisor ya haya corregido a mano contra lo
+  // realmente declarado en SUNAT.
+  const syncPdt621Record = async (targetCompanyId: number, periodYm: string) => {
+    if (isEdit) return;
+    const p621 = taxSectionsComputed.pdt621;
+    if (!p621?.enabled) return;
+    const { total_ventas: totalVentas, total_compras: totalCompras } = getPdt621SyncTotals(p621);
+    const igvDeclarado = getPdt621IgvPayableBeforeDetraction(p621);
+    const rentaDeclarada = getPdt621RentaPayableBeforeDetraction(p621);
+    const hasData = totalVentas > 0 || totalCompras > 0 || igvDeclarado > 0 || rentaDeclarada > 0;
+    if (!hasData) return;
+    try {
+      const current = await pdt621Service.getDetail(targetCompanyId, periodYm);
+      const base = current.record;
+      await pdt621Service.saveRecord(targetCompanyId, periodYm, {
+        primera_entrega_fecha: base?.primera_entrega_fecha ?? '',
+        primera_entrega_hora: base?.primera_entrega_hora ?? '',
+        observacion: base?.observacion ?? '',
+        segunda_entrega_fecha: base?.segunda_entrega_fecha ?? '',
+        segunda_entrega_hora: base?.segunda_entrega_hora ?? '',
+        fecha_declaracion: base?.fecha_declaracion ?? '',
+        total_ventas: totalVentas,
+        total_compras: totalCompras,
+        igv: igvDeclarado,
+        rta: rentaDeclarada,
+        envio_sire: base?.envio_sire ?? '',
+        fecha_envio_sire: base?.fecha_envio_sire ?? '',
+        motivo_no_envio: base?.motivo_no_envio ?? '',
+      });
+    } catch (err) {
+      // No bloquea el guardado de la liquidación: el Control PDT 621 se puede corregir aparte.
+      console.error('No se pudo sincronizar el Control PDT 621:', err);
     }
   };
 
@@ -417,7 +522,9 @@ const SupervisorLiquidacionCreatePage = () => {
           }),
         );
       }
-      await syncPdt601Planilla(companyId, lp);
+      // Independientes entre sí (tocan registros distintos, cada una traga sus propios errores):
+      // en paralelo en vez de secuencial para no duplicar la latencia de guardado.
+      await Promise.all([syncPdt601Planilla(companyId, lp), syncPdt621Record(companyId, lp)]);
       setPreviewOpen(false);
       navigate(listBackTo);
       return true;

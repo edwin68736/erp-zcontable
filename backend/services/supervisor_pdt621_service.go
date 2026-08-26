@@ -47,6 +47,12 @@ type Pdt621ListRow struct {
 	// que se compara fecha_declaracion. Timeliness: on_time | late | pending | missing | no_rule.
 	ScheduleDueDate       *string `json:"schedule_due_date,omitempty"`
 	DeclarationTimeliness string  `json:"declaration_timeliness"`
+	// AssistantTimeliness cumplimiento del PLAZO INTERNO del estudio (calendario de actividades,
+	// /settings/activity-configuration, tipo "pdt_621") para que el asistente entregue su parte
+	// (record.primera_entrega_fecha) — distinto de DeclarationTimeliness, que valida la fecha de
+	// declaración ante SUNAT contra el cronograma oficial por dígito de RUC. No evalúa si SUNAT
+	// aceptó o no la declaración: solo mide la entrega interna del asistente vs. el calendario.
+	AssistantTimeliness string `json:"assistant_timeliness"`
 }
 
 // Pdt621Detail detalle tras EnsurePdt621 (lazy create o reutiliza bootstrap).
@@ -147,6 +153,19 @@ func pdt621ScheduleDueDate(periodYM, dig string) *time.Time {
 func fmtSscanfMonth(periodYM string, month *int) (int, error) {
 	var year int
 	return fmt.Sscanf(periodYM, "%d-%d", &year, month)
+}
+
+// findPdt621CalendarActivity busca la instancia "PDT 621" del calendario financiero para el
+// período (tipo pdt_621), de donde se resuelve la regla de cumplimiento configurada en
+// /settings/activity-configuration — el plazo INTERNO del estudio para que el asistente entregue
+// su parte. Distinto de pdt621ScheduleDueDate (cronograma SUNAT por dígito de RUC), que valida la
+// fecha de declaración; acá no se evalúa nada contra SUNAT, solo la entrega interna del asistente.
+func findPdt621CalendarActivity(periodYM string) *models.FinanceCalendarActivity {
+	act, err := FindCalendarActivityByType(periodYM, models.CalendarActivityPDT621)
+	if err != nil {
+		return nil
+	}
+	return act
 }
 
 type pdt621ListResult struct {
@@ -455,6 +474,10 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 		recordByCompany[records[i].CompanyID] = pdt621RecordToDTO(&rec)
 	}
 
+	// Instancia "PDT 621" del calendario financiero del período (una sola consulta, no por
+	// empresa) — trae la regla de plazo interno asignada en Ajustes, si la hay.
+	pdt621Act := findPdt621CalendarActivity(p.PeriodYM)
+
 	for _, co := range companies {
 		row := Pdt621ListRow{
 			CompanyID:         co.ID,
@@ -495,6 +518,15 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 		} else {
 			row.DeclarationTimeliness = TimelinessNoRule
 		}
+
+		// Plazo interno del estudio (calendario de actividades): cuándo el asistente hizo la
+		// primera entrega, sin importar si SUNAT terminó aceptando la declaración o no — eso ya lo
+		// cubre DeclarationTimeliness arriba, contra el cronograma oficial.
+		var primeraEntregaAt *time.Time
+		if row.Record != nil && row.Record.PrimeraEntregaFecha != nil {
+			primeraEntregaAt = pdt601ParseDate(*row.Record.PrimeraEntregaFecha)
+		}
+		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(p.PeriodYM, pdt621Act, primeraEntregaAt, false).Timeliness
 
 		rows = append(rows, row)
 	}

@@ -344,6 +344,63 @@ function SectionToggle({
   );
 }
 
+/** Switch deslizante genérico (a diferencia de `SectionToggle`, que usa un checkbox plano). */
+function ToggleSwitch({
+  id,
+  checked,
+  onChange,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label htmlFor={id} className="inline-flex items-center cursor-pointer">
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only peer"
+      />
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-1 ${
+          checked ? 'bg-primary-600' : 'bg-slate-300'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Acogimiento a "IGV Justo" (Ley 30524): postergación del pago del IGV para MYPE según
+ * cronograma especial. Es una bandera manual e independiente de la detracción/efectivo — no
+ * afecta ningún cálculo, solo debe quedar visible para finanzas y en el PDF.
+ */
+function IgvJustoBar({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0 flex items-start gap-3">
+        <ToggleSwitch id="igv-justo-switch" checked={checked} onChange={onChange} />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-800">IGV Justo</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {checked
+              ? 'Acogido: el cliente puede postergar el pago del IGV según el cronograma especial para MYPE.'
+              : 'Sin acogimiento a IGV Justo.'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DetraccionActionBar({
   buttonLabel,
   onOpen,
@@ -920,6 +977,8 @@ const SupervisorTaxSectionsForm = ({
             totalAmount={igvNetAfterDetraction}
           />
           ) : null}
+
+          <IgvJustoBar checked={Boolean(p621.igv_justo)} onChange={(v) => patch621({ igv_justo: v })} />
 
           <div className="mt-1.5 pt-1 border-t border-slate-200">
             <h4 className={PDT621_SECTION_TITLE}>2. Renta mensual</h4>

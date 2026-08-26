@@ -16,6 +16,7 @@ export interface Pdt601Planilla {
   rh: number;
   total_aportes: number;
   fecha_entrega?: string | null;
+  hora_entrega?: string;
   observaciones: string;
   fecha_declaracion_pdt?: string | null;
   nps: string;
@@ -37,6 +38,7 @@ export interface Pdt601PlanillaInput {
   rta_5ta: number;
   rh: number;
   fecha_entrega: string;
+  hora_entrega: string;
   observaciones: string;
   fecha_declaracion_pdt: string;
   nps: string;
@@ -136,6 +138,20 @@ export const pdt601Service = {
       body,
       { params: { period_ym: periodYm } },
     );
+    return res.data.data;
+  },
+
+  /** Todas las empresas que matchean los filtros (sin paginar) — para el reporte Excel. */
+  async fetchExportData(params: {
+    period_ym: string;
+    q?: string;
+    status?: string;
+    dig?: string;
+    assistant_user_id?: number;
+  }): Promise<Pdt601ListRow[]> {
+    const res = await client.get<{ data: Pdt601ListRow[] }>('/supervisors/activity-modules/pdt-601/export', {
+      params,
+    });
     return res.data.data;
   },
 };

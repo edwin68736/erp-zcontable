@@ -79,6 +79,7 @@ type Pdt601PlanillaDTO struct {
 	Rh                          float64 `json:"rh"`
 	TotalAportes                float64 `json:"total_aportes"`
 	FechaEntrega                *string `json:"fecha_entrega,omitempty"`
+	HoraEntrega                 string  `json:"hora_entrega"`
 	Observaciones               string  `json:"observaciones"`
 	FechaDeclaracionPdt         *string `json:"fecha_declaracion_pdt,omitempty"`
 	NPS                         string  `json:"nps"`
@@ -100,6 +101,7 @@ type Pdt601PlanillaInput struct {
 	Rta5ta                      float64 `json:"rta_5ta"`
 	Rh                          float64 `json:"rh"`
 	FechaEntrega                string  `json:"fecha_entrega"`
+	HoraEntrega                 string  `json:"hora_entrega"`
 	Observaciones               string  `json:"observaciones"`
 	FechaDeclaracionPdt         string  `json:"fecha_declaracion_pdt"`
 	NPS                         string  `json:"nps"`
@@ -164,8 +166,10 @@ func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO 
 		Rta4ta:                      p.Rta4ta,
 		Rta5ta:                      p.Rta5ta,
 		Rh:                          p.Rh,
-		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta + p.Rh,
+		// RH queda fuera de TotalAportes a pedido — no se suma junto con Essalud/Onp/Afp/Sis/Rta4ta/Rta5ta.
+		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta,
 		FechaEntrega:                pdt601DateString(p.FechaEntrega),
+		HoraEntrega:                 p.HoraEntrega,
 		Observaciones:               p.Observaciones,
 		FechaDeclaracionPdt:         pdt601DateString(p.FechaDeclaracionPdt),
 		NPS:                         p.NPS,
@@ -347,6 +351,7 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	pl.Rta5ta = in.Rta5ta
 	pl.Rh = in.Rh
 	pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
+	pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)
 	pl.Observaciones = strings.TrimSpace(in.Observaciones)
 	pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
 	pl.NPS = strings.TrimSpace(in.NPS)
@@ -361,34 +366,18 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	return detail, nil
 }
 
-// ListPdt601 listado empresa+período; sin lazy create.
-func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, error) {
-	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
-	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
-		return nil, err
-	}
-	page := p.Page
-	if page < 1 {
-		page = 1
-	}
-	perPage := p.PerPage
-	if perPage < 1 {
-		perPage = 20
-	}
-	if perPage > 200 {
-		perPage = 200
-	}
-
+// pdt601FilteredCompaniesQuery arma el query de empresas con TODOS los filtros del listado
+// (Dig, Q, Status, AssistantUserID) salvo AllowedCompanyIDs vacío-no-nil (ese caso especial —
+// "sin empresas permitidas" — lo maneja cada caller antes de llamar acá, con un retorno vacío
+// inmediato, para no distinguir "sin filtro" de "cero resultados" dentro del propio builder).
+// Compartido por ListPdt601 (pagina en SQL) y ExportPdt601 (trae todo, para el reporte Excel).
+func pdt601FilteredCompaniesQuery(p Pdt601ListParams) *gorm.DB {
 	q := database.DB.Model(&models.Company{}).
 		Where("companies.client_type = ? AND companies.status = ?", models.CompanyClientTypeEstudio, "activo").
 		Preload("Assistant")
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
-	} else if p.AllowedCompanyIDs != nil {
-		return &pdt601ListResult{
-			Rows: []Pdt601ListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
-		}, nil
 	}
 
 	if p.AssistantUserID > 0 {
@@ -435,23 +424,16 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 		)`, models.SupervisorDeclPDT601, statusFilter, p.PeriodYM)
 	}
 
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, err
-	}
+	return q
+}
 
-	var companies []models.Company
-	offset := (page - 1) * perPage
-	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
-		return nil, err
-	}
-
+// pdt601BuildRows arma las filas (empresa+control+declaración+planilla+cumplimiento) para un
+// conjunto de empresas YA filtrado — sin volver a tocar paginación ni filtros. Compartido por
+// ListPdt601 y ExportPdt601 para no duplicar el resto del armado de fila.
+func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM string) ([]Pdt601ListRow, error) {
 	rows := make([]Pdt601ListRow, 0, len(companies))
 	if len(companies) == 0 {
-		return &pdt601ListResult{
-			Rows: rows, Total: total, Page: page, PerPage: perPage,
-			TotalPages: sunatInboxTotalPages(total, perPage),
-		}, nil
+		return rows, nil
 	}
 
 	ids := make([]uint, 0, len(companies))
@@ -471,7 +453,7 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 	_ = database.DB.Table("supervisor_monthly_controls AS c").
 		Select("c.company_id, c.id AS control_id, d.id AS declaration_id, d.status, d.due_date AS decl_due_date, c.due_date AS control_due_date").
 		Joins("INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.deleted_at IS NULL", models.SupervisorDeclPDT601).
-		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, p.PeriodYM).
+		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, periodYM).
 		Scan(&decls).Error
 
 	declByCompany := make(map[uint]declRow, len(decls))
@@ -516,7 +498,7 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 	_ = database.DB.Table("supervisor_pdt601_planillas AS p").
 		Select("c.company_id, p.*").
 		Joins("INNER JOIN supervisor_monthly_controls c ON c.id = p.monthly_control_id AND c.deleted_at IS NULL").
-		Where("c.company_id IN ? AND c.period_ym = ? AND p.deleted_at IS NULL", ids, p.PeriodYM).
+		Where("c.company_id IN ? AND c.period_ym = ? AND p.deleted_at IS NULL", ids, periodYM).
 		Scan(&planillas).Error
 	for i := range planillas {
 		pl := planillas[i].SupervisorPdt601Planilla
@@ -525,7 +507,7 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 
 	// Instancia "PDT 601" del calendario financiero del período (una sola consulta,
 	// no por empresa): trae la regla de cumplimiento asignada en Ajustes.
-	pdt601Act := findPdt601CalendarActivity(p.PeriodYM)
+	pdt601Act := findPdt601CalendarActivity(periodYM)
 
 	for _, co := range companies {
 		row := Pdt601ListRow{
@@ -560,12 +542,78 @@ func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, e
 		if row.Planilla != nil && row.Planilla.FechaEntrega != nil {
 			deliveredAt = pdt601ParseDate(*row.Planilla.FechaEntrega)
 		}
-		row.Timeliness = ComputeCalendarActivityTimeliness(p.PeriodYM, pdt601Act, deliveredAt, exempt).Timeliness
+		row.Timeliness = ComputeCalendarActivityTimeliness(periodYM, pdt601Act, deliveredAt, exempt).Timeliness
 		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
+// ListPdt601 listado empresa+período; sin lazy create.
+func (s *SupervisorService) ListPdt601(p Pdt601ListParams) (*pdt601ListResult, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage := p.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return &pdt601ListResult{
+			Rows: []Pdt601ListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
+		}, nil
+	}
+
+	q := pdt601FilteredCompaniesQuery(p)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var companies []models.Company
+	offset := (page - 1) * perPage
+	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	rows, err := s.pdt601BuildRows(companies, p.PeriodYM)
+	if err != nil {
+		return nil, err
 	}
 
 	return &pdt601ListResult{
 		Rows: rows, Total: total, Page: page, PerPage: perPage,
 		TotalPages: sunatInboxTotalPages(total, perPage),
 	}, nil
+}
+
+// ExportPdt601 arma el listado COMPLETO (todas las empresas que matchean los filtros, sin paginar)
+// para el reporte Excel — misma lógica de filtrado y armado de fila que ListPdt601, sin el límite
+// de página.
+func (s *SupervisorService) ExportPdt601(p Pdt601ListParams) ([]Pdt601ListRow, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return []Pdt601ListRow{}, nil
+	}
+
+	q := pdt601FilteredCompaniesQuery(p)
+	var companies []models.Company
+	if err := q.Order("companies.internal_code ASC").Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	return s.pdt601BuildRows(companies, p.PeriodYM)
 }

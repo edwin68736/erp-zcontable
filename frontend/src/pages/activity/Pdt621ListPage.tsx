@@ -23,6 +23,7 @@ import {
 } from '../../services/companyAccessCredentials';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { timelinessBadgeClass, timelinessLabel } from '../../components/activity/timelinessConfig';
 import { useElementHeight } from '../../hooks/useElementHeight';
 import {
   Z_HEAD_ROW,
@@ -368,11 +369,22 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                       <td className={TD}>{TAX_REGIME_LABEL[row.tax_regime] ?? row.tax_regime ?? '—'}</td>
                       <td className={TD}>{row.assistant_username || '—'}</td>
                       <td className={TD}>
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(row.status)}`}
-                        >
-                          {pdt621StatusLabel(row.status)}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(row.status)}`}
+                          >
+                            {pdt621StatusLabel(row.status)}
+                          </span>
+                          {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
+                              entrega del asistente — no valida nada contra SUNAT, ver
+                              pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness). */}
+                          <span
+                            title="Cumplimiento del plazo interno de entrega del asistente (calendario de actividades)"
+                            className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.assistant_timeliness)}`}
+                          >
+                            {timelinessLabel(row.assistant_timeliness)}
+                          </span>
+                        </div>
                       </td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>{formatDateCell(rec?.primera_entrega_fecha)}</td>
                       <td className={TDN}>{rec?.primera_entrega_hora || ''}</td>

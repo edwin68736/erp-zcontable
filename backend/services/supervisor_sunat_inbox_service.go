@@ -34,6 +34,10 @@ type SunatInboxListParams struct {
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
+	// Scope alcance del reporte/listado mensual: "week" (solo WeekStart) o "month" (todas las
+	// semanas del período). Vacío se trata como "month" (compatibilidad hacia atrás). Solo lo usan
+	// ExportSunatInbox y ListSunatInboxMonth; ListSunatInbox (grilla semanal) lo ignora.
+	Scope string
 }
 
 // SunatInboxMailboxSide estado y archivo de un buzón en un slot.
@@ -449,6 +453,36 @@ func (s *SupervisorService) loadMailboxSlotsByControlIDs(controlIDs []uint, week
 	return result, nil
 }
 
+// loadMailboxSlotsByControlIDsForWeeks trae en UNA sola consulta los slots de TODAS las semanas dadas
+// para los controles indicados. Se usa en ExportSunatInbox para evitar repetir, una vez por semana,
+// la misma consulta que loadMailboxSlotsByControlIDs hace para una sola semana.
+func (s *SupervisorService) loadMailboxSlotsByControlIDsForWeeks(controlIDs []uint, weekStarts []time.Time) (map[uint]map[string]map[int]*models.SupervisorMailboxCaptureSlot, error) {
+	result := map[uint]map[string]map[int]*models.SupervisorMailboxCaptureSlot{}
+	if len(controlIDs) == 0 || len(weekStarts) == 0 {
+		return result, nil
+	}
+	var rows []models.SupervisorMailboxCaptureSlot
+	if err := database.DB.
+		Preload("SunatAttachment").
+		Preload("SunafilAttachment").
+		Where("monthly_control_id IN ? AND week_start IN ?", controlIDs, weekStarts).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		row := &rows[i]
+		ws := formatWeekStart(row.WeekStart)
+		if result[row.MonthlyControlID] == nil {
+			result[row.MonthlyControlID] = map[string]map[int]*models.SupervisorMailboxCaptureSlot{}
+		}
+		if result[row.MonthlyControlID][ws] == nil {
+			result[row.MonthlyControlID][ws] = map[int]*models.SupervisorMailboxCaptureSlot{}
+		}
+		result[row.MonthlyControlID][ws][row.SlotIndex] = row
+	}
+	return result, nil
+}
+
 // EnsureSunatInbox crea control, declaración sunat_inbox y slots de la semana.
 func (s *SupervisorService) EnsureSunatInbox(companyID uint, periodYM, weekStartStr string) (*SunatInboxDetail, error) {
 	if err := s.validateOpenPeriod(periodYM); err != nil {
@@ -703,6 +737,260 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			Weeks:           weeks,
 		},
 		Rows: rows, Total: total, Page: page, PerPage: perPage,
+		TotalPages: sunatInboxTotalPages(total, perPage),
+	}, nil
+}
+
+// SunatInboxExportRow fila por empresa con las capturas de un conjunto de semanas (una sola semana
+// cuando Scope="week", todas las del período cuando Scope="month") — a diferencia de
+// SunatInboxListRow, que siempre trae una única semana fija.
+type SunatInboxExportRow struct {
+	CompanyID          uint                                `json:"company_id"`
+	Code               string                              `json:"code"`
+	Dig                string                              `json:"dig"`
+	BusinessName       string                              `json:"business_name"`
+	RUC                string                              `json:"ruc"`
+	AssistantUsername  string                              `json:"assistant_username"`
+	SupervisorUsername string                              `json:"supervisor_username"`
+	Weeks              map[string][]SunatInboxCaptureSlot `json:"weeks"`
+}
+
+// SunatInboxExportResult resultado completo (sin paginar) para el reporte Excel.
+type SunatInboxExportResult struct {
+	Meta SunatInboxListMeta    `json:"meta"`
+	Rows []SunatInboxExportRow `json:"data"`
+}
+
+// sunatInboxMonthListResult resultado paginado para la vista "Mes completo" en pantalla.
+type sunatInboxMonthListResult struct {
+	Meta       SunatInboxListMeta
+	Rows       []SunatInboxExportRow
+	Total      int64
+	Page       int
+	PerPage    int
+	TotalPages int
+}
+
+// resolveExportWeeks decide qué semanas del período entran en el reporte/listado mensual según
+// p.Scope: "week" restringe a la semana p.WeekStart; cualquier otro valor (incluido "" y "month")
+// usa todas las semanas del período.
+func resolveExportWeeks(p SunatInboxListParams, allWeeks []SunatInboxWeekOption) ([]SunatInboxWeekOption, error) {
+	if strings.TrimSpace(p.Scope) != "week" {
+		return allWeeks, nil
+	}
+	weekStart, err := parseWeekStart(p.WeekStart)
+	if err != nil {
+		return nil, err
+	}
+	target := formatWeekStart(weekStart)
+	for _, w := range allWeeks {
+		if w.WeekStart == target {
+			return []SunatInboxWeekOption{w}, nil
+		}
+	}
+	return nil, errors.New("week_start no pertenece al período")
+}
+
+// buildSunatInboxExportRows arma, para las `weeks` dadas, una fila por empresa que matchea los
+// filtros (Q, Status, AllowedCompanyIDs) con sus capturas de esas semanas. Es la lógica compartida
+// detrás de ExportSunatInbox (reporte Excel, sin paginar) y ListSunatInboxMonth (vista "Mes completo"
+// en pantalla, paginada) — carga empresas, controles/declaraciones y dígitos de credencial UNA sola
+// vez, y las capturas de todas las `weeks` en una sola consulta (loadMailboxSlotsByControlIDsForWeeks)
+// en vez de repetir ese trabajo de base de datos una vez por semana.
+//
+// Toda empresa que matchea el filtro de búsqueda (Q) aparece en el resultado, tenga o no capturas
+// reales todavía: las semanas sin actividad se devuelven con slots "virtuales" en estado pendiente
+// (buildSunatInboxSlots), igual que en la grilla en pantalla — así el reporte no oculta silenciosamente
+// empresas que aún no fueron abiertas por el asistente/supervisor.
+func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, weeks []SunatInboxWeekOption, slotsPerWeek int) ([]SunatInboxExportRow, error) {
+	q := database.DB.Model(&models.Company{}).
+		Where("companies.client_type = ? AND companies.status = ?", models.CompanyClientTypeEstudio, "activo")
+
+	if len(p.AllowedCompanyIDs) > 0 {
+		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
+	} else if p.AllowedCompanyIDs != nil {
+		return []SunatInboxExportRow{}, nil
+	}
+
+	term := strings.TrimSpace(p.Q)
+	if len(term) >= 2 {
+		like := "%" + term + "%"
+		q = q.Where("companies.ruc LIKE ? OR companies.business_name LIKE ?", like, like)
+	}
+
+	var allCompanies []models.Company
+	if err := q.Preload("Assistant").Preload("Supervisor").Order("companies.internal_code ASC").Find(&allCompanies).Error; err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint, 0, len(allCompanies))
+	for _, c := range allCompanies {
+		ids = append(ids, c.ID)
+	}
+
+	type ctrlRow struct {
+		CompanyID     uint
+		ControlID     uint
+		DeclarationID uint
+	}
+	var ctrls []ctrlRow
+	if len(ids) > 0 {
+		_ = database.DB.Table("supervisor_monthly_controls AS c").
+			Select("c.company_id, c.id AS control_id, d.id AS declaration_id").
+			Joins("INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.deleted_at IS NULL", models.SupervisorDeclSunatInbox).
+			Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, p.PeriodYM).
+			Scan(&ctrls).Error
+	}
+	ctrlByCompany := map[uint]ctrlRow{}
+	controlIDs := make([]uint, 0, len(ctrls))
+	for _, c := range ctrls {
+		ctrlByCompany[c.CompanyID] = c
+		controlIDs = append(controlIDs, c.ControlID)
+	}
+
+	weekTimeByStart := make(map[string]time.Time, len(weeks))
+	weekStarts := make([]time.Time, 0, len(weeks))
+	for _, w := range weeks {
+		ws, err := parseWeekStart(w.WeekStart)
+		if err != nil {
+			continue
+		}
+		weekTimeByStart[w.WeekStart] = ws
+		weekStarts = append(weekStarts, ws)
+	}
+
+	slotsByControlAndWeek, err := s.loadMailboxSlotsByControlIDsForWeeks(controlIDs, weekStarts)
+	if err != nil {
+		return nil, err
+	}
+
+	credDig := map[uint]string{}
+	if len(ids) > 0 {
+		var creds []models.CompanyAccessCredential
+		_ = database.DB.Where("company_id IN ?", ids).Find(&creds).Error
+		for _, cr := range creds {
+			credDig[cr.CompanyID] = strings.TrimSpace(cr.Dig)
+		}
+	}
+
+	// Calculado una sola vez para todas las semanas pedidas (antes, mailboxTimelinessCtxFor lo
+	// recalculaba -con su propia consulta a BD- una vez por semana).
+	calendarAct := FindSunatInboxCalendarActivity(p.PeriodYM)
+	statusFilter := strings.TrimSpace(p.Status)
+
+	rows := make([]SunatInboxExportRow, 0, len(allCompanies))
+	for _, co := range allCompanies {
+		cr, hasCtrl := ctrlByCompany[co.ID]
+		weeksOut := make(map[string][]SunatInboxCaptureSlot, len(weeks))
+		matches := statusFilter == ""
+		for _, w := range weeks {
+			ws, ok := weekTimeByStart[w.WeekStart]
+			if !ok {
+				continue
+			}
+			ctx := mailboxTimelinessCtx{periodYM: p.PeriodYM, weekStart: ws, slotsPerWeek: slotsPerWeek, calendarAct: calendarAct}
+			var dbSlots map[int]*models.SupervisorMailboxCaptureSlot
+			if hasCtrl {
+				dbSlots = slotsByControlAndWeek[cr.ControlID][w.WeekStart]
+			}
+			dtoSlots := buildSunatInboxSlots(dbSlots, slotsPerWeek, ctx)
+			weeksOut[w.WeekStart] = dtoSlots
+			// Una empresa matchea el filtro de estado si lo cumple en AL MENOS una de las semanas
+			// incluidas (igual que el filtro del listado semanal, pero extendido al conjunto de
+			// semanas pedido en vez de solo una).
+			if !matches && companyMatchesMailboxFilter(dtoSlots, statusFilter) {
+				matches = true
+			}
+		}
+		if !matches {
+			continue
+		}
+		rows = append(rows, SunatInboxExportRow{
+			CompanyID:          co.ID,
+			Code:               strings.TrimSpace(co.InternalCode),
+			Dig:                credDig[co.ID],
+			BusinessName:       strings.TrimSpace(co.BusinessName),
+			RUC:                strings.TrimSpace(co.RUC),
+			AssistantUsername:  assistantUsername(co.Assistant),
+			SupervisorUsername: userUsername(co.Supervisor),
+			Weeks:              weeksOut,
+		})
+	}
+
+	return rows, nil
+}
+
+// ExportSunatInbox arma el listado COMPLETO (todas las empresas que matchean los filtros) para el
+// reporte Excel del Buzón SOL. El alcance sigue el filtro de la pantalla: p.Scope="week" exporta solo
+// p.WeekStart (igual que la tabla en modo semana); cualquier otro valor exporta todas las semanas del
+// período (modo "Mes completo").
+func (s *SupervisorService) ExportSunatInbox(p SunatInboxListParams) (*SunatInboxExportResult, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	slotsPerWeek := mailboxCapturesPerWeekFromConfig()
+	allWeeks, err := weeksInPeriodYM(p.PeriodYM)
+	if err != nil {
+		return nil, err
+	}
+	weeks, err := resolveExportWeeks(p, allWeeks)
+	if err != nil {
+		return nil, err
+	}
+	meta := SunatInboxListMeta{CapturesPerWeek: slotsPerWeek, Weeks: weeks}
+
+	rows, err := s.buildSunatInboxExportRows(p, weeks, slotsPerWeek)
+	if err != nil {
+		return nil, err
+	}
+	return &SunatInboxExportResult{Meta: meta, Rows: rows}, nil
+}
+
+// ListSunatInboxMonth listado empresa+período con TODAS las semanas del mes por fila (vista "Mes
+// completo" en pantalla), paginado igual que ListSunatInbox.
+func (s *SupervisorService) ListSunatInboxMonth(p SunatInboxListParams) (*sunatInboxMonthListResult, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	slotsPerWeek := mailboxCapturesPerWeekFromConfig()
+	weeks, err := weeksInPeriodYM(p.PeriodYM)
+	if err != nil {
+		return nil, err
+	}
+
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage := p.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+
+	filteredRows, err := s.buildSunatInboxExportRows(p, weeks, slotsPerWeek)
+	if err != nil {
+		return nil, err
+	}
+
+	total := int64(len(filteredRows))
+	offset := (page - 1) * perPage
+	end := offset + perPage
+	if offset > len(filteredRows) {
+		offset = len(filteredRows)
+	}
+	if end > len(filteredRows) {
+		end = len(filteredRows)
+	}
+	rows := filteredRows[offset:end]
+
+	return &sunatInboxMonthListResult{
+		Meta:       SunatInboxListMeta{CapturesPerWeek: slotsPerWeek, Weeks: weeks},
+		Rows:       rows, Total: total, Page: page, PerPage: perPage,
 		TotalPages: sunatInboxTotalPages(total, perPage),
 	}, nil
 }

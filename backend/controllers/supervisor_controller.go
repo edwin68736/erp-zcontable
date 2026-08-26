@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -967,7 +968,10 @@ func (ctrl *SupervisorController) UploadAttachmentAPI(c fiber.Ctx) error {
 	}
 	defer f.Close()
 	data := make([]byte, fh.Size)
-	if _, err := f.Read(data); err != nil {
+	// io.ReadFull (no f.Read directo): un solo Read() no garantiza llenar el buffer completo —
+	// para archivos grandes puede devolver menos bytes de los pedidos sin error, guardando el
+	// archivo truncado en silencio (se sube "OK" pero queda corrupto/no abre al descargar).
+	if _, err := io.ReadFull(f, data); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	url, err := ctrl.svc.StoreSupervisorUpload(fh.Filename, data)
@@ -1154,7 +1158,10 @@ func (ctrl *SupervisorController) DetraccionesUploadAPI(c fiber.Ctx) error {
 	}
 	defer f.Close()
 	data := make([]byte, fh.Size)
-	if _, err := f.Read(data); err != nil {
+	// io.ReadFull (no f.Read directo): un solo Read() no garantiza llenar el buffer completo —
+	// para archivos grandes puede devolver menos bytes de los pedidos sin error, guardando el
+	// archivo truncado en silencio (se sube "OK" pero queda corrupto/no abre al descargar).
+	if _, err := io.ReadFull(f, data); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	uid, err := getUserID(c)
@@ -1260,6 +1267,72 @@ func (ctrl *SupervisorController) SunatInboxListAPI(c fiber.Ctx) error {
 	})
 }
 
+// SunatInboxExportAPI GET /api/supervisors/activity-modules/sunat-inbox/export
+// Devuelve, en una sola respuesta, TODAS las empresas del período que matchean los filtros (q, status)
+// con sus capturas de TODAS las semanas — usado por el reporte Excel (evita N llamadas, una por semana).
+func (ctrl *SupervisorController) SunatInboxExportAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	out, err := ctrl.svc.ExportSunatInbox(services.SunatInboxListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		WeekStart:         c.Query("week_start", ""),
+		Status:            c.Query("status", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+		Scope:             c.Query("scope", ""),
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if out.Rows == nil {
+		out.Rows = []services.SunatInboxExportRow{}
+	}
+	return c.JSON(fiber.Map{
+		"meta": out.Meta,
+		"data": out.Rows,
+	})
+}
+
+// SunatInboxMonthListAPI GET /api/supervisors/activity-modules/sunat-inbox/month
+// Vista "Mes completo": igual que SunatInboxListAPI pero cada fila trae las capturas de TODAS las
+// semanas del período (en vez de una sola), paginada del mismo modo.
+func (ctrl *SupervisorController) SunatInboxMonthListAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	page, perPage := paginationFromQuery(c)
+	out, err := ctrl.svc.ListSunatInboxMonth(services.SunatInboxListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Status:            c.Query("status", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+		Page:              page,
+		PerPage:           perPage,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if out.Rows == nil {
+		out.Rows = []services.SunatInboxExportRow{}
+	}
+	return c.JSON(fiber.Map{
+		"meta": out.Meta,
+		"data": out.Rows,
+		"pagination": fiber.Map{
+			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
+		},
+	})
+}
+
 // SunatInboxDetailAPI GET /api/supervisors/activity-modules/sunat-inbox/companies/:companyId
 func (ctrl *SupervisorController) SunatInboxDetailAPI(c fiber.Ctx) error {
 	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
@@ -1333,7 +1406,10 @@ func (ctrl *SupervisorController) SunatInboxUploadAPI(c fiber.Ctx) error {
 	}
 	defer f.Close()
 	data := make([]byte, fh.Size)
-	if _, err := f.Read(data); err != nil {
+	// io.ReadFull (no f.Read directo): un solo Read() no garantiza llenar el buffer completo —
+	// para archivos grandes puede devolver menos bytes de los pedidos sin error, guardando el
+	// archivo truncado en silencio (se sube "OK" pero queda corrupto/no abre al descargar).
+	if _, err := io.ReadFull(f, data); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	uid, err := getUserID(c)
@@ -1410,6 +1486,35 @@ func (ctrl *SupervisorController) Pdt601ListAPI(c fiber.Ctx) error {
 			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
 		},
 	})
+}
+
+// Pdt601ExportAPI GET /api/supervisors/activity-modules/pdt-601/export
+// Devuelve, en una sola respuesta, TODAS las empresas que matchean los filtros (sin paginar) —
+// usado por el reporte Excel del listado.
+func (ctrl *SupervisorController) Pdt601ExportAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	assistantID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("assistant_user_id", "")), 10, 64)
+	rows, err := ctrl.svc.ExportPdt601(services.Pdt601ListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Status:            c.Query("status", ""),
+		Q:                 c.Query("q", ""),
+		Dig:               c.Query("dig", ""),
+		AssistantUserID:   uint(assistantID),
+		AllowedCompanyIDs: allowed,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if rows == nil {
+		rows = []services.Pdt601ListRow{}
+	}
+	return c.JSON(fiber.Map{"data": rows})
 }
 
 // Pdt601DetailAPI GET /api/supervisors/activity-modules/pdt-601/companies/:companyId

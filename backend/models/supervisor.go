@@ -207,6 +207,9 @@ type SupervisorPdt601Planilla struct {
 	Rh      float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rh"`
 	// Seguimiento.
 	FechaEntrega                *time.Time     `gorm:"type:date" json:"fecha_entrega,omitempty"`
+	// HoraEntrega hora de entrega (HH:MM), texto libre igual que NPS/TicketAFP — la registra
+	// el asistente junto con FechaEntrega; el resto de "Seguimiento" lo completa el supervisor.
+	HoraEntrega                 string         `gorm:"size:5" json:"hora_entrega,omitempty"`
 	Observaciones               string         `gorm:"type:text" json:"observaciones,omitempty"`
 	FechaDeclaracionPdt         *time.Time     `gorm:"type:date" json:"fecha_declaracion_pdt,omitempty"`
 	NPS                         string         `gorm:"size:120" json:"nps,omitempty"`

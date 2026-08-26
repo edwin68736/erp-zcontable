@@ -233,6 +233,19 @@ const s = StyleSheet.create({
   pendLabel: { fontSize: 6.6, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.3 },
   pendAmount: { fontSize: 13, fontWeight: 700, color: V2.greenDark, marginTop: 1 },
 
+  /* Distintivo "IGV Justo": solo aparece cuando la liquidación está acogida. */
+  igvJustoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: V2.blueSoft,
+    borderRadius: 3,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    marginBottom: 5,
+  },
+  igvJustoTagText: { fontSize: 6.4, fontWeight: 700, color: V2.blue, textTransform: 'uppercase', letterSpacing: 0.3 },
+
   /* Tarjeta explicativa */
   infoCard: {
     borderWidth: 1,
@@ -472,14 +485,20 @@ function SplitBlock({ left, right }: { left: ReactNode; right: ReactNode }) {
   );
 }
 
+/**
+ * `tag`, si se pasa (p. ej. "IGV Justo"), se muestra pegado al costado del monto — no arriba de
+ * la tarjeta — para que quede claro que ESE monto pendiente es el que está bajo ese régimen.
+ */
 function PendingCard({
   label,
   amount,
   icon = 'receipt',
+  tag,
 }: {
   label: string;
   amount: string;
   icon?: PdfIconName;
+  tag?: string;
 }) {
   return (
     <View wrap={false} style={s.pendCard}>
@@ -488,7 +507,14 @@ function PendingCard({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={s.pendLabel}>{label}</Text>
-        <Text style={s.pendAmount}>{amount}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={s.pendAmount}>{amount}</Text>
+          {tag ? (
+            <View style={[s.igvJustoTag, { marginLeft: 6, marginBottom: 0 }]}>
+              <Text style={s.igvJustoTagText}>{tag}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -798,11 +824,18 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
               label="IGV pendiente"
               amount={formatTaxPdfTotalMoney(getPdt621IgvNetAfterDetraction(p621))}
               icon="receipt"
+              tag={p621.igv_justo ? 'IGV Justo' : undefined}
             />
             <InfoCard
               title="¿Qué es el IGV?"
               text="Impuesto General a las Ventas. Se aplica a la venta de bienes y prestación de servicios."
             />
+            {p621.igv_justo ? (
+              <InfoCard
+                title="¿Qué es IGV Justo?"
+                text="Régimen que permite a las MYPE postergar el pago del IGV según un cronograma especial, sin intereses ni multas."
+              />
+            ) : null}
           </Fragment>
         }
       />
@@ -962,7 +995,9 @@ function estimateIgvSplitHeight(p621: TaxSectionPdt621): number {
   const igvSummaryRows = 7 + (getPdt621DetractionPdfRowLabel(p621.detraction_payment_igv) ? 1 : 0) + 1;
   const tableColumn =
     igvRows * HEIGHT_EST.ROW + HEIGHT_EST.SUMMARY_TRANSITION + (igvSummaryRows - 1) * HEIGHT_EST.SUMROW;
-  return Math.max(tableColumn, HEIGHT_EST.CARD_FLOOR);
+  // Con IGV Justo activo la columna de tarjetas suma el distintivo + una tarjeta explicativa más.
+  const cardColumn = p621.igv_justo ? HEIGHT_EST.CARD_FLOOR + 50 : HEIGHT_EST.CARD_FLOOR;
+  return Math.max(tableColumn, cardColumn);
 }
 
 function estimateRentaSplitHeight(p621: TaxSectionPdt621): number {

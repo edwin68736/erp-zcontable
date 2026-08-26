@@ -18,6 +18,7 @@ import {
 } from '../../utils/taxSettlementSections';
 import { formatRentaRateLabel } from '../../utils/companyTaxRegime';
 import DetraccionReadOnlyBar from './DetraccionReadOnlyBar';
+import IgvJustoReadOnlyBar from './IgvJustoReadOnlyBar';
 import {
   PDT621_IGV_HEADER_CELL,
   PDT621_IGV_TABLE_GAP,
@@ -296,6 +297,8 @@ export function Pdt621ReadOnlySection({ p621, rentaRatePct, showFooter = true }:
           netAfterDetraction={igvNetAfterDetraction}
         />
       ) : null}
+
+      {p621.igv_justo ? <IgvJustoReadOnlyBar /> : null}
 
       {showFooter && igvPayableBefore > 0 ? (
         <>

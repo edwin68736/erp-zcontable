@@ -42,6 +42,9 @@ export type TaxSectionPdt621 = {
   saldo_favor_final: number;
   detraction_payment_igv?: Pdt621DetractionPayment;
   detraction_payment_renta?: Pdt621DetractionPayment;
+  /** Acogimiento al régimen "IGV Justo" (postergación del pago del IGV para MYPE). Bandera
+   * manual del supervisor — no se recalcula ni afecta ningún monto. */
+  igv_justo?: boolean;
   renta_impuesto_a_pagar: number;
   impuesto_a_pagar: number;
 };
@@ -302,6 +305,7 @@ export function defaultPdt621Section(): TaxSectionPdt621 {
       applied_amount: 0,
       original_amount: 0,
     },
+    igv_justo: false,
     renta_impuesto_a_pagar: 0,
     impuesto_a_pagar: 0,
   };
@@ -892,6 +896,25 @@ export function getPdt621AppliedDetractionAmount(p621: TaxSectionPdt621): number
 
 export function getPdt621RentaPayableBeforeDetraction(p621: TaxSectionPdt621): number {
   return roundMoney(Math.max(p621.renta_impuesto_a_pagar, 0));
+}
+
+/**
+ * Resumen de ventas/compras del periodo para sincronizar de vuelta hacia el Control de
+ * Vencimientos PDT 621 (supervisor_pdt621_records: total_ventas, total_compras). Suma todas las
+ * tasas IGV activas de la liquidación (no solo la tasa por defecto de la empresa). total_ventas
+ * reutiliza `computePdt621RentaVentasBase` (misma regla de neteo de notas de crédito y de
+ * redondeo que usa el resto de la sección, en vez de reimplementarla con su propio redondeo).
+ */
+export function getPdt621SyncTotals(p621: TaxSectionPdt621): { total_ventas: number; total_compras: number } {
+  const totalCompras =
+    (p621.compras_18?.base ?? 0) +
+    (p621.compras_18?.no_gravadas ?? 0) +
+    (p621.compras_105?.base ?? 0) +
+    (p621.compras_105?.no_gravadas ?? 0);
+  return {
+    total_ventas: computePdt621RentaVentasBase(p621),
+    total_compras: roundMoney(totalCompras),
+  };
 }
 
 export function getPdt621AppliedDetractionAmountRenta(p621: TaxSectionPdt621): number {
