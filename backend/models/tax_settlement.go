@@ -14,6 +14,13 @@ const (
 	TaxSettlementLineDocRef    = "document_ref"
 	TaxSettlementLineTaxManual = "tax_manual"
 	TaxSettlementLineAdjust    = "adjustment"
+
+	// PaymentDocumentType: con qué documento se le cobra al cliente esta liquidación — determina
+	// qué juego de datos de pago (banco/QR) de FirmConfig se muestra en el PDF v2. Por defecto
+	// siempre "rh"; el administrador lo cambia a mano en Finanzas mientras la liquidación sea
+	// editable (borrador).
+	TaxSettlementPaymentDocTypeRH      = "rh"
+	TaxSettlementPaymentDocTypeFactura = "factura"
 )
 
 // TaxSettlement liquidación de impuestos / presentación al cliente (no sustituye Document).
@@ -28,6 +35,9 @@ type TaxSettlement struct {
 	PeriodFrom       *time.Time     `json:"period_from,omitempty"`
 	PeriodTo         *time.Time     `json:"period_to,omitempty"`
 	Status           string         `gorm:"size:20;not null;default:'borrador'" json:"status"`
+	// PaymentDocumentType: "rh" (Recibo por Honorarios, por defecto) o "factura" (Factura/Boleta).
+	// Ver constantes TaxSettlementPaymentDocType* — solo editable mientras status = borrador.
+	PaymentDocumentType string     `gorm:"size:20;not null;default:'rh'" json:"payment_document_type"`
 	ClosedAt         *time.Time     `json:"closed_at,omitempty"`
 	Notes            string         `gorm:"type:text" json:"notes"`
 	Pdt621JSON       string         `gorm:"type:text" json:"pdt621_json,omitempty"`

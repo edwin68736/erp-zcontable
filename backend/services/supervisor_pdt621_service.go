@@ -83,26 +83,32 @@ type Pdt621RecordDTO struct {
 	TotalCompras        float64 `json:"total_compras"`
 	Igv                 float64 `json:"igv"`
 	Rta                 float64 `json:"rta"`
-	EnvioSire           string  `json:"envio_sire"`
-	FechaEnvioSire      *string `json:"fecha_envio_sire,omitempty"`
-	MotivoNoEnvio       string  `json:"motivo_no_envio"`
+	// Cantidad de comprobantes (NO montos) — solo registro manual, nunca se sincroniza desde la
+	// liquidación (ver comentario en models.SupervisorPdt621Record).
+	CantidadComprobantesVenta  int     `json:"cantidad_comprobantes_venta"`
+	CantidadComprobantesCompra int     `json:"cantidad_comprobantes_compra"`
+	EnvioSire                  string  `json:"envio_sire"`
+	FechaEnvioSire             *string `json:"fecha_envio_sire,omitempty"`
+	MotivoNoEnvio              string  `json:"motivo_no_envio"`
 }
 
 // Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD).
 type Pdt621RecordInput struct {
-	PrimeraEntregaFecha string  `json:"primera_entrega_fecha"`
-	PrimeraEntregaHora  string  `json:"primera_entrega_hora"`
-	Observacion         string  `json:"observacion"`
-	SegundaEntregaFecha string  `json:"segunda_entrega_fecha"`
-	SegundaEntregaHora  string  `json:"segunda_entrega_hora"`
-	FechaDeclaracion    string  `json:"fecha_declaracion"`
-	TotalVentas         float64 `json:"total_ventas"`
-	TotalCompras        float64 `json:"total_compras"`
-	Igv                 float64 `json:"igv"`
-	Rta                 float64 `json:"rta"`
-	EnvioSire           string  `json:"envio_sire"`
-	FechaEnvioSire      string  `json:"fecha_envio_sire"`
-	MotivoNoEnvio       string  `json:"motivo_no_envio"`
+	PrimeraEntregaFecha        string  `json:"primera_entrega_fecha"`
+	PrimeraEntregaHora         string  `json:"primera_entrega_hora"`
+	Observacion                string  `json:"observacion"`
+	SegundaEntregaFecha        string  `json:"segunda_entrega_fecha"`
+	SegundaEntregaHora         string  `json:"segunda_entrega_hora"`
+	FechaDeclaracion           string  `json:"fecha_declaracion"`
+	TotalVentas                float64 `json:"total_ventas"`
+	TotalCompras               float64 `json:"total_compras"`
+	Igv                        float64 `json:"igv"`
+	Rta                        float64 `json:"rta"`
+	CantidadComprobantesVenta  int     `json:"cantidad_comprobantes_venta"`
+	CantidadComprobantesCompra int     `json:"cantidad_comprobantes_compra"`
+	EnvioSire                  string  `json:"envio_sire"`
+	FechaEnvioSire             string  `json:"fecha_envio_sire"`
+	MotivoNoEnvio              string  `json:"motivo_no_envio"`
 }
 
 func pdt621RecordToDTO(r *models.SupervisorPdt621Record) *Pdt621RecordDTO {
@@ -110,19 +116,21 @@ func pdt621RecordToDTO(r *models.SupervisorPdt621Record) *Pdt621RecordDTO {
 		return nil
 	}
 	return &Pdt621RecordDTO{
-		PrimeraEntregaFecha: pdt601DateString(r.PrimeraEntregaFecha),
-		PrimeraEntregaHora:  r.PrimeraEntregaHora,
-		Observacion:         r.Observacion,
-		SegundaEntregaFecha: pdt601DateString(r.SegundaEntregaFecha),
-		SegundaEntregaHora:  r.SegundaEntregaHora,
-		FechaDeclaracion:    pdt601DateString(r.FechaDeclaracion),
-		TotalVentas:         r.TotalVentas,
-		TotalCompras:        r.TotalCompras,
-		Igv:                 r.Igv,
-		Rta:                 r.Rta,
-		EnvioSire:           r.EnvioSire,
-		FechaEnvioSire:      pdt601DateString(r.FechaEnvioSire),
-		MotivoNoEnvio:       r.MotivoNoEnvio,
+		PrimeraEntregaFecha:        pdt601DateString(r.PrimeraEntregaFecha),
+		PrimeraEntregaHora:         r.PrimeraEntregaHora,
+		Observacion:                r.Observacion,
+		SegundaEntregaFecha:        pdt601DateString(r.SegundaEntregaFecha),
+		SegundaEntregaHora:         r.SegundaEntregaHora,
+		FechaDeclaracion:           pdt601DateString(r.FechaDeclaracion),
+		TotalVentas:                r.TotalVentas,
+		TotalCompras:               r.TotalCompras,
+		Igv:                        r.Igv,
+		Rta:                        r.Rta,
+		CantidadComprobantesVenta:  r.CantidadComprobantesVenta,
+		CantidadComprobantesCompra: r.CantidadComprobantesCompra,
+		EnvioSire:                  r.EnvioSire,
+		FechaEnvioSire:             pdt601DateString(r.FechaEnvioSire),
+		MotivoNoEnvio:              r.MotivoNoEnvio,
 	}
 }
 
@@ -301,6 +309,8 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	record.TotalCompras = in.TotalCompras
 	record.Igv = in.Igv
 	record.Rta = in.Rta
+	record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
+	record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
 	record.EnvioSire = strings.TrimSpace(in.EnvioSire)
 	record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
 	record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
@@ -318,34 +328,16 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	return s.EnsurePdt621(companyID, periodYM)
 }
 
-// ListPdt621 listado empresa+período; sin lazy create.
-func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, error) {
-	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
-	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
-		return nil, err
-	}
-	page := p.Page
-	if page < 1 {
-		page = 1
-	}
-	perPage := p.PerPage
-	if perPage < 1 {
-		perPage = 20
-	}
-	if perPage > 200 {
-		perPage = 200
-	}
-
+// pdt621FilteredCompaniesQuery arma el query de empresas (sin paginar) para un conjunto de
+// filtros — compartido por ListPdt621 (pagina en SQL) y ExportPdt621 (trae todo, para el reporte
+// Excel). Mismo patrón que pdt601FilteredCompaniesQuery.
+func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 	q := database.DB.Model(&models.Company{}).
 		Where("companies.client_type = ? AND companies.status = ?", models.CompanyClientTypeEstudio, "activo").
 		Preload("Assistant")
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
-	} else if p.AllowedCompanyIDs != nil {
-		return &pdt621ListResult{
-			Rows: []Pdt621ListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
-		}, nil
 	}
 
 	if p.AssistantUserID > 0 {
@@ -386,23 +378,16 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 		)`, models.SupervisorDeclPDT621, statusFilter, p.PeriodYM)
 	}
 
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, err
-	}
+	return q
+}
 
-	var companies []models.Company
-	offset := (page - 1) * perPage
-	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
-		return nil, err
-	}
-
+// pdt621BuildRows arma las filas (empresa+control+declaración+registro+cumplimiento) para un
+// conjunto de empresas YA filtrado — sin volver a tocar paginación ni filtros. Compartido por
+// ListPdt621 y ExportPdt621 para no duplicar el resto del armado de fila.
+func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM string) ([]Pdt621ListRow, error) {
 	rows := make([]Pdt621ListRow, 0, len(companies))
 	if len(companies) == 0 {
-		return &pdt621ListResult{
-			Rows: rows, Total: total, Page: page, PerPage: perPage,
-			TotalPages: sunatInboxTotalPages(total, perPage),
-		}, nil
+		return rows, nil
 	}
 
 	ids := make([]uint, 0, len(companies))
@@ -422,7 +407,7 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 	_ = database.DB.Table("supervisor_monthly_controls AS c").
 		Select("c.company_id, c.id AS control_id, d.id AS declaration_id, d.status, d.due_date AS decl_due_date, c.due_date AS control_due_date").
 		Joins("INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.deleted_at IS NULL", models.SupervisorDeclPDT621).
-		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, p.PeriodYM).
+		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, periodYM).
 		Scan(&decls).Error
 
 	declByCompany := make(map[uint]declRow, len(decls))
@@ -467,7 +452,7 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 	_ = database.DB.Table("supervisor_pdt621_records AS r").
 		Select("c.company_id, r.*").
 		Joins("INNER JOIN supervisor_monthly_controls c ON c.id = r.monthly_control_id AND c.deleted_at IS NULL").
-		Where("c.company_id IN ? AND c.period_ym = ? AND r.deleted_at IS NULL", ids, p.PeriodYM).
+		Where("c.company_id IN ? AND c.period_ym = ? AND r.deleted_at IS NULL", ids, periodYM).
 		Scan(&records).Error
 	for i := range records {
 		rec := records[i].SupervisorPdt621Record
@@ -476,7 +461,7 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 
 	// Instancia "PDT 621" del calendario financiero del período (una sola consulta, no por
 	// empresa) — trae la regla de plazo interno asignada en Ajustes, si la hay.
-	pdt621Act := findPdt621CalendarActivity(p.PeriodYM)
+	pdt621Act := findPdt621CalendarActivity(periodYM)
 
 	for _, co := range companies {
 		row := Pdt621ListRow{
@@ -504,7 +489,7 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 			}
 		}
 
-		scheduleDue := pdt621ScheduleDueDate(p.PeriodYM, row.Dig)
+		scheduleDue := pdt621ScheduleDueDate(periodYM, row.Dig)
 		row.ScheduleDueDate = pdt601DateString(scheduleDue)
 		var declaredAt *time.Time
 		if row.Record != nil && row.Record.FechaDeclaracion != nil {
@@ -526,13 +511,79 @@ func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, e
 		if row.Record != nil && row.Record.PrimeraEntregaFecha != nil {
 			primeraEntregaAt = pdt601ParseDate(*row.Record.PrimeraEntregaFecha)
 		}
-		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(p.PeriodYM, pdt621Act, primeraEntregaAt, false).Timeliness
+		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, false).Timeliness
 
 		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
+// ListPdt621 listado empresa+período; sin lazy create.
+func (s *SupervisorService) ListPdt621(p Pdt621ListParams) (*pdt621ListResult, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage := p.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return &pdt621ListResult{
+			Rows: []Pdt621ListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
+		}, nil
+	}
+
+	q := pdt621FilteredCompaniesQuery(p)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var companies []models.Company
+	offset := (page - 1) * perPage
+	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	rows, err := s.pdt621BuildRows(companies, p.PeriodYM)
+	if err != nil {
+		return nil, err
 	}
 
 	return &pdt621ListResult{
 		Rows: rows, Total: total, Page: page, PerPage: perPage,
 		TotalPages: sunatInboxTotalPages(total, perPage),
 	}, nil
+}
+
+// ExportPdt621 arma el listado COMPLETO (todas las empresas que matchean los filtros, sin paginar)
+// para el reporte Excel — misma lógica de filtrado y armado de fila que ListPdt621, sin el límite
+// de página.
+func (s *SupervisorService) ExportPdt621(p Pdt621ListParams) ([]Pdt621ListRow, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return []Pdt621ListRow{}, nil
+	}
+
+	q := pdt621FilteredCompaniesQuery(p)
+	var companies []models.Company
+	if err := q.Order("companies.internal_code ASC").Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	return s.pdt621BuildRows(companies, p.PeriodYM)
 }

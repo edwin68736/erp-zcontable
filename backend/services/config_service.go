@@ -58,11 +58,16 @@ func (s *ConfigService) UpdateFirmConfig(input *models.FirmConfig, operationsKey
 	if input.ApiPeruToken != "" {
 		cfg.ApiPeruToken = input.ApiPeruToken
 	}
-	// Pie de estado de cuenta (textos; el formulario de ajustes envía siempre estos campos)
+	// Pie de estado de cuenta (textos; el formulario de ajustes envía siempre estos campos) —
+	// RH y Factura/Boleta van por separado, ver TaxSettlement.PaymentDocumentType.
 	cfg.StatementWhatsappNotice = input.StatementWhatsappNotice
 	cfg.StatementBankInfo = input.StatementBankInfo
 	cfg.StatementPaymentObservations = input.StatementPaymentObservations
 	cfg.StatementPaymentQrCaption = input.StatementPaymentQrCaption
+	cfg.StatementWhatsappNoticeFactura = input.StatementWhatsappNoticeFactura
+	cfg.StatementBankInfoFactura = input.StatementBankInfoFactura
+	cfg.StatementPaymentObservationsFactura = input.StatementPaymentObservationsFactura
+	cfg.StatementPaymentQrCaptionFactura = input.StatementPaymentQrCaptionFactura
 	cfg.ClavesSolDigColorsJSON = input.ClavesSolDigColorsJSON
 	if input.MailboxCapturesPerWeek >= 1 && input.MailboxCapturesPerWeek <= 7 {
 		cfg.MailboxCapturesPerWeek = input.MailboxCapturesPerWeek
@@ -97,6 +102,34 @@ func (s *ConfigService) SetStatementPaymentQrURL(url string) (*models.FirmConfig
 		return nil, err
 	}
 	cfg.StatementPaymentQrURL = url
+	if err := database.DB.Save(cfg).Error; err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// SetStatementBankLogoURLFactura — igual que SetStatementBankLogoURL pero para el juego de
+// datos de Factura/Boleta.
+func (s *ConfigService) SetStatementBankLogoURLFactura(url string) (*models.FirmConfig, error) {
+	cfg, err := s.GetFirmConfig()
+	if err != nil {
+		return nil, err
+	}
+	cfg.StatementBankLogoURLFactura = url
+	if err := database.DB.Save(cfg).Error; err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// SetStatementPaymentQrURLFactura — igual que SetStatementPaymentQrURL pero para el juego de
+// datos de Factura/Boleta.
+func (s *ConfigService) SetStatementPaymentQrURLFactura(url string) (*models.FirmConfig, error) {
+	cfg, err := s.GetFirmConfig()
+	if err != nil {
+		return nil, err
+	}
+	cfg.StatementPaymentQrURLFactura = url
 	if err := database.DB.Save(cfg).Error; err != nil {
 		return nil, err
 	}

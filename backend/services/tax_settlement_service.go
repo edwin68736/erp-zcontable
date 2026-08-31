@@ -763,6 +763,27 @@ func (s *TaxSettlementService) Emit(id uint) (*models.TaxSettlement, error) {
 	return s.GetByID(id)
 }
 
+// UpdatePaymentDocumentType cambia con qué documento se le cobra al cliente esta liquidación
+// ("rh" o "factura") — determina qué datos de pago (banco/QR) de FirmConfig se usan en el PDF
+// v2. Solo mientras la liquidación esté en borrador (igual que el resto de su edición).
+func (s *TaxSettlementService) UpdatePaymentDocumentType(id uint, docType string) (*models.TaxSettlement, error) {
+	if docType != models.TaxSettlementPaymentDocTypeRH && docType != models.TaxSettlementPaymentDocTypeFactura {
+		return nil, errors.New("payment_document_type inválido: use 'rh' o 'factura'")
+	}
+	var ts models.TaxSettlement
+	if err := database.DB.First(&ts, id).Error; err != nil {
+		return nil, err
+	}
+	if ts.Status != models.TaxSettlementStatusDraft {
+		return nil, errors.New("solo se puede cambiar el tipo de documento mientras la liquidación esté en borrador")
+	}
+	ts.PaymentDocumentType = docType
+	if err := database.DB.Save(&ts).Error; err != nil {
+		return nil, err
+	}
+	return s.GetByID(id)
+}
+
 // PaymentSuggestionLine imputación sugerida desde líneas document_ref de la liquidación (monto = min(snapshot, saldo vivo)).
 type PaymentSuggestionLine struct {
 	DocumentID           uint    `json:"document_id"`

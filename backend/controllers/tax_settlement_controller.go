@@ -400,6 +400,37 @@ func (ctrl *TaxSettlementController) EmitAPI(c fiber.Ctx) error {
 	return c.JSON(ts)
 }
 
+// UpdatePaymentDocumentTypeAPI POST /api/tax-settlements/:id/payment-document-type — cambia con
+// qué documento se cobra esta liquidación al cliente ("rh" o "factura"), solo en borrador.
+func (ctrl *TaxSettlementController) UpdatePaymentDocumentTypeAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	ts0, err := ctrl.svc.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No encontrado"})
+	}
+	if err := ctrl.ensureCompanyAccess(c, ts0.CompanyID); err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	}
+	var body struct {
+		PaymentDocumentType string `json:"payment_document_type"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	ts, err := ctrl.svc.UpdatePaymentDocumentType(uint(id), body.PaymentDocumentType)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	ctrl.attachCanRegisterPayment(ts)
+	return c.JSON(ts)
+}
+
 // DeleteAPI DELETE /api/tax-settlements/:id — elimina la liquidación y revierte pagos y vínculos asociados.
 func (ctrl *TaxSettlementController) DeleteAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)

@@ -900,16 +900,17 @@ export function getPdt621RentaPayableBeforeDetraction(p621: TaxSectionPdt621): n
 
 /**
  * Resumen de ventas/compras del periodo para sincronizar de vuelta hacia el Control de
- * Vencimientos PDT 621 (supervisor_pdt621_records: total_ventas, total_compras). Suma todas las
- * tasas IGV activas de la liquidación (no solo la tasa por defecto de la empresa). total_ventas
+ * Vencimientos PDT 621 (supervisor_pdt621_records: total_ventas, total_compras). total_ventas
  * reutiliza `computePdt621RentaVentasBase` (misma regla de neteo de notas de crédito y de
  * redondeo que usa el resto de la sección, en vez de reimplementarla con su propio redondeo).
+ * total_compras es la suma de las 4 bases de compras: base imponible (18% + 10.5%) más
+ * "no gravadas" (18% + 10.5%) — regla de negocio confirmada por el usuario.
  */
 export function getPdt621SyncTotals(p621: TaxSectionPdt621): { total_ventas: number; total_compras: number } {
   const totalCompras =
     (p621.compras_18?.base ?? 0) +
-    (p621.compras_18?.no_gravadas ?? 0) +
     (p621.compras_105?.base ?? 0) +
+    (p621.compras_18?.no_gravadas ?? 0) +
     (p621.compras_105?.no_gravadas ?? 0);
   return {
     total_ventas: computePdt621RentaVentasBase(p621),
@@ -920,6 +921,17 @@ export function getPdt621SyncTotals(p621: TaxSectionPdt621): { total_ventas: num
 export function getPdt621AppliedDetractionAmountRenta(p621: TaxSectionPdt621): number {
   const renta = getPdt621RentaPayableBeforeDetraction(p621);
   return normalizePdt621DetractionPayment(p621.detraction_payment_renta, renta, true).applied_amount;
+}
+
+/**
+ * IGV "pendiente" CON SIGNO, para sincronizar hacia el campo `igv` del Control de Vencimientos
+ * PDT 621 — a diferencia de `getPdt621IgvNetAfterDetraction` (que recorta a 0), acá un saldo a
+ * favor (saldo_favor_final negativo) se devuelve tal cual, en negativo, en vez de mostrar 0.
+ * La detracción aplicada sigue calculándose sobre el importe pagable ya recortado a 0 (no tiene
+ * sentido "detraer" un saldo a favor), así que solo resta cuando saldo_favor_final > 0.
+ */
+export function getPdt621IgvPendienteSigned(p621: TaxSectionPdt621): number {
+  return roundMoney(p621.saldo_favor_final - getPdt621AppliedDetractionAmount(p621));
 }
 
 export function getPdt621IgvBalanceDisplay(

@@ -16,13 +16,22 @@ type FirmConfig struct {
 	// ApiPeru.dev — consulta RUC (SUNAT). Base típica: https://apiperu.dev → POST /api/ruc
 	ApiPeruBaseURL string `gorm:"size:512" json:"apiperu_base_url"`
 	ApiPeruToken   string `gorm:"type:text" json:"apiperu_token"`
-	// Pie de página del estado de cuenta (PDF / pantalla)
+	// Pie de página del estado de cuenta (PDF / pantalla) — datos de pago para RH (Recibo por
+	// Honorarios). Es el juego de datos por defecto/histórico (sin sufijo).
 	StatementWhatsappNotice        string `gorm:"type:text" json:"statement_whatsapp_notice"`
 	StatementBankInfo              string `gorm:"type:text" json:"statement_bank_info"`
 	StatementPaymentObservations   string `gorm:"type:text" json:"statement_payment_observations"`
 	StatementBankLogoURL           string `gorm:"size:512" json:"statement_bank_logo_url"`
 	StatementPaymentQrURL          string `gorm:"size:512" json:"statement_payment_qr_url"`
 	StatementPaymentQrCaption      string `gorm:"size:120" json:"statement_payment_qr_caption"`
+	// Mismos datos de pago, pero para liquidaciones con payment_document_type = "factura"
+	// (Factura/Boleta) en vez de RH — ver TaxSettlement.PaymentDocumentType.
+	StatementWhatsappNoticeFactura      string `gorm:"type:text" json:"statement_whatsapp_notice_factura"`
+	StatementBankInfoFactura            string `gorm:"type:text" json:"statement_bank_info_factura"`
+	StatementPaymentObservationsFactura string `gorm:"type:text" json:"statement_payment_observations_factura"`
+	StatementBankLogoURLFactura         string `gorm:"size:512" json:"statement_bank_logo_url_factura"`
+	StatementPaymentQrURLFactura        string `gorm:"size:512" json:"statement_payment_qr_url_factura"`
+	StatementPaymentQrCaptionFactura    string `gorm:"size:120" json:"statement_payment_qr_caption_factura"`
 	OperationsKeyHash              string `gorm:"type:text" json:"-"`
 	OperationsKeyConfigured        bool   `gorm:"-" json:"operations_key_configured"`
 	// JSON {"1":"sky","2":"emerald",...} colores pastel por dígito (claves SOL).

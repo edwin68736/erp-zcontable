@@ -56,6 +56,7 @@ const TaxSettlementDetail = () => {
   >(null);
   const [writeoffMotivo, setWriteoffMotivo] = useState('');
   const [writeoffLoading, setWriteoffLoading] = useState(false);
+  const [savingPaymentDocType, setSavingPaymentDocType] = useState(false);
 
   useEffect(() => {
     if (!settlementId) return;
@@ -239,6 +240,34 @@ const TaxSettlementDetail = () => {
     }
   };
 
+  /** "rh" (por defecto) o "factura" — solo mientras la liquidación esté en borrador. */
+  const handlePaymentDocTypeChange = async (docType: 'rh' | 'factura') => {
+    if (!settlementId || !row) return;
+    setSavingPaymentDocType(true);
+    try {
+      const updated = await taxSettlementsService.updatePaymentDocumentType(settlementId, docType);
+      setRow(updated);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Tipo de documento actualizado.' } }),
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+          : null;
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'error',
+            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo actualizar el tipo de documento.',
+          },
+        }),
+      );
+    } finally {
+      setSavingPaymentDocType(false);
+    }
+  };
+
   const performEmit = async () => {
     if (!settlementId) return;
     setEmitting(true);
@@ -269,9 +298,17 @@ const TaxSettlementDetail = () => {
         configService.getFirmBranding().catch(() => null),
         taxSettlementsService.get(settlementId),
       ]);
+      // El tipo de documento de cobro (RH/Factura) solo aplica al PDF v2 — el v1 (clásico)
+      // siempre usa el juego de datos de pago original (RH), sin importar lo que tenga la
+      // liquidación.
+      const useFactura = variant === 'v2' && fresh.payment_document_type === 'factura';
       const studioLogoUrl = (firm?.logo_url ?? '').trim();
-      const bankLogoUrl = (firm?.statement_bank_logo_url ?? '').trim();
-      const payQrUrl = (firm?.statement_payment_qr_url ?? '').trim();
+      const bankLogoUrl = (
+        (useFactura ? firm?.statement_bank_logo_url_factura : firm?.statement_bank_logo_url) ?? ''
+      ).trim();
+      const payQrUrl = (
+        (useFactura ? firm?.statement_payment_qr_url_factura : firm?.statement_payment_qr_url) ?? ''
+      ).trim();
       const [logoPng, bankLogoPng, paymentQrPng] = await Promise.all([
         studioLogoUrl ? getLogoPngBlobForPdf(studioLogoUrl) : Promise.resolve(null),
         bankLogoUrl ? getLogoPngBlobForAccountPdf(bankLogoUrl) : Promise.resolve(null),
@@ -594,6 +631,27 @@ const TaxSettlementDetail = () => {
             <span className="text-xs font-medium text-slate-500">Etiqueta periodo</span>
             <p className="text-slate-800">{row.period_label || '—'}</p>
           </div>
+        </div>
+        <div>
+          <span className="text-xs font-medium text-slate-500">Tipo de documento de cobro</span>
+          {row.status === 'borrador' && canUpdate ? (
+            <select
+              value={row.payment_document_type || 'rh'}
+              disabled={savingPaymentDocType}
+              onChange={(e) => void handlePaymentDocTypeChange(e.target.value as 'rh' | 'factura')}
+              className="mt-1 block w-full max-w-xs px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+            >
+              <option value="rh">RH (Recibo por Honorarios)</option>
+              <option value="factura">Factura / Boleta</option>
+            </select>
+          ) : (
+            <p className="text-slate-800">
+              {(row.payment_document_type || 'rh') === 'factura' ? 'Factura / Boleta' : 'RH (Recibo por Honorarios)'}
+            </p>
+          )}
+          <p className="mt-1 text-[11px] text-slate-400">
+            Decide qué datos de pago (banco/QR) de Ajustes → Perfil del estudio se muestran en el PDF v2.
+          </p>
         </div>
         {row.notes ? (
           <div>

@@ -143,6 +143,22 @@ func (ctrl *ConfigController) UploadStatementPaymentQrAPI(c fiber.Ctx) error {
 	}, "statement_payment_qr_url")
 }
 
+// UploadStatementBankLogoFacturaAPI — igual que UploadStatementBankLogoAPI pero para el juego
+// de datos de pago de Factura/Boleta (ver TaxSettlement.PaymentDocumentType).
+func (ctrl *ConfigController) UploadStatementBankLogoFacturaAPI(c fiber.Ctx) error {
+	return ctrl.uploadStatementFirmImage(c, "stmt_bank_factura_", func(url string) (*models.FirmConfig, error) {
+		return ctrl.configService.SetStatementBankLogoURLFactura(url)
+	}, "statement_bank_logo_url_factura")
+}
+
+// UploadStatementPaymentQrFacturaAPI — igual que UploadStatementPaymentQrAPI pero para el
+// juego de datos de pago de Factura/Boleta.
+func (ctrl *ConfigController) UploadStatementPaymentQrFacturaAPI(c fiber.Ctx) error {
+	return ctrl.uploadStatementFirmImage(c, "stmt_qr_factura_", func(url string) (*models.FirmConfig, error) {
+		return ctrl.configService.SetStatementPaymentQrURLFactura(url)
+	}, "statement_payment_qr_url_factura")
+}
+
 func (ctrl *ConfigController) uploadStatementFirmImage(
 	c fiber.Ctx,
 	filePrefix string,

@@ -145,6 +145,14 @@ export const taxSettlementsService = {
     return res.data;
   },
 
+  /** "rh" (por defecto) o "factura" — solo mientras la liquidación esté en borrador. */
+  async updatePaymentDocumentType(id: number, paymentDocumentType: 'rh' | 'factura'): Promise<TaxSettlement> {
+    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/payment-document-type`, {
+      payment_document_type: paymentDocumentType,
+    });
+    return res.data;
+  },
+
   async close(id: number): Promise<TaxSettlement> {
     const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/close`, {});
     return res.data;

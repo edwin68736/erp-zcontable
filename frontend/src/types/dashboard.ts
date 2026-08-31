@@ -284,6 +284,9 @@ export interface TaxSettlement {
   period_from?: string | null;
   period_to?: string | null;
   status: string;
+  /** "rh" (Recibo por Honorarios, por defecto) o "factura" (Factura/Boleta) — decide qué datos
+   * de pago (banco/QR) de FirmConfig se usan en el PDF v2. Editable solo en borrador. */
+  payment_document_type?: 'rh' | 'factura';
   closed_at?: string | null;
   notes?: string;
   pdt621_json?: string;
@@ -319,6 +322,14 @@ export interface FirmConfig {
   statement_payment_qr_url?: string;
   /** Texto bajo el QR; por defecto en PDF «Paga aquí con Yape» */
   statement_payment_qr_caption?: string;
+  /** Mismos 5 campos de arriba, pero para liquidaciones con payment_document_type = "factura"
+   * (Factura/Boleta) en vez de RH — ver TaxSettlement.payment_document_type. */
+  statement_whatsapp_notice_factura?: string;
+  statement_bank_info_factura?: string;
+  statement_payment_observations_factura?: string;
+  statement_bank_logo_url_factura?: string;
+  statement_payment_qr_url_factura?: string;
+  statement_payment_qr_caption_factura?: string;
   /** true si ya hay clave de operaciones registrada (el hash no se expone). */
   operations_key_configured?: boolean;
   /** JSON colores pastel por dígito 0–9 para claves SOL (p. ej. {"0":"cyan","1":"sky"}). */

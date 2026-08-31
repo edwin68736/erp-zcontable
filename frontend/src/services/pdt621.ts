@@ -16,6 +16,10 @@ export interface Pdt621Record {
   total_compras: number;
   igv: number;
   rta: number;
+  /** Cantidad de comprobantes (NO montos) — solo registro manual, nunca se sincroniza desde la
+   * liquidación. */
+  cantidad_comprobantes_venta: number;
+  cantidad_comprobantes_compra: number;
   envio_sire: string;
   fecha_envio_sire?: string | null;
   motivo_no_envio: string;
@@ -33,6 +37,8 @@ export interface Pdt621RecordInput {
   total_compras: number;
   igv: number;
   rta: number;
+  cantidad_comprobantes_venta: number;
+  cantidad_comprobantes_compra: number;
   envio_sire: string;
   fecha_envio_sire: string;
   motivo_no_envio: string;
@@ -125,6 +131,20 @@ export const pdt621Service = {
       body,
       { params: { period_ym: periodYm } },
     );
+    return res.data.data;
+  },
+
+  /** Todas las empresas que matchean los filtros (sin paginar) — para el reporte Excel. */
+  async fetchExportData(params: {
+    period_ym: string;
+    q?: string;
+    status?: string;
+    dig?: string;
+    assistant_user_id?: number;
+  }): Promise<Pdt621ListRow[]> {
+    const res = await client.get<{ data: Pdt621ListRow[] }>('/supervisors/activity-modules/pdt-621/export', {
+      params,
+    });
     return res.data.data;
   },
 };

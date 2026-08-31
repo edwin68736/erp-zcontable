@@ -1612,6 +1612,35 @@ func (ctrl *SupervisorController) Pdt601SavePlanillaAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// Pdt621ExportAPI GET /api/supervisors/activity-modules/pdt-621/export
+// Devuelve, en una sola respuesta, TODAS las empresas que matchean los filtros (sin paginar) —
+// usado por el reporte Excel del listado.
+func (ctrl *SupervisorController) Pdt621ExportAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	assistantID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("assistant_user_id", "")), 10, 64)
+	rows, err := ctrl.svc.ExportPdt621(services.Pdt621ListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Status:            c.Query("status", ""),
+		Q:                 c.Query("q", ""),
+		Dig:               c.Query("dig", ""),
+		AssistantUserID:   uint(assistantID),
+		AllowedCompanyIDs: allowed,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if rows == nil {
+		rows = []services.Pdt621ListRow{}
+	}
+	return c.JSON(fiber.Map{"data": rows})
+}
+
 // Pdt621ListAPI GET /api/supervisors/activity-modules/pdt-621
 func (ctrl *SupervisorController) Pdt621ListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)

@@ -1069,10 +1069,23 @@ function shouldForceHonorariosPageBreak(
 
 /* ---------- Pagos y recomendaciones ---------- */
 
-function PaymentBlockV2({ firm, assets }: { firm: FirmConfig | null; assets?: LiquidationPdfAssets | null }) {
-  const bankInfo = (firm?.statement_bank_info ?? '').trim();
-  const observations = (firm?.statement_payment_observations ?? '').trim();
-  const qrCaption = (firm?.statement_payment_qr_caption ?? '').trim() || 'Paga aquí con Yape';
+function PaymentBlockV2({
+  firm,
+  assets,
+  paymentDocumentType,
+}: {
+  firm: FirmConfig | null;
+  assets?: LiquidationPdfAssets | null;
+  /** "rh" (por defecto) o "factura" — decide qué juego de datos de pago de `firm` se usa. */
+  paymentDocumentType?: string;
+}) {
+  const isFactura = paymentDocumentType === 'factura';
+  const bankInfo = (isFactura ? firm?.statement_bank_info_factura : firm?.statement_bank_info)?.trim() ?? '';
+  const observations =
+    (isFactura ? firm?.statement_payment_observations_factura : firm?.statement_payment_observations)?.trim() ?? '';
+  const qrCaption =
+    (isFactura ? firm?.statement_payment_qr_caption_factura : firm?.statement_payment_qr_caption)?.trim() ||
+    'Paga aquí con Yape';
   const bankLogoPng = assets?.bankLogoPng ?? null;
   const paymentQrPng = assets?.paymentQrPng ?? null;
   if (!bankInfo && !observations && !bankLogoPng && !paymentQrPng) return null;
@@ -1356,7 +1369,7 @@ export function TaxSettlementPdfDocumentV2({ settlement, firm, logoPng, footerAs
           </View>
         ) : null}
 
-        <PaymentBlockV2 firm={firm} assets={footerAssets} />
+        <PaymentBlockV2 firm={firm} assets={footerAssets} paymentDocumentType={settlement.payment_document_type} />
         <RecommendationsV2 />
 
         <View style={s.footer} fixed>

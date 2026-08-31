@@ -143,6 +143,8 @@ const TaxSettlementNew = () => {
   const [liquidationPeriod, setLiquidationPeriod] = useState(() => previousMonthYMFromDate(new Date()));
   const liquidationPeriodManualRef = useRef(false);
   const [notes, setNotes] = useState('');
+  const [paymentDocumentType, setPaymentDocumentType] = useState<'rh' | 'factura'>('rh');
+  const initialPaymentDocTypeRef = useRef<'rh' | 'factura'>('rh');
   const [supervisorPdt621Json, setSupervisorPdt621Json] = useState('');
   const [settlementCompany, setSettlementCompany] = useState<Company | null>(null);
   const [lines, setLines] = useState<LineRow[]>([]);
@@ -222,6 +224,9 @@ const TaxSettlementNew = () => {
         setLiquidationPeriod((ts.liquidation_period ?? '').trim() || previousMonthYMFromDate(new Date()));
         liquidationPeriodManualRef.current = true;
         setNotes(ts.notes ?? '');
+        const loadedDocType = ts.payment_document_type === 'factura' ? 'factura' : 'rh';
+        setPaymentDocumentType(loadedDocType);
+        initialPaymentDocTypeRef.current = loadedDocType;
         setSupervisorPdt621Json((ts.pdt621_json ?? '').trim());
         setSettlementCompany(ts.company ?? null);
         setLines(
@@ -450,6 +455,15 @@ const TaxSettlementNew = () => {
           lines: payloadLines,
           ...(supervisorPdt621Json.trim() ? { pdt621_json: supervisorPdt621Json.trim() } : {}),
         });
+        if (paymentDocumentType !== initialPaymentDocTypeRef.current) {
+          await taxSettlementsService.updatePaymentDocumentType(editId, paymentDocumentType).catch(() => {
+            window.dispatchEvent(
+              new CustomEvent('miweb:toast', {
+                detail: { type: 'error', message: 'No se pudo actualizar el tipo de documento de cobro.' },
+              }),
+            );
+          });
+        }
         window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación actualizada.' } }));
         navigate(`/tax-settlements/${updated.id}`);
         return;
@@ -462,6 +476,15 @@ const TaxSettlementNew = () => {
         notes: notes.trim(),
         lines: payloadLines,
       });
+      if (paymentDocumentType === 'factura') {
+        await taxSettlementsService.updatePaymentDocumentType(created.id, 'factura').catch(() => {
+          window.dispatchEvent(
+            new CustomEvent('miweb:toast', {
+              detail: { type: 'error', message: 'No se pudo aplicar el tipo de documento de cobro Factura.' },
+            }),
+          );
+        });
+      }
       window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación en borrador creada.' } }));
       navigate(`/tax-settlements/${created.id}`);
     } catch (e: unknown) {
@@ -592,6 +615,21 @@ const TaxSettlementNew = () => {
                   periodo que la liquidación.
                 </p>
               ) : null}
+            </div>
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de documento de cobro</label>
+              <select
+                value={paymentDocumentType}
+                onChange={(e) => setPaymentDocumentType(e.target.value as 'rh' | 'factura')}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none"
+              >
+                <option value="rh">RH (Recibo por Honorarios)</option>
+                <option value="factura">Factura / Boleta</option>
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Decide qué datos de pago (banco/QR) de Ajustes → Perfil del estudio se muestran en el PDF v2. Por
+                defecto RH; se puede cambiar mientras la liquidación esté en borrador.
+              </p>
             </div>
           </div>
         </section>

@@ -62,6 +62,8 @@ func Setup(app *fiber.App) {
 	api.Post("/firm-config/logo", middleware.RequirePermission(rbac.SettingsFirmUploadLogo), configCtrl.UploadFirmLogoAPI)
 	api.Post("/firm-config/statement-bank-logo", middleware.RequirePermission(rbac.SettingsFirmUploadBankLogo), configCtrl.UploadStatementBankLogoAPI)
 	api.Post("/firm-config/statement-payment-qr", middleware.RequirePermission(rbac.SettingsFirmUploadPaymentQR), configCtrl.UploadStatementPaymentQrAPI)
+	api.Post("/firm-config/statement-bank-logo-factura", middleware.RequirePermission(rbac.SettingsFirmUploadBankLogo), configCtrl.UploadStatementBankLogoFacturaAPI)
+	api.Post("/firm-config/statement-payment-qr-factura", middleware.RequirePermission(rbac.SettingsFirmUploadPaymentQR), configCtrl.UploadStatementPaymentQrFacturaAPI)
 
 	api.Get("/activity-rules", middleware.RequirePermission(rbac.SettingsFirmView), activityRuleCtrl.ListAPI)
 	api.Get("/activity-rules/:id", middleware.RequirePermission(rbac.SettingsFirmView), activityRuleCtrl.GetAPI)
@@ -194,6 +196,7 @@ func Setup(app *fiber.App) {
 	api.Put("/tax-settlements/:id", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.UpdateAPI)
 	api.Post("/tax-settlements/:id/revert-to-draft", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.RevertToDraftAPI)
 	api.Post("/tax-settlements/:id/emit", middleware.RequirePermission(rbac.TaxSettlementsEmit), taxSettleCtrl.EmitAPI)
+	api.Post("/tax-settlements/:id/payment-document-type", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.UpdatePaymentDocumentTypeAPI)
 	api.Post("/tax-settlements/:id/close", middleware.RequirePermission(rbac.TaxSettlementsUpdate), taxSettleCtrl.CloseAPI)
 	api.Delete("/tax-settlements/:id", middleware.RequirePermission(rbac.TaxSettlementsDelete), taxSettleCtrl.DeleteAPI)
 
@@ -257,6 +260,7 @@ func Setup(app *fiber.App) {
 	sup.Get("/activity-modules/pdt-601/companies/:companyId/planilla", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt601PlanillaOnlyAPI)
 	sup.Put("/activity-modules/pdt-601/companies/:companyId/planilla", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.Pdt601SavePlanillaAPI)
 	sup.Get("/activity-modules/pdt-621", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621ListAPI)
+	sup.Get("/activity-modules/pdt-621/export", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621ExportAPI)
 	sup.Get("/activity-modules/pdt-621/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621DetailAPI)
 	sup.Get("/activity-modules/pdt-621/companies/:companyId/record", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621RecordOnlyAPI)
 	sup.Put("/activity-modules/pdt-621/companies/:companyId/record", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.Pdt621SaveRecordAPI)

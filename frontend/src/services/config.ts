@@ -11,6 +11,16 @@ type StatementPaymentQrUploadResponse = {
   data: { statement_payment_qr_url: string; config: FirmConfig };
 };
 
+type StatementBankLogoFacturaUploadResponse = {
+  success: boolean;
+  data: { statement_bank_logo_url_factura: string; config: FirmConfig };
+};
+
+type StatementPaymentQrFacturaUploadResponse = {
+  success: boolean;
+  data: { statement_payment_qr_url_factura: string; config: FirmConfig };
+};
+
 export const configService = {
   async getFirmConfig(): Promise<FirmConfig> {
     const res = await client.get<FirmConfig>('/firm-config');
@@ -55,6 +65,32 @@ export const configService = {
     form.append('file', file);
     const res = await client.post<StatementPaymentQrUploadResponse>(
       '/firm-config/statement-payment-qr',
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return res.data.data;
+  },
+
+  async uploadStatementBankLogoFactura(
+    file: File,
+  ): Promise<{ statement_bank_logo_url_factura: string; config: FirmConfig }> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await client.post<StatementBankLogoFacturaUploadResponse>(
+      '/firm-config/statement-bank-logo-factura',
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return res.data.data;
+  },
+
+  async uploadStatementPaymentQrFactura(
+    file: File,
+  ): Promise<{ statement_payment_qr_url_factura: string; config: FirmConfig }> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await client.post<StatementPaymentQrFacturaUploadResponse>(
+      '/firm-config/statement-payment-qr-factura',
       form,
       { headers: { 'Content-Type': 'multipart/form-data' } },
     );

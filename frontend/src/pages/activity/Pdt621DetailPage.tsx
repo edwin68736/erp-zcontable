@@ -37,6 +37,8 @@ const EMPTY_RECORD: Pdt621RecordInput = {
   total_compras: 0,
   igv: 0,
   rta: 0,
+  cantidad_comprobantes_venta: 0,
+  cantidad_comprobantes_compra: 0,
   envio_sire: '',
   fecha_envio_sire: '',
   motivo_no_envio: '',
@@ -55,6 +57,8 @@ function recordToInput(r: Pdt621Record | null | undefined): Pdt621RecordInput {
     total_compras: r.total_compras ?? 0,
     igv: r.igv ?? 0,
     rta: r.rta ?? 0,
+    cantidad_comprobantes_venta: r.cantidad_comprobantes_venta ?? 0,
+    cantidad_comprobantes_compra: r.cantidad_comprobantes_compra ?? 0,
     envio_sire: r.envio_sire ?? '',
     fecha_envio_sire: r.fecha_envio_sire ?? '',
     motivo_no_envio: r.motivo_no_envio ?? '',
@@ -98,6 +102,17 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const declaration = detail?.declaration;
+
+  // Estos 4 campos se llenan por sincronización desde la liquidación (ver syncPdt621Record en
+  // SupervisorLiquidacionCreatePage.tsx) — si ya tienen algún valor, dejarlos editables a mano
+  // no sirve de nada (la liquidación es la fuente de verdad y los va a volver a sobreescribir en
+  // el próximo guardado), así que se bloquean. Si están todos en cero es porque aún no hay
+  // liquidación registrada para esta empresa/período — ahí se siguen llenando a mano como antes.
+  const pdt621Locked = useMemo(() => {
+    const rec = detail?.record;
+    if (!rec) return false;
+    return rec.total_ventas > 0 || rec.total_compras > 0 || rec.igv !== 0 || rec.rta > 0;
+  }, [detail?.record]);
 
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
@@ -437,6 +452,12 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">
           Fecha de declaración e importes PDT 621
         </h2>
+        {pdt621Locked ? (
+          <p className="text-xs text-slate-500 -mt-2">
+            Total ventas, Total compras, IGV y Renta se sincronizan desde la liquidación de esta empresa/período — no
+            se editan a mano acá.
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Fecha de declaración</label>
@@ -453,7 +474,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <input
               type="number"
               step="0.01"
-              disabled={!canUpdate}
+              disabled={!canUpdate || pdt621Locked}
               value={record.total_ventas}
               onChange={(e) => patchRecord({ total_ventas: Number(e.target.value) || 0 })}
               className={FIELD_INPUT}
@@ -464,7 +485,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <input
               type="number"
               step="0.01"
-              disabled={!canUpdate}
+              disabled={!canUpdate || pdt621Locked}
               value={record.total_compras}
               onChange={(e) => patchRecord({ total_compras: Number(e.target.value) || 0 })}
               className={FIELD_INPUT}
@@ -475,7 +496,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <input
               type="number"
               step="0.01"
-              disabled={!canUpdate}
+              disabled={!canUpdate || pdt621Locked}
               value={record.igv}
               onChange={(e) => patchRecord({ igv: Number(e.target.value) || 0 })}
               className={FIELD_INPUT}
@@ -486,9 +507,38 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <input
               type="number"
               step="0.01"
-              disabled={!canUpdate}
+              disabled={!canUpdate || pdt621Locked}
               value={record.rta}
               onChange={(e) => patchRecord({ rta: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+        </div>
+
+        {/* Cantidad de comprobantes (NO montos) — solo registro manual del supervisor, nunca se
+            sincroniza desde la liquidación, así que no entra al candado `pdt621Locked` de arriba. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Cantidad de comprobantes de venta</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              disabled={!canUpdate}
+              value={record.cantidad_comprobantes_venta}
+              onChange={(e) => patchRecord({ cantidad_comprobantes_venta: Number(e.target.value) || 0 })}
+              className={FIELD_INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Cantidad de comprobantes de compra</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              disabled={!canUpdate}
+              value={record.cantidad_comprobantes_compra}
+              onChange={(e) => patchRecord({ cantidad_comprobantes_compra: Number(e.target.value) || 0 })}
               className={FIELD_INPUT}
             />
           </div>
@@ -555,11 +605,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-slate-800">Evidencias ({attachments.length})</h2>
+          <h2 className="text-sm font-semibold text-slate-800">PDT 621 ({attachments.length})</h2>
           {canUpload ? (
             <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium cursor-pointer hover:bg-primary-700">
               <i className="fas fa-upload" aria-hidden />
-              {uploading ? 'Subiendo…' : 'Subir archivos'}
+              {uploading ? 'Subiendo…' : 'Cargar PDT 621'}
               <input
                 ref={fileRef}
                 type="file"

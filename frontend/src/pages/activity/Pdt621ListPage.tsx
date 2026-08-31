@@ -23,6 +23,7 @@ import {
 } from '../../services/companyAccessCredentials';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { exportPdt621ReportExcel } from '../../utils/pdt621ExcelExport';
 import { timelinessBadgeClass, timelinessLabel } from '../../components/activity/timelinessConfig';
 import { useElementHeight } from '../../hooks/useElementHeight';
 import {
@@ -54,7 +55,7 @@ const TDM = `${TD} tabular-nums text-right whitespace-nowrap`;
 /** Separador vertical entre grupos de columnas. */
 const GROUP_BORDER = 'border-l border-slate-200';
 /** Total de columnas hoja (para el colSpan de filas vacías/estado de carga). */
-const COL_COUNT = 23;
+const COL_COUNT = 22;
 
 function formatMoney(n: number): string {
   return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -124,6 +125,8 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Altura real de la 1ª fila del encabezado — medida sobre la celda "1ra entrega" (colSpan, NO
   // rowSpan): es la única celda de la fila 1 que pertenece SOLO a esa fila. Ver el mismo patrón,
@@ -197,6 +200,28 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
     return `${path}?period_ym=${encodeURIComponent(periodYm)}`;
   };
 
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    try {
+      setExportingExcel(true);
+      setError('');
+      setMsg('');
+      const exportRows = await pdt621Service.fetchExportData({
+        period_ym: periodYm,
+        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
+        status: statusFilter || undefined,
+        dig: filterDig ?? undefined,
+        assistant_user_id: filterAssistantId ?? undefined,
+      });
+      await exportPdt621ReportExcel({ periodYm, rows: exportRows });
+      setMsg('Excel generado correctamente.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex items-start justify-between gap-3">
@@ -263,8 +288,24 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleExportExcel()}
+          disabled={loading || exportingExcel}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+        >
+          <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
+          Excel
+        </button>
         </div>
       </div>
+
+      {msg ? (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-center gap-2">
+          <i className="fas fa-check-circle" aria-hidden />
+          {msg}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
@@ -305,7 +346,6 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                   SIRE
                 </th>
                 <th className={`${TH} ${GROUP_BORDER}`} rowSpan={2}>Archivos</th>
-                <th className={TH} rowSpan={2} />
               </tr>
               <tr className="bg-slate-50" style={{ position: 'sticky', top: headRow1H, zIndex: Z_HEAD_ROW }}>
                 <th className={`${SUBTH} ${GROUP_BORDER}`}>Fecha</th>
@@ -370,11 +410,16 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                       <td className={TD}>{row.assistant_username || '—'}</td>
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(row.status)}`}
-                          >
-                            {pdt621StatusLabel(row.status)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(row.status)}`}
+                            >
+                              {pdt621StatusLabel(row.status)}
+                            </span>
+                            {/* Botón de acción (registrar/ver) movido acá desde la última columna,
+                                junto al estado en vez de al fondo de la fila. */}
+                            <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar registro" />
+                          </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver
                               pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness). */}
@@ -410,9 +455,6 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                         <span className="block truncate">{rec?.motivo_no_envio || ''}</span>
                       </td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>{row.attachment_count}</td>
-                      <td className={TD}>
-                        <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Ver" />
-                      </td>
                     </tr>
                   );
                 })

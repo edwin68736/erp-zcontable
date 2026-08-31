@@ -20,7 +20,9 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadingStatement, setUploadingStatement] = useState<null | 'bank' | 'qr'>(null);
+  const [uploadingStatement, setUploadingStatement] = useState<
+    null | 'bank' | 'qr' | 'bank-factura' | 'qr-factura'
+  >(null);
   const [error, setError] = useState('');
 
   const [config, setConfig] = useState<FirmConfig | null>(null);
@@ -81,6 +83,10 @@ const Settings = () => {
         statement_bank_info: config.statement_bank_info ?? '',
         statement_payment_observations: config.statement_payment_observations ?? '',
         statement_payment_qr_caption: config.statement_payment_qr_caption ?? '',
+        statement_whatsapp_notice_factura: config.statement_whatsapp_notice_factura ?? '',
+        statement_bank_info_factura: config.statement_bank_info_factura ?? '',
+        statement_payment_observations_factura: config.statement_payment_observations_factura ?? '',
+        statement_payment_qr_caption_factura: config.statement_payment_qr_caption_factura ?? '',
         claves_sol_dig_colors_json: serializeDigColorMap(digColorMap),
         mailbox_captures_per_week: config.mailbox_captures_per_week ?? 2,
         operations_key: operationsKeyDraft.trim() || undefined,
@@ -163,6 +169,48 @@ const Settings = () => {
       setError('Error al subir el QR');
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el QR' } }),
+      );
+    } finally {
+      setUploadingStatement(null);
+    }
+  };
+
+  const handleStatementBankLogoFactura = async (file: File | null) => {
+    if (!file || !canEdit) return;
+    try {
+      setUploadingStatement('bank-factura');
+      setError('');
+      const res = await configService.uploadStatementBankLogoFactura(file);
+      setConfig(res.config);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Logo del banco (Factura) actualizado.' } }),
+      );
+    } catch (e) {
+      console.error(e);
+      setError('Error al subir el logo del banco (Factura)');
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el logo del banco (Factura)' } }),
+      );
+    } finally {
+      setUploadingStatement(null);
+    }
+  };
+
+  const handleStatementPaymentQrFactura = async (file: File | null) => {
+    if (!file || !canEdit) return;
+    try {
+      setUploadingStatement('qr-factura');
+      setError('');
+      const res = await configService.uploadStatementPaymentQrFactura(file);
+      setConfig(res.config);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'QR de pagos (Factura) actualizado.' } }),
+      );
+    } catch (e) {
+      console.error(e);
+      setError('Error al subir el QR (Factura)');
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el QR (Factura)' } }),
       );
     } finally {
       setUploadingStatement(null);
@@ -429,10 +477,14 @@ const Settings = () => {
                 </div>
 
                 <div className="pt-4 border-t border-slate-100">
-                  <div className="text-sm font-semibold text-slate-800">Pie de página — estado de cuenta</div>
+                  <div className="text-sm font-semibold text-slate-800">
+                    Pie de página — estado de cuenta / liquidación (RH)
+                  </div>
                   <div className="text-xs text-slate-500 mt-1">
-                    Texto e imágenes que aparecen al final del estado de cuenta (pantalla y PDF), por ejemplo datos de
-                    cuenta bancaria, observaciones y QR de Yape u otro medio de pago.
+                    Texto e imágenes que aparecen al final del estado de cuenta y del PDF de liquidación (pantalla y
+                    PDF), por ejemplo datos de cuenta bancaria, observaciones y QR de Yape u otro medio de pago. Este
+                    juego de datos es para liquidaciones cobradas con <strong>RH (Recibo por Honorarios)</strong> — el
+                    valor por defecto de toda liquidación nueva. Para Factura/Boleta hay una sección aparte más abajo.
                   </div>
                 </div>
 
@@ -571,6 +623,171 @@ const Settings = () => {
                           onChange={(ev) => {
                             const f = ev.target.files?.[0] ?? null;
                             void handleStatementPaymentQr(f);
+                            ev.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                  <div className="text-sm font-semibold text-slate-800">
+                    Pie de página — estado de cuenta / liquidación (Factura / Boleta)
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Mismos datos que arriba, pero para liquidaciones marcadas como{' '}
+                    <strong>Factura / Boleta</strong> en vez de RH (se elige por liquidación en Finanzas → Liquidaciones,
+                    solo mientras esté en borrador).
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="statement_whatsapp_notice_factura"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
+                    Aviso de contacto (WhatsApp / canales)
+                  </label>
+                  <textarea
+                    id="statement_whatsapp_notice_factura"
+                    name="statement_whatsapp_notice_factura"
+                    rows={2}
+                    value={config.statement_whatsapp_notice_factura ?? ''}
+                    onChange={handleChange}
+                    disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                    placeholder="Puedes solicitar tu estado de cuenta a través del grupo de WhatsApp de tu empresa…"
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60 resize-y min-h-[3rem]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="statement_bank_info_factura" className="block text-sm font-medium text-slate-700 mb-1">
+                    Información bancaria
+                  </label>
+                  <textarea
+                    id="statement_bank_info_factura"
+                    name="statement_bank_info_factura"
+                    rows={6}
+                    value={config.statement_bank_info_factura ?? ''}
+                    onChange={handleChange}
+                    disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                    placeholder={'Ej.\nCUENTA BCP\nN° Cuenta: …\nCCI: …\nTitular: …\nYAPE: …'}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60 resize-y font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="statement_payment_observations_factura"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
+                    Observaciones
+                  </label>
+                  <textarea
+                    id="statement_payment_observations_factura"
+                    name="statement_payment_observations_factura"
+                    rows={3}
+                    value={config.statement_payment_observations_factura ?? ''}
+                    onChange={handleChange}
+                    disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                    placeholder="Ej. Enviar la constancia de depósito o transferencia al grupo de WhatsApp…"
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60 resize-y"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="statement_payment_qr_caption_factura"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
+                    Texto bajo el QR de pago
+                  </label>
+                  <input
+                    type="text"
+                    id="statement_payment_qr_caption_factura"
+                    name="statement_payment_qr_caption_factura"
+                    value={config.statement_payment_qr_caption_factura ?? ''}
+                    onChange={handleChange}
+                    disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                    placeholder="Paga aquí con Yape"
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <div className="text-sm font-medium text-slate-700 mb-2">Logo del banco</div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="w-36 h-20 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center p-2 overflow-hidden">
+                        {config.statement_bank_logo_url_factura ? (
+                          <img
+                            src={resolveBackendUrl(config.statement_bank_logo_url_factura)}
+                            alt="Logo banco (Factura)"
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-400">Sin imagen</span>
+                        )}
+                      </div>
+                      <label
+                        className={`inline-flex items-center px-3 py-2 rounded-full border text-xs font-medium ${
+                          canEdit && !saving && !uploading && uploadingStatement === null
+                            ? 'border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer'
+                            : 'border-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <i
+                          className={`fas ${uploadingStatement === 'bank-factura' ? 'fa-spinner fa-spin' : 'fa-upload'} mr-2`}
+                        />
+                        Subir logo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                          onChange={(ev) => {
+                            const f = ev.target.files?.[0] ?? null;
+                            void handleStatementBankLogoFactura(f);
+                            ev.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-slate-700 mb-2">QR de pago (Yape, Plin, etc.)</div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="w-28 h-28 rounded-lg border border-slate-200 bg-white flex items-center justify-center p-1 overflow-hidden">
+                        {config.statement_payment_qr_url_factura ? (
+                          <img
+                            src={resolveBackendUrl(config.statement_payment_qr_url_factura)}
+                            alt="QR pagos (Factura)"
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-400 text-center px-1">Sin QR</span>
+                        )}
+                      </div>
+                      <label
+                        className={`inline-flex items-center px-3 py-2 rounded-full border text-xs font-medium ${
+                          canEdit && !saving && !uploading && uploadingStatement === null
+                            ? 'border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer'
+                            : 'border-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <i
+                          className={`fas ${uploadingStatement === 'qr-factura' ? 'fa-spinner fa-spin' : 'fa-upload'} mr-2`}
+                        />
+                        Subir QR
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={!canEdit || saving || uploading || uploadingStatement !== null}
+                          onChange={(ev) => {
+                            const f = ev.target.files?.[0] ?? null;
+                            void handleStatementPaymentQrFactura(f);
                             ev.currentTarget.value = '';
                           }}
                         />
