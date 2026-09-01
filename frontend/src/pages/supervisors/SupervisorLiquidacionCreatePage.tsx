@@ -145,8 +145,9 @@ const SupervisorLiquidacionCreatePage = () => {
 
   // "Jala" datos ya registrados en la planilla PDT 601 (control de planillas del supervisor) al
   // crear una liquidación nueva: N° de trabajadores e importes que ambas pantallas comparten
-  // (essalud, sis, onp, afp, rta_4ta, rta_5ta — la planilla también tiene "rh", que la liquidación
-  // no maneja). Solo una vez, para no pisar ediciones manuales hechas después en el mismo formulario.
+  // (essalud, sis, onp, afp, rta_4ta, rta_5ta, sctr — la planilla también tiene "rh", que la
+  // liquidación no maneja). Solo una vez, para no pisar ediciones manuales hechas después en el
+  // mismo formulario.
   const pdt601AutoFillRef = useRef(false);
   useEffect(() => {
     if (isEdit || isView) return;
@@ -165,6 +166,7 @@ const SupervisorLiquidacionCreatePage = () => {
           planilla.afp > 0 ||
           planilla.rta_4ta > 0 ||
           planilla.rta_5ta > 0 ||
+          planilla.sctr > 0 ||
           planilla.trabajadores_total > 0;
         if (!hasData) return;
         setTaxSections((prev) => {
@@ -181,6 +183,7 @@ const SupervisorLiquidacionCreatePage = () => {
               afp: planilla.afp,
               rta_4ta: planilla.rta_4ta,
               rta_5ta: planilla.rta_5ta,
+              sctr: planilla.sctr,
             },
           });
         });
@@ -341,14 +344,20 @@ const SupervisorLiquidacionCreatePage = () => {
   }, [issueDate, isEdit]);
 
   // Sincroniza de vuelta a la planilla PDT 601 los importes que la liquidación comparte con ella
-  // (essalud, sis, onp, afp, rta_4ta, rta_5ta) para que un ajuste hecho aquí (p. ej. corregir AFP)
-  // no quede desactualizado en Control Planillas PDT 601. Solo si hay algo que sincronizar: evita
-  // sobrescribir con ceros una planilla ya llena cuando la sección se activó sin cargar datos.
+  // (essalud, sis, onp, afp, rta_4ta, rta_5ta, sctr) para que un ajuste hecho aquí (p. ej. corregir
+  // AFP) no quede desactualizado en Control Planillas PDT 601. Solo si hay algo que sincronizar:
+  // evita sobrescribir con ceros una planilla ya llena cuando la sección se activó sin cargar datos.
   const syncPdt601Planilla = async (targetCompanyId: number, periodYm: string) => {
     const p601 = taxSectionsComputed.pdt601;
     if (!p601?.enabled) return;
     const hasMoney =
-      p601.essalud > 0 || p601.sis > 0 || p601.onp > 0 || p601.afp > 0 || p601.rta_4ta > 0 || p601.rta_5ta > 0;
+      p601.essalud > 0 ||
+      p601.sis > 0 ||
+      p601.onp > 0 ||
+      p601.afp > 0 ||
+      p601.rta_4ta > 0 ||
+      p601.rta_5ta > 0 ||
+      (p601.sctr ?? 0) > 0;
     if (!hasMoney) return;
     try {
       const current = await pdt601Service.getDetail(targetCompanyId, periodYm);
@@ -363,6 +372,7 @@ const SupervisorLiquidacionCreatePage = () => {
         afp: p601.afp,
         rta_4ta: p601.rta_4ta,
         rta_5ta: p601.rta_5ta,
+        sctr: p601.sctr ?? 0,
         rh: base?.rh ?? 0,
         fecha_entrega: base?.fecha_entrega ?? '',
         hora_entrega: base?.hora_entrega ?? '',

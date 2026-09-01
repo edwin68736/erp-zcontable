@@ -50,7 +50,7 @@ const TDM = `${TD} tabular-nums text-right whitespace-nowrap`;
 /** Separador vertical entre grupos de columnas (N° trabajadores / PDT 601). */
 const GROUP_BORDER = 'border-l border-slate-200';
 /** Total de columnas hoja (para el colSpan de filas vacías). */
-const COL_COUNT = 24;
+const COL_COUNT = 25;
 
 // ───────────────────── Encabezado y columnas fijas (sticky) ─────────────────────
 // Encabezado: `position: sticky` respecto al contenedor con scroll vertical real (el propio
@@ -323,7 +323,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th ref={headRow1Ref} className={`${TH} text-center ${GROUP_BORDER}`} colSpan={3}>
                   N° de trabajadores
                 </th>
-                <th className={`${TH} text-center ${GROUP_BORDER}`} colSpan={7}>
+                <th className={`${TH} text-center ${GROUP_BORDER}`} colSpan={8}>
                   PDT 601
                 </th>
                 <th className={`${TH} ${GROUP_BORDER}`} rowSpan={2}>Fecha de entrega</th>
@@ -344,6 +344,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th className={SUBTH}>SIS</th>
                 <th className={SUBTH}>4TA</th>
                 <th className={SUBTH}>5TA</th>
+                <th className={SUBTH}>SCTR</th>
                 <th className={SUBTH}>RH</th>
               </tr>
             </thead>
@@ -441,7 +442,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       {pl?.sin_planilla ? (
                         // "Sin planilla" ya se indica en la columna Estado — acá solo se dejan
                         // en blanco los campos numéricos (no aplica), sin repetir la etiqueta.
-                        <td colSpan={10} className={`${TD} ${GROUP_BORDER}`} />
+                        <td colSpan={11} className={`${TD} ${GROUP_BORDER}`} />
                       ) : (
                         <>
                           <td className={`${TDN} ${GROUP_BORDER}`}>{pl ? pl.trabajadores_onp : ''}</td>
@@ -453,6 +454,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           <td className={TDM}>{pl ? formatMoney(pl.sis) : ''}</td>
                           <td className={TDM}>{pl ? formatMoney(pl.rta_4ta) : ''}</td>
                           <td className={TDM}>{pl ? formatMoney(pl.rta_5ta) : ''}</td>
+                          <td className={TDM}>{pl ? formatMoney(pl.sctr) : ''}</td>
                           <td className={TDM}>{pl ? formatMoney(pl.rh) : ''}</td>
                         </>
                       )}

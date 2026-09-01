@@ -1080,7 +1080,7 @@ const SupervisorTaxSectionsForm = ({
       <SectionToggle
         id="sec-pdt601"
         title="PDT 601 — Planilla electrónica"
-        subtitle="ESSALUD, SIS, ONP, AFP y renta de 4ta y 5ta categoría. Se autocompleta desde Control Planillas PDT 601 al crear la liquidación; si corrige un valor aquí, se sincroniza con la planilla al guardar."
+        subtitle="ESSALUD, SIS, ONP, AFP, renta de 4ta y 5ta categoría y SCTR. Se autocompleta desde Control Planillas PDT 601 al crear la liquidación; si corrige un valor aquí, se sincroniza con la planilla al guardar."
         enabled={p601.enabled}
         onToggle={(enabled) => patch601({ enabled })}
       >
@@ -1091,6 +1091,7 @@ const SupervisorTaxSectionsForm = ({
           <AmountField label="AFP" value={p601.afp} onChange={(n) => patch601({ afp: n })} />
           <AmountField label="Rta 4ta categoría" value={p601.rta_4ta} onChange={(n) => patch601({ rta_4ta: n })} />
           <AmountField label="Rta 5ta categoría" value={p601.rta_5ta} onChange={(n) => patch601({ rta_5ta: n })} />
+          <AmountField label="SCTR" value={p601.sctr ?? 0} onChange={(n) => patch601({ sctr: n })} />
         </div>
         {showP601Detraction ? (
         <DetraccionActionBar

@@ -32,6 +32,7 @@ const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sis: 0,
   rta_4ta: 0,
   rta_5ta: 0,
+  sctr: 0,
   rh: 0,
   fecha_entrega: '',
   hora_entrega: '',
@@ -53,6 +54,7 @@ const SIN_PLANILLA_RESET: Partial<Pdt601PlanillaInput> = {
   sis: 0,
   rta_4ta: 0,
   rta_5ta: 0,
+  sctr: 0,
   rh: 0,
   fecha_entrega: '',
   hora_entrega: '',
@@ -89,6 +91,7 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
         sis: p.sis ?? 0,
         rta_4ta: p.rta_4ta ?? 0,
         rta_5ta: p.rta_5ta ?? 0,
+        sctr: p.sctr ?? 0,
         rh: p.rh ?? 0,
         fecha_entrega: p.fecha_entrega ?? '',
         hora_entrega: p.hora_entrega ?? '',
@@ -196,14 +199,15 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   // editando su registro — el supervisor sí conserva edición para corregir/reabrir si hace falta.
   const assistantLocked = workspace === 'assistant' && !!declaration && PDT601_APPROVED_STATUSES.has(declaration.status);
   const trabajadoresTotal = (planilla.trabajadores_onp || 0) + (planilla.trabajadores_afp || 0);
-  // RH queda fuera de "Total aportes" a pedido — no se suma junto con ESSALUD/ONP/AFP/SIS/4TA/5TA.
+  // RH queda fuera de "Total aportes" a pedido — no se suma junto con ESSALUD/ONP/AFP/SIS/4TA/5TA/SCTR.
   const totalAportes =
     (planilla.essalud || 0) +
     (planilla.onp || 0) +
     (planilla.afp || 0) +
     (planilla.sis || 0) +
     (planilla.rta_4ta || 0) +
-    (planilla.rta_5ta || 0);
+    (planilla.rta_5ta || 0) +
+    (planilla.sctr || 0);
 
   const showMsg = (text: string, tone: 'success' | 'error' | 'info' = 'info') => {
     setMsg(text);
@@ -640,6 +644,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   ['sis', 'SIS'],
                   ['rta_4ta', '4TA'],
                   ['rta_5ta', '5TA'],
+                  ['sctr', 'SCTR'],
                   ['rh', 'RH'],
                 ] as Array<[keyof Pdt601PlanillaInput, string]>).map(([key, label]) => (
                   <div key={key}>

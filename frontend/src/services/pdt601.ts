@@ -13,6 +13,8 @@ export interface Pdt601Planilla {
   sis: number;
   rta_4ta: number;
   rta_5ta: number;
+  /** Monto fijo (no se calcula) — sincronizado con la sección 601 de la liquidación. */
+  sctr: number;
   rh: number;
   total_aportes: number;
   fecha_entrega?: string | null;
@@ -36,6 +38,7 @@ export interface Pdt601PlanillaInput {
   sis: number;
   rta_4ta: number;
   rta_5ta: number;
+  sctr: number;
   rh: number;
   fecha_entrega: string;
   hora_entrega: string;

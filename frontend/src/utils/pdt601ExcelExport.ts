@@ -34,6 +34,7 @@ const HEADERS = [
   'SIS',
   '4TA',
   '5TA',
+  'SCTR',
   'RH',
   'TOTAL APORTES',
   'FECHA ENTREGA',
@@ -46,7 +47,7 @@ const HEADERS = [
   'FECHA ENVÍO NPS/TICKETS/BOLETAS',
 ];
 
-const COLUMN_WIDTHS = [8, 8, 32, 13, 16, 15, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 13, 13, 13, 26, 15, 12, 13, 18, 20];
+const COLUMN_WIDTHS = [8, 8, 32, 13, 16, 15, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 13, 13, 13, 26, 15, 12, 13, 18, 20];
 
 function formatDateCell(iso?: string | null): string {
   if (!iso) return '';
@@ -149,6 +150,7 @@ export async function exportPdt601ReportExcel(options: { periodYm: string; rows:
     setNum(pl?.sis);
     setNum(pl?.rta_4ta);
     setNum(pl?.rta_5ta);
+    setNum(pl?.sctr);
     setNum(pl?.rh);
     setNum(pl?.total_aportes);
     setText(formatDateCell(pl?.fecha_entrega), 'center');

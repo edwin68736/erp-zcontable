@@ -525,8 +525,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               step="1"
               min="0"
               disabled={!canUpdate}
-              value={record.cantidad_comprobantes_venta}
+              value={record.cantidad_comprobantes_venta || ''}
               onChange={(e) => patchRecord({ cantidad_comprobantes_venta: Number(e.target.value) || 0 })}
+              placeholder="0"
               className={FIELD_INPUT}
             />
           </div>
@@ -537,8 +538,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               step="1"
               min="0"
               disabled={!canUpdate}
-              value={record.cantidad_comprobantes_compra}
+              value={record.cantidad_comprobantes_compra || ''}
               onChange={(e) => patchRecord({ cantidad_comprobantes_compra: Number(e.target.value) || 0 })}
+              placeholder="0"
               className={FIELD_INPUT}
             />
           </div>

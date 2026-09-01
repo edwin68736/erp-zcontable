@@ -78,6 +78,9 @@ type TaxSectionPdt601 struct {
 	Afp                float64               `json:"afp"`
 	Rta4ta             float64               `json:"rta_4ta"`
 	Rta5ta             float64               `json:"rta_5ta"`
+	// Sctr: monto fijo, se digita directo (no se calcula) — sincronizado con Control Planillas
+	// PDT 601 igual que essalud/sis/onp/afp/rta_4ta/rta_5ta.
+	Sctr               float64               `json:"sctr"`
 	DetractionPayment  *TaxDetractionPayment `json:"detraction_payment,omitempty"`
 	ImpuestoAPagar     float64               `json:"impuesto_a_pagar"`
 }
@@ -370,7 +373,7 @@ func pdt601DetractableBeforeDetraction(s *TaxSectionPdt601) float64 {
 	if s == nil {
 		return 0
 	}
-	return roundTaxMoney(s.Essalud + s.Sis + s.Onp + s.Afp + s.Rta4ta + s.Rta5ta)
+	return roundTaxMoney(s.Essalud + s.Sis + s.Onp + s.Afp + s.Rta4ta + s.Rta5ta + s.Sctr)
 }
 
 func computePdt601Section(s *TaxSectionPdt601, includeDetraction bool) {

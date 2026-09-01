@@ -76,6 +76,7 @@ type Pdt601PlanillaDTO struct {
 	Sis                         float64 `json:"sis"`
 	Rta4ta                      float64 `json:"rta_4ta"`
 	Rta5ta                      float64 `json:"rta_5ta"`
+	Sctr                        float64 `json:"sctr"`
 	Rh                          float64 `json:"rh"`
 	TotalAportes                float64 `json:"total_aportes"`
 	FechaEntrega                *string `json:"fecha_entrega,omitempty"`
@@ -99,6 +100,7 @@ type Pdt601PlanillaInput struct {
 	Sis                         float64 `json:"sis"`
 	Rta4ta                      float64 `json:"rta_4ta"`
 	Rta5ta                      float64 `json:"rta_5ta"`
+	Sctr                        float64 `json:"sctr"`
 	Rh                          float64 `json:"rh"`
 	FechaEntrega                string  `json:"fecha_entrega"`
 	HoraEntrega                 string  `json:"hora_entrega"`
@@ -165,9 +167,10 @@ func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO 
 		Sis:                         p.Sis,
 		Rta4ta:                      p.Rta4ta,
 		Rta5ta:                      p.Rta5ta,
+		Sctr:                        p.Sctr,
 		Rh:                          p.Rh,
-		// RH queda fuera de TotalAportes a pedido — no se suma junto con Essalud/Onp/Afp/Sis/Rta4ta/Rta5ta.
-		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta,
+		// RH queda fuera de TotalAportes a pedido — no se suma junto con Essalud/Onp/Afp/Sis/Rta4ta/Rta5ta/Sctr.
+		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta + p.Sctr,
 		FechaEntrega:                pdt601DateString(p.FechaEntrega),
 		HoraEntrega:                 p.HoraEntrega,
 		Observaciones:               p.Observaciones,
@@ -349,6 +352,7 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	pl.Sis = in.Sis
 	pl.Rta4ta = in.Rta4ta
 	pl.Rta5ta = in.Rta5ta
+	pl.Sctr = in.Sctr
 	pl.Rh = in.Rh
 	pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
 	pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)

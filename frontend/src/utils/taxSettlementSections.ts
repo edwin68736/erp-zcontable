@@ -67,6 +67,8 @@ export type TaxSectionPdt601 = {
   afp: number;
   rta_4ta: number;
   rta_5ta: number;
+  /** Monto fijo (no se calcula) — sincronizado con Control Planillas PDT 601. */
+  sctr: number;
   detraction_payment?: Pdt621DetractionPayment;
   impuesto_a_pagar: number;
 };
@@ -320,6 +322,7 @@ export function defaultPdt601Section(): TaxSectionPdt601 {
     afp: 0,
     rta_4ta: 0,
     rta_5ta: 0,
+    sctr: 0,
     detraction_payment: {
       enabled: false,
       mode: DEFAULT_PDT621_DETRACTION_MODE,
@@ -579,7 +582,7 @@ function computePdt601Section(s: TaxSectionPdt601, includeDetraction = true): Ta
 function computePdt601SectionWithDetractionOption(s: TaxSectionPdt601, includeDetraction: boolean): TaxSectionPdt601 {
   const section: TaxSectionPdt601 = { ...s, sis: roundMoney(s.sis ?? 0) };
   if (includeDetraction) return computePdt601Section(section, true);
-  const gross = roundMoney(section.essalud + section.sis + section.onp + section.afp + section.rta_4ta + section.rta_5ta);
+  const gross = getPdt601DetractableBeforeDetraction(section);
   const noDetraction = computePdt601Section({
     ...section,
     detraction_payment: normalizePdt621DetractionPayment(section.detraction_payment, 0, false),
@@ -809,6 +812,7 @@ export function listPdt601DisplayRows(s: TaxSectionPdt601): Pdt601DisplayRow[] {
     { label: 'AFP', value: s.afp },
     { label: 'Rta 4ta categoría', value: s.rta_4ta },
     { label: 'Rta 5ta categoría', value: s.rta_5ta },
+    { label: 'SCTR', value: s.sctr },
   ];
 }
 
@@ -853,7 +857,7 @@ export function parseTaxSectionsJson(
 }
 
 export function getPdt601DetractableBeforeDetraction(p601: TaxSectionPdt601): number {
-  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.afp + p601.rta_4ta + p601.rta_5ta);
+  return roundMoney(p601.essalud + p601.sis + p601.onp + p601.afp + p601.rta_4ta + p601.rta_5ta + (p601.sctr ?? 0));
 }
 
 export function getPdt601AppliedDetractionAmount(p601: TaxSectionPdt601): number {

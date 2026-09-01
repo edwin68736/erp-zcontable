@@ -204,7 +204,10 @@ type SupervisorPdt601Planilla struct {
 	Sis     float64 `gorm:"type:decimal(15,2);not null;default:0" json:"sis"`
 	Rta4ta  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rta_4ta"`
 	Rta5ta  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rta_5ta"`
-	Rh      float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rh"`
+	// Sctr: monto fijo (no se calcula), se sincroniza con la sección 601 de la liquidación —
+	// mismo patrón de auto-completar/sincronizar que essalud/onp/afp/sis/rta_4ta/rta_5ta.
+	Sctr float64 `gorm:"type:decimal(15,2);not null;default:0" json:"sctr"`
+	Rh   float64 `gorm:"type:decimal(15,2);not null;default:0" json:"rh"`
 	// Seguimiento.
 	FechaEntrega *time.Time `gorm:"type:date" json:"fecha_entrega,omitempty"`
 	// HoraEntrega hora de entrega (HH:MM), texto libre igual que NPS/TicketAFP — la registra
