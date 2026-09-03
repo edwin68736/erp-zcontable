@@ -79,3 +79,11 @@ export function currentPeriodYM(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
+
+/** Mes calendario anterior al actual (AAAA-MM) — los controles de documentos (PDT 601/621) se
+ * trabajan siempre "pasando el mes": en setiembre se controla lo de agosto. */
+export function previousMonthPeriodYM(): string {
+  const d = new Date();
+  const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+}

@@ -22,7 +22,7 @@ import {
   companyAccessCredentialsService,
   type CredentialFilterUserOption,
 } from '../../services/companyAccessCredentials';
-import { currentPeriodYM } from '../../utils/supervisorLabels';
+import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPdt601ReportExcel } from '../../utils/pdt601ExcelExport';
 import { timelinessBadgeClass, timelinessLabel } from '../../components/activity/timelinessConfig';
@@ -84,7 +84,9 @@ function frozenRowBgClass(sinPlanilla: boolean | undefined, timeliness: string |
 const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
   const homePath = workspaceHomePath(workspace);
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialPeriod = searchParams.get('period_ym') || currentPeriodYM();
+  // Por defecto, el mes calendario anterior: los controles PDT 601/621 se trabajan "pasando el
+  // mes" (en setiembre se controla lo de agosto).
+  const initialPeriod = searchParams.get('period_ym') || previousMonthPeriodYM();
 
   const [periodYm, setPeriodYm] = useState(initialPeriod);
   const [q, setQ] = useState('');
