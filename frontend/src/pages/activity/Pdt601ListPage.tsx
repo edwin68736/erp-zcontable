@@ -460,15 +460,18 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           <td className={TDM}>{pl ? formatMoney(pl.rh) : ''}</td>
                         </>
                       )}
-                      <td className={`${TD} whitespace-nowrap ${GROUP_BORDER}`}>{pl?.fecha_entrega || ''}</td>
+                      {/* Sin planilla no hay seguimiento que registrar (ver Pdt601DetailPage.tsx):
+                          estas columnas quedan en blanco aunque el dato guardado tuviera algo
+                          (defensivo ante registros previos a este fix). */}
+                      <td className={`${TD} whitespace-nowrap ${GROUP_BORDER}`}>{pl?.sin_planilla ? '' : pl?.fecha_entrega || ''}</td>
                       <td className={`${TD} max-w-[12rem]`} title={pl?.observaciones || ''}>
                         <span className="block truncate">{pl?.observaciones || ''}</span>
                       </td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.fecha_declaracion_pdt || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.nps || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.ticket_afp || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.estado_envio_boletas || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.fecha_envio_nps_tickets_boletas || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.fecha_declaracion_pdt || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.nps || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.ticket_afp || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.estado_envio_boletas || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.fecha_envio_nps_tickets_boletas || ''}</td>
                     </tr>
                   );
                 })

@@ -140,7 +140,9 @@ export async function exportPdt601ReportExcel(options: { periodYm: string; rows:
     setText(row.business_name || '—');
     setText(row.ruc || '—', 'center');
     setText(row.assistant_username || '—');
-    setText(pdt601StatusLabel(row.status), 'center');
+    // Igual que la tabla en pantalla: "sin_planilla" no es un estado real de la declaración, pero
+    // se muestra en su lugar para no decir "Pendiente"/"Aprobado" en una empresa sin planilla.
+    setText(pdt601StatusLabel(sinPlanilla ? 'sin_planilla' : row.status), 'center');
     setInt(pl?.trabajadores_onp);
     setInt(pl?.trabajadores_afp);
     setInt(pl?.trabajadores_total);
@@ -153,14 +155,17 @@ export async function exportPdt601ReportExcel(options: { periodYm: string; rows:
     setNum(pl?.sctr);
     setNum(pl?.rh);
     setNum(pl?.total_aportes);
-    setText(formatDateCell(pl?.fecha_entrega), 'center');
-    setText(pl?.hora_entrega || '', 'center');
+    // Sin planilla no hay seguimiento que registrar (ver Pdt601DetailPage.tsx): estas columnas
+    // quedan en blanco aunque el dato guardado tuviera algo (defensivo ante registros previos a
+    // este fix, que sí podían arrastrar una fecha/hora de entrega autocompletada por error).
+    setText(sinPlanilla ? '' : formatDateCell(pl?.fecha_entrega), 'center');
+    setText(sinPlanilla ? '' : pl?.hora_entrega || '', 'center');
     setText(pl?.observaciones || '');
-    setText(formatDateCell(pl?.fecha_declaracion_pdt), 'center');
-    setText(pl?.nps || '', 'center');
-    setText(pl?.ticket_afp || '', 'center');
-    setText(pl?.estado_envio_boletas || '', 'center');
-    setText(formatDateCell(pl?.fecha_envio_nps_tickets_boletas), 'center');
+    setText(sinPlanilla ? '' : formatDateCell(pl?.fecha_declaracion_pdt), 'center');
+    setText(sinPlanilla ? '' : pl?.nps || '', 'center');
+    setText(sinPlanilla ? '' : pl?.ticket_afp || '', 'center');
+    setText(sinPlanilla ? '' : pl?.estado_envio_boletas || '', 'center');
+    setText(sinPlanilla ? '' : formatDateCell(pl?.fecha_envio_nps_tickets_boletas), 'center');
 
     rowIdx += 1;
   }

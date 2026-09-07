@@ -77,7 +77,10 @@ function nowTimeStr(): string {
 }
 
 /** Mapea la planilla que devuelve el backend al formulario editable. Si aún no hay fecha/hora de
- * entrega guardada, se prellenan con el momento actual (no pisa un valor ya guardado). */
+ * entrega guardada, se prellenan con el momento actual (no pisa un valor ya guardado) — salvo que
+ * la empresa esté marcada "sin planilla": ahí no aplica seguimiento, así que NO se autocompleta
+ * (si se autocompletara, un guardado posterior por otro motivo, p. ej. corregir Observaciones,
+ * persistiría una fecha/hora de entrega inventada para una empresa que no tiene nada que entregar). */
 function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaInput {
   const base: Pdt601PlanillaInput = !p
     ? { ...EMPTY_PLANILLA }
@@ -102,6 +105,12 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
         estado_envio_boletas: p.estado_envio_boletas ?? '',
         fecha_envio_nps_tickets_boletas: p.fecha_envio_nps_tickets_boletas ?? '',
       };
+  if (base.sin_planilla) {
+    // Autocorrige registros previos a este fix que hayan quedado con fecha/hora de entrega (u
+    // otro campo de seguimiento) colgada pese a estar marcados "sin planilla": si se guarda de
+    // nuevo (p. ej. al corregir Observaciones), sale limpio.
+    return { ...base, ...SIN_PLANILLA_RESET };
+  }
   return {
     ...base,
     fecha_entrega: base.fecha_entrega || todayDateStr(),
@@ -496,36 +505,48 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
         {showRevisionSupervisor && (
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
             <h2 className="text-sm font-semibold text-slate-800">Revisión supervisor</h2>
-            {canObserve ? (
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Observar</label>
-                <textarea
-                  value={supervisorNotes}
-                  onChange={(e) => setSupervisorNotes(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Indique la observación…"
-                />
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={() => void handleObserve()}
-                  className="mt-2 px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium hover:bg-amber-100 disabled:opacity-50"
-                >
-                  Observar
-                </button>
-              </div>
-            ) : null}
-            {canApprove ? (
-              <button
-                type="button"
-                disabled={actionLoading || PDT601_APPROVED_STATUSES.has(declaration.status)}
-                onClick={() => void handleApprove()}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
-              >
-                Aprobar
-              </button>
-            ) : null}
+            {planilla.sin_planilla ? (
+              // Sin planilla no hay nada que revisar/aprobar: no aplica el flujo de
+              // observar/aprobar (ver nota en combinedStatusValue más arriba).
+              <p className="flex items-start gap-2 text-sm text-slate-500">
+                <i className="fas fa-ban mt-0.5 text-amber-600" aria-hidden />
+                Esta empresa está marcada "Sin planilla" en este período — no aplica observar ni
+                aprobar.
+              </p>
+            ) : (
+              <>
+                {canObserve ? (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Observar</label>
+                    <textarea
+                      value={supervisorNotes}
+                      onChange={(e) => setSupervisorNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Indique la observación…"
+                    />
+                    <button
+                      type="button"
+                      disabled={actionLoading}
+                      onClick={() => void handleObserve()}
+                      className="mt-2 px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      Observar
+                    </button>
+                  </div>
+                ) : null}
+                {canApprove ? (
+                  <button
+                    type="button"
+                    disabled={actionLoading || PDT601_APPROVED_STATUSES.has(declaration.status)}
+                    onClick={() => void handleApprove()}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    Aprobar
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
         )}
       </div>
