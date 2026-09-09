@@ -136,7 +136,14 @@ const TaxSettlements = () => {
       }, { replace: true });
     }, 300);
     return () => window.clearTimeout(t);
-  }, [filterCompanyId, perPage, setSearchParams]);
+    // `setSearchParams` (react-router-dom) NO es estable entre renders — cambia de identidad cada
+    // vez que cambia la URL, incluido un simple click de paginación. Si se incluye acá, cualquier
+    // cambio de página disparaba este efecto 300ms después y forzaba "page" de vuelta a 1,
+    // deshaciendo la paginación (bug reportado: "al cambiar de página no cambia de página"). Este
+    // efecto solo debe reaccionar a cambios reales de filterCompanyId/perPage, no a la identidad de
+    // la función.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCompanyId, perPage]);
 
   const handlePageChange = (p: number) => {
     setSearchParams((prev) => {

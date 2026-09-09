@@ -15,7 +15,10 @@ export const PDT621_STATUSES = [
   { value: 'cerrado', label: 'Cerrado' },
 ] as const;
 
-export const PDT621_STATUS_FILTER = buildStatusFilter(PDT621_STATUSES);
+export const PDT621_STATUS_FILTER = [
+  ...buildStatusFilter(PDT621_STATUSES),
+  { value: 'suspendida', label: 'Suspendida' },
+];
 
 const PDT621_COMPLETE = new Set(['aprobado', 'presentado', 'cerrado']);
 
@@ -28,9 +31,14 @@ const PDT621_BADGE: Record<string, string> = {
   presentado: 'bg-teal-100 text-teal-800',
   cerrado: 'bg-slate-200 text-slate-800',
   sin_registro: 'bg-slate-100 text-slate-500',
+  // "suspendida" no es un estado real de la declaración (es record.suspendida) — se muestra acá
+  // como si lo fuera para que el badge/select del detalle lo reflejen de forma consistente (mismo
+  // patrón que PDT 601).
+  suspendida: 'bg-purple-100 text-purple-900',
 };
 
 export function pdt621StatusLabel(status: string): string {
+  if (status === 'suspendida') return 'Suspendida';
   return activityStatusLabel(status, PDT621_STATUSES);
 }
 
@@ -46,8 +54,9 @@ export function resolvePdt621DueDate(declDue?: string, controlDue?: string): str
 export function computePdt621DueMeta(
   status: string,
   dueDate?: string,
+  suspendida?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || PDT621_COMPLETE.has(status) || status === 'observado') {
+  if (!dueDate || suspendida || PDT621_COMPLETE.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();
@@ -106,10 +115,12 @@ export const SIRE_ENVIO_OPTIONS: Array<{ value: string; label: string }> = [
 
 /**
  * Fondo de fila del listado según cumplimiento de la fecha de declaración PDT 621 vs. el
- * cronograma SUNAT por dígito de RUC (ver /finance/sunat-due-dates): verde si se declaró dentro
- * de plazo, rojo si sigue pendiente o se declaró tarde y ya venció.
+ * cronograma SUNAT por dígito de RUC (ver /finance/sunat-due-dates): morado si la empresa está
+ * suspendida, verde si se declaró dentro de plazo, rojo si sigue pendiente o se declaró tarde y ya
+ * venció.
  */
-export function pdt621RowBgClass(timeliness: string | undefined): string {
+export function pdt621RowBgClass(timeliness: string | undefined, suspendida?: boolean): string {
+  if (suspendida) return 'bg-purple-50 hover:bg-purple-100/70';
   if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';
   return 'hover:bg-slate-50/80';

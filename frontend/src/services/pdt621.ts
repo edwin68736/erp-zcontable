@@ -6,6 +6,7 @@ export type Pdt621Timeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exe
 
 /** Seguimiento manual PDT 621 del período (revisión de archivadores, importes, SIRE). */
 export interface Pdt621Record {
+  suspendida: boolean;
   primera_entrega_fecha?: string | null;
   primera_entrega_hora: string;
   observacion: string;
@@ -27,6 +28,7 @@ export interface Pdt621Record {
 
 /** Cuerpo que envía el supervisor al guardar el seguimiento (fechas como AAAA-MM-DD). */
 export interface Pdt621RecordInput {
+  suspendida: boolean;
   primera_entrega_fecha: string;
   primera_entrega_hora: string;
   observacion: string;

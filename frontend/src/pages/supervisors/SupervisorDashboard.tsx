@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SearchableSelect from '../../components/SearchableSelect';
-import { supervisorsService, type SupervisorDashboardData } from '../../services/supervisors';
+import {
+  supervisorsService,
+  type ComplianceTrendPoint,
+  type SupervisorDashboardData,
+  type SupervisorPdtTypeSummary,
+} from '../../services/supervisors';
 import { companiesService } from '../../services/companies';
 import { usersService } from '../../services/users';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import type { Company, User } from '../../types/dashboard';
-import { controlStatusLabel, currentPeriodYM } from '../../utils/supervisorLabels';
+import { controlStatusLabel, previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import {
-  fetchPdtWorkspaceData,
-  formatPdtMetricsLine,
-  type PdtTypeSummary,
-  type PdtWorkspaceData,
-} from '../../utils/pdtClientAggregation';
+  ComplianceTrendChart,
+  ProductivityRanking,
+  StatusDistributionDonut,
+} from '../../components/supervisors/DashboardCharts';
+import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import { extractApiErrorMessage } from '../../utils/apiError';
 
 const SupervisorDashboard = () => {
   const allowed = useMemo(() => auth.hasPermission(P.supervisorsDashboardView), []);
@@ -27,7 +33,9 @@ const SupervisorDashboard = () => {
     [],
   );
 
-  const [periodYm, setPeriodYm] = useState(currentPeriodYM());
+  // Por defecto, el mes calendario anterior: igual que Control PDT 601/621, los controles del
+  // dashboard se trabajan "pasando el mes" (en setiembre se controla lo de agosto).
+  const [periodYm, setPeriodYm] = useState(previousMonthPeriodYM());
   const [generalStatus, setGeneralStatus] = useState('');
   const [riskLevel, setRiskLevel] = useState('');
   const [companyId, setCompanyId] = useState('');
@@ -36,10 +44,14 @@ const SupervisorDashboard = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [data, setData] = useState<SupervisorDashboardData | null>(null);
-  const [pdtData, setPdtData] = useState<PdtWorkspaceData | null>(null);
+  const [pdtData, setPdtData] = useState<Record<'pdt_601' | 'pdt_621', SupervisorPdtTypeSummary> | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdtLoading, setPdtLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pdtError, setPdtError] = useState('');
+  const [complianceTrend, setComplianceTrend] = useState<ComplianceTrendPoint[]>([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState('');
 
   useEffect(() => {
     if (!allowed || !isAnalistaScope) return;
@@ -83,42 +95,70 @@ const SupervisorDashboard = () => {
     [users],
   );
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      setData(
-        await supervisorsService.dashboard({
-          period_ym: periodYm,
-          general_status: generalStatus || undefined,
-          risk_level: riskLevel || undefined,
-          company_id: companyId ? Number(companyId) : undefined,
-          responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
-          supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
-        }),
-      );
-    } catch {
-      setError('No se pudo cargar el dashboard de supervisores');
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId]);
+  const load = useCallback(
+    () =>
+      supervisorsService.dashboard({
+        period_ym: periodYm,
+        general_status: generalStatus || undefined,
+        risk_level: riskLevel || undefined,
+        company_id: companyId ? Number(companyId) : undefined,
+        responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
+        supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
+      }),
+    [periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId],
+  );
 
+  // Si el usuario cambia de filtro varias veces seguidas, descarta cualquier respuesta que llegue
+  // después de que este efecto ya haya sido reemplazado por uno más nuevo — evita que una
+  // respuesta vieja y lenta pise en pantalla a una más reciente que ya llegó antes.
   useEffect(() => {
-    if (allowed) void load();
+    if (!allowed) return;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void load()
+      .then((res) => {
+        if (cancelled) return;
+        setData(res);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(extractApiErrorMessage(err, 'No se pudo cargar el dashboard de supervisores'));
+        setData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [allowed, load]);
 
+  // Antes esta sección se armaba en el navegador (1 listControls + N listDeclarations, hasta
+  // ~1800 consultas en el peor caso) y solo escuchaba el período, ignorando el resto de los
+  // filtros del panel. Ahora es una sola consulta agrupada en el servidor, con los mismos 5
+  // filtros que el resto del dashboard.
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
     setPdtLoading(true);
-    void fetchPdtWorkspaceData(periodYm)
+    setPdtError('');
+    void supervisorsService
+      .pdtDashboardSummary({
+        period_ym: periodYm,
+        general_status: generalStatus || undefined,
+        risk_level: riskLevel || undefined,
+        company_id: companyId ? Number(companyId) : undefined,
+        responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
+        supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
+      })
       .then((res) => {
         if (!cancelled) setPdtData(res);
       })
-      .catch(() => {
-        if (!cancelled) setPdtData(null);
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPdtData(null);
+        setPdtError(extractApiErrorMessage(err, 'No se pudo cargar el resumen PDT 601/621.'));
       })
       .finally(() => {
         if (!cancelled) setPdtLoading(false);
@@ -126,17 +166,60 @@ const SupervisorDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [allowed, periodYm]);
+  }, [allowed, periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId]);
 
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    setTrendLoading(true);
+    setTrendError('');
+    void supervisorsService
+      .complianceTrend({
+        period_ym: periodYm,
+        months: 6,
+        general_status: generalStatus || undefined,
+        risk_level: riskLevel || undefined,
+        company_id: companyId ? Number(companyId) : undefined,
+        responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
+        supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
+      })
+      .then((res) => {
+        if (!cancelled) setComplianceTrend(res);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setComplianceTrend([]);
+        setTrendError(extractApiErrorMessage(err, 'No se pudo cargar la tendencia de cumplimiento.'));
+      })
+      .finally(() => {
+        if (!cancelled) setTrendLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId]);
+
+  // Incluye "cerrado" para que el total de la barra sea el MISMO universo que usa el backend
+  // para calcular monthly_compliance_pct (antes la barra excluía "cerrado" y el % de al lado sí
+  // lo incluía en su base — dos números uno junto al otro que no eran comparables entre sí).
   const chartTotal = useMemo(() => {
     if (!data) return 0;
     return (
       data.controls_al_dia +
       data.controls_pendiente +
       data.controls_vencido +
-      data.controls_observado
+      data.controls_observado +
+      data.controls_cerrado
     );
   }, [data]);
+
+  // El backend limita las alertas individuales de "control vencido" a 8 (Limit(8), para no
+  // inundar la lista) — esto cuenta cuántas de esas 8 vinieron, para poder avisar cuando el total
+  // real de vencidos (data.controls_vencido) es mayor y quedan más sin mostrar.
+  const overdueAlertCount = useMemo(
+    () => data?.alerts?.filter((a) => a.kind === 'overdue_control').length ?? 0,
+    [data],
+  );
 
   const hasExtraFilters = Boolean(companyId || responsibleUserId || supervisorUserId);
 
@@ -151,7 +234,7 @@ const SupervisorDashboard = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Dashboard supervisores</h2>
@@ -263,11 +346,31 @@ const SupervisorDashboard = () => {
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <StatCard label="Empresas activas" value={data.total_active_companies} icon="fas fa-building" />
-            <StatCard label="Empresas al día" value={data.companies_al_dia ?? 0} icon="fas fa-check-circle" />
-            <StatCard label="Empresas pendientes" value={data.companies_pendiente ?? 0} icon="fas fa-clock" />
-            <StatCard label="Empresas vencidas" value={data.companies_vencido ?? 0} icon="fas fa-exclamation-circle" />
+            <StatCard
+              label="Empresas al día"
+              value={data.companies_al_dia ?? 0}
+              icon="fas fa-check-circle"
+              hint="Empresas cuyo control mensual del período está 'Al día' o 'Cerrado' — es decir, el supervisor ya recibió/tramitó su información. No mide pagos ni facturación."
+            />
+            <StatCard
+              label="Empresas pendientes"
+              value={data.companies_pendiente ?? 0}
+              icon="fas fa-clock"
+              hint="Empresas con control mensual en estado 'Pendiente' — aún no se registró recepción de información."
+            />
+            <StatCard
+              label="Empresas vencidas"
+              value={data.companies_vencido ?? 0}
+              icon="fas fa-exclamation-circle"
+              hint="Empresas cuyo control mensual pasó la fecha límite sin quedar al día."
+            />
             <StatCard label="Sin control en período" value={data.companies_without_control ?? 0} icon="fas fa-plus-circle" />
-            <StatCard label="Cumplimiento %" value={`${data.monthly_compliance_pct}%`} icon="fas fa-percent" />
+            <StatCard
+              label="Cumplimiento %"
+              value={`${data.monthly_compliance_pct}%`}
+              icon="fas fa-percent"
+              hint="(Controles al día + cerrados) / total de controles del período."
+            />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatCard label="Declaraciones observadas" value={data.declarations_observed} icon="fas fa-exclamation-triangle" />
@@ -277,42 +380,39 @@ const SupervisorDashboard = () => {
 
           <PdtSummarySection
             loading={pdtLoading}
-            summary601={pdtData?.summaryByType.pdt_601}
-            summary621={pdtData?.summaryByType.pdt_621}
-            metrics={pdtData?.metrics}
+            error={pdtError}
+            summary601={pdtData?.pdt_601}
+            summary621={pdtData?.pdt_621}
             workspace="supervisor"
           />
 
-          {chartTotal > 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-medium text-slate-700 mb-3">Distribución por estado</p>
-              <div className="flex h-4 rounded-full overflow-hidden bg-slate-100">
-                <div
-                  className="bg-emerald-500 h-full"
-                  style={{ width: `${(data.controls_al_dia / chartTotal) * 100}%` }}
-                  title={controlStatusLabel('al_dia')}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {chartTotal > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-medium text-slate-700 mb-3">Distribución por estado</p>
+                <StatusDistributionDonut
+                  total={chartTotal}
+                  slices={[
+                    { label: controlStatusLabel('al_dia'), value: data.controls_al_dia, colorClass: 'stroke-emerald-500' },
+                    { label: controlStatusLabel('pendiente'), value: data.controls_pendiente, colorClass: 'stroke-amber-400' },
+                    { label: controlStatusLabel('vencido'), value: data.controls_vencido, colorClass: 'stroke-red-500' },
+                    { label: controlStatusLabel('observado'), value: data.controls_observado, colorClass: 'stroke-orange-400' },
+                    { label: controlStatusLabel('cerrado'), value: data.controls_cerrado, colorClass: 'stroke-slate-400' },
+                  ]}
                 />
-                <div
-                  className="bg-amber-400 h-full"
-                  style={{ width: `${(data.controls_pendiente / chartTotal) * 100}%` }}
-                />
-                <div
-                  className="bg-red-500 h-full"
-                  style={{ width: `${(data.controls_vencido / chartTotal) * 100}%` }}
-                />
-                <div
-                  className="bg-orange-400 h-full"
-                  style={{ width: `${(data.controls_observado / chartTotal) * 100}%` }}
-                />
+                <p className="text-xs text-slate-500 mt-3">Cumplimiento: {data.monthly_compliance_pct}%</p>
               </div>
-              <p className="text-xs text-slate-500 mt-2">Cumplimiento: {data.monthly_compliance_pct}%</p>
+            ) : null}
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-medium text-slate-700 mb-3">Tendencia de cumplimiento (6 meses)</p>
+              {trendLoading ? (
+                <p className="text-sm text-slate-500">Cargando tendencia…</p>
+              ) : trendError ? (
+                <p className="text-sm text-red-600">{trendError}</p>
+              ) : (
+                <ComplianceTrendChart points={complianceTrend} />
+              )}
             </div>
-          ) : null}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatusPill label={controlStatusLabel('al_dia')} count={data.controls_al_dia} tone="emerald" />
-            <StatusPill label={controlStatusLabel('pendiente')} count={data.controls_pendiente} tone="amber" />
-            <StatusPill label={controlStatusLabel('vencido')} count={data.controls_vencido} tone="red" />
-            <StatusPill label={controlStatusLabel('observado')} count={data.controls_observado} tone="orange" />
           </div>
           {(data.alerts?.length ?? 0) > 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-2">
@@ -331,33 +431,18 @@ const SupervisorDashboard = () => {
                   </li>
                 ))}
               </ul>
+              {overdueAlertCount > 0 && data.controls_vencido > overdueAlertCount ? (
+                <p className="text-xs text-amber-700">
+                  Mostrando {overdueAlertCount} de {data.controls_vencido} controles vencidos — revise{' '}
+                  <Link to="/supervisors/reports" className="underline">
+                    Reportes
+                  </Link>{' '}
+                  para ver el resto.
+                </p>
+              ) : null}
             </div>
           ) : null}
-          {(data.productivity?.length ?? 0) > 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
-              <p className="text-sm font-medium text-slate-700 px-4 pt-4">Productividad por responsable</p>
-              <table className="min-w-full text-sm mt-2">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="text-left px-4 py-3">Responsable</th>
-                    <th className="text-right px-4 py-3">Controles</th>
-                    <th className="text-right px-4 py-3">Al día</th>
-                    <th className="text-right px-4 py-3">Cumplimiento</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.productivity!.map((r) => (
-                    <tr key={r.user_id}>
-                      <td className="px-4 py-3 font-medium">{r.user_name}</td>
-                      <td className="px-4 py-3 text-right">{r.total}</td>
-                      <td className="px-4 py-3 text-right">{r.al_dia}</td>
-                      <td className="px-4 py-3 text-right">{r.compliance_pct}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
+          {(data.productivity?.length ?? 0) > 0 ? <ProductivityRanking rows={data.productivity!} /> : null}
           <div className="flex flex-wrap gap-3 text-sm">
             <Link to="/supervisors/activities/pdt-601" className="text-primary-700 font-medium">
               → PDT 601
@@ -383,37 +468,34 @@ const SupervisorDashboard = () => {
 
 function PdtSummarySection({
   loading,
+  error,
   summary601,
   summary621,
-  metrics,
   workspace,
 }: {
   loading: boolean;
-  summary601?: PdtTypeSummary;
-  summary621?: PdtTypeSummary;
-  metrics?: PdtWorkspaceData['metrics'];
+  error?: string;
+  summary601?: SupervisorPdtTypeSummary;
+  summary621?: SupervisorPdtTypeSummary;
   workspace: 'supervisor' | 'assistant';
 }) {
   const base = workspace === 'assistant' ? '/assistant/activities' : '/supervisors/activities';
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-800">Declaraciones PDT (agregación cliente)</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Resumen por tipo a partir de controles y declaraciones del período.
-          </p>
-        </div>
-        {metrics ? (
-          <p className="text-[10px] text-slate-400 font-mono" title="Métricas de llamadas API para evaluar N+1">
-            {formatPdtMetricsLine(metrics)}
-            {metrics.isPartialSample ? ' · muestra parcial' : ''}
-          </p>
-        ) : null}
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800">Declaraciones PDT 601/621</h3>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Resumen por tipo a partir de controles y declaraciones del período.
+        </p>
       </div>
       {loading ? (
         <p className="text-sm text-slate-500">Cargando resumen PDT…</p>
+      ) : error ? (
+        <p className="text-sm text-red-600 flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-xs" aria-hidden />
+          {error}
+        </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <PdtTypeCard title="PDT 601" summary={summary601 ?? emptyPdtSummary()} linkTo={`${base}/pdt-601`} />
@@ -424,8 +506,8 @@ function PdtSummarySection({
   );
 }
 
-function emptyPdtSummary(): PdtTypeSummary {
-  return { pendiente: 0, observado: 0, vencido: 0, completado: 0, total: 0 };
+function emptyPdtSummary(): SupervisorPdtTypeSummary {
+  return { pendiente: 0, observado: 0, vencido: 0, completado: 0, sin_planilla: 0, suspendida: 0, total: 0 };
 }
 
 function PdtTypeCard({
@@ -434,7 +516,7 @@ function PdtTypeCard({
   linkTo,
 }: {
   title: string;
-  summary: PdtTypeSummary;
+  summary: SupervisorPdtTypeSummary;
   linkTo: string;
 }) {
   return (
@@ -450,6 +532,16 @@ function PdtTypeCard({
         <PdtMiniStat label="Observadas" value={summary.observado} tone="orange" />
         <PdtMiniStat label="Vencidas" value={summary.vencido} tone="red" />
         <PdtMiniStat label="Completadas" value={summary.completado} tone="emerald" />
+        {/* Solo PDT 601 tiene el concepto "sin planilla" (PDT 621 siempre trae 0 acá) — no se
+            cuenta como pendiente: la empresa no tiene nada que declarar en el período. */}
+        {summary.sin_planilla > 0 ? (
+          <PdtMiniStat label="Sin planilla" value={summary.sin_planilla} tone="slate" />
+        ) : null}
+        {/* "Suspendida" sí aplica a ambos módulos — tampoco cuenta como pendiente/vencido mientras
+            la empresa esté suspendida (ver PdtDashboardSummary). */}
+        {summary.suspendida > 0 ? (
+          <PdtMiniStat label="Suspendida" value={summary.suspendida} tone="purple" />
+        ) : null}
       </div>
       <p className="text-[10px] text-slate-400 mt-3">Total en período: {summary.total}</p>
     </div>
@@ -463,7 +555,7 @@ function PdtMiniStat({
 }: {
   label: string;
   value: number;
-  tone: 'amber' | 'orange' | 'red' | 'emerald';
+  tone: 'amber' | 'orange' | 'red' | 'emerald' | 'slate' | 'purple';
 }) {
   const bg =
     tone === 'emerald'
@@ -472,7 +564,11 @@ function PdtMiniStat({
         ? 'bg-amber-50 text-amber-800'
         : tone === 'red'
           ? 'bg-red-50 text-red-800'
-          : 'bg-orange-50 text-orange-800';
+          : tone === 'slate'
+            ? 'bg-slate-100 text-slate-700'
+            : tone === 'purple'
+              ? 'bg-purple-100 text-purple-800'
+              : 'bg-orange-50 text-orange-800';
   return (
     <div className={`rounded-lg px-3 py-2 flex justify-between items-center ${bg}`}>
       <span>{label}</span>
@@ -481,32 +577,29 @@ function PdtMiniStat({
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number | string; icon: string }) {
+function StatCard({
+  label,
+  value,
+  icon,
+  hint,
+}: {
+  label: string;
+  value: number | string;
+  icon: string;
+  /** Tooltip explicando qué mide exactamente la tarjeta — para etiquetas ambiguas como "Empresas
+   * al día" (no es un indicador de pagos: se calcula sobre el estado del control mensual). */
+  hint?: string;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" title={hint}>
+      <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
         <i className={icon}></i> {label}
+        {hint ? <i className="fas fa-circle-info text-[10px] text-slate-300" aria-hidden /> : null}
       </div>
       <p className="text-2xl font-semibold text-slate-800">{value}</p>
     </div>
   );
 }
 
-function StatusPill({ label, count, tone }: { label: string; count: number; tone: string }) {
-  const bg =
-    tone === 'emerald'
-      ? 'bg-emerald-50 text-emerald-800'
-      : tone === 'amber'
-        ? 'bg-amber-50 text-amber-800'
-        : tone === 'red'
-          ? 'bg-red-50 text-red-800'
-          : 'bg-orange-50 text-orange-800';
-  return (
-    <div className={`rounded-lg px-4 py-3 ${bg} flex justify-between items-center`}>
-      <span className="text-sm font-medium">{label}</span>
-      <span className="text-lg font-bold">{count}</span>
-    </div>
-  );
-}
 
 export default SupervisorDashboard;

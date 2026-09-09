@@ -1,18 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { resolveBackendUrl } from '../../api/client';
 import {
   computePdt601DueMeta,
   formatPdt601DueDetail,
+  formatStoredAt,
   pdt601StatusBadgeClass,
   pdt601StatusLabel,
   PDT601_APPROVED_STATUSES,
   resolvePdt601DueDate,
 } from '../../components/activity/pdt601Config';
+import FilePreviewModal from '../../components/FilePreviewModal';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { activityModulePath, type ActivityWorkspace } from '../../navigation/activityRoutes';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
-import { supervisorsService, type SupervisorDeclaration } from '../../services/supervisors';
+import {
+  supervisorsService,
+  type SupervisorAttachment,
+  type SupervisorDeclaration,
+} from '../../services/supervisors';
 import {
   pdt601Service,
   type Pdt601Detail,
@@ -21,9 +28,11 @@ import {
 } from '../../services/pdt601';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { downloadRemoteFile } from '../../utils/downloadFile';
 
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
+  suspendida: false,
   trabajadores_onp: 0,
   trabajadores_afp: 0,
   essalud: 0,
@@ -44,6 +53,11 @@ const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   fecha_envio_nps_tickets_boletas: '',
 };
 
+/** Nota fija que se fuerza en Observaciones cuando la empresa está marcada "suspendida" — mismo
+ * texto que usa el backend (server-side, ver SavePdt601Planilla) para autocorregir registros
+ * previos guardados antes de esta validación. */
+const SUSPENDIDA_NOTE = 'Empresa suspendida';
+
 /** Campos que no aplican cuando se marca "sin planilla" (se limpian al activar el flag). */
 const SIN_PLANILLA_RESET: Partial<Pdt601PlanillaInput> = {
   trabajadores_onp: 0,
@@ -63,6 +77,14 @@ const SIN_PLANILLA_RESET: Partial<Pdt601PlanillaInput> = {
   ticket_afp: '',
   estado_envio_boletas: '',
   fecha_envio_nps_tickets_boletas: '',
+};
+
+/** Campos que no aplican cuando se marca "suspendida" — más restrictivo que SIN_PLANILLA_RESET:
+ * además de los mismos campos, fuerza Observaciones a la nota fija (para que quede visible en el
+ * listado y en el reporte Excel) en vez de dejarla como estaba. */
+const SUSPENDIDA_RESET: Partial<Pdt601PlanillaInput> = {
+  ...SIN_PLANILLA_RESET,
+  observaciones: SUSPENDIDA_NOTE,
 };
 
 /** Fecha de hoy (AAAA-MM-DD) y hora actual (HH:MM) en horario local — valor por defecto de
@@ -86,6 +108,7 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
     ? { ...EMPTY_PLANILLA }
     : {
         sin_planilla: p.sin_planilla ?? false,
+        suspendida: p.suspendida ?? false,
         trabajadores_onp: p.trabajadores_onp ?? 0,
         trabajadores_afp: p.trabajadores_afp ?? 0,
         essalud: p.essalud ?? 0,
@@ -105,6 +128,12 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
         estado_envio_boletas: p.estado_envio_boletas ?? '',
         fecha_envio_nps_tickets_boletas: p.fecha_envio_nps_tickets_boletas ?? '',
       };
+  if (base.suspendida) {
+    // Suspendida es más restrictivo que sin_planilla y mutuamente excluyente con ella — autocorrige
+    // registros previos a este fix (o guardados antes de que el backend reforzara el bloqueo) que
+    // hayan quedado con datos colgados pese a estar marcados "suspendida".
+    return { ...base, sin_planilla: false, ...SUSPENDIDA_RESET };
+  }
   if (base.sin_planilla) {
     // Autocorrige registros previos a este fix que hayan quedado con fecha/hora de entrega (u
     // otro campo de seguimiento) colgada pese a estar marcados "sin planilla": si se guarda de
@@ -124,6 +153,7 @@ const ASSISTANT_STATUS_OPTIONS = [
   { value: 'pendiente', label: 'Pendiente' },
   { value: 'en_elaboracion', label: 'En elaboración' },
   { value: 'sin_planilla', label: 'Sin planilla' },
+  { value: 'suspendida', label: 'Empresa suspendida' },
 ];
 
 /** Estados que ve el supervisor al revisar lo que entregó el asistente — "Pendiente"/"En
@@ -137,6 +167,7 @@ const ASSISTANT_STATUS_OPTIONS = [
 const SUPERVISOR_STATUS_OPTIONS = [
   { value: 'en_revision', label: 'En revisión' },
   { value: 'sin_planilla', label: 'Sin planilla' },
+  { value: 'suspendida', label: 'Empresa suspendida' },
 ];
 
 const STATUS_OPTIONS_BY_WORKSPACE: Record<ActivityWorkspace, { value: string; label: string }[]> = {
@@ -184,8 +215,10 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
+  const canUpload = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
 
   const [detail, setDetail] = useState<Pdt601Detail | null>(null);
+  const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -195,6 +228,10 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [planilla, setPlanilla] = useState<Pdt601PlanillaInput>({ ...EMPTY_PLANILLA });
   const [planillaSaving, setPlanillaSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const declaration = detail?.declaration;
   // El asistente solo registra Fecha/Hora de entrega — el resto del seguimiento (declaración PDT,
@@ -233,7 +270,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const handleToggleSinPlanilla = (checked: boolean) => {
     setPlanilla((prev) =>
       checked
-        ? { ...prev, sin_planilla: true, ...SIN_PLANILLA_RESET }
+        ? { ...prev, sin_planilla: true, suspendida: false, ...SIN_PLANILLA_RESET }
         : {
             ...prev,
             sin_planilla: false,
@@ -243,12 +280,36 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     );
   };
 
-  // "Cambiar estado" une el estado de la declaración con planilla.sin_planilla en un solo select,
-  // acotado a lo que le corresponde fijar a cada workspace (ver STATUS_OPTIONS_BY_WORKSPACE) — el
-  // asistente entrega (Pendiente/En elaboración/Sin planilla), el supervisor revisa (En revisión/
-  // Observado/Aprobado/Sin planilla). "Sin planilla" no es un estado de la declaración — es
-  // planilla.sin_planilla — así que se muestra/edita acá pero no dispara handleStatusChange.
-  const combinedStatusValue = planilla.sin_planilla ? 'sin_planilla' : declaration?.status ?? '';
+  // "Suspendida" es más restrictiva que "sin planilla" y mutuamente excluyente con ella — bloquea
+  // registrar CUALQUIER otro dato (incluida Observaciones, que se fuerza a la nota fija) hasta que
+  // se desmarque. Al desmarcar, se limpia la nota fija para que el supervisor pueda escribir una
+  // observación real (si la deja igual, no queda una nota "fantasma" de un estado que ya no aplica).
+  const handleToggleSuspendida = (checked: boolean) => {
+    setPlanilla((prev) =>
+      checked
+        ? { ...prev, suspendida: true, sin_planilla: false, ...SUSPENDIDA_RESET }
+        : {
+            ...prev,
+            suspendida: false,
+            observaciones: prev.observaciones === SUSPENDIDA_NOTE ? '' : prev.observaciones,
+            fecha_entrega: prev.fecha_entrega || todayDateStr(),
+            hora_entrega: prev.hora_entrega || nowTimeStr(),
+          },
+    );
+  };
+
+  // "Cambiar estado" une el estado de la declaración con planilla.sin_planilla/suspendida en un
+  // solo select, acotado a lo que le corresponde fijar a cada workspace (ver
+  // STATUS_OPTIONS_BY_WORKSPACE) — el asistente entrega (Pendiente/En elaboración/Sin planilla/
+  // Suspendida), el supervisor revisa (En revisión/Observado/Aprobado/Sin planilla/Suspendida).
+  // Ninguna de las dos es un estado real de la declaración — son planilla.sin_planilla/suspendida —
+  // así que se muestran/editan acá pero no disparan handleStatusChange. Suspendida tiene prioridad:
+  // no pueden estar ambas a la vez (ver handleToggleSinPlanilla/handleToggleSuspendida).
+  const combinedStatusValue = planilla.suspendida
+    ? 'suspendida'
+    : planilla.sin_planilla
+      ? 'sin_planilla'
+      : declaration?.status ?? '';
   const statusSelectOptions = useMemo(() => {
     const base = STATUS_OPTIONS_BY_WORKSPACE[workspace];
     if (base.some((o) => o.value === combinedStatusValue)) {
@@ -262,10 +323,15 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   const handleCombinedStatusChange = async (value: string) => {
     if (assistantLocked) return;
+    if (value === 'suspendida') {
+      if (!planilla.suspendida) handleToggleSuspendida(true);
+      return;
+    }
     if (value === 'sin_planilla') {
       if (!planilla.sin_planilla) handleToggleSinPlanilla(true);
       return;
     }
+    if (planilla.suspendida) handleToggleSuspendida(false);
     if (planilla.sin_planilla) handleToggleSinPlanilla(false);
     if (value !== declaration?.status) {
       await handleStatusChange(value);
@@ -275,9 +341,14 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
     const dueDate = resolvePdt601DueDate(declaration.due_date, detail.control_due_date);
-    const meta = computePdt601DueMeta(declaration.status, dueDate, detail.planilla?.sin_planilla);
+    const meta = computePdt601DueMeta(declaration.status, dueDate, detail.planilla?.sin_planilla, detail.planilla?.suspendida);
     return { dueDate, ...meta };
   }, [detail, declaration]);
+
+  const loadAttachments = useCallback(async (declarationId: number) => {
+    const rows = await supervisorsService.listAttachments(0, declarationId);
+    setAttachments(rows);
+  }, []);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(companyId) || companyId <= 0) {
@@ -291,6 +362,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
       const data = await pdt601Service.getDetail(companyId, periodYm);
       setDetail(data);
       setPlanilla(planillaToInput(data.planilla));
+      await loadAttachments(data.declaration.id);
     } catch (err) {
       console.error(err);
       setError(extractApiErrorMessage(err, 'No se pudo cargar el detalle.'));
@@ -298,7 +370,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     } finally {
       setLoading(false);
     }
-  }, [companyId, periodYm]);
+  }, [companyId, periodYm, loadAttachments]);
 
   useEffect(() => {
     void load();
@@ -323,11 +395,29 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     }
   };
 
+  const handleUpload = async (files: FileList | null) => {
+    if (!declaration || !canUpload || !files?.length) return;
+    try {
+      setUploading(true);
+      showMsg('');
+      for (const file of Array.from(files)) {
+        await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
+      }
+      await loadAttachments(declaration.id);
+      showMsg('Archivo(s) subido(s) correctamente.', 'success');
+    } catch (err) {
+      showMsg(extractApiErrorMessage(err, 'Error al subir archivo.'), 'error');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
   const handleSavePlanilla = async () => {
     if (!canUpdate || assistantLocked) return;
     // NPS/Ticket AFP los completa el supervisor en el seguimiento posterior — el asistente no
     // puede editarlos (quedan readonly), así que exigirlos acá lo dejaría sin poder guardar nunca.
-    if (!planilla.sin_planilla && workspace !== 'assistant') {
+    if (!planilla.sin_planilla && !planilla.suspendida && workspace !== 'assistant') {
       if (!planilla.nps) {
         showMsg('Seleccione un valor para NPS.', 'error');
         return;
@@ -505,7 +595,15 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
         {showRevisionSupervisor && (
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
             <h2 className="text-sm font-semibold text-slate-800">Revisión supervisor</h2>
-            {planilla.sin_planilla ? (
+            {planilla.suspendida ? (
+              // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar (ver nota
+              // en combinedStatusValue más arriba).
+              <p className="flex items-start gap-2 text-sm text-slate-500">
+                <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
+                Esta empresa está marcada "Suspendida" en este período — no aplica observar ni
+                aprobar.
+              </p>
+            ) : planilla.sin_planilla ? (
               // Sin planilla no hay nada que revisar/aprobar: no aplica el flujo de
               // observar/aprobar (ver nota en combinedStatusValue más arriba).
               <p className="flex items-start gap-2 text-sm text-slate-500">
@@ -570,10 +668,20 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
         ) : null}
 
         {workspace === 'assistant' ? (
-          // La vista asistente no repite el toggle acá: "Sin planilla" se elige arriba, en el
-          // select "Cambiar estado" (unificado con Pendiente/En elaboración) — esto solo confirma
-          // visualmente la elección cuando corresponde.
-          planilla.sin_planilla ? (
+          // La vista asistente no repite los toggles acá: "Sin planilla"/"Suspendida" se eligen
+          // arriba, en el select "Cambiar estado" (unificado con Pendiente/En elaboración) — esto
+          // solo confirma visualmente la elección cuando corresponde.
+          planilla.suspendida ? (
+            <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
+              <i className="fas fa-ban mt-0.5" aria-hidden />
+              <span>
+                <span className="block font-medium">Esta empresa está suspendida en este período</span>
+                <span className="block text-xs mt-0.5 opacity-80">
+                  No se registra ningún otro dato mientras esté suspendida.
+                </span>
+              </span>
+            </div>
+          ) : planilla.sin_planilla ? (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
               <i className="fas fa-ban mt-0.5" aria-hidden />
               <span>
@@ -585,30 +693,55 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
             </div>
           ) : null
         ) : (
-          <label
-            className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
-              planilla.sin_planilla
-                ? 'border-amber-300 bg-amber-50 text-amber-900'
-                : 'border-slate-200 bg-slate-50 text-slate-700'
-            } ${canUpdate ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-          >
-            <input
-              type="checkbox"
-              disabled={!canUpdate}
-              checked={planilla.sin_planilla}
-              onChange={(e) => handleToggleSinPlanilla(e.target.checked)}
-              className="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span>
-              <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
-              <span className="block text-xs mt-0.5 opacity-80">
-                No es necesario registrar N° de trabajadores, importes ni seguimiento.
+          <>
+            <label
+              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+                planilla.suspendida
+                  ? 'border-purple-300 bg-purple-50 text-purple-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-700'
+              } ${canUpdate ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+            >
+              <input
+                type="checkbox"
+                disabled={!canUpdate}
+                checked={planilla.suspendida}
+                onChange={(e) => handleToggleSuspendida(e.target.checked)}
+                className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span>
+                <span className="block font-medium">Esta empresa está suspendida en este período</span>
+                <span className="block text-xs mt-0.5 opacity-80">
+                  No se registra ningún otro dato (ni Observaciones) mientras esté suspendida.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+            {!planilla.suspendida ? (
+              <label
+                className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+                  planilla.sin_planilla
+                    ? 'border-amber-300 bg-amber-50 text-amber-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-700'
+                } ${canUpdate ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!canUpdate}
+                  checked={planilla.sin_planilla}
+                  onChange={(e) => handleToggleSinPlanilla(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span>
+                  <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
+                  <span className="block text-xs mt-0.5 opacity-80">
+                    No es necesario registrar N° de trabajadores, importes ni seguimiento.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+          </>
         )}
 
-        {!planilla.sin_planilla ? (
+        {!planilla.sin_planilla && !planilla.suspendida ? (
           <>
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
@@ -802,7 +935,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           </label>
           <textarea
             rows={2}
-            disabled={!canUpdate || assistantLocked}
+            disabled={!canUpdate || assistantLocked || planilla.suspendida}
             value={planilla.observaciones}
             onChange={(e) => patchPlanilla({ observaciones: e.target.value })}
             placeholder="Observaciones de la planilla…"
@@ -832,6 +965,77 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           </div>
         ) : null}
       </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-800">PDT 601 ({attachments.length})</h2>
+          {canUpload ? (
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium cursor-pointer hover:bg-primary-700">
+              <i className="fas fa-upload" aria-hidden />
+              {uploading ? 'Subiendo…' : 'Cargar PDT 601'}
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept=".pdf,image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => void handleUpload(e.target.files)}
+              />
+            </label>
+          ) : null}
+        </div>
+        {attachments.length === 0 ? (
+          <p className="text-sm text-slate-500">Sin archivos cargados.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {attachments.map((a) => {
+              const fileUrl = resolveBackendUrl(a.file_url);
+              return (
+                <li key={a.id} className="py-2 flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">
+                    <i className="fas fa-paperclip text-slate-400 mr-2" aria-hidden />
+                    {a.file_name}
+                  </span>
+                  <span className="text-xs text-slate-500 shrink-0">{formatStoredAt(a.created_at)}</span>
+                  <span className="flex items-center gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPreview({ url: fileUrl, fileName: a.file_name })}
+                      className="inline-flex items-center gap-1.5 text-primary-700 text-xs font-medium hover:underline"
+                    >
+                      <i className="fas fa-eye" aria-hidden />
+                      Ver
+                    </button>
+                    <button
+                      type="button"
+                      disabled={downloadingId === a.id}
+                      onClick={() => {
+                        setDownloadingId(a.id);
+                        void downloadRemoteFile(fileUrl, a.file_name).finally(() => setDownloadingId(null));
+                      }}
+                      className="inline-flex items-center gap-1.5 text-slate-600 text-xs font-medium hover:underline disabled:opacity-50"
+                    >
+                      <i className="fas fa-download" aria-hidden />
+                      {downloadingId === a.id ? 'Descargando…' : 'Descargar'}
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {preview ? (
+        <FilePreviewModal
+          open
+          url={preview.url}
+          title={preview.fileName}
+          onClose={() => setPreview(null)}
+          onDownload={() => void downloadRemoteFile(preview.url, preview.fileName)}
+        />
+      ) : null}
     </div>
   );
 };

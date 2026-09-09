@@ -106,6 +106,7 @@ export interface SupervisorDashboardData {
   controls_pendiente: number;
   controls_vencido: number;
   controls_observado: number;
+  controls_cerrado: number;
   declarations_observed: number;
   nps_pending: number;
   payments_pending: number;
@@ -425,7 +426,62 @@ export const supervisorsService = {
     const res = await client.get<{ data: SupervisorDashboardData }>('/supervisors/dashboard', { params });
     return res.data.data;
   },
+
+  /** Resumen agregado PDT 601/621 del período — calculado en el servidor con una sola consulta
+   * agrupada (mismos filtros que `dashboard`), en vez de traer todos los controles y
+   * declaraciones del período al navegador para agregarlos ahí. */
+  async pdtDashboardSummary(params: {
+    period_ym?: string;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<Record<'pdt_601' | 'pdt_621', SupervisorPdtTypeSummary>> {
+    const res = await client.get<{ data: Record<'pdt_601' | 'pdt_621', SupervisorPdtTypeSummary> }>(
+      '/supervisors/dashboard/pdt-summary',
+      { params },
+    );
+    return res.data.data;
+  },
+
+  /** Cumplimiento mensual de los últimos `months` (default 6) meses terminando en period_ym —
+   * mismos filtros que `dashboard`, en orden cronológico ascendente. */
+  async complianceTrend(params: {
+    period_ym?: string;
+    months?: number;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<ComplianceTrendPoint[]> {
+    const res = await client.get<{ data: ComplianceTrendPoint[] }>('/supervisors/dashboard/compliance-trend', {
+      params,
+    });
+    return res.data.data ?? [];
+  },
 };
+
+export interface SupervisorPdtTypeSummary {
+  pendiente: number;
+  observado: number;
+  vencido: number;
+  completado: number;
+  // Solo aplica a PDT 601 (planilla marcada "sin planilla" — ver Pdt601DetailPage): siempre 0
+  // en PDT 621, que no tiene ese concepto. No cuenta como "pendiente": no hay nada que declarar.
+  sin_planilla: number;
+  // Empresa suspendida en el período (PDT 601 Y PDT 621) — no cuenta como "pendiente" ni
+  // "vencido": mientras esté suspendida no se registra ningún otro dato.
+  suspendida: number;
+  total: number;
+}
+
+export interface ComplianceTrendPoint {
+  period_ym: string;
+  compliance_pct: number;
+  total_controls: number;
+}
 
 export interface SupervisorChangeLog {
   id: number;

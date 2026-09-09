@@ -203,6 +203,8 @@ func Setup(app *fiber.App) {
 	// Supervisores contables
 	sup := api.Group("/supervisors")
 	sup.Get("/dashboard", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardAPI)
+	sup.Get("/dashboard/pdt-summary", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.PdtSummaryAPI)
+	sup.Get("/dashboard/compliance-trend", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.ComplianceTrendAPI)
 	sup.Get("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsView), supervisorCtrl.ListPeriodsAPI)
 	sup.Post("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsCreate), supervisorCtrl.CreatePeriodAPI)
 	sup.Put("/periods/:id", middleware.RequirePermission(rbac.SupervisorsPeriodsUpdate), supervisorCtrl.UpdatePeriodAPI)

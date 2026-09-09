@@ -99,7 +99,8 @@ function frozenBodyStyle(col: keyof typeof FROZEN_COL_W) {
  * nunca usa opacidad `/NN`: durante el scroll horizontal el contenido de las columnas no fijas
  * pasa por debajo de estas celdas (ver components/activity/stickyTable.ts).
  */
-function frozenRowBgClass(timeliness: string | undefined): string {
+function frozenRowBgClass(timeliness: string | undefined, suspendida?: boolean): string {
+  if (suspendida) return 'bg-purple-50 group-hover:bg-purple-100';
   if (timeliness === 'on_time') return 'bg-emerald-50 group-hover:bg-emerald-100';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 group-hover:bg-red-100';
   return 'bg-white group-hover:bg-slate-50';
@@ -215,7 +216,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
         dig: filterDig ?? undefined,
         assistant_user_id: filterAssistantId ?? undefined,
       });
-      await exportPdt621ReportExcel({ periodYm, rows: exportRows });
+      await exportPdt621ReportExcel({ periodYm, rows: exportRows, workspace });
       setMsg('Excel generado correctamente.');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
@@ -380,29 +381,31 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
               ) : (
                 rows.map((row, idx) => {
                   const rec = row.record;
+                  const suspendida = !!rec?.suspendida;
+                  const statusValue = suspendida ? 'suspendida' : row.status;
                   return (
-                    <tr key={row.company_id} className={`group ${pdt621RowBgClass(row.declaration_timeliness)}`}>
+                    <tr key={row.company_id} className={`group ${pdt621RowBgClass(row.declaration_timeliness, suspendida)}`}>
                       <td
-                        className={`${TD} tabular-nums text-center text-slate-400 ${frozenRowBgClass(row.declaration_timeliness)}`}
+                        className={`${TD} tabular-nums text-center text-slate-400 ${frozenRowBgClass(row.declaration_timeliness, suspendida)}`}
                         style={frozenBodyStyle('num')}
                       >
                         {(page - 1) * perPage + idx + 1}
                       </td>
                       <td
-                        className={`${TD} font-mono ${frozenRowBgClass(row.declaration_timeliness)}`}
+                        className={`${TD} font-mono ${frozenRowBgClass(row.declaration_timeliness, suspendida)}`}
                         style={frozenBodyStyle('code')}
                       >
                         {row.code || '—'}
                       </td>
                       <td
-                        className={`${TD} font-medium ${frozenRowBgClass(row.declaration_timeliness)}`}
+                        className={`${TD} font-medium ${frozenRowBgClass(row.declaration_timeliness, suspendida)}`}
                         style={frozenBodyStyle('name')}
                         title={row.business_name}
                       >
                         <span className="block truncate">{row.business_name || '—'}</span>
                       </td>
                       <td
-                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(row.declaration_timeliness)}`}
+                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(row.declaration_timeliness, suspendida)}`}
                         style={frozenBodyStyle('ruc')}
                       >
                         {row.ruc || '—'}
@@ -413,10 +416,13 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
                           <div className="flex items-center gap-2">
+                            {/* Igual que en el detalle (combinedStatusValue): "suspendida" no es un
+                                estado real de la declaración, pero se muestra acá en vez del
+                                estado de revisión. */}
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(row.status)}`}
+                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(statusValue)}`}
                             >
-                              {pdt621StatusLabel(row.status)}
+                              {pdt621StatusLabel(statusValue)}
                             </span>
                             {/* Botón de acción (registrar/ver) movido acá desde la última columna,
                                 junto al estado en vez de al fondo de la fila. */}
@@ -424,7 +430,8 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                           </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver
-                              pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness). */}
+                              pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness).
+                              Suspendida sale "Exento" acá (ver exempt en pdt621BuildRows). */}
                           <span
                             title="Cumplimiento del plazo interno de entrega del asistente (calendario de actividades)"
                             className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.assistant_timeliness)}`}
@@ -433,28 +440,28 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                           </span>
                         </div>
                       </td>
-                      <td className={`${TDN} ${GROUP_BORDER}`}>{formatDateCell(rec?.primera_entrega_fecha)}</td>
-                      <td className={TDN}>{rec?.primera_entrega_hora || ''}</td>
+                      <td className={`${TDN} ${GROUP_BORDER}`}>{suspendida ? '' : formatDateCell(rec?.primera_entrega_fecha)}</td>
+                      <td className={TDN}>{suspendida ? '' : rec?.primera_entrega_hora || ''}</td>
                       <td className={`${TD} max-w-[12rem]`} title={rec?.observacion || ''}>
                         <span className="block truncate">{rec?.observacion || ''}</span>
                       </td>
-                      <td className={`${TDN} ${GROUP_BORDER}`}>{formatDateCell(rec?.segunda_entrega_fecha)}</td>
-                      <td className={TDN}>{rec?.segunda_entrega_hora || ''}</td>
+                      <td className={`${TDN} ${GROUP_BORDER}`}>{suspendida ? '' : formatDateCell(rec?.segunda_entrega_fecha)}</td>
+                      <td className={TDN}>{suspendida ? '' : rec?.segunda_entrega_hora || ''}</td>
                       <td className={`${TD} ${GROUP_BORDER} whitespace-nowrap font-medium`}>
-                        {formatDateCell(rec?.fecha_declaracion)}
+                        {suspendida ? '' : formatDateCell(rec?.fecha_declaracion)}
                       </td>
                       <td className={`${TDM} ${GROUP_BORDER}`}>
-                        {rec?.total_ventas ? formatMoney(rec.total_ventas) : ''}
+                        {!suspendida && rec?.total_ventas ? formatMoney(rec.total_ventas) : ''}
                       </td>
-                      <td className={TDM}>{rec?.total_compras ? formatMoney(rec.total_compras) : ''}</td>
-                      <td className={TDM}>{rec?.igv ? formatMoney(rec.igv) : ''}</td>
-                      <td className={TDM}>{rec?.rta ? formatMoney(rec.rta) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec?.total_compras ? formatMoney(rec.total_compras) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec?.igv ? formatMoney(rec.igv) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec?.rta ? formatMoney(rec.rta) : ''}</td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>
-                        {rec?.envio_sire ? SIRE_LABEL[rec.envio_sire] ?? rec.envio_sire : ''}
+                        {!suspendida && rec?.envio_sire ? SIRE_LABEL[rec.envio_sire] ?? rec.envio_sire : ''}
                       </td>
-                      <td className={TDN}>{formatDateCell(rec?.fecha_envio_sire)}</td>
+                      <td className={TDN}>{suspendida ? '' : formatDateCell(rec?.fecha_envio_sire)}</td>
                       <td className={`${TD} max-w-[10rem]`} title={rec?.motivo_no_envio || ''}>
-                        <span className="block truncate">{rec?.motivo_no_envio || ''}</span>
+                        <span className="block truncate">{suspendida ? '' : rec?.motivo_no_envio || ''}</span>
                       </td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>{row.attachment_count}</td>
                     </tr>

@@ -85,7 +85,12 @@ describe('getPdt621RentaPayableBeforeDetraction — Renta sincronizada (declarad
   });
 });
 
-describe('getPdt621IgvPendienteSigned — IGV sincronizado (pendiente, CON signo)', () => {
+// Nota: este helper ya NO es lo que se sincroniza hacia el Control de Vencimientos PDT 621 (ver
+// SupervisorLiquidacionCreatePage.tsx, syncPdt621Record) — ese Control ahora usa el IGV crudo
+// (p621.impuesto_periodo), no este saldo neteado. Se mantiene el helper y estos tests porque su
+// cálculo (IGV pendiente de pago, con signo, después de detracción) sigue siendo correcto y podría
+// reutilizarse para mostrarlo en pantalla en la propia liquidación.
+describe('getPdt621IgvPendienteSigned — IGV pendiente de pago (con signo, después de detracción)', () => {
   it('cuando hay impuesto a pagar y no hay detracción, es igual al IGV pendiente normal (positivo)', () => {
     const p = buildPdt621({
       igv_aplicable_ventas: [18],

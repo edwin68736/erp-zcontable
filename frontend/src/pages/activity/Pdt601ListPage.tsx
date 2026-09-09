@@ -74,7 +74,12 @@ function formatMoney(n: number): string {
  * través" (ver components/activity/stickyTable.ts). Mismos estados/colores que
  * `pdt601RowBgClass`, solo que con `group-hover` opaco en vez de `hover` translúcido.
  */
-function frozenRowBgClass(sinPlanilla: boolean | undefined, timeliness: string | undefined): string {
+function frozenRowBgClass(
+  sinPlanilla: boolean | undefined,
+  timeliness: string | undefined,
+  suspendida?: boolean,
+): string {
+  if (suspendida) return 'bg-purple-50 group-hover:bg-purple-100';
   if (sinPlanilla) return 'bg-slate-100 group-hover:bg-slate-200';
   if (timeliness === 'on_time') return 'bg-emerald-50 group-hover:bg-emerald-100';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 group-hover:bg-red-100';
@@ -196,7 +201,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
         dig: filterDig ?? undefined,
         assistant_user_id: filterAssistantId ?? undefined,
       });
-      await exportPdt601ReportExcel({ periodYm, rows: exportRows });
+      await exportPdt601ReportExcel({ periodYm, rows: exportRows, workspace });
       setMsg('Excel generado correctamente.');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
@@ -367,35 +372,39 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
               ) : (
                 rows.map((row) => {
                   const pl = row.planilla;
+                  // "Suspendida" tiene prioridad sobre "sin planilla" (mutuamente excluyentes, ver
+                  // Pdt601DetailPage.tsx) — bloquea CUALQUIER otro dato, no solo lo numérico.
+                  const blocked = !!pl?.suspendida || !!pl?.sin_planilla;
+                  const statusValue = pl?.suspendida ? 'suspendida' : pl?.sin_planilla ? 'sin_planilla' : row.status;
                   return (
-                    <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness)}`}>
+                    <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}>
                       <td
-                        className={`${TD} font-mono ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        className={`${TD} font-mono ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('code')}
                       >
                         {row.code || '—'}
                       </td>
                       <td
-                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('dig')}
                       >
                         {row.dig || '—'}
                       </td>
                       <td
-                        className={`${TD} font-medium ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        className={`${TD} font-medium ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('name')}
                         title={row.business_name}
                       >
                         <span className="block truncate">{row.business_name || '—'}</span>
                       </td>
                       <td
-                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('ruc')}
                       >
                         {row.ruc || '—'}
                       </td>
                       <td
-                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness)}`}
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('assistant')}
                         title={row.assistant_username}
                       >
@@ -403,19 +412,21 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       </td>
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
-                          {/* Igual que en el detalle (combinedStatusValue): "sin_planilla" no es un
-                              estado real de la declaración, pero se muestra acá en vez del estado
-                              de revisión para no decir "Pendiente" en una empresa sin planilla. */}
+                          {/* Igual que en el detalle (combinedStatusValue): "sin_planilla"/
+                              "suspendida" no son estados reales de la declaración, pero se
+                              muestran acá en vez del estado de revisión para no decir "Pendiente"
+                              en una empresa sin planilla o suspendida. */}
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(pl?.sin_planilla ? 'sin_planilla' : row.status)}`}
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(statusValue)}`}
                           >
-                            {pdt601StatusLabel(pl?.sin_planilla ? 'sin_planilla' : row.status)}
+                            {pdt601StatusLabel(statusValue)}
                           </span>
                           {/* Cumplimiento del plazo del calendario de actividades (tipo "pdt_601")
                               para la entrega del asistente (fecha_entrega) — antes solo coloreaba
                               el fondo de la fila (pdt601RowBgClass), sin texto explícito acá.
-                              Sin planilla no tiene plazo de entrega que cumplir: se omite. */}
-                          {!pl?.sin_planilla ? (
+                              Sin planilla/suspendida no tienen plazo de entrega que cumplir: se
+                              omite. */}
+                          {!blocked ? (
                             <span
                               title="Cumplimiento del plazo de entrega según el calendario de actividades"
                               className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.timeliness)}`}
@@ -441,9 +452,9 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
                         )}
                       </td>
-                      {pl?.sin_planilla ? (
-                        // "Sin planilla" ya se indica en la columna Estado — acá solo se dejan
-                        // en blanco los campos numéricos (no aplica), sin repetir la etiqueta.
+                      {blocked ? (
+                        // "Sin planilla"/"suspendida" ya se indican en la columna Estado — acá solo
+                        // se dejan en blanco los campos numéricos (no aplica), sin repetir la etiqueta.
                         <td colSpan={11} className={`${TD} ${GROUP_BORDER}`} />
                       ) : (
                         <>
@@ -460,18 +471,20 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           <td className={TDM}>{pl ? formatMoney(pl.rh) : ''}</td>
                         </>
                       )}
-                      {/* Sin planilla no hay seguimiento que registrar (ver Pdt601DetailPage.tsx):
-                          estas columnas quedan en blanco aunque el dato guardado tuviera algo
-                          (defensivo ante registros previos a este fix). */}
-                      <td className={`${TD} whitespace-nowrap ${GROUP_BORDER}`}>{pl?.sin_planilla ? '' : pl?.fecha_entrega || ''}</td>
+                      {/* Sin planilla/suspendida no hay seguimiento que registrar (ver
+                          Pdt601DetailPage.tsx): estas columnas quedan en blanco aunque el dato
+                          guardado tuviera algo (defensivo ante registros previos a este fix).
+                          Observaciones NO se blanquea: en "suspendida" el backend ya fuerza ahí la
+                          nota fija "Empresa suspendida", que sí debe verse. */}
+                      <td className={`${TD} whitespace-nowrap ${GROUP_BORDER}`}>{blocked ? '' : pl?.fecha_entrega || ''}</td>
                       <td className={`${TD} max-w-[12rem]`} title={pl?.observaciones || ''}>
                         <span className="block truncate">{pl?.observaciones || ''}</span>
                       </td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.fecha_declaracion_pdt || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.nps || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.ticket_afp || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.estado_envio_boletas || ''}</td>
-                      <td className={`${TD} whitespace-nowrap`}>{pl?.sin_planilla ? '' : pl?.fecha_envio_nps_tickets_boletas || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{blocked ? '' : pl?.fecha_declaracion_pdt || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{blocked ? '' : pl?.nps || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{blocked ? '' : pl?.ticket_afp || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{blocked ? '' : pl?.estado_envio_boletas || ''}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{blocked ? '' : pl?.fecha_envio_nps_tickets_boletas || ''}</td>
                     </tr>
                   );
                 })

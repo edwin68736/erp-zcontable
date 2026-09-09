@@ -52,6 +52,7 @@ type SupervisorDashboard struct {
 	ControlsPendiente      int64                       `json:"controls_pendiente"`
 	ControlsVencido        int64                       `json:"controls_vencido"`
 	ControlsObservado      int64                       `json:"controls_observado"`
+	ControlsCerrado        int64                       `json:"controls_cerrado"`
 	DeclarationsObserved   int64                       `json:"declarations_observed"`
 	NPSPending             int64                       `json:"nps_pending"`
 	PaymentsPending        int64                       `json:"payments_pending"`
@@ -81,8 +82,14 @@ func periodDefaultDueDate(ym string) time.Time {
 	return time.Date(ny, time.Month(nm), 20, 0, 0, 0, 0, time.Local)
 }
 
+// applyCompanyScope filtra por las empresas permitidas. OJO: `nil` y `[]uint{}` NO son lo mismo
+// acá — `nil` significa "alcance de estudio, sin restricción" (allowedCompanyIDs lo devuelve así
+// para usuarios con AccessStudio); un slice no-nil pero vacío significa "usuario sin ninguna
+// empresa asignada", y debe filtrar a CERO resultados, no a todos. Por eso se compara contra
+// `nil` explícitamente y no contra `len(allowed) == 0` (bug ya corregido: antes ambos casos
+// tomaban la misma rama "sin filtro").
 func (s *SupervisorService) applyCompanyScope(q *gorm.DB, allowed []uint) *gorm.DB {
-	if len(allowed) == 0 {
+	if allowed == nil {
 		return q
 	}
 	return q.Where("supervisor_monthly_controls.company_id IN ?", allowed)
@@ -180,10 +187,16 @@ func (s *SupervisorService) SyncOverdueControls(periodYM string, allowed []uint)
 	return res.RowsAffected, res.Error
 }
 
-func (s *SupervisorService) buildDashboardAlerts(periodYM string, allowed []uint, out *SupervisorDashboard) {
+// buildDashboardAlerts recibe los mismos filtros que el resto del dashboard — antes solo recibía
+// período + alcance de empresas, así que las alertas individuales de "control vencido" (qOD)
+// seguían listando empresas fuera del filtro de empresa/riesgo/responsable/supervisor aplicado en
+// el resto de la pantalla.
+func (s *SupervisorService) buildDashboardAlerts(p SupervisorDashboardParams, out *SupervisorDashboard) {
 	if out == nil {
 		return
 	}
+	periodYM := p.PeriodYM
+	allowed := p.AllowedCompanyIDs
 	alerts := make([]SupervisorAlert, 0, 16)
 
 	if out.ControlsVencido > 0 {
@@ -207,11 +220,14 @@ func (s *SupervisorService) buildDashboardAlerts(periodYM string, allowed []uint
 
 	var missing int64
 	qMiss := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
-	if len(allowed) > 0 {
+	if allowed != nil {
 		qMiss = qMiss.Where("id IN ?", allowed)
 	}
+	if p.CompanyID > 0 {
+		qMiss = qMiss.Where("id = ?", p.CompanyID)
+	}
 	sub := database.DB.Model(&models.SupervisorMonthlyControl{}).Select("company_id").Where("period_ym = ?", periodYM)
-	if len(allowed) > 0 {
+	if allowed != nil {
 		sub = sub.Where("company_id IN ?", allowed)
 	}
 	_ = qMiss.Where("id NOT IN (?)", sub).Count(&missing).Error
@@ -230,6 +246,18 @@ func (s *SupervisorService) buildDashboardAlerts(periodYM string, allowed []uint
 		Select("id, company_id").
 		Where("period_ym = ? AND general_status = ?", periodYM, models.SupervisorControlVencido).
 		Limit(8)
+	if p.CompanyID > 0 {
+		qOD = qOD.Where("company_id = ?", p.CompanyID)
+	}
+	if p.RiskLevel != "" {
+		qOD = qOD.Where("risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		qOD = qOD.Where("responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		qOD = qOD.Where("supervisor_user_id = ?", p.SupervisorUserID)
+	}
 	qOD = s.applyCompanyScope(qOD, allowed)
 	_ = qOD.Scan(&overdueRows).Error
 	for _, r := range overdueRows {
@@ -269,11 +297,19 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	out := &SupervisorDashboard{ByStatus: map[string]int64{}, Alerts: []SupervisorAlert{}}
 
 	qCompanies := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
-	if len(p.AllowedCompanyIDs) > 0 {
+	if p.AllowedCompanyIDs != nil {
 		qCompanies = qCompanies.Where("id IN ?", p.AllowedCompanyIDs)
 	}
 	if p.CompanyID > 0 {
 		qCompanies = qCompanies.Where("id = ?", p.CompanyID)
+	}
+	// Estado/riesgo/responsable/supervisor solo existen en el CONTROL del período (no en la
+	// empresa) — antes "Empresas activas" ignoraba estos 4 filtros y siempre mostraba el total del
+	// estudio completo, aunque el resto del dashboard (y "Sin control en período" más abajo) sí
+	// quedara acotado. Cuando alguno está activo, pasa a contar "activas Y con un control en el
+	// período que matchea ese filtro" — mismo criterio que dashboardControlsQuery.
+	if p.GeneralStatus != "" || p.RiskLevel != "" || p.ResponsibleUserID > 0 || p.SupervisorUserID > 0 {
+		qCompanies = qCompanies.Where("id IN (?)", s.dashboardControlsQuery(p).Select("supervisor_monthly_controls.company_id"))
 	}
 	_ = qCompanies.Count(&out.TotalActiveCompanies).Error
 
@@ -307,11 +343,33 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	if p.CompanyID > 0 {
 		subCtrl = subCtrl.Where("company_id = ?", p.CompanyID)
 	}
-	_ = qCompanies.Where("id NOT IN (?)", subCtrl).Count(&out.CompaniesWithoutControl).Error
+	if p.GeneralStatus != "" || p.RiskLevel != "" {
+		// Una empresa SIN control no puede matchear un filtro de estado/riesgo (ambos solo existen
+		// en el control que no tiene todavía) — el conjunto es vacío por definición.
+		out.CompaniesWithoutControl = 0
+	} else {
+		qMissing := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
+		if p.AllowedCompanyIDs != nil {
+			qMissing = qMissing.Where("id IN ?", p.AllowedCompanyIDs)
+		}
+		if p.CompanyID > 0 {
+			qMissing = qMissing.Where("id = ?", p.CompanyID)
+		}
+		// Sin control todavía no hay responsable/supervisor DE CONTROL que leer — se usa la
+		// asignación por defecto de la empresa (mismo dato que bootstrapea el control al crearse).
+		if p.ResponsibleUserID > 0 {
+			qMissing = qMissing.Where("accountant_user_id = ?", p.ResponsibleUserID)
+		}
+		if p.SupervisorUserID > 0 {
+			qMissing = qMissing.Where("supervisor_user_id = ?", p.SupervisorUserID)
+		}
+		_ = qMissing.Where("id NOT IN (?)", subCtrl).Count(&out.CompaniesWithoutControl).Error
+	}
 
 	var controlsCerrado int64
 	countStatus(models.SupervisorControlCerrado, &controlsCerrado)
 	out.ByStatus[models.SupervisorControlCerrado] = controlsCerrado
+	out.ControlsCerrado = controlsCerrado
 
 	var totalControls int64
 	_ = base.Count(&totalControls).Error
@@ -319,15 +377,35 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 		out.MonthlyCompliancePct = math.Round((float64(out.ControlsAlDia+controlsCerrado)/float64(totalControls))*1000) / 10
 	}
 
+	// qDecl/qNPS/qPay comparten los mismos filtros de alcance que el resto del dashboard (empresa,
+	// estado general, riesgo, responsable, supervisor) — antes solo qDecl aplicaba empresa/estado,
+	// y qNPS/qPay no aplicaban NINGUNO de los filtros del panel salvo período y alcance de
+	// empresas del usuario, así que no cambiaban al filtrar por empresa/riesgo/responsable.
+	applyDashboardFilters := func(q *gorm.DB, companyCol, riskCol, respCol, supCol string) *gorm.DB {
+		if p.CompanyID > 0 {
+			q = q.Where(companyCol+" = ?", p.CompanyID)
+		}
+		if p.GeneralStatus != "" {
+			q = q.Where("supervisor_monthly_controls.general_status = ?", p.GeneralStatus)
+		}
+		if p.RiskLevel != "" {
+			q = q.Where(riskCol+" = ?", p.RiskLevel)
+		}
+		if p.ResponsibleUserID > 0 {
+			q = q.Where(respCol+" = ?", p.ResponsibleUserID)
+		}
+		if p.SupervisorUserID > 0 {
+			q = q.Where(supCol+" = ?", p.SupervisorUserID)
+		}
+		return q
+	}
+
 	qDecl := database.DB.Model(&models.SupervisorDeclaration{}).
 		Joins("JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_declarations.monthly_control_id").
 		Where("supervisor_monthly_controls.period_ym = ? AND supervisor_declarations.status = ?", p.PeriodYM, models.SupervisorDeclObservado)
-	if p.CompanyID > 0 {
-		qDecl = qDecl.Where("supervisor_monthly_controls.company_id = ?", p.CompanyID)
-	}
-	if p.GeneralStatus != "" {
-		qDecl = qDecl.Where("supervisor_monthly_controls.general_status = ?", p.GeneralStatus)
-	}
+	qDecl = applyDashboardFilters(qDecl,
+		"supervisor_monthly_controls.company_id", "supervisor_monthly_controls.risk_level",
+		"supervisor_monthly_controls.responsible_user_id", "supervisor_monthly_controls.supervisor_user_id")
 	qDecl = s.applyCompanyScope(qDecl, p.AllowedCompanyIDs)
 	_ = qDecl.Count(&out.DeclarationsObserved).Error
 
@@ -335,6 +413,9 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 		Joins("JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_nps.monthly_control_id").
 		Where("supervisor_monthly_controls.period_ym = ? AND supervisor_nps.payment_status IN ?", p.PeriodYM,
 			[]string{models.SupervisorNPSPendienteGenerar, models.SupervisorNPSGenerado, models.SupervisorNPSEnviadoCliente})
+	qNPS = applyDashboardFilters(qNPS,
+		"supervisor_monthly_controls.company_id", "supervisor_monthly_controls.risk_level",
+		"supervisor_monthly_controls.responsible_user_id", "supervisor_monthly_controls.supervisor_user_id")
 	qNPS = s.applyCompanyScope(qNPS, p.AllowedCompanyIDs)
 	_ = qNPS.Count(&out.NPSPending).Error
 
@@ -342,18 +423,243 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 		Joins("JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_nps.monthly_control_id").
 		Where("supervisor_monthly_controls.period_ym = ? AND supervisor_nps.payment_status IN ?", p.PeriodYM,
 			[]string{models.SupervisorNPSPendientePago, models.SupervisorNPSVencido})
+	qPay = applyDashboardFilters(qPay,
+		"supervisor_monthly_controls.company_id", "supervisor_monthly_controls.risk_level",
+		"supervisor_monthly_controls.responsible_user_id", "supervisor_monthly_controls.supervisor_user_id")
 	qPay = s.applyCompanyScope(qPay, p.AllowedCompanyIDs)
 	_ = qPay.Count(&out.PaymentsPending).Error
 	out.ByStatus[models.SupervisorControlAlDia] = out.ControlsAlDia
 	out.ByStatus[models.SupervisorControlPendiente] = out.ControlsPendiente
 	out.ByStatus[models.SupervisorControlVencido] = out.ControlsVencido
 	out.ByStatus[models.SupervisorControlObservado] = out.ControlsObservado
-	s.buildDashboardAlerts(p.PeriodYM, p.AllowedCompanyIDs, out)
-	if prod, err := s.ReportProductivity(p.PeriodYM, p.AllowedCompanyIDs); err == nil {
+	s.buildDashboardAlerts(p, out)
+	// Productividad DEL SUPERVISOR (no del responsable/contador) — ver comentario en
+	// SupervisorComplianceRanking.
+	if prod, err := s.SupervisorComplianceRanking(p); err == nil {
 		out.Productivity = prod
 	}
 	if out.Productivity == nil {
 		out.Productivity = []SupervisorProductivityRow{}
+	}
+	return out, nil
+}
+
+// PdtTypeSummary conteo de declaraciones PDT 601/621 del período por bucket — mismas 4
+// categorías y misma prioridad de clasificación (observado > completado > vencido > pendiente)
+// que antes calculaba el navegador en utils/pdtClientAggregation.ts trayendo TODOS los controles
+// y declaraciones del período (1 listControls + N listDeclarations, hasta ~9 queries cada una).
+type PdtTypeSummary struct {
+	Pendiente   int64 `json:"pendiente"`
+	Observado   int64 `json:"observado"`
+	Vencido     int64 `json:"vencido"`
+	Completado  int64 `json:"completado"`
+	SinPlanilla int64 `json:"sin_planilla"`
+	Suspendida  int64 `json:"suspendida"`
+	Total       int64 `json:"total"`
+}
+
+// PdtDashboardSummary calcula el resumen PDT 601/621 en el servidor con una sola consulta
+// agrupada — reemplaza la agregación 1+N que hacía el navegador. Acepta los mismos filtros que
+// el resto del dashboard (empresa, estado general, riesgo, responsable, supervisor, alcance).
+//
+// "Sin planilla" (planilla PDT 601 marcada por el supervisor/asistente, ver Pdt601DetailPage) es
+// un bucket propio, NO "pendiente": una empresa sin planilla no tiene nada que declarar en PDT
+// 601, así que clasificarla como pendiente la hacía ver "atrasada" para siempre (incluso
+// "vencida" una vez pasada la fecha límite, porque d.status se queda en "pendiente" — sin_planilla
+// no es un status de la declaración, ver combinedStatusValue en el frontend). Se prioriza el flag
+// de planilla sobre d.status para autocorregir registros previos a este fix que hayan quedado con
+// un status desalineado (p. ej. "observado" antes de marcarse sin planilla).
+func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (map[string]PdtTypeSummary, error) {
+	if !validPeriodYM(p.PeriodYM) {
+		return nil, errors.New("período inválido (use YYYY-MM)")
+	}
+
+	type row struct {
+		DeclarationType string
+		Pendiente       int64
+		Observado       int64
+		Vencido         int64
+		Completado      int64
+		SinPlanilla     int64
+		Suspendida      int64
+		Total           int64
+	}
+
+	// La fecha límite de cada declaración es la suya propia si la tiene, si no la de su control
+	// (mismo criterio que resolvePdt601DueDate en el frontend). "Vencido" solo aplica a
+	// declaraciones que siguen abiertas (ni observadas ni ya completadas) y cuya fecha límite
+	// resuelta ya pasó. pl.sin_planilla/pl.suspendida son datos del CONTROL vía PDT 601 (una
+	// planilla por control, no por declaración) y r.suspendida el equivalente vía PDT 621 (un
+	// registro por control) — ambos LEFT JOIN traen la misma fila para pdt_601 Y pdt_621 de ese
+	// control, así que hay que exigir el declaration_type correspondiente en cada condición: si no,
+	// una empresa marcada sin planilla/suspendida en un módulo aparecía también así en el otro.
+	//
+	// Los nombres de tipo/estado de declaración (SupervisorDeclXxx) son constantes Go del propio
+	// código — nunca vienen del request — así que se insertan directo en el SQL (fmt.Sprintf) en
+	// vez de como parámetros `?`: evita tener que contar y ordenar a mano una veintena de
+	// placeholders posicionales repetidos, sin ningún riesgo de inyección (no hay input externo acá).
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
+	isSuspendida := fmt.Sprintf(
+		"((d.declaration_type = %s AND COALESCE(pl.suspendida, 0) = 1) OR (d.declaration_type = %s AND COALESCE(r.suspendida, 0) = 1))",
+		sq(models.SupervisorDeclPDT601), sq(models.SupervisorDeclPDT621),
+	)
+	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
+	completadoStatuses := fmt.Sprintf("(%s, %s, %s)", sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado))
+	observadoStatus := sq(models.SupervisorDeclObservado)
+
+	q := database.DB.Table("supervisor_declarations AS d").
+		Select(fmt.Sprintf(`d.declaration_type AS declaration_type,
+			SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
+			SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
+			SUM(CASE WHEN NOT %s AND d.status = %s THEN 1 ELSE 0 END) AS observado,
+			SUM(CASE WHEN NOT %s AND d.status IN %s THEN 1 ELSE 0 END) AS completado,
+			SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
+				AND COALESCE(d.due_date, c.due_date) IS NOT NULL
+				AND COALESCE(d.due_date, c.due_date) < CURDATE()
+				THEN 1 ELSE 0 END) AS vencido,
+			SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
+				AND NOT (COALESCE(d.due_date, c.due_date) IS NOT NULL AND COALESCE(d.due_date, c.due_date) < CURDATE())
+				THEN 1 ELSE 0 END) AS pendiente,
+			COUNT(*) AS total`,
+			isSinPlanilla, isSuspendida,
+			isExempt, observadoStatus,
+			isExempt, completadoStatuses,
+			isExempt, completadoStatuses, observadoStatus,
+			isExempt, completadoStatuses, observadoStatus,
+		)).
+		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
+		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
+		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
+		Where("c.period_ym = ? AND d.declaration_type IN ?", p.PeriodYM, []string{models.SupervisorDeclPDT601, models.SupervisorDeclPDT621})
+
+	if p.CompanyID > 0 {
+		q = q.Where("c.company_id = ?", p.CompanyID)
+	}
+	if p.GeneralStatus != "" {
+		q = q.Where("c.general_status = ?", p.GeneralStatus)
+	}
+	if p.RiskLevel != "" {
+		q = q.Where("c.risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		q = q.Where("c.responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		q = q.Where("c.supervisor_user_id = ?", p.SupervisorUserID)
+	}
+	if p.AllowedCompanyIDs != nil {
+		q = q.Where("c.company_id IN ?", p.AllowedCompanyIDs)
+	}
+
+	var rows []row
+	if err := q.Group("d.declaration_type").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := map[string]PdtTypeSummary{
+		models.SupervisorDeclPDT601: {},
+		models.SupervisorDeclPDT621: {},
+	}
+	for _, r := range rows {
+		out[r.DeclarationType] = PdtTypeSummary{
+			Pendiente: r.Pendiente, Observado: r.Observado, Vencido: r.Vencido,
+			Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, Total: r.Total,
+		}
+	}
+	return out, nil
+}
+
+// ComplianceTrendPoint cumplimiento mensual de un período — misma fórmula que
+// SupervisorDashboard.MonthlyCompliancePct ((al_dia + cerrado) / total de controles).
+type ComplianceTrendPoint struct {
+	PeriodYM      string  `json:"period_ym"`
+	CompliancePct float64 `json:"compliance_pct"`
+	TotalControls int64   `json:"total_controls"`
+}
+
+// trailingPeriods devuelve los últimos `months` períodos AAAA-MM terminando en `periodYM`
+// (incluido), en orden cronológico ascendente. nil si periodYM no parsea.
+func trailingPeriods(periodYM string, months int) []string {
+	var y, m int
+	if _, err := fmt.Sscanf(periodYM, "%d-%d", &y, &m); err != nil || m < 1 || m > 12 {
+		return nil
+	}
+	out := make([]string, months)
+	for i := months - 1; i >= 0; i-- {
+		out[i] = fmt.Sprintf("%04d-%02d", y, m)
+		m--
+		if m < 1 {
+			m = 12
+			y--
+		}
+	}
+	return out
+}
+
+// ComplianceTrend cumplimiento mensual de los últimos `months` meses terminando en p.PeriodYM
+// (incluido) — mismos filtros que el resto del dashboard, en una sola consulta agrupada por
+// período (antes no existía ninguna vista de tendencia: solo se podía ver un mes a la vez).
+func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months int) ([]ComplianceTrendPoint, error) {
+	if !validPeriodYM(p.PeriodYM) {
+		return nil, errors.New("período inválido (use YYYY-MM)")
+	}
+	if months <= 0 {
+		months = 6
+	}
+	if months > 24 {
+		months = 24
+	}
+	periods := trailingPeriods(p.PeriodYM, months)
+	if periods == nil {
+		return nil, errors.New("período inválido (use YYYY-MM)")
+	}
+
+	type row struct {
+		PeriodYM  string
+		Compliant int64
+		Total     int64
+	}
+	q := database.DB.Model(&models.SupervisorMonthlyControl{}).
+		Select(`period_ym,
+			SUM(CASE WHEN general_status IN ? THEN 1 ELSE 0 END) AS compliant,
+			COUNT(*) AS total`,
+			[]string{models.SupervisorControlAlDia, models.SupervisorControlCerrado}).
+		Where("period_ym IN ?", periods)
+	if p.CompanyID > 0 {
+		q = q.Where("company_id = ?", p.CompanyID)
+	}
+	if p.GeneralStatus != "" {
+		q = q.Where("general_status = ?", p.GeneralStatus)
+	}
+	if p.RiskLevel != "" {
+		q = q.Where("risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		q = q.Where("responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		q = q.Where("supervisor_user_id = ?", p.SupervisorUserID)
+	}
+	q = s.applyCompanyScope(q, p.AllowedCompanyIDs)
+
+	var rows []row
+	if err := q.Group("period_ym").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	byPeriod := make(map[string]row, len(rows))
+	for _, r := range rows {
+		byPeriod[r.PeriodYM] = r
+	}
+
+	out := make([]ComplianceTrendPoint, 0, len(periods))
+	for _, ym := range periods {
+		r := byPeriod[ym]
+		pt := ComplianceTrendPoint{PeriodYM: ym, TotalControls: r.Total}
+		if r.Total > 0 {
+			pt.CompliancePct = math.Round((float64(r.Compliant)/float64(r.Total))*1000) / 10
+		}
+		out = append(out, pt)
 	}
 	return out, nil
 }
@@ -1268,8 +1574,12 @@ func (s *SupervisorService) ReportList(kind string, p SupervisorReportListParams
 	return rows, total, nil
 }
 
-func (s *SupervisorService) ReportProductivity(periodYM string, allowed []uint) ([]SupervisorProductivityRow, error) {
-	if !validPeriodYM(periodYM) {
+// complianceRankingBy agrupa el cumplimiento de controles mensuales por la columna indicada
+// (siempre una constante interna — "responsible_user_id" o "supervisor_user_id", nunca algo
+// derivado de un request, así que no hay riesgo de inyección al concatenarla). Acepta los mismos
+// filtros que el resto del dashboard (empresa, estado general, riesgo, responsable, supervisor).
+func (s *SupervisorService) complianceRankingBy(p SupervisorDashboardParams, groupCol string) ([]SupervisorProductivityRow, error) {
+	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido")
 	}
 	type agg struct {
@@ -1279,30 +1589,75 @@ func (s *SupervisorService) ReportProductivity(periodYM string, allowed []uint) 
 	}
 	var raw []agg
 	q := database.DB.Table("supervisor_monthly_controls").
-		Select(`responsible_user_id AS user_id, COUNT(*) AS total,
+		Select(groupCol+` AS user_id, COUNT(*) AS total,
 			SUM(CASE WHEN general_status = ? THEN 1 ELSE 0 END) AS al_dia`, models.SupervisorControlAlDia).
-		Where("period_ym = ? AND responsible_user_id IS NOT NULL", periodYM)
-	q = s.applyCompanyScope(q, allowed)
-	if err := q.Group("responsible_user_id").Scan(&raw).Error; err != nil {
+		Where("period_ym = ? AND "+groupCol+" IS NOT NULL", p.PeriodYM)
+	if p.CompanyID > 0 {
+		q = q.Where("company_id = ?", p.CompanyID)
+	}
+	if p.GeneralStatus != "" {
+		q = q.Where("general_status = ?", p.GeneralStatus)
+	}
+	if p.RiskLevel != "" {
+		q = q.Where("risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		q = q.Where("responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		q = q.Where("supervisor_user_id = ?", p.SupervisorUserID)
+	}
+	q = s.applyCompanyScope(q, p.AllowedCompanyIDs)
+	if err := q.Group(groupCol).Scan(&raw).Error; err != nil {
 		return nil, err
 	}
-	out := make([]SupervisorProductivityRow, 0, len(raw))
+	if len(raw) == 0 {
+		return []SupervisorProductivityRow{}, nil
+	}
+
+	// Resuelve todos los nombres de una sola consulta en vez de una por fila (N+1).
+	userIDs := make([]uint, 0, len(raw))
 	for _, r := range raw {
-		var u models.User
-		_ = database.DB.Select("id", "name", "username").First(&u, r.UserID).Error
+		userIDs = append(userIDs, r.UserID)
+	}
+	var users []models.User
+	_ = database.DB.Select("id", "name", "username").Where("id IN ?", userIDs).Find(&users).Error
+	nameByID := make(map[uint]string, len(users))
+	for _, u := range users {
 		name := u.Name
 		if name == "" {
 			name = u.Username
 		}
+		nameByID[u.ID] = name
+	}
+
+	out := make([]SupervisorProductivityRow, 0, len(raw))
+	for _, r := range raw {
 		pct := float64(0)
 		if r.Total > 0 {
 			pct = math.Round((float64(r.AlDia)/float64(r.Total))*1000) / 10
 		}
 		out = append(out, SupervisorProductivityRow{
-			UserID: r.UserID, UserName: name, Total: r.Total, AlDia: r.AlDia, CompliancePct: pct,
+			UserID: r.UserID, UserName: nameByID[r.UserID], Total: r.Total, AlDia: r.AlDia, CompliancePct: pct,
 		})
 	}
 	return out, nil
+}
+
+// ReportProductivity cumplimiento por RESPONSABLE (el contador/asistente que prepara la
+// información de cada control) — la usa /supervisors/reports ("Cumplimiento por analista
+// responsable en el período").
+func (s *SupervisorService) ReportProductivity(p SupervisorDashboardParams) ([]SupervisorProductivityRow, error) {
+	return s.complianceRankingBy(p, "responsible_user_id")
+}
+
+// SupervisorComplianceRanking cumplimiento por SUPERVISOR — a diferencia de ReportProductivity,
+// esto es lo que alimenta el widget "Productividad" del propio dashboard del supervisor: como el
+// resto de la pantalla ya está acotado a las empresas del supervisor que la está viendo, acá ve su
+// PROPIO avance (un supervisor con alcance de estudio sin restricción, en cambio, ve una fila por
+// cada supervisor — útil para comparar entre ellos).
+func (s *SupervisorService) SupervisorComplianceRanking(p SupervisorDashboardParams) ([]SupervisorProductivityRow, error) {
+	return s.complianceRankingBy(p, "supervisor_user_id")
 }
 
 func (s *SupervisorService) ReportObservationsHistory(p SupervisorReportListParams) ([]SupervisorObservationReportRow, int64, error) {

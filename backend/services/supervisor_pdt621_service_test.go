@@ -257,6 +257,60 @@ func TestListPdt621DeclarationTimelinessMissing(t *testing.T) {
 	}
 }
 
+// TestListPdt621TimelinessExemptWhenSuspendida cubre el caso "empresa suspendida": debe salir
+// exempt en ambos cumplimientos (declaración SUNAT y entrega interna del asistente) sin importar
+// la regla configurada — mismo criterio que "sin planilla" en PDT 601.
+func TestListPdt621TimelinessExemptWhenSuspendida(t *testing.T) {
+	db := setupPdt621TestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "R020")
+	if err := db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, Dig: "0"}).Error; err != nil {
+		t.Fatalf("cred: %v", err)
+	}
+
+	// Período con vencimiento ya pasado — si "suspendida" no eximiera, saldría "missing".
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	month := int(time.Now().AddDate(0, -2, 0).Month())
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	dates := [10]string{}
+	for i := range dates {
+		dates[i] = yesterday
+	}
+	seedSunatSchedule(t, db, month, dates)
+
+	saved, err := svc.SavePdt621Record(co.ID, periodYM, Pdt621RecordInput{Suspendida: true, TotalVentas: 999})
+	if err != nil {
+		t.Fatalf("SavePdt621Record: %v", err)
+	}
+	if saved.Record == nil || !saved.Record.Suspendida {
+		t.Fatalf("record no quedó marcado suspendida: %+v", saved.Record)
+	}
+	if saved.Record.TotalVentas != 0 || saved.Record.Observacion != supervisorSuspendidaNote {
+		t.Fatalf("suspendida no bloqueó/forzó los demás campos: %+v", saved.Record)
+	}
+
+	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt621: %v", err)
+	}
+	if len(res.Rows) != 1 {
+		t.Fatalf("filas inesperadas: %+v", res.Rows)
+	}
+	row := res.Rows[0]
+	if row.DeclarationTimeliness != TimelinessExempt {
+		t.Fatalf("empresa suspendida: declaration_timeliness=%q want %q", row.DeclarationTimeliness, TimelinessExempt)
+	}
+	if row.AssistantTimeliness != TimelinessExempt {
+		t.Fatalf("empresa suspendida: assistant_timeliness=%q want %q", row.AssistantTimeliness, TimelinessExempt)
+	}
+	if row.IsOverdue {
+		t.Fatalf("empresa suspendida no debería quedar is_overdue=true")
+	}
+}
+
 // TestListPdt621DeclarationTimelinessNoRuleWithoutSchedule cubre el caso sin cronograma
 // cargado para el mes del período: debe salir no_rule, no romper el listado.
 func TestListPdt621DeclarationTimelinessNoRuleWithoutSchedule(t *testing.T) {

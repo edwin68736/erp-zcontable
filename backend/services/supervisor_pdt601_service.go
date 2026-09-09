@@ -64,9 +64,19 @@ type Pdt601Detail struct {
 // pdt601StatusFilterSinPlanilla filtro sintético del listado: empresas marcadas sin planilla.
 const pdt601StatusFilterSinPlanilla = "sin_planilla"
 
+// pdt601StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
+const pdt601StatusFilterSuspendida = "suspendida"
+
+// supervisorSuspendidaNote nota fija que se fuerza en el campo de observación (PDT 601 y PDT 621)
+// cuando la empresa está marcada "suspendida" — así queda visible en el listado y en el reporte
+// Excel sin depender de que alguien la escriba a mano. Compartida por ambos módulos (mismo
+// package), definida acá una sola vez.
+const supervisorSuspendidaNote = "Empresa suspendida"
+
 // Pdt601PlanillaDTO datos de planilla PDT 601 del período (salida a UI).
 type Pdt601PlanillaDTO struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
+	Suspendida                  bool    `json:"suspendida"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
 	TrabajadoresTotal           int     `json:"trabajadores_total"`
@@ -92,6 +102,7 @@ type Pdt601PlanillaDTO struct {
 // Pdt601PlanillaInput datos de planilla enviados por el supervisor (fechas como AAAA-MM-DD).
 type Pdt601PlanillaInput struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
+	Suspendida                  bool    `json:"suspendida"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
 	Essalud                     float64 `json:"essalud"`
@@ -158,6 +169,7 @@ func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO 
 	}
 	return &Pdt601PlanillaDTO{
 		SinPlanilla:                 p.SinPlanilla,
+		Suspendida:                  p.Suspendida,
 		TrabajadoresONP:             p.TrabajadoresONP,
 		TrabajadoresAFP:             p.TrabajadoresAFP,
 		TrabajadoresTotal:           p.TrabajadoresONP + p.TrabajadoresAFP,
@@ -343,25 +355,52 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 		pl = models.SupervisorPdt601Planilla{MonthlyControlID: detail.ControlID}
 	}
 
-	pl.SinPlanilla = in.SinPlanilla
-	pl.TrabajadoresONP = maxInt0(in.TrabajadoresONP)
-	pl.TrabajadoresAFP = maxInt0(in.TrabajadoresAFP)
-	pl.Essalud = in.Essalud
-	pl.Onp = in.Onp
-	pl.Afp = in.Afp
-	pl.Sis = in.Sis
-	pl.Rta4ta = in.Rta4ta
-	pl.Rta5ta = in.Rta5ta
-	pl.Sctr = in.Sctr
-	pl.Rh = in.Rh
-	pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
-	pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)
-	pl.Observaciones = strings.TrimSpace(in.Observaciones)
-	pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
-	pl.NPS = strings.TrimSpace(in.NPS)
-	pl.TicketAFP = strings.TrimSpace(in.TicketAFP)
-	pl.EstadoEnvioBoletas = strings.TrimSpace(in.EstadoEnvioBoletas)
-	pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
+	// "Suspendida" es más restrictivo que "sin planilla" y mutuamente excluyente con ella: mientras
+	// esté marcada, no se permite registrar NADA más (ver Pdt601DetailPage.tsx, SUSPENDIDA_RESET) —
+	// reforzado acá server-side para que quede así incluso si el cliente no lo aplicara. El campo
+	// Observaciones se fuerza a la nota fija, para que quede visible en el listado y el Excel.
+	pl.Suspendida = in.Suspendida
+	if pl.Suspendida {
+		pl.SinPlanilla = false
+		pl.TrabajadoresONP = 0
+		pl.TrabajadoresAFP = 0
+		pl.Essalud = 0
+		pl.Onp = 0
+		pl.Afp = 0
+		pl.Sis = 0
+		pl.Rta4ta = 0
+		pl.Rta5ta = 0
+		pl.Sctr = 0
+		pl.Rh = 0
+		pl.FechaEntrega = nil
+		pl.HoraEntrega = ""
+		pl.Observaciones = supervisorSuspendidaNote
+		pl.FechaDeclaracionPdt = nil
+		pl.NPS = ""
+		pl.TicketAFP = ""
+		pl.EstadoEnvioBoletas = ""
+		pl.FechaEnvioNpsTicketsBoletas = nil
+	} else {
+		pl.SinPlanilla = in.SinPlanilla
+		pl.TrabajadoresONP = maxInt0(in.TrabajadoresONP)
+		pl.TrabajadoresAFP = maxInt0(in.TrabajadoresAFP)
+		pl.Essalud = in.Essalud
+		pl.Onp = in.Onp
+		pl.Afp = in.Afp
+		pl.Sis = in.Sis
+		pl.Rta4ta = in.Rta4ta
+		pl.Rta5ta = in.Rta5ta
+		pl.Sctr = in.Sctr
+		pl.Rh = in.Rh
+		pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
+		pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)
+		pl.Observaciones = strings.TrimSpace(in.Observaciones)
+		pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
+		pl.NPS = strings.TrimSpace(in.NPS)
+		pl.TicketAFP = strings.TrimSpace(in.TicketAFP)
+		pl.EstadoEnvioBoletas = strings.TrimSpace(in.EstadoEnvioBoletas)
+		pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
+	}
 
 	if err := database.DB.Save(&pl).Error; err != nil {
 		return nil, err
@@ -419,6 +458,12 @@ func pdt601FilteredCompaniesQuery(p Pdt601ListParams) *gorm.DB {
 			SELECT 1 FROM supervisor_monthly_controls c
 			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.sin_planilla = ?
+		)`, p.PeriodYM, true)
+	} else if statusFilter == pdt601StatusFilterSuspendida {
+		q = q.Where(`EXISTS (
+			SELECT 1 FROM supervisor_monthly_controls c
+			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
+			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
@@ -537,7 +582,7 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 				row.LastStoredAt = st.LastAt
 			}
 		}
-		exempt := row.Planilla != nil && row.Planilla.SinPlanilla
+		exempt := row.Planilla != nil && (row.Planilla.SinPlanilla || row.Planilla.Suspendida)
 		if exempt {
 			row.IsOverdue = false
 			row.DaysRemaining = nil

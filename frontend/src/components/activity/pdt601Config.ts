@@ -18,6 +18,7 @@ export const PDT601_STATUSES = [
 export const PDT601_STATUS_FILTER = [
   ...buildStatusFilter(PDT601_STATUSES),
   { value: 'sin_planilla', label: 'Sin planilla' },
+  { value: 'suspendida', label: 'Suspendida' },
 ];
 
 /** Estados en los que el supervisor ya cerró su revisión — a partir de acá el asistente ya no
@@ -33,13 +34,18 @@ const PDT601_BADGE: Record<string, string> = {
   presentado: 'bg-teal-100 text-teal-800',
   cerrado: 'bg-slate-200 text-slate-800',
   sin_registro: 'bg-slate-100 text-slate-500',
-  // "sin_planilla" no es un estado de la declaración (es planilla.sin_planilla) — se muestra acá
-  // como si lo fuera para que el badge/select del detalle lo reflejen de forma consistente.
+  // "sin_planilla"/"suspendida" no son estados de la declaración (son planilla.sin_planilla /
+  // planilla.suspendida) — se muestran acá como si lo fueran para que el badge/select del detalle
+  // los reflejen de forma consistente.
   sin_planilla: 'bg-amber-100 text-amber-900',
+  // Suspendida es más restrictivo que sin_planilla (bloquea TODO registro) — color propio (morado)
+  // para que no se confunda con ningún otro estado de la tabla.
+  suspendida: 'bg-purple-100 text-purple-900',
 };
 
 export function pdt601StatusLabel(status: string): string {
   if (status === 'sin_planilla') return 'Sin planilla';
+  if (status === 'suspendida') return 'Suspendida';
   return activityStatusLabel(status, PDT601_STATUSES);
 }
 
@@ -56,8 +62,9 @@ export function computePdt601DueMeta(
   status: string,
   dueDate?: string,
   sinPlanilla?: boolean,
+  suspendida?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || sinPlanilla || PDT601_APPROVED_STATUSES.has(status) || status === 'observado') {
+  if (!dueDate || sinPlanilla || suspendida || PDT601_APPROVED_STATUSES.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();
@@ -109,10 +116,16 @@ export function formatPdt601DueDetail(
 
 /**
  * Fondo de fila del listado según cumplimiento del plazo (regla del calendario financiero,
- * ver /settings/activity-configuration): gris si la empresa no tiene planilla, verde si se
- * entregó dentro de plazo, rojo si sigue pendiente (no entregada) o se entregó tarde y ya venció.
+ * ver /settings/activity-configuration): morado si la empresa está suspendida, gris si no tiene
+ * planilla, verde si se entregó dentro de plazo, rojo si sigue pendiente (no entregada) o se
+ * entregó tarde y ya venció.
  */
-export function pdt601RowBgClass(sinPlanilla: boolean | undefined, timeliness: string | undefined): string {
+export function pdt601RowBgClass(
+  sinPlanilla: boolean | undefined,
+  timeliness: string | undefined,
+  suspendida?: boolean,
+): string {
+  if (suspendida) return 'bg-purple-50 hover:bg-purple-100/70';
   if (sinPlanilla) return 'bg-slate-100 hover:bg-slate-200/70';
   if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';

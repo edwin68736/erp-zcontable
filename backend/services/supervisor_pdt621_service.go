@@ -71,8 +71,12 @@ type Pdt621Detail struct {
 	Record            *Pdt621RecordDTO             `json:"record,omitempty"`
 }
 
+// pdt621StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
+const pdt621StatusFilterSuspendida = "suspendida"
+
 // Pdt621RecordDTO seguimiento manual PDT 621 del período (salida a UI).
 type Pdt621RecordDTO struct {
+	Suspendida          bool    `json:"suspendida"`
 	PrimeraEntregaFecha *string `json:"primera_entrega_fecha,omitempty"`
 	PrimeraEntregaHora  string  `json:"primera_entrega_hora"`
 	Observacion         string  `json:"observacion"`
@@ -94,6 +98,7 @@ type Pdt621RecordDTO struct {
 
 // Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD).
 type Pdt621RecordInput struct {
+	Suspendida                 bool    `json:"suspendida"`
 	PrimeraEntregaFecha        string  `json:"primera_entrega_fecha"`
 	PrimeraEntregaHora         string  `json:"primera_entrega_hora"`
 	Observacion                string  `json:"observacion"`
@@ -116,6 +121,7 @@ func pdt621RecordToDTO(r *models.SupervisorPdt621Record) *Pdt621RecordDTO {
 		return nil
 	}
 	return &Pdt621RecordDTO{
+		Suspendida:                 r.Suspendida,
 		PrimeraEntregaFecha:        pdt601DateString(r.PrimeraEntregaFecha),
 		PrimeraEntregaHora:         r.PrimeraEntregaHora,
 		Observacion:                r.Observacion,
@@ -299,21 +305,43 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 		return nil, err
 	}
 	record.MonthlyControlID = ctrl.ID
-	record.PrimeraEntregaFecha = pdt601ParseDate(in.PrimeraEntregaFecha)
-	record.PrimeraEntregaHora = strings.TrimSpace(in.PrimeraEntregaHora)
-	record.Observacion = strings.TrimSpace(in.Observacion)
-	record.SegundaEntregaFecha = pdt601ParseDate(in.SegundaEntregaFecha)
-	record.SegundaEntregaHora = strings.TrimSpace(in.SegundaEntregaHora)
-	record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
-	record.TotalVentas = in.TotalVentas
-	record.TotalCompras = in.TotalCompras
-	record.Igv = in.Igv
-	record.Rta = in.Rta
-	record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
-	record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
-	record.EnvioSire = strings.TrimSpace(in.EnvioSire)
-	record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
-	record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
+	// "Suspendida" bloquea CUALQUIER otro dato — mismo criterio que SavePdt601Planilla, reforzado
+	// acá server-side. Observacion se fuerza a la nota fija para que quede visible en el listado y
+	// el Excel.
+	record.Suspendida = in.Suspendida
+	if record.Suspendida {
+		record.PrimeraEntregaFecha = nil
+		record.PrimeraEntregaHora = ""
+		record.Observacion = supervisorSuspendidaNote
+		record.SegundaEntregaFecha = nil
+		record.SegundaEntregaHora = ""
+		record.FechaDeclaracion = nil
+		record.TotalVentas = 0
+		record.TotalCompras = 0
+		record.Igv = 0
+		record.Rta = 0
+		record.CantidadComprobantesVenta = 0
+		record.CantidadComprobantesCompra = 0
+		record.EnvioSire = ""
+		record.FechaEnvioSire = nil
+		record.MotivoNoEnvio = ""
+	} else {
+		record.PrimeraEntregaFecha = pdt601ParseDate(in.PrimeraEntregaFecha)
+		record.PrimeraEntregaHora = strings.TrimSpace(in.PrimeraEntregaHora)
+		record.Observacion = strings.TrimSpace(in.Observacion)
+		record.SegundaEntregaFecha = pdt601ParseDate(in.SegundaEntregaFecha)
+		record.SegundaEntregaHora = strings.TrimSpace(in.SegundaEntregaHora)
+		record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
+		record.TotalVentas = in.TotalVentas
+		record.TotalCompras = in.TotalCompras
+		record.Igv = in.Igv
+		record.Rta = in.Rta
+		record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
+		record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
+		record.EnvioSire = strings.TrimSpace(in.EnvioSire)
+		record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
+		record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
+	}
 
 	if record.ID == 0 {
 		if err := database.DB.Create(&record).Error; err != nil {
@@ -370,6 +398,12 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 			INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ?
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
 		)`, models.SupervisorDeclPDT621, p.PeriodYM)
+	} else if statusFilter == pdt621StatusFilterSuspendida {
+		q = q.Where(`EXISTS (
+			SELECT 1 FROM supervisor_monthly_controls c
+			INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
+			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND r.suspendida = ?
+		)`, p.PeriodYM, true)
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
@@ -489,6 +523,15 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 			}
 		}
 
+		// Empresa suspendida en el período: exime ambos cumplimientos (declaración SUNAT y entrega
+		// interna del asistente), igual que "sin planilla" en PDT 601 — ver
+		// pdt601BuildRows/exempt más arriba.
+		exempt := row.Record != nil && row.Record.Suspendida
+		if exempt {
+			row.IsOverdue = false
+			row.DaysRemaining = nil
+		}
+
 		scheduleDue := pdt621ScheduleDueDate(periodYM, row.Dig)
 		row.ScheduleDueDate = pdt601DateString(scheduleDue)
 		var declaredAt *time.Time
@@ -498,8 +541,10 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		if scheduleDue != nil {
 			deadline := time.Date(scheduleDue.Year(), scheduleDue.Month(), scheduleDue.Day(), 23, 59, 59, 0, time.Local)
 			row.DeclarationTimeliness = EvaluateUploadTimeliness(
-				time.Now(), declaredAt, deadline, true, false, models.ActivityRuleCompareDate,
+				time.Now(), declaredAt, deadline, true, exempt, models.ActivityRuleCompareDate,
 			)
+		} else if exempt {
+			row.DeclarationTimeliness = TimelinessExempt
 		} else {
 			row.DeclarationTimeliness = TimelinessNoRule
 		}
@@ -511,7 +556,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		if row.Record != nil && row.Record.PrimeraEntregaFecha != nil {
 			primeraEntregaAt = pdt601ParseDate(*row.Record.PrimeraEntregaFecha)
 		}
-		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, false).Timeliness
+		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, exempt).Timeliness
 
 		rows = append(rows, row)
 	}

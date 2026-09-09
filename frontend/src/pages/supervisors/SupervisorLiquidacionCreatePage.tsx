@@ -27,7 +27,6 @@ import {
   clearPdt621IgvRateRows,
   computeTaxSettlementSections,
   defaultTaxSections,
-  getPdt621IgvPendienteSigned,
   getPdt621RentaPayableBeforeDetraction,
   getPdt621SyncTotals,
   normalizePdt621IgvVentas,
@@ -364,6 +363,10 @@ const SupervisorLiquidacionCreatePage = () => {
       const base = current.planilla;
       await pdt601Service.savePlanilla(targetCompanyId, periodYm, {
         sin_planilla: false,
+        // Se preserva lo que ya hubiera (nunca se fuerza a false acá): si la empresa está
+        // suspendida, el backend igual va a ignorar estos importes y no hay que deshacer la
+        // suspensión como efecto secundario de sincronizar la liquidación.
+        suspendida: base?.suspendida ?? false,
         trabajadores_onp: base?.trabajadores_onp ?? 0,
         trabajadores_afp: base?.trabajadores_afp ?? 0,
         essalud: p601.essalud,
@@ -395,24 +398,32 @@ const SupervisorLiquidacionCreatePage = () => {
   // - total_ventas: "Ingresos netos (base)" de la sección Renta mensual.
   // - total_compras: suma de las 4 bases de compras — base imponible (18% + 10.5%) más
   //   "no gravadas" (18% + 10.5%) — regla de negocio confirmada.
-  // - igv: "IGV pendiente" CON SIGNO — después de detracción, negativo si hay saldo a favor
-  //   (no se recorta a 0 como en la pantalla de la liquidación).
+  // - igv: "Impuesto del periodo" (p621.impuesto_periodo) — el IGV CRUDO calculado en la sección
+  //   "1. IGV mensual" (ventas − notas de crédito − compras), el mismo número que se ve ahí en
+  //   pantalla. Antes se sincronizaba getPdt621IgvPendienteSigned (un saldo NETEADO: le restaba
+  //   crédito del período anterior, percepciones, retenciones y detracción aplicada) — el Control
+  //   PDT 621 terminaba mostrando un IGV más chico que el realmente declarado en el período
+  //   cuando había detracción/percepciones/retenciones/crédito anterior (reportado por un
+  //   cliente). El Control PDT 621 registra qué se declaró ese mes, no un saldo pendiente de
+  //   cobro — por eso el valor correcto acá es el crudo.
   // - rta: "Impuesto a pagar (renta)", el mismo valor que se muestra en el PDF v2 (nunca negativo
   //   por su propia fórmula).
   const syncPdt621Record = async (targetCompanyId: number, periodYm: string) => {
     const p621 = taxSectionsComputed.pdt621;
     if (!p621?.enabled) return;
     const { total_ventas: totalVentas, total_compras: totalCompras } = getPdt621SyncTotals(p621);
-    const igvPendiente = getPdt621IgvPendienteSigned(p621);
+    const igvCrudo = p621.impuesto_periodo;
     const rentaDeclarada = getPdt621RentaPayableBeforeDetraction(p621);
-    // igvPendiente puede ser negativo (saldo a favor) — eso también cuenta como "hay algo que
-    // sincronizar", por eso es `!== 0` y no `> 0` acá.
-    const hasData = totalVentas > 0 || totalCompras > 0 || igvPendiente !== 0 || rentaDeclarada > 0;
+    // igvCrudo puede ser negativo (compras superan a ventas en el mes) — eso también cuenta como
+    // "hay algo que sincronizar", por eso es `!== 0` y no `> 0` acá.
+    const hasData = totalVentas > 0 || totalCompras > 0 || igvCrudo !== 0 || rentaDeclarada > 0;
     if (!hasData) return;
     try {
       const current = await pdt621Service.getDetail(targetCompanyId, periodYm);
       const base = current.record;
       await pdt621Service.saveRecord(targetCompanyId, periodYm, {
+        // Se preserva lo que ya hubiera (mismo criterio que syncPdt601Planilla, ver arriba).
+        suspendida: base?.suspendida ?? false,
         primera_entrega_fecha: base?.primera_entrega_fecha ?? '',
         primera_entrega_hora: base?.primera_entrega_hora ?? '',
         observacion: base?.observacion ?? '',
@@ -421,7 +432,7 @@ const SupervisorLiquidacionCreatePage = () => {
         fecha_declaracion: base?.fecha_declaracion ?? '',
         total_ventas: totalVentas,
         total_compras: totalCompras,
-        igv: igvPendiente,
+        igv: igvCrudo,
         rta: rentaDeclarada,
         // Cantidad de comprobantes: registro manual del supervisor, NUNCA se sincroniza desde la
         // liquidación — se preserva lo que ya había en el Control, no se resetea a 0.

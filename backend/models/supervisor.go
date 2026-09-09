@@ -194,6 +194,10 @@ type SupervisorPdt601Planilla struct {
 	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
 	// La empresa no tiene planilla en este período: no se exige registrar nada más.
 	SinPlanilla bool `gorm:"not null;default:false" json:"sin_planilla"`
+	// La empresa está suspendida en este período: no se exige (ni permite) registrar nada más —
+	// más restrictivo que SinPlanilla, mutuamente excluyente con ella (ver
+	// services/supervisor_pdt601_service.go, SavePdt601Planilla).
+	Suspendida bool `gorm:"not null;default:false" json:"suspendida"`
 	// Nro. de trabajadores (el TOTAL se deriva: ONP + AFP).
 	TrabajadoresONP int `gorm:"not null;default:0" json:"trabajadores_onp"`
 	TrabajadoresAFP int `gorm:"not null;default:0" json:"trabajadores_afp"`
@@ -233,6 +237,9 @@ func (SupervisorPdt601Planilla) TableName() string { return "supervisor_pdt601_p
 type SupervisorPdt621Record struct {
 	ID               uint `gorm:"primaryKey" json:"id"`
 	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
+	// La empresa está suspendida en este período: no se exige (ni permite) registrar nada más
+	// (ver services/supervisor_pdt621_service.go, SavePdt621Record).
+	Suspendida bool `gorm:"not null;default:false" json:"suspendida"`
 	// Revisión de archivadores.
 	PrimeraEntregaFecha *time.Time `gorm:"type:date" json:"primera_entrega_fecha,omitempty"`
 	PrimeraEntregaHora  string     `gorm:"size:5" json:"primera_entrega_hora,omitempty"`

@@ -4,6 +4,7 @@ import type { SupervisorDeclaration } from './supervisors';
 /** Datos de planilla PDT 601 del período (salida del backend). */
 export interface Pdt601Planilla {
   sin_planilla: boolean;
+  suspendida: boolean;
   trabajadores_onp: number;
   trabajadores_afp: number;
   trabajadores_total: number;
@@ -30,6 +31,7 @@ export interface Pdt601Planilla {
 /** Cuerpo que envía el supervisor al guardar la planilla (fechas como AAAA-MM-DD). */
 export interface Pdt601PlanillaInput {
   sin_planilla: boolean;
+  suspendida: boolean;
   trabajadores_onp: number;
   trabajadores_afp: number;
   essalud: number;

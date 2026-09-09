@@ -423,3 +423,45 @@ func TestListPdt601TimelinessExemptWhenSinPlanilla(t *testing.T) {
 		t.Fatalf("empresa sin planilla: timeliness=%q want %q", row.Timeliness, TimelinessExempt)
 	}
 }
+
+// TestSavePdt601PlanillaSuspendidaBlocksOtherFields cubre "empresa suspendida": server-side debe
+// forzar Observaciones a la nota fija, vaciar TODOS los demás campos (aunque el cliente enviara
+// datos) y quedar mutuamente excluyente con "sin planilla" — más restrictivo que ella.
+func TestSavePdt601PlanillaSuspendidaBlocksOtherFields(t *testing.T) {
+	db := setupPdt601TestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "P020")
+
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+
+	detail, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{
+		SinPlanilla: true, Suspendida: true, Essalud: 500, Observaciones: "nota manual",
+	})
+	if err != nil {
+		t.Fatalf("SavePdt601Planilla: %v", err)
+	}
+	if detail.Planilla == nil || !detail.Planilla.Suspendida {
+		t.Fatalf("planilla no quedó marcada suspendida: %+v", detail.Planilla)
+	}
+	if detail.Planilla.SinPlanilla {
+		t.Fatalf("suspendida debe forzar sin_planilla=false (mutuamente excluyentes): %+v", detail.Planilla)
+	}
+	if detail.Planilla.Essalud != 0 {
+		t.Fatalf("suspendida debe vaciar essalud aunque se haya enviado: got %v", detail.Planilla.Essalud)
+	}
+	if detail.Planilla.Observaciones != supervisorSuspendidaNote {
+		t.Fatalf("observaciones=%q want %q", detail.Planilla.Observaciones, supervisorSuspendidaNote)
+	}
+
+	res, err := svc.ListPdt601(Pdt601ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt601: %v", err)
+	}
+	if len(res.Rows) != 1 || res.Rows[0].Timeliness != TimelinessExempt {
+		t.Fatalf("empresa suspendida: %+v", res.Rows)
+	}
+}

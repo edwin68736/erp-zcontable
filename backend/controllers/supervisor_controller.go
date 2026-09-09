@@ -126,13 +126,13 @@ func paginationFromQuery(c fiber.Ctx) (page, perPage int) {
 }
 
 // DashboardAPI GET /api/supervisors/dashboard?period_ym=YYYY-MM
-func (ctrl *SupervisorController) DashboardAPI(c fiber.Ctx) error {
+// dashboardParamsFromQuery arma los filtros comunes del dashboard (período, empresa, estado
+// general, riesgo, responsable, supervisor, alcance) — compartido por DashboardAPI y
+// PdtSummaryAPI para que ambos endpoints respeten exactamente los mismos filtros.
+func (ctrl *SupervisorController) dashboardParamsFromQuery(c fiber.Ctx) (services.SupervisorDashboardParams, error) {
 	allowed, err := ctrl.allowedCompanyIDs(c)
 	if err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return services.SupervisorDashboardParams{}, err
 	}
 	p := services.SupervisorDashboardParams{
 		PeriodYM:          c.Query("period_ym", time.Now().Format("2006-01")),
@@ -155,7 +155,60 @@ func (ctrl *SupervisorController) DashboardAPI(c fiber.Ctx) error {
 			p.SupervisorUserID = uint(id)
 		}
 	}
+	return p, nil
+}
+
+func (ctrl *SupervisorController) DashboardAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
 	data, err := ctrl.svc.Dashboard(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
+// PdtSummaryAPI GET /api/supervisors/dashboard/pdt-summary — resumen agregado PDT 601/621 del
+// período (una consulta agrupada en el servidor, mismos filtros que DashboardAPI). Reemplaza la
+// agregación que antes hacía el navegador trayendo todos los controles + declaraciones del
+// período uno por uno.
+func (ctrl *SupervisorController) PdtSummaryAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	data, err := ctrl.svc.PdtDashboardSummary(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
+// ComplianceTrendAPI GET /api/supervisors/dashboard/compliance-trend — cumplimiento mensual de
+// los últimos `months` (default 6) meses terminando en period_ym, mismos filtros que DashboardAPI.
+func (ctrl *SupervisorController) ComplianceTrendAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	months := 6
+	if v := c.Query("months", ""); v != "" {
+		if n, e := strconv.Atoi(v); e == nil && n > 0 {
+			months = n
+		}
+	}
+	data, err := ctrl.svc.ComplianceTrend(p, months)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -826,7 +879,9 @@ func (ctrl *SupervisorController) ReportMonthlyAPI(c fiber.Ctx) error {
 	}
 	kind := c.Query("kind", "monthly")
 	if kind == "productivity" {
-		rows, err := ctrl.svc.ReportProductivity(params.PeriodYM, params.AllowedCompanyIDs)
+		rows, err := ctrl.svc.ReportProductivity(services.SupervisorDashboardParams{
+			PeriodYM: params.PeriodYM, AllowedCompanyIDs: params.AllowedCompanyIDs,
+		})
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
