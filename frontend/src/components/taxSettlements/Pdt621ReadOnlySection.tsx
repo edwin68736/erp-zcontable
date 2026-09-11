@@ -163,7 +163,6 @@ export function Pdt621ReadOnlySection({ p621, rentaRatePct, showFooter = true }:
   const rentaPayableBefore = getPdt621RentaPayableBeforeDetraction(p621);
   const igvNetAfterDetraction = getPdt621IgvNetAfterDetraction(p621);
   const rentaNetAfterDetraction = getPdt621RentaNetAfterDetraction(p621);
-  const igvFinalAmount = detractionAppliedIgv > 0 ? igvNetAfterDetraction : igvBalance.amount;
   const showIgvDetraction = igvPayableBefore > 0;
   const showRentaDetraction = rentaPayableBefore > 0;
 
@@ -200,8 +199,13 @@ export function Pdt621ReadOnlySection({ p621, rentaRatePct, showFooter = true }:
       emphasized: false,
     },
     {
+      // Antes de detracción, igual que en el formulario editable de Supervisor
+      // (SupervisorTaxSectionsForm.tsx) — el monto YA NETEADO por detracción se muestra aparte, en
+      // su propia tarjeta (DetraccionReadOnlyBar) y en el footer "IGV pendiente" más abajo. Antes
+      // esta fila se pisaba con ese mismo neteado cuando había detracción aplicada, duplicando lo
+      // que ya muestra la tarjeta de detracción y ocultando el saldo antes de detracción.
       label: igvBalance.label,
-      value: formatPdt621IgvBalanceAmount({ label: igvBalance.label, amount: igvFinalAmount }),
+      value: formatPdt621IgvBalanceAmount(igvBalance),
       emphasized: true,
     },
   ] as const;

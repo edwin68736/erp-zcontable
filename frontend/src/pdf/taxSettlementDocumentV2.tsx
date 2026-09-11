@@ -551,16 +551,21 @@ function SumRow({ label, value, tone = 'normal' }: { label: string; value: strin
 /**
  * Tabla simple etiqueta/monto (secciones distintas a IGV). `totalRow`, si se pasa, se agrega
  * como última fila resaltada en verde (mismo tratamiento que el total de IGV) — p. ej.
- * "Impuesto a pagar".
+ * "Impuesto a pagar". `afterTotalRows`, si se pasa, agrega filas normales (sin resaltar) DESPUÉS
+ * del total — p. ej. "Pago con detracción/efectivo", que debe leerse como "así se cubrió el
+ * total de arriba", no antes de saber cuál es ese total.
  */
 function AmountTable({
   rows,
   totalRow,
+  afterTotalRows,
 }: {
   rows: Array<{ label: string; value: string }>;
   totalRow?: { label: string; value: string };
+  afterTotalRows?: Array<{ label: string; value: string }>;
 }) {
-  if (rows.length === 0 && !totalRow) return null;
+  if (rows.length === 0 && !totalRow && !afterTotalRows?.length) return null;
+  const hasTrailingRows = !!totalRow || !!afterTotalRows?.length;
   return (
     <View style={s.table}>
       <View wrap={false} style={s.tHead}>
@@ -575,7 +580,7 @@ function AmountTable({
         <View
           key={`${r.label}-${idx}`}
           wrap={false}
-          style={[s.tRow, !totalRow && idx === rows.length - 1 ? s.tRowLast : {}]}
+          style={[s.tRow, !hasTrailingRows && idx === rows.length - 1 ? s.tRowLast : {}]}
         >
           <View style={[s.tCell, { width: '68%' }]}>
             <Text style={s.tText}>{r.label}</Text>
@@ -586,7 +591,7 @@ function AmountTable({
         </View>
       ))}
       {totalRow ? (
-        <View wrap={false} style={[s.tRow, s.tRowLast, s.tRowTotal]}>
+        <View wrap={false} style={[s.tRow, !afterTotalRows?.length ? s.tRowLast : {}, s.tRowTotal]}>
           <View style={[s.tCell, { width: '68%' }]}>
             <Text style={s.tTextTotal}>{totalRow.label}</Text>
           </View>
@@ -595,6 +600,16 @@ function AmountTable({
           </View>
         </View>
       ) : null}
+      {(afterTotalRows ?? []).map((r, idx, arr) => (
+        <View key={`after-${r.label}-${idx}`} wrap={false} style={[s.tRow, idx === arr.length - 1 ? s.tRowLast : {}]}>
+          <View style={[s.tCell, { width: '68%' }]}>
+            <Text style={s.tText}>{r.label}</Text>
+          </View>
+          <View style={[s.tCell, { width: '32%' }]}>
+            <Text style={s.tNum}>{r.value}</Text>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -779,16 +794,20 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
       value: formatTaxPdfRowMoney(p621.renta_ventas_impuesto),
     },
     { label: 'Saldo a favor ITAN', value: formatTaxPdfMoney(p621.renta_saldo_favor_itan) },
-    ...(detrLabelRenta
-      ? [{ label: detrLabelRenta, value: formatTaxPdfMoney(getPdt621AppliedDetractionAmountRenta(p621)) }]
-      : []),
   ];
-  /* Neto de detracción, igual que la tarjeta "Renta pendiente": el total resaltado en verde es
-   * siempre la última fila y ya refleja cualquier ajuste anterior (detracción incluida). */
+  // Antes de detracción, igual que "Impuesto a pagar (IGV)" (ver igvBalance más arriba) — el monto
+  // YA NETEADO por detracción se muestra aparte, en la tarjeta "Renta pendiente" (a la derecha) y
+  // en la fila "Pago con detracción/efectivo" que va DESPUÉS de este total (ver rentaAfterTotalRows
+  // más abajo). Antes esta fila usaba el neteado (getPdt621RentaNetAfterDetraction), mostrando S/0
+  // aunque la renta declarada fuera > 0.
   const rentaTotalRow = {
     label: 'Impuesto a pagar (renta)',
-    value: formatTaxPdfTotalMoney(getPdt621RentaNetAfterDetraction(p621)),
+    value: formatTaxPdfTotalMoney(p621.renta_impuesto_a_pagar),
   };
+  // "Pago con detracción/efectivo" va DESPUÉS del total (se lee como "así se cubrió lo de arriba").
+  const rentaAfterTotalRows = detrLabelRenta
+    ? [{ label: detrLabelRenta, value: formatTaxPdfMoney(getPdt621AppliedDetractionAmountRenta(p621)) }]
+    : [];
 
   return (
     <Fragment>
@@ -803,9 +822,6 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
               {igvSummary.map((r) => (
                 <SumRow key={r.label} label={r.label} value={r.value} tone={r.tone} />
               ))}
-              {detrLabelIgv ? (
-                <SumRow label={detrLabelIgv} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmount(p621))} />
-              ) : null}
               <SumRow
                 label={igvBalance.label}
                 value={
@@ -815,6 +831,10 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
                 }
                 tone="green"
               />
+              {/* Después del total (se lee como "así se cubrió lo de arriba"), no antes. */}
+              {detrLabelIgv ? (
+                <SumRow label={detrLabelIgv} value={formatTaxPdfMoney(getPdt621AppliedDetractionAmount(p621))} />
+              ) : null}
             </View>
           </Fragment>
         }
@@ -842,7 +862,7 @@ function Pdt621Block({ p621, rentaRatePct }: { p621: TaxSectionPdt621; rentaRate
 
       <StepTitle title="2. Renta mensual" icon="chartColumn" />
       <SplitBlock
-        left={<AmountTable rows={rentaRows} totalRow={rentaTotalRow} />}
+        left={<AmountTable rows={rentaRows} totalRow={rentaTotalRow} afterTotalRows={rentaAfterTotalRows} />}
         right={
           <Fragment>
             <PendingCard
