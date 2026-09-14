@@ -5,7 +5,7 @@ import { documentsService } from '../services/documents';
 import { paymentsService } from '../services/payments';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Document, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
-import { documentDebtSelectLabel } from '../utils/documentDebtUi';
+import { documentBalanceAmount, documentDebtSelectLabel } from '../utils/documentDebtUi';
 import SearchableSelect from './SearchableSelect';
 
 type Props = {
@@ -215,7 +215,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
       role="presentation"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200/80 w-full max-w-2xl max-h-[min(92vh,720px)] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200/80 w-full max-w-3xl max-h-[min(92vh,720px)] flex flex-col overflow-hidden"
         onClick={(ev) => ev.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -411,12 +411,23 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
                 La suma de las líneas debe ser exactamente S/ {receipt.total.toFixed(2)} (total del comprobante).
               </p>
               {manualLines.map((line, idx) => (
-                <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div key={idx} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem] gap-2">
                   <SearchableSelect
                     value={line.document_id}
                     onChange={(v) => {
                       const next = [...manualLines];
-                      next[idx] = { ...next[idx], document_id: v };
+                      const doc = openCompanyDocs.find((d) => String(d.id) === v);
+                      let amount = next[idx].amount;
+                      if (doc && !amount.trim()) {
+                        const allocatedElsewhere = next.reduce(
+                          (sum, l, i) => (i === idx ? sum : sum + (Number(l.amount) || 0)),
+                          0,
+                        );
+                        const remaining = Math.max(0, receipt.total - allocatedElsewhere);
+                        const suggested = Math.min(documentBalanceAmount(doc), remaining);
+                        if (suggested > 0) amount = suggested.toFixed(2);
+                      }
+                      next[idx] = { ...next[idx], document_id: v, amount };
                       setManualLines(next);
                     }}
                     placeholder="Deuda"
