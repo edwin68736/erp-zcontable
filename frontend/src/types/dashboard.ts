@@ -216,6 +216,9 @@ export interface TukifacFiscalReceipt {
   issue_date: string;
   customer_number?: string;
   customer_name?: string;
+  /** Método/referencia de pago capturados al emitir el comprobante (p. ej. desde POS). */
+  payment_method?: string;
+  payment_reference?: string;
   reconciliation_status: string;
   linked_payment_id?: number | null;
   tax_settlement_id?: number | null;

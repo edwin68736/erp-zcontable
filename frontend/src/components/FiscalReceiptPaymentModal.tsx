@@ -14,6 +14,13 @@ type Props = {
   onSuccess: () => void;
 };
 
+/** Normaliza method (p. ej. "transferencia" del POS) a la etiqueta Title Case del combo, si calza. */
+function normalizePaymentMethod(raw: string): string {
+  const known = ['Efectivo', 'Yape', 'Plin', 'Transferencia'];
+  const found = known.find((k) => k.toLowerCase() === raw.trim().toLowerCase());
+  return found ?? raw.trim();
+}
+
 const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
   const [allocMode, setAllocMode] = useState<'fifo' | 'manual'>('fifo');
   const [manualLines, setManualLines] = useState<{ document_id: string; amount: string }[]>([
@@ -89,6 +96,15 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
       return;
     }
     resetForm();
+    // Precarga método/referencia con los datos reales capturados al emitir el comprobante
+    // (POS, etc.) — evita re-escribirlos a mano y que queden inconsistentes (p. ej. "Efectivo"
+    // cuando en realidad fue una transferencia con número de operación).
+    if (receipt.payment_method?.trim()) {
+      setPayMethod(normalizePaymentMethod(receipt.payment_method));
+    }
+    if (receipt.payment_reference?.trim()) {
+      setPayReference(receipt.payment_reference.trim());
+    }
     setModalDocsLoading(true);
     setSettlementsPayLoading(true);
     setOpenCompanyDocs([]);
