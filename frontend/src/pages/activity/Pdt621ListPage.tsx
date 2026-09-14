@@ -451,11 +451,11 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                         {suspendida ? '' : formatDateCell(rec?.fecha_declaracion)}
                       </td>
                       <td className={`${TDM} ${GROUP_BORDER}`}>
-                        {!suspendida && rec?.total_ventas ? formatMoney(rec.total_ventas) : ''}
+                        {!suspendida && rec ? formatMoney(rec.total_ventas) : ''}
                       </td>
-                      <td className={TDM}>{!suspendida && rec?.total_compras ? formatMoney(rec.total_compras) : ''}</td>
-                      <td className={TDM}>{!suspendida && rec?.igv ? formatMoney(rec.igv) : ''}</td>
-                      <td className={TDM}>{!suspendida && rec?.rta ? formatMoney(rec.rta) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec ? formatMoney(rec.total_compras) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec ? formatMoney(rec.igv) : ''}</td>
+                      <td className={TDM}>{!suspendida && rec ? formatMoney(rec.rta) : ''}</td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>
                         {!suspendida && rec?.envio_sire ? SIRE_LABEL[rec.envio_sire] ?? rec.envio_sire : ''}
                       </td>

@@ -112,6 +112,7 @@ const SupervisorLiquidacionCreatePage = () => {
   const liquidationPeriodManualRef = useRef(Boolean(periodFromList));
   const [settlementStatus, setSettlementStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [error, setError] = useState('');
   const [taxSections, setTaxSections] = useState<TaxSettlementSectionsPayload>(() => defaultTaxSections(new Date().getFullYear()));
@@ -398,25 +399,28 @@ const SupervisorLiquidacionCreatePage = () => {
   // - total_ventas: "Ingresos netos (base)" de la sección Renta mensual.
   // - total_compras: suma de las 4 bases de compras — base imponible (18% + 10.5%) más
   //   "no gravadas" (18% + 10.5%) — regla de negocio confirmada.
-  // - igv: "Impuesto del periodo" (p621.impuesto_periodo) — el IGV CRUDO calculado en la sección
-  //   "1. IGV mensual" (ventas − notas de crédito − compras), el mismo número que se ve ahí en
-  //   pantalla. Antes se sincronizaba getPdt621IgvPendienteSigned (un saldo NETEADO: le restaba
-  //   crédito del período anterior, percepciones, retenciones y detracción aplicada) — el Control
-  //   PDT 621 terminaba mostrando un IGV más chico que el realmente declarado en el período
-  //   cuando había detracción/percepciones/retenciones/crédito anterior (reportado por un
-  //   cliente). El Control PDT 621 registra qué se declaró ese mes, no un saldo pendiente de
-  //   cobro — por eso el valor correcto acá es el crudo.
+  // - igv: "SALDO A FAVOR (FINAL)" (p621.saldo_favor_final) — el mismo campo que ya se usa para la
+  //   fila principal "Impuesto a pagar (IGV)" en el panel de Finanzas y en el PDF v2
+  //   (getPdt621IgvBalanceLabel). Con signo: negativo = crédito fiscal a favor (arrastra crédito
+  //   de períodos anteriores, percepciones y retenciones), cero = neutral, positivo = IGV por
+  //   pagar. NUNCA se resta la detracción acá (igual que en la fila principal de Finanzas/PDF) —
+  //   antes se sincronizaba getPdt621IgvPendienteSigned, que sí restaba la detracción aplicada, y
+  //   el Control PDT 621 terminaba mostrando S/0 cuando en realidad sí había IGV declarado ese mes
+  //   pero ya pagado vía detracción (reportado por un cliente). Y antes de eso se probó con el IGV
+  //   crudo del mes (impuesto_periodo), que perdía el arrastre de crédito de meses anteriores y no
+  //   dejaba ver si el cliente tenía crédito fiscal a favor (reportado por el contador del
+  //   estudio) — por eso el valor correcto acá es saldo_favor_final.
   // - rta: "Impuesto a pagar (renta)", el mismo valor que se muestra en el PDF v2 (nunca negativo
   //   por su propia fórmula).
   const syncPdt621Record = async (targetCompanyId: number, periodYm: string) => {
     const p621 = taxSectionsComputed.pdt621;
     if (!p621?.enabled) return;
     const { total_ventas: totalVentas, total_compras: totalCompras } = getPdt621SyncTotals(p621);
-    const igvCrudo = p621.impuesto_periodo;
+    const igvSaldoFavorFinal = p621.saldo_favor_final;
     const rentaDeclarada = getPdt621RentaPayableBeforeDetraction(p621);
-    // igvCrudo puede ser negativo (compras superan a ventas en el mes) — eso también cuenta como
+    // igvSaldoFavorFinal puede ser negativo (crédito fiscal a favor) — eso también cuenta como
     // "hay algo que sincronizar", por eso es `!== 0` y no `> 0` acá.
-    const hasData = totalVentas > 0 || totalCompras > 0 || igvCrudo !== 0 || rentaDeclarada > 0;
+    const hasData = totalVentas > 0 || totalCompras > 0 || igvSaldoFavorFinal !== 0 || rentaDeclarada > 0;
     if (!hasData) return;
     try {
       const current = await pdt621Service.getDetail(targetCompanyId, periodYm);
@@ -432,7 +436,7 @@ const SupervisorLiquidacionCreatePage = () => {
         fecha_declaracion: base?.fecha_declaracion ?? '',
         total_ventas: totalVentas,
         total_compras: totalCompras,
-        igv: igvCrudo,
+        igv: igvSaldoFavorFinal,
         rta: rentaDeclarada,
         // Cantidad de comprobantes: registro manual del supervisor, NUNCA se sincroniza desde la
         // liquidación — se preserva lo que ya había en el Control, no se resetea a 0.
@@ -513,6 +517,34 @@ const SupervisorLiquidacionCreatePage = () => {
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     await saveLiquidacion();
+  };
+
+  // Botón "Resincronizar" en modo Ver (liquidaciones Emitidas): la sincronización normal
+  // (syncPdt601Planilla / syncPdt621Record) solo se dispara al GUARDAR desde /editar, y una vez
+  // Emitida esa ruta queda bloqueada — así que una liquidación emitida sin pasar antes por un
+  // guardado en Supervisores (o emitida antes de que existiera/cambiara esta sincronización, como
+  // el cambio de impuesto_periodo a saldo_favor_final) se queda con el Control PDT 601/621 vacío o
+  // desactualizado para siempre. Este botón reutiliza las mismas dos funciones de sincronización
+  // con los datos ya cargados de la liquidación (tax_sections guardado), sin necesidad de reabrir
+  // para editar.
+  const resyncControl = async () => {
+    if (!companyId || companyId <= 0) return;
+    const lp = liquidationPeriod.trim();
+    if (!/^\d{4}-\d{2}$/.test(lp)) return;
+    setResyncing(true);
+    try {
+      await Promise.all([syncPdt601Planilla(companyId, lp), syncPdt621Record(companyId, lp)]);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'success',
+            message: 'Control PDT 601/621 resincronizado con los datos de esta liquidación.',
+          },
+        }),
+      );
+    } finally {
+      setResyncing(false);
+    }
   };
 
   const periodLabelPreview = useMemo(
@@ -730,13 +762,25 @@ const SupervisorLiquidacionCreatePage = () => {
               <TaxSettlementSectionsSummary sections={taxSectionsComputed} />
             </div>
           ) : null}
-          <div className="pt-2 border-t border-slate-100">
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3">
             <Link
               to={listBackTo}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Volver al listado
             </Link>
+            {canUpdate && settlementStatus === 'emitida' ? (
+              <button
+                type="button"
+                onClick={() => void resyncControl()}
+                disabled={resyncing}
+                title="Vuelve a empujar ventas/compras/IGV/renta de esta liquidación hacia el Control PDT 601 y el Control PDT 621, por si quedaron sin sincronizar o desactualizados."
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-primary-300 text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <i className={`fas ${resyncing ? 'fa-spinner fa-spin' : 'fa-rotate'} text-xs`} aria-hidden />
+                {resyncing ? 'Resincronizando…' : 'Resincronizar Control PDT 601/621'}
+              </button>
+            ) : null}
           </div>
         </section>
       ) : (

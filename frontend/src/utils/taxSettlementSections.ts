@@ -928,11 +928,17 @@ export function getPdt621AppliedDetractionAmountRenta(p621: TaxSectionPdt621): n
 }
 
 /**
- * IGV "pendiente" CON SIGNO, para sincronizar hacia el campo `igv` del Control de Vencimientos
- * PDT 621 — a diferencia de `getPdt621IgvNetAfterDetraction` (que recorta a 0), acá un saldo a
- * favor (saldo_favor_final negativo) se devuelve tal cual, en negativo, en vez de mostrar 0.
- * La detracción aplicada sigue calculándose sobre el importe pagable ya recortado a 0 (no tiene
- * sentido "detraer" un saldo a favor), así que solo resta cuando saldo_favor_final > 0.
+ * IGV "pendiente" CON SIGNO, después de detracción — a diferencia de `getPdt621IgvNetAfterDetraction`
+ * (que recorta a 0), acá un saldo a favor (saldo_favor_final negativo) se devuelve tal cual, en
+ * negativo, en vez de mostrar 0. La detracción aplicada sigue calculándose sobre el importe
+ * pagable ya recortado a 0 (no tiene sentido "detraer" un saldo a favor), así que solo resta
+ * cuando saldo_favor_final > 0.
+ *
+ * NO es lo que se sincroniza hacia el Control de Vencimientos PDT 621 (ver
+ * SupervisorLiquidacionCreatePage.tsx, syncPdt621Record) — ese Control usa `saldo_favor_final`
+ * directo, sin restar detracción, igual que la fila principal "Impuesto a pagar (IGV)" de
+ * Finanzas y del PDF v2. Este helper es para mostrar el saldo pendiente de PAGO EN EFECTIVO
+ * después de detracción (uso tipo "pendiente"/footer, nunca para la fila principal).
  */
 export function getPdt621IgvPendienteSigned(p621: TaxSectionPdt621): number {
   return roundMoney(p621.saldo_favor_final - getPdt621AppliedDetractionAmount(p621));
