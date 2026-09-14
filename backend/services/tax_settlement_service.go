@@ -18,6 +18,16 @@ import (
 // taxLinePeriodYMCanonical periodo de línea en formato AAAA-MM (selector mes).
 var taxLinePeriodYMCanonical = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
+// liquidationExistingStatuses: estados que cuentan como "ya existe liquidación para ese periodo"
+// (regla de negocio: una sola liquidación por empresa y periodo; solo se permite volver a crear
+// si la anterior fue anulada o eliminada). Se usa tanto para bloquear duplicados al crear/editar/emitir
+// como para que el listado de Supervisores refleje lo mismo que ve Finanzas: si está cerrada, existe.
+var liquidationExistingStatuses = []string{
+	models.TaxSettlementStatusDraft,
+	models.TaxSettlementStatusIssued,
+	models.TaxSettlementStatusClosed,
+}
+
 type TaxSettlementService struct{}
 
 func NewTaxSettlementService() *TaxSettlementService {
@@ -182,7 +192,7 @@ func resolveLiquidationPeriodYM(periodLabel string, issueDate time.Time, explici
 func duplicateLiquidationPeriod(tx *gorm.DB, companyID uint, periodYM string, excludeID uint) (bool, error) {
 	var n int64
 	q := tx.Model(&models.TaxSettlement{}).
-		Where("company_id = ? AND liquidation_period = ? AND status IN ?", companyID, periodYM, []string{models.TaxSettlementStatusDraft, models.TaxSettlementStatusIssued})
+		Where("company_id = ? AND liquidation_period = ? AND status IN ?", companyID, periodYM, liquidationExistingStatuses)
 	if excludeID > 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -316,7 +326,7 @@ func (s *TaxSettlementService) CreateDraft(in TaxSettlementCreateInput) (*models
 			return err
 		}
 		if dup {
-			return errors.New("ya existe una liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+			return errors.New("ya existe una liquidación (borrador, emitida o cerrada) para esa empresa y el mismo periodo (AAAA-MM)")
 		}
 		if err := tx.Create(&ts).Error; err != nil {
 			return err
@@ -391,7 +401,7 @@ func (s *TaxSettlementService) CreateSupervisorInitialDraft(in SupervisorTaxSett
 			return err
 		}
 		if dup {
-			return errors.New("ya existe una liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+			return errors.New("ya existe una liquidación (borrador, emitida o cerrada) para esa empresa y el mismo periodo (AAAA-MM)")
 		}
 		return tx.Create(&ts).Error
 	}); err != nil {
@@ -416,7 +426,10 @@ type SupervisorCompanyLiquidationDraft struct {
 	Status            string `json:"status"`
 }
 
-// SupervisorDraftByCompanies devuelve la liquidación (borrador o emitida) por empresa para el periodo indicado.
+// SupervisorDraftByCompanies devuelve la liquidación (borrador, emitida o cerrada) por empresa para el
+// periodo indicado. Debe reflejar el mismo criterio de "existe liquidación" que usa la validación de
+// duplicados (liquidationExistingStatuses): si no fuera así, el supervisor vería "Sin liquidación" para
+// un periodo ya cerrado en Finanzas e intentaría crear una duplicada.
 func (s *TaxSettlementService) SupervisorDraftByCompanies(companyIDs []uint, periodYM string) (map[uint]SupervisorCompanyLiquidationDraft, error) {
 	out := make(map[uint]SupervisorCompanyLiquidationDraft)
 	if len(companyIDs) == 0 {
@@ -435,7 +448,7 @@ func (s *TaxSettlementService) SupervisorDraftByCompanies(companyIDs []uint, per
 			"company_id IN ? AND liquidation_period = ? AND status IN ?",
 			companyIDs,
 			periodYM,
-			[]string{models.TaxSettlementStatusDraft, models.TaxSettlementStatusIssued},
+			liquidationExistingStatuses,
 		).
 		Order("updated_at DESC").
 		Find(&rows).Error; err != nil {
@@ -487,7 +500,7 @@ func (s *TaxSettlementService) UpdateSupervisorDraft(id uint, in SupervisorTaxSe
 		return nil, err
 	}
 	if dup {
-		return nil, errors.New("ya existe otra liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+		return nil, errors.New("ya existe otra liquidación (borrador, emitida o cerrada) para esa empresa y el mismo periodo (AAAA-MM)")
 	}
 	ts.LiquidationPeriod = lp
 	computed := ComputeTaxSettlementSections(in.TaxSections)
@@ -596,7 +609,7 @@ func (s *TaxSettlementService) UpdateDraft(id uint, in TaxSettlementUpdateInput)
 			return err
 		}
 		if dup {
-			return errors.New("ya existe otra liquidación en borrador o emitida para esa empresa y el mismo periodo (AAAA-MM)")
+			return errors.New("ya existe otra liquidación (borrador, emitida o cerrada) para esa empresa y el mismo periodo (AAAA-MM)")
 		}
 		if err := tx.Model(&models.TaxSettlementLine{}).Where("tax_settlement_id = ?", ts.ID).Delete(&models.TaxSettlementLine{}).Error; err != nil {
 			return err
