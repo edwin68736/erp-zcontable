@@ -41,6 +41,44 @@ export function documentBalanceAmount(doc: Document): number {
   return bal > 0.005 ? bal : 0;
 }
 
+function truncateDebtLabelText(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+/** Periodo contable / servicio YYYY-MM de una deuda (independiente de la fecha de emisión). */
+export function documentPeriodLabel(d: Document): string {
+  return ((d.accounting_period ?? '').trim() || (d.service_month ?? '').trim()) || '';
+}
+
+/** «Descripción - YYYY-MM», sin la palabra «período». */
+export function joinDebtDescAndPeriod(description: string, periodYm: string): string {
+  const desc = description.trim();
+  const period = periodYm.trim();
+  if (desc && period) return `${desc} - ${period}`;
+  if (desc) return desc;
+  if (period) return period;
+  return 'Sin descripción';
+}
+
+/**
+ * Etiqueta legible de una deuda para selects/listas: «descripción - YYYY-MM · S/ saldo (número, fecha)».
+ * Mismo criterio que en Pagos (`debtSelectLabel`), para que la conciliación de comprobantes se vea igual.
+ */
+export function documentDebtSelectLabel(d: Document, opts?: { omitAmount?: boolean }): string {
+  const omitAmount = opts?.omitAmount ?? false;
+  const desc = truncateDebtLabelText((d.description ?? '').trim(), 80);
+  const period = documentPeriodLabel(d);
+  let label = joinDebtDescAndPeriod(desc, period);
+  if (!omitAmount) {
+    label = `${label} · S/ ${documentBalanceAmount(d).toFixed(2)}`;
+  }
+  const dateStr = (d.issue_date ?? '').slice(0, 10);
+  const parts = [d.number, dateStr].filter(Boolean).join(' · ');
+  return parts ? `${label} (${parts})` : label;
+}
+
 export function documentIsOverdue(doc: Document): boolean {
   if (typeof doc.is_overdue === 'boolean') return doc.is_overdue;
   if (doc.status === 'pagado' || doc.status === 'anulado') return false;

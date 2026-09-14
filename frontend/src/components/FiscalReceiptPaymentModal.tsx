@@ -5,6 +5,7 @@ import { documentsService } from '../services/documents';
 import { paymentsService } from '../services/payments';
 import { taxSettlementsService } from '../services/taxSettlements';
 import type { Document, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
+import { documentDebtSelectLabel } from '../utils/documentDebtUi';
 import SearchableSelect from './SearchableSelect';
 
 type Props = {
@@ -397,13 +398,8 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
               ) : (
                 <ul className="text-sm text-slate-700 space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
                   {fifoPreviewDocs.map((d) => (
-                    <li
-                      key={d.id}
-                      className="flex justify-between gap-2 border-b border-slate-200/60 last:border-0 pb-1.5 last:pb-0"
-                    >
-                      <span className="font-mono text-xs truncate">{d.number}</span>
-                      <span className="text-xs text-slate-500 shrink-0">{d.issue_date?.slice(0, 10)}</span>
-                      <span className="tabular-nums shrink-0">S/ {d.total_amount.toFixed(2)}</span>
+                    <li key={d.id} className="border-b border-slate-200/60 last:border-0 pb-1.5 last:pb-0">
+                      <span title={documentDebtSelectLabel(d)}>{documentDebtSelectLabel(d)}</span>
                     </li>
                   ))}
                 </ul>
@@ -428,7 +424,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
                       { value: '', label: '—' },
                       ...openCompanyDocs.map((d) => ({
                         value: String(d.id),
-                        label: `${d.number} (S/ ${d.total_amount.toFixed(2)})`,
+                        label: documentDebtSelectLabel(d, { omitAmount: true }),
                       })),
                     ]}
                   />
