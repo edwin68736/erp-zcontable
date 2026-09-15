@@ -58,13 +58,13 @@ func NewDocumentService() *DocumentService {
 }
 
 type DocumentListParams struct {
-	CompanyID         uint
-	Status            string
-	Overdue           bool
+	CompanyID           uint
+	Status              string
+	Overdue             bool
 	CollectionSituation string
-	DateFrom          *time.Time
-	DateTo            *time.Time
-	AllowedCompanyIDs []uint
+	DateFrom            *time.Time
+	DateTo              *time.Time
+	AllowedCompanyIDs   []uint
 	// ImplicitOpenBalances: una empresa sin rango de fechas de emisión → solo pendiente+parcial con saldo (incluye vencidas).
 	ImplicitOpenBalances bool
 	// ExplicitAllStatuses: status=all en URL → no filtrar por estado (ni modo implícito de saldos).
@@ -652,11 +652,21 @@ func (s *DocumentService) GetByID(id uint) (*models.Document, error) {
 }
 
 func (s *DocumentService) Delete(id uint) error {
-	// No permitir eliminar si tiene pagos asociados
-	var count int64
-	database.DB.Model(&models.Payment{}).Where("document_id = ?", id).Count(&count)
-	if count > 0 {
-		return errors.New("no se puede eliminar porque tiene pagos asociados")
+	var d models.Document
+	if err := database.DB.First(&d, id).Error; err != nil {
+		return err
+	}
+	// No permitir eliminar si tiene cualquier historial financiero o de liquidación (pagos legacy,
+	// imputaciones vía PaymentAllocation, o referencia de origen/actual a una liquidación) — la
+	// verificación anterior solo revisaba Payment.DocumentID (esquema legacy) y dejaba pasar deudas
+	// ya pagadas por el esquema moderno de PaymentAllocation. Blueprint Fase 1 §23: la protección
+	// contra borrado físico indebido debe ser global, no solo dentro de las rutas de liquidaciones.
+	hasHistory, reason, err := debtsvc.NewService().DocumentFinancialOrSettlementHistory(database.DB, &d)
+	if err != nil {
+		return err
+	}
+	if hasHistory {
+		return fmt.Errorf("no se puede eliminar: %s", reason)
 	}
 	if err := database.DB.Where("document_id = ?", id).Delete(&models.DocumentItem{}).Error; err != nil {
 		return err

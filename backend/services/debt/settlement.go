@@ -3,6 +3,7 @@ package debt
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -67,22 +68,73 @@ func IsLegacySettlementClone(d *models.Document) bool {
 	return ok
 }
 
-// IsSettlementOwnedDebt deuda creada por liquidación (legacy DEU-LIQ o tax_settlement_id).
+// IsSettlementOwnedDebt determina si el ORIGEN inmutable de la deuda es exactamente esta liquidación
+// (nunca fue de ninguna otra). Deliberadamente NO usa TaxSettlementID (mutable — cambia al arrastrar
+// la deuda entre liquidaciones), ni Source ni Type (genéricos, compartidos por cualquier deuda de
+// liquidación sin importar cuál la creó) — esos tres campos fueron la causa raíz del bug de borrado
+// de deudas arrastradas (Blueprint Fase 1 §9, ver también CleanupSettlementDebtsNotInLines).
+//
+// Si OriginSettlementID es nil (deuda manual, de suscripción, o histórica sin evidencia suficiente
+// para reconstruir su origen — ver backfill en document_migrations.go), NUNCA se considera dueña de
+// ninguna liquidación: más vale desvincular de más que eliminar por error (§24 del Blueprint).
 func IsSettlementOwnedDebt(d *models.Document, settlementID uint) bool {
-	if d == nil {
+	if d == nil || settlementID == 0 {
 		return false
 	}
-	if d.TaxSettlementID != nil && *d.TaxSettlementID == settlementID {
-		return strings.TrimSpace(strings.ToLower(d.Source)) == "liquidacion" ||
-			d.Type == models.DocumentTypeLiquidacion ||
-			IsLegacySettlementClone(d)
+	return d.OriginSettlementID != nil && *d.OriginSettlementID == settlementID
+}
+
+// hasPaymentAllocations true si el documento tiene al menos una imputación de pago activa.
+func (s *Service) hasPaymentAllocations(tx *gorm.DB, documentID uint) (bool, error) {
+	var cnt int64
+	if err := tx.Model(&models.PaymentAllocation{}).Where("document_id = ?", documentID).Count(&cnt).Error; err != nil {
+		return false, err
 	}
-	if IsLegacySettlementClone(d) {
-		if sid, ok := ParseDEULIQNumber(d.Number); ok && sid == settlementID {
-			return true
-		}
+	return cnt > 0, nil
+}
+
+// hasLegacyPayments true si existe un Payment legacy con document_id apuntando directo al documento
+// (esquema previo a PaymentAllocation; ver Payment.DocumentID).
+func (s *Service) hasLegacyPayments(tx *gorm.DB, documentID uint) (bool, error) {
+	var cnt int64
+	if err := tx.Model(&models.Payment{}).Where("document_id = ?", documentID).Count(&cnt).Error; err != nil {
+		return false, err
 	}
-	return false
+	return cnt > 0, nil
+}
+
+// referencedByOtherSettlement true si existe una TaxSettlementLine de OTRA liquidación (distinta de
+// excludeSettlementID) que referencia este documento — evidencia de que participó en otra liquidación
+// (activa o cerrada) y por lo tanto tiene historial que no debe perderse.
+func (s *Service) referencedByOtherSettlement(tx *gorm.DB, documentID, excludeSettlementID uint) (bool, error) {
+	var cnt int64
+	if err := tx.Model(&models.TaxSettlementLine{}).
+		Where("document_id = ? AND tax_settlement_id <> ?", documentID, excludeSettlementID).
+		Count(&cnt).Error; err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
+}
+
+// isSettlementDraft consulta el estado actual de una liquidación (para exigir 'borrador' antes de
+// permitir cualquier borrado físico de sus propias deudas).
+func (s *Service) isSettlementDraft(tx *gorm.DB, settlementID uint) (bool, error) {
+	var st models.TaxSettlement
+	if err := tx.Select("id", "status").First(&st, settlementID).Error; err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(st.Status) == models.TaxSettlementStatusDraft, nil
+}
+
+// logBlockedDocumentDeletion deja rastro cuando se evita un borrado físico y se desvincula en su
+// lugar — útil para diagnosticar futuros casos sin necesidad de logging excesivo.
+func logBlockedDocumentDeletion(d *models.Document, settlementID uint, reason string) {
+	var origin interface{} = nil
+	if d.OriginSettlementID != nil {
+		origin = *d.OriginSettlementID
+	}
+	log.Printf("[settlement-cleanup] document deletion blocked document_id=%d settlement_id=%d origin_settlement_id=%v reason=%q — unlinked instead",
+		d.ID, settlementID, origin, reason)
 }
 
 func allocateShortDebtNumber(tx *gorm.DB, companyID uint) (string, error) {
@@ -229,17 +281,20 @@ func (s *Service) createSettlementDebtDocument(
 		return 0, err
 	}
 	doc := models.Document{
-		CompanyID:        companyID,
-		TaxSettlementID:  &settlementID,
-		Type:             models.DocumentTypeLiquidacion,
-		Number:           num,
-		IssueDate:        issue,
-		TotalAmount:      math.Round(ln.Amount*100) / 100,
-		Description:      desc,
-		ServiceMonth:     acct,
-		AccountingPeriod: acct,
-		Status:           StatusPending,
-		Source:           "liquidacion",
+		CompanyID:       companyID,
+		TaxSettlementID: &settlementID,
+		// OriginSettlementID se fija AQUÍ, una sola vez, en el momento real de creación — nunca se
+		// vuelve a tocar (ni siquiera cuando la deuda se arrastra a otra liquidación después).
+		OriginSettlementID: &settlementID,
+		Type:               models.DocumentTypeLiquidacion,
+		Number:             num,
+		IssueDate:          issue,
+		TotalAmount:        math.Round(ln.Amount*100) / 100,
+		Description:        desc,
+		ServiceMonth:       acct,
+		AccountingPeriod:   acct,
+		Status:             StatusPending,
+		Source:             "liquidacion",
 	}
 	s.InitBalanceOnCreate(&doc)
 	ApplyPeriodFromString(&doc, periodYM, acct)
@@ -258,21 +313,21 @@ func (s *Service) UnlinkSettlementFromDocument(tx *gorm.DB, documentID, settleme
 
 // SettlementDebtRow fila para API de deudas vinculadas / no vinculadas.
 type SettlementDebtRow struct {
-	DocumentID       uint    `json:"document_id"`
-	Number           string  `json:"number"`
-	Description      string  `json:"description"`
-	TotalAmount      float64 `json:"total_amount"`
-	BalanceAmount    float64 `json:"balance_amount"`
-	Status           string  `json:"status"`
-	AccountingPeriod string  `json:"accounting_period,omitempty"`
-	HasPeriod        bool    `json:"has_period"`
-	PeriodMonth      *int16  `json:"period_month,omitempty"`
-	PeriodYear       *int16  `json:"period_year,omitempty"`
-	SourceSettlementID       *uint  `json:"source_settlement_id,omitempty"`
-	SourceSettlementNumber   string `json:"source_settlement_number,omitempty"`
-	SourceSettlementPeriod   string `json:"source_settlement_period,omitempty"`
-	FromPreviousSettlement   bool   `json:"from_previous_settlement,omitempty"`
-	HistoricalView           bool   `json:"historical_view,omitempty"`
+	DocumentID             uint    `json:"document_id"`
+	Number                 string  `json:"number"`
+	Description            string  `json:"description"`
+	TotalAmount            float64 `json:"total_amount"`
+	BalanceAmount          float64 `json:"balance_amount"`
+	Status                 string  `json:"status"`
+	AccountingPeriod       string  `json:"accounting_period,omitempty"`
+	HasPeriod              bool    `json:"has_period"`
+	PeriodMonth            *int16  `json:"period_month,omitempty"`
+	PeriodYear             *int16  `json:"period_year,omitempty"`
+	SourceSettlementID     *uint   `json:"source_settlement_id,omitempty"`
+	SourceSettlementNumber string  `json:"source_settlement_number,omitempty"`
+	SourceSettlementPeriod string  `json:"source_settlement_period,omitempty"`
+	FromPreviousSettlement bool    `json:"from_previous_settlement,omitempty"`
+	HistoricalView         bool    `json:"historical_view,omitempty"`
 }
 
 // ListLinkedDebts deudas con tax_settlement_id = settlementID.
@@ -307,12 +362,24 @@ func (s *Service) ListUnlinkedOpenDebts(tx *gorm.DB, companyID uint) ([]Settleme
 	return s.enrichUnlinkedWithClosedOrigins(tx, companyID, filtered)
 }
 
-// CleanupSettlementDebtsNotInLines desvincula o elimina deudas ya no referenciadas en líneas del borrador.
+// CleanupSettlementDebtsNotInLines desvincula o elimina deudas ya no referenciadas en líneas del
+// borrador. Regla de seguridad (Blueprint Fase 1 §10): el borrado físico SOLO puede ocurrir si (1) el
+// documento fue creado originalmente por esta misma liquidación (IsSettlementOwnedDebt, vía
+// OriginSettlementID inmutable — nunca vía TaxSettlementID/Source/Type), (2) la liquidación sigue en
+// borrador, (3) no tiene imputaciones de pago, (4) no tiene pagos legacy directos, y (5) ninguna otra
+// liquidación lo referencia. Si CUALQUIERA de estas condiciones falla, se DESVINCULA, nunca se borra
+// — una deuda arrastrada de otra liquidación (o cuyo origen no pudo determinarse) jamás desaparece
+// físicamente por editar la liquidación actual.
 func (s *Service) CleanupSettlementDebtsNotInLines(
 	tx *gorm.DB,
 	settlementID, companyID uint,
 	keptDocumentIDs map[uint]bool,
 ) error {
+	settlementIsDraft, err := s.isSettlementDraft(tx, settlementID)
+	if err != nil {
+		return err
+	}
+
 	var docs []models.Document
 	if err := tx.Where("tax_settlement_id = ?", settlementID).Find(&docs).Error; err != nil {
 		return err
@@ -322,17 +389,39 @@ func (s *Service) CleanupSettlementDebtsNotInLines(
 		if keptDocumentIDs[d.ID] {
 			continue
 		}
-		if IsSettlementOwnedDebt(d, settlementID) {
+		if d.CompanyID != companyID {
+			continue
+		}
+
+		if settlementIsDraft && IsSettlementOwnedDebt(d, settlementID) {
+			// La liquidación actual es la dueña real (lo creó ella misma): mismo comportamiento
+			// protector de siempre — si ya tiene pagos, se bloquea la operación completa en vez de
+			// borrar o desvincular silenciosamente (el usuario debe decidir qué hacer con ese dinero).
 			paid := s.PaidTotal(tx, d.ID)
 			if paid >= MoneyEpsilon {
 				return fmt.Errorf("la deuda %s tiene pagos; no se puede quitar de la liquidación", d.Number)
 			}
-			var payCnt int64
-			if err := tx.Model(&models.Payment{}).Where("document_id = ?", d.ID).Count(&payCnt).Error; err != nil {
+			hasAlloc, err := s.hasPaymentAllocations(tx, d.ID)
+			if err != nil {
 				return err
 			}
-			if payCnt > 0 {
+			hasLegacyPay, err := s.hasLegacyPayments(tx, d.ID)
+			if err != nil {
+				return err
+			}
+			if hasAlloc || hasLegacyPay {
 				return fmt.Errorf("existe un pago registrado sobre la deuda %s", d.Number)
+			}
+			referencedElsewhere, err := s.referencedByOtherSettlement(tx, d.ID, settlementID)
+			if err != nil {
+				return err
+			}
+			if referencedElsewhere {
+				logBlockedDocumentDeletion(d, settlementID, "referenciada por otra liquidación")
+				if err := s.UnlinkSettlementFromDocument(tx, d.ID, settlementID); err != nil {
+					return err
+				}
+				continue
 			}
 			if err := tx.Where("document_id = ?", d.ID).Delete(&models.DocumentItem{}).Error; err != nil {
 				return err
@@ -342,8 +431,11 @@ func (s *Service) CleanupSettlementDebtsNotInLines(
 			}
 			continue
 		}
-		if d.CompanyID != companyID {
-			continue
+
+		// No es dueña de verdad (arrastrada de otra liquidación, manual, u origen sin evidencia
+		// suficiente) — o esta liquidación ya no está en borrador: nunca se elimina, solo se desvincula.
+		if d.OriginSettlementID != nil {
+			logBlockedDocumentDeletion(d, settlementID, "el origen de la deuda no es esta liquidación")
 		}
 		if err := s.UnlinkSettlementFromDocument(tx, d.ID, settlementID); err != nil {
 			return err
@@ -352,11 +444,17 @@ func (s *Service) CleanupSettlementDebtsNotInLines(
 	return nil
 }
 
-// PurgeSettlementDocumentsOnDelete limpia documentos al eliminar una liquidación emitida.
+// PurgeSettlementDocumentsOnDelete limpia documentos al eliminar una liquidación. Aplica exactamente
+// la misma protección que CleanupSettlementDebtsNotInLines (Blueprint Fase 1 §10/§15): solo elimina
+// físicamente documentos que la liquidación eliminada creó ella misma (origen inmutable), que sigue
+// en borrador en el momento de borrarse, sin pagos ni imputaciones, y sin referencias desde otra
+// liquidación. Cualquier deuda con historial fuera de esta liquidación se desvincula, nunca se borra.
 func (s *Service) PurgeSettlementDocumentsOnDelete(tx *gorm.DB, ts *models.TaxSettlement, lines []models.TaxSettlementLine) error {
 	if ts == nil {
 		return nil
 	}
+	settlementIsDraft := strings.TrimSpace(ts.Status) == models.TaxSettlementStatusDraft
+
 	for _, ln := range lines {
 		if ln.DocumentID == nil || *ln.DocumentID == 0 {
 			continue
@@ -374,19 +472,40 @@ func (s *Service) PurgeSettlementDocumentsOnDelete(tx *gorm.DB, ts *models.TaxSe
 				return err
 			}
 		case models.TaxSettlementLineAdjust, models.TaxSettlementLineTaxManual:
-			if !IsSettlementOwnedDebt(&d, ts.ID) && !IsLegacySettlementClone(&d) {
+			if !settlementIsDraft || !IsSettlementOwnedDebt(&d, ts.ID) {
+				if d.OriginSettlementID != nil {
+					logBlockedDocumentDeletion(&d, ts.ID, "el origen de la deuda no es esta liquidación o ya no está en borrador")
+				}
+				if err := s.UnlinkSettlementFromDocument(tx, d.ID, ts.ID); err != nil {
+					return err
+				}
 				continue
 			}
 			paid := s.PaidTotal(tx, d.ID)
 			if paid >= MoneyEpsilon {
 				return fmt.Errorf("la deuda %s aún tiene saldo abonado; no se puede eliminar la liquidación", d.Number)
 			}
-			var payCnt int64
-			if err := tx.Model(&models.Payment{}).Where("document_id = ?", d.ID).Count(&payCnt).Error; err != nil {
+			hasAlloc, err := s.hasPaymentAllocations(tx, d.ID)
+			if err != nil {
 				return err
 			}
-			if payCnt > 0 {
+			hasLegacyPay, err := s.hasLegacyPayments(tx, d.ID)
+			if err != nil {
+				return err
+			}
+			if hasAlloc || hasLegacyPay {
 				return fmt.Errorf("existe un pago registrado sobre la deuda %s; elimínelo antes de borrar la liquidación", d.Number)
+			}
+			referencedElsewhere, err := s.referencedByOtherSettlement(tx, d.ID, ts.ID)
+			if err != nil {
+				return err
+			}
+			if referencedElsewhere {
+				logBlockedDocumentDeletion(&d, ts.ID, "referenciada por otra liquidación")
+				if err := s.UnlinkSettlementFromDocument(tx, d.ID, ts.ID); err != nil {
+					return err
+				}
+				continue
 			}
 			if err := tx.Where("document_id = ?", d.ID).Delete(&models.DocumentItem{}).Error; err != nil {
 				return err
@@ -397,6 +516,42 @@ func (s *Service) PurgeSettlementDocumentsOnDelete(tx *gorm.DB, ts *models.TaxSe
 		}
 	}
 	return nil
+}
+
+// DocumentFinancialOrSettlementHistory indica si un documento tiene cualquier historial financiero
+// (pagos, imputaciones) o de liquidación (origen o referencia actual) — usado para proteger CUALQUIER
+// ruta de borrado físico de un Document en el sistema, no solo las de edición/eliminación de
+// liquidaciones (Blueprint Fase 1 §23: la regla de seguridad debe ser global, no solo para dos
+// funciones). Devuelve true y el motivo si el documento no debe eliminarse físicamente.
+func (s *Service) DocumentFinancialOrSettlementHistory(tx *gorm.DB, d *models.Document) (bool, string, error) {
+	if d == nil {
+		return false, "", nil
+	}
+	hasAlloc, err := s.hasPaymentAllocations(tx, d.ID)
+	if err != nil {
+		return false, "", err
+	}
+	if hasAlloc {
+		return true, "la deuda tiene imputaciones de pago", nil
+	}
+	hasLegacyPay, err := s.hasLegacyPayments(tx, d.ID)
+	if err != nil {
+		return false, "", err
+	}
+	if hasLegacyPay {
+		return true, "la deuda tiene pagos asociados", nil
+	}
+	if d.OriginSettlementID != nil {
+		return true, "la deuda fue creada originalmente por una liquidación", nil
+	}
+	var lineCnt int64
+	if err := tx.Model(&models.TaxSettlementLine{}).Where("document_id = ?", d.ID).Count(&lineCnt).Error; err != nil {
+		return false, "", err
+	}
+	if lineCnt > 0 {
+		return true, "la deuda está referenciada por una liquidación", nil
+	}
+	return false, "", nil
 }
 
 func (s *Service) toSettlementDebtRows(tx *gorm.DB, docs []models.Document) []SettlementDebtRow {
