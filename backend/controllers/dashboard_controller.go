@@ -252,6 +252,13 @@ func (ctrl *DashboardController) getDashboardData(minOverdueMonths int) (*Dashbo
 		Where("status IN ? AND due_date IS NOT NULL AND due_date < ?", openStatuses, startOfToday).
 		Count(&overdueDocsCount)
 
+	// Fase 3 Paso 5 (docs/auditoria-diseno-fase3-calculos-financieros-2026-09-14.md): GlobalBalance
+	// ya NO se calcula como totalDocs-totalPays (mezclaba dinero de servicio/a-cuenta con la deuda y
+	// podía producir saldos negativos falsos). Reutiliza totalDebt, ya calculado arriba como
+	// SUM(GetCompanyBalance(cmp.ID).Balance) de las empresas con deuda — GetCompanyBalance ya usa
+	// debt.Service.SaldoDocumentado desde el Paso 2, así que esto es exactamente SaldoDocumentado
+	// agregado, sin ninguna consulta ni fórmula nueva. totalDocs/totalPays se conservan sin cambios
+	// como datos informativos (TotalDocs/TotalPays).
 	return &DashboardData{
 		UsersCount:               usersCount,
 		CompaniesCount:           companiesCount,
@@ -259,7 +266,7 @@ func (ctrl *DashboardController) getDashboardData(minOverdueMonths int) (*Dashbo
 		PaymentsCount:            paymentsCount,
 		TotalDocs:                totalDocs,
 		TotalPays:                totalPays,
-		GlobalBalance:            totalDocs - totalPays,
+		GlobalBalance:            totalDebt,
 		MonthlyPayments:          monthly,
 		TopDebtors:               debtCards,
 		RecentDocuments:          recentDocs,
@@ -478,6 +485,8 @@ func (ctrl *DashboardController) getDashboardDataForCompanyIDs(companyIDs []uint
 		Where("status IN ? AND due_date IS NOT NULL AND due_date < ?", openStatuses, startOfToday).
 		Count(&overdueDocsCount)
 
+	// Fase 3 Paso 5: mismo reemplazo que en getDashboardData — GlobalBalance reutiliza totalDebt
+	// (ya calculado arriba vía GetCompanyBalance, migrado en el Paso 2), en vez de totalDocs-totalPays.
 	return &DashboardData{
 		UsersCount:               0,
 		CompaniesCount:           companiesCount,
@@ -485,7 +494,7 @@ func (ctrl *DashboardController) getDashboardDataForCompanyIDs(companyIDs []uint
 		PaymentsCount:            paymentsCount,
 		TotalDocs:                totalDocs,
 		TotalPays:                totalPays,
-		GlobalBalance:            totalDocs - totalPays,
+		GlobalBalance:            totalDebt,
 		MonthlyPayments:          monthly,
 		TopDebtors:               debtCards,
 		RecentDocuments:          recentDocs,

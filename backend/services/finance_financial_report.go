@@ -176,6 +176,13 @@ func companyTotalsForReport(companyID uint, dateFrom, dateToExclusive *time.Time
 }
 
 // GetFinancialReportRows totales por empresa (opcionalmente por rango de fechas) y meses máximos de mora en deudas con saldo.
+//
+// Fase 3 Paso 4A (docs/auditoria-diseno-fase3-calculos-financieros-2026-09-14.md): el saldo (Balance)
+// de cada fila ya NO se calcula como TotalDocuments - TotalPayments (mismo bug corregido en Pasos 2-3
+// para GetCompanyBalance/GetCompanyStatement) — ahora es exclusivamente debt.Service.SaldoDocumentado.
+// companyTotalsForReport (td/tp) se conserva sin cambios: sigue siendo la fuente de los datos
+// informativos TotalDocuments/TotalPayments de cada fila y de los grandes totales grandDocs/grandPays;
+// deja de ser operando del saldo.
 func (s *FinanceService) GetFinancialReportRows(p FinancialReportParams) (rows []FinancialCompanyReportRow, grandDocs, grandPays, grandBal float64, err error) {
 	var companies []models.Company
 	q := database.DB.Order("business_name ASC")
@@ -192,12 +199,16 @@ func (s *FinanceService) GetFinancialReportRows(p FinancialReportParams) (rows [
 		return nil, 0, 0, 0, err
 	}
 
+	debtSvc := debtsvc.NewService()
 	rows = make([]FinancialCompanyReportRow, 0, len(companies))
 	for _, cpy := range companies {
 		td, tp := companyTotalsForReport(cpy.ID, p.DateFrom, p.DateToExclusive)
 		td = math.Round(td*100) / 100
 		tp = math.Round(tp*100) / 100
-		bal := math.Round((td-tp)*100) / 100
+		bal, balErr := debtSvc.SaldoDocumentado(database.DB, cpy.ID)
+		if balErr != nil {
+			return nil, 0, 0, 0, balErr
+		}
 
 		maxLag, oldestYM, _ := s.MaxPeriodLagMonthsForCompany(cpy.ID)
 		hasPeriodLag := maxLag > 0
