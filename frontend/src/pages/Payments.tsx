@@ -67,6 +67,7 @@ const Payments = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
 
   useEffect(() => {
     setCompanyId(initialCompanyId);
@@ -143,13 +144,16 @@ const Payments = () => {
 
   const confirmDeletePayment = async () => {
     if (!deleteTarget) return;
+    const reason = deleteReason.trim();
+    if (!reason) return;
     setDeleteLoading(true);
     try {
-      await paymentsService.delete(deleteTarget.id);
+      await paymentsService.delete(deleteTarget.id, reason);
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Pago eliminado correctamente.' } }),
       );
       setDeleteTarget(null);
+      setDeleteReason('');
       fetchPayments();
     } catch (e) {
       console.error(e);
@@ -529,11 +533,28 @@ const Payments = () => {
         cancelLabel="Cancelar"
         danger
         loading={deleteLoading}
+        confirmDisabled={!deleteReason.trim()}
         onClose={() => {
-          if (!deleteLoading) setDeleteTarget(null);
+          if (!deleteLoading) {
+            setDeleteTarget(null);
+            setDeleteReason('');
+          }
         }}
         onConfirm={() => void confirmDeletePayment()}
-      />
+      >
+        <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="delete-payment-reason">
+          Motivo de la anulación (obligatorio)
+        </label>
+        <textarea
+          id="delete-payment-reason"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          rows={2}
+          value={deleteReason}
+          onChange={(e) => setDeleteReason(e.target.value)}
+          disabled={deleteLoading}
+          placeholder="Ej: Pago duplicado, error de registro, etc."
+        />
+      </ConfirmDialog>
     </div>
   );
 };

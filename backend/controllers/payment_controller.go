@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"math"
 	"miappfiber/config"
 	"miappfiber/database"
@@ -359,6 +360,8 @@ func (ctrl *PaymentController) UpdateAPI(c fiber.Ctx) error {
 	return c.JSON(p)
 }
 
+// DeleteAPI anula el pago (Fase 6, Blueprint §19: cancelación auditable). El motivo es obligatorio.
+// Un reintento sobre un pago ya anulado responde 200 idempotente (decisión E.2, Fase 6 Paso 2).
 func (ctrl *PaymentController) DeleteAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
@@ -369,7 +372,24 @@ func (ctrl *PaymentController) DeleteAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Solo el administrador puede eliminar pagos"})
 	}
 
-	if err := ctrl.paymentService.Delete(uint(id)); err != nil {
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.Bind().Body(&body)
+	reason := strings.TrimSpace(body.Reason)
+	if reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Indique el motivo de la anulación"})
+	}
+
+	userID, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+
+	if err := ctrl.paymentService.Delete(uint(id), reason, userID); err != nil {
+		if errors.Is(err, services.ErrPaymentAlreadyVoided) {
+			return c.JSON(fiber.Map{"message": "El pago ya estaba anulado"})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Eliminado"})

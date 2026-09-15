@@ -454,7 +454,11 @@ func (ctrl *TaxSettlementController) DeleteAPI(c fiber.Ctx) error {
 	if err := services.VerifyOperationsKey(body.OperationKey); err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	}
-	if err := ctrl.svc.Delete(uint(id)); err != nil {
+	userID, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	if err := ctrl.svc.Delete(uint(id), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Liquidación eliminada"})
@@ -480,7 +484,11 @@ func (ctrl *TaxSettlementController) RevertToDraftAPI(c fiber.Ctx) error {
 		OperationKey string `json:"operation_key"`
 	}
 	_ = c.Bind().Body(&body)
-	ts, err := ctrl.svc.RevertToDraft(uint(id))
+	userID, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	ts, err := ctrl.svc.RevertToDraft(uint(id), userID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

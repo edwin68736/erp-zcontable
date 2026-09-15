@@ -2,6 +2,7 @@ package debt
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -51,6 +52,25 @@ func (s *Service) WriteOffUnlinkedDebt(tx *gorm.DB, documentID uint, action, rea
 	}
 	if s.EffectiveBalance(tx, &d) <= MoneyEpsilon {
 		return nil, errors.New("la deuda no tiene saldo pendiente")
+	}
+
+	// Fase 6, Blueprint §20 (docs/diseno-fase6-paso2-cancelaciones-writeoff-2026-09-15.md C.3,
+	// decisión E.4): bloquear (no solo advertir) cuando ya existe dinero real aplicado a la deuda y
+	// aún queda saldo pendiente — reutiliza hasPaymentAllocations/hasLegacyPayments/PaidTotal, ya
+	// existentes en este mismo paquete (settlement.go), sin duplicar lógica. E.4 aprobado: cubre
+	// ambos esquemas, no solo PaymentAllocation (letra literal del Blueprint), por consistencia con
+	// la protección ya existente de borrado de Document en settlement.go.
+	hasAlloc, err := s.hasPaymentAllocations(tx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	hasLegacyPay, err := s.hasLegacyPayments(tx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	if hasAlloc || hasLegacyPay {
+		return nil, fmt.Errorf("la deuda %s tiene dinero ya aplicado (S/ %.2f) y aún saldo pendiente; "+
+			"reasigne o gestione ese pago antes de exonerar/anular", d.Number, s.PaidTotal(tx, d.ID))
 	}
 
 	now := time.Now()

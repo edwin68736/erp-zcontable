@@ -313,7 +313,7 @@ func TestAllocateExisting_Concurrent_AllocateAndDeletePayment(t *testing.T) {
 		defer wg.Done()
 		<-start
 		deleteErr = db.Transaction(func(tx *gorm.DB) error {
-			return paySvc.DeletePaymentTx(tx, pay.ID)
+			return paySvc.DeletePaymentTx(tx, pay.ID, "test concurrencia Fase 2.5", 1)
 		})
 	}()
 	close(start)

@@ -902,7 +902,9 @@ func (s *TaxSettlementService) CanRegisterPayment(settlementID uint) (bool, erro
 // Delete elimina la liquidación y revierte lo vinculado: pagos con tax_settlement_id (imputaciones y estados de deuda),
 // referencia a liquidación en comprobantes fiscales, y deudas internas de la liquidación sin pagos.
 // No elimina documentos de deudas externas (líneas document_ref); solo desvincula tax_settlement_id.
-func (s *TaxSettlementService) Delete(id uint) error {
+// Delete elimina la liquidación. userID (Fase 6, Blueprint §19) identifica al actor que, en cascada,
+// anula los Payments vinculados si la liquidación estaba emitida — ver revertSettlementPaymentsAndFiscal.
+func (s *TaxSettlementService) Delete(id uint, userID uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		var ts models.TaxSettlement
 		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
@@ -915,7 +917,8 @@ func (s *TaxSettlementService) Delete(id uint) error {
 		}
 
 		if ts.Status == models.TaxSettlementStatusIssued {
-			if err := s.revertSettlementPaymentsAndFiscal(tx, &ts); err != nil {
+			reason := fmt.Sprintf("Liquidación #%d eliminada", ts.ID)
+			if err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID); err != nil {
 				return err
 			}
 		}
@@ -937,8 +940,10 @@ func (s *TaxSettlementService) Delete(id uint) error {
 	})
 }
 
-// RevertToDraft revierte pagos y comprobantes de una liquidación emitida y la deja en borrador para editar.
-func (s *TaxSettlementService) RevertToDraft(id uint) (*models.TaxSettlement, error) {
+// RevertToDraft revierte pagos y comprobantes de una liquidación emitida y la deja en borrador para
+// editar. userID (Fase 6, Blueprint §19) identifica al actor de la anulación en cascada de los
+// Payments vinculados.
+func (s *TaxSettlementService) RevertToDraft(id uint, userID uint) (*models.TaxSettlement, error) {
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var ts models.TaxSettlement
 		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
@@ -955,7 +960,8 @@ func (s *TaxSettlementService) RevertToDraft(id uint) (*models.TaxSettlement, er
 		if ts.Status != models.TaxSettlementStatusIssued {
 			return errors.New("solo se puede revertir una liquidación emitida")
 		}
-		if err := s.revertSettlementPaymentsAndFiscal(tx, &ts); err != nil {
+		reason := fmt.Sprintf("Liquidación #%d revertida a borrador", ts.ID)
+		if err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID); err != nil {
 			return err
 		}
 		ts.Status = models.TaxSettlementStatusDraft
@@ -970,7 +976,11 @@ func (s *TaxSettlementService) RevertToDraft(id uint) (*models.TaxSettlement, er
 	return s.GetByID(id)
 }
 
-func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts *models.TaxSettlement) error {
+// revertSettlementPaymentsAndFiscal anula (Fase 6, Blueprint §19) en cascada todos los Payments de la
+// liquidación, con un único motivo sintético (reason) y el mismo actor (userID) para todos. Un
+// ErrPaymentAlreadyVoided de un pago individual no aborta la cascada (idempotencia: un reintento
+// completo de Delete/RevertToDraft sobre una liquidación ya procesada no debe fallar).
+func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts *models.TaxSettlement, reason string, userID uint) error {
 	if ts == nil {
 		return nil
 	}
@@ -981,7 +991,10 @@ func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts
 		return err
 	}
 	for _, pid := range payIDs {
-		if err := paySvc.DeletePaymentTx(tx, pid); err != nil {
+		if err := paySvc.DeletePaymentTx(tx, pid, reason, userID); err != nil {
+			if errors.Is(err, ErrPaymentAlreadyVoided) {
+				continue
+			}
 			return fmt.Errorf("no se pudo revertir el pago %d: %w", pid, err)
 		}
 	}

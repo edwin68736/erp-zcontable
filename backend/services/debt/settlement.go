@@ -311,6 +311,50 @@ func (s *Service) UnlinkSettlementFromDocument(tx *gorm.DB, documentID, settleme
 		Update("tax_settlement_id", nil).Error
 }
 
+// RevertSettlementDebtLinksTx (Fase 6, Blueprint §19.5 —
+// docs/diseno-fase6-paso2-cancelaciones-writeoff-2026-09-15.md A.3): llamada desde
+// PaymentService.DeletePaymentTx al anular un pago con TaxSettlementID. Revierte
+// Document.tax_settlement_id para cada documento en documentIDs SOLO si, tras eliminar las
+// allocations del pago que se está anulando, ya no queda ningún otro Payment activo (no anulado, no
+// soft-eliminado) con el mismo tax_settlement_id sosteniendo ese vínculo — ni vía PaymentAllocation
+// ni vía el esquema legacy Payment.DocumentID directo. Un mismo Document puede tener más de un
+// Payment activo con el mismo TaxSettlementID (pagos parciales sucesivos); anular solo uno de ellos
+// nunca debe desvincular un Document que otro pago activo sigue sosteniendo legítimamente.
+//
+// Debe llamarse DESPUÉS de borrar las PaymentAllocation del pago que se está anulando (para que la
+// verificación de "¿sigue habiendo otro pago activo?" no cuente las de ese mismo pago).
+//
+// No toca TaxSettlementLine (decisión E.1, Fase 6 Paso 2): "el vínculo deuda↔liquidación" según la
+// tabla de fuentes de verdad del Blueprint (§21) es específicamente Document.tax_settlement_id.
+func (s *Service) RevertSettlementDebtLinksTx(tx *gorm.DB, taxSettlementID uint, documentIDs []uint) error {
+	for _, did := range documentIDs {
+		var stillLinked int64
+		if err := tx.Model(&models.PaymentAllocation{}).
+			Joins("JOIN payments p ON p.id = payment_allocations.payment_id "+
+				"AND p.deleted_at IS NULL AND p.voided_at IS NULL AND p.tax_settlement_id = ?", taxSettlementID).
+			Where("payment_allocations.document_id = ?", did).
+			Count(&stillLinked).Error; err != nil {
+			return err
+		}
+		if stillLinked > 0 {
+			continue
+		}
+		var stillLegacy int64
+		if err := tx.Model(&models.Payment{}).
+			Where("document_id = ? AND tax_settlement_id = ? AND voided_at IS NULL", did, taxSettlementID).
+			Count(&stillLegacy).Error; err != nil {
+			return err
+		}
+		if stillLegacy > 0 {
+			continue
+		}
+		if err := s.UnlinkSettlementFromDocument(tx, did, taxSettlementID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SettlementDebtRow fila para API de deudas vinculadas / no vinculadas.
 type SettlementDebtRow struct {
 	DocumentID             uint    `json:"document_id"`

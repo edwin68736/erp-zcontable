@@ -15,11 +15,11 @@ import (
 // Resoluciones de contradicciones aprobadas explícitamente por el usuario antes de implementar
 // (ver el documento de auditoría/diseño, sección "Contradicciones encontradas"):
 //
-//   - C1 (Payment activo/anulado): el Blueprint asume `Payment.voided_at`, que todavía no existe
-//     (es Fase 6, no implementada). Mientras tanto, "Payment activo" = no soft-deleted
-//     (`Payment.DeletedAt IS NULL`), el mecanismo que ya existe y que GORM aplica automáticamente
-//     en cualquier consulta que no use `.Unscoped()`. Cuando Fase 6 agregue `voided_at`, estas 4
-//     funciones necesitarán una condición adicional (`AND voided_at IS NULL`), no un rediseño.
+//   - C1 (Payment activo/anulado): resuelto en Fase 6 — `Payment.VoidedAt` ya existe. "Payment
+//     activo" = no soft-deleted (`DeletedAt IS NULL`, sin cambios, GORM lo aplica automáticamente en
+//     cualquier consulta que no use `.Unscoped()`) Y no anulado (`VoidedAt IS NULL`, filtro explícito
+//     agregado en las 4 funciones — el scope automático de GORM no llega a los JOIN crudos de
+//     DineroAplicadoADeudas/PaidTotal). Cambio aditivo, tal como se anticipó aquí antes de Fase 6.
 //   - C2 (DineroNoAplicado): aprobada la opción A' — cuenta el remanente de Payments con
 //     `Purpose = 'deuda'` O `Purpose IS NULL` (histórico sin clasificar). Un Payment
 //     `Purpose = 'servicio'` nunca aparece en este cálculo. `NULL` nunca se interpreta como
@@ -49,8 +49,9 @@ func (s *Service) SaldoDocumentado(db *gorm.DB, companyID uint) (float64, error)
 // ver C1) se excluyen automáticamente por el scope por defecto de GORM.
 func (s *Service) DineroTotalRecibido(db *gorm.DB, companyID uint) (float64, error) {
 	var total float64
+	// Fase 6 (Blueprint §19.6, §22): un pago anulado deja de contar — voided_at IS NULL.
 	if err := db.Model(&models.Payment{}).
-		Where("company_id = ?", companyID).
+		Where("company_id = ? AND voided_at IS NULL", companyID).
 		Select("COALESCE(SUM(amount),0)").Scan(&total).Error; err != nil {
 		return 0, err
 	}
@@ -64,8 +65,10 @@ func (s *Service) DineroTotalRecibido(db *gorm.DB, companyID uint) (float64, err
 // Payments soft-deleted, ya que esa exclusión no es automática sobre una tabla unida.
 func (s *Service) DineroAplicadoADeudas(db *gorm.DB, companyID uint) (float64, error) {
 	var total float64
+	// Fase 6 (Blueprint §19.6, §22): "AND p.voided_at IS NULL" agregado junto al ya existente
+	// "AND p.deleted_at IS NULL" — el scope automático de GORM no llega a un JOIN crudo.
 	if err := db.Model(&models.PaymentAllocation{}).
-		Joins("JOIN payments p ON p.id = payment_allocations.payment_id AND p.deleted_at IS NULL AND p.company_id = ?", companyID).
+		Joins("JOIN payments p ON p.id = payment_allocations.payment_id AND p.deleted_at IS NULL AND p.voided_at IS NULL AND p.company_id = ?", companyID).
 		Select("COALESCE(SUM(payment_allocations.amount),0)").Scan(&total).Error; err != nil {
 		return 0, err
 	}
@@ -79,8 +82,9 @@ func (s *Service) DineroAplicadoADeudas(db *gorm.DB, companyID uint) (float64, e
 // remanentes positivos mayores que MoneyEpsilon — el mismo umbral usado en todo el paquete debt.
 func (s *Service) DineroNoAplicado(db *gorm.DB, companyID uint) (float64, error) {
 	var payments []models.Payment
+	// Fase 6 (Blueprint §19.6, §22): voided_at IS NULL agregado — un pago anulado nunca cuenta aquí.
 	if err := db.
-		Where("company_id = ? AND (purpose IS NULL OR purpose = ?)", companyID, models.PaymentPurposeDebt).
+		Where("company_id = ? AND voided_at IS NULL AND (purpose IS NULL OR purpose = ?)", companyID, models.PaymentPurposeDebt).
 		Preload("Allocations").
 		Find(&payments).Error; err != nil {
 		return 0, err

@@ -55,6 +55,18 @@ type Payment struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 
+	// Fase 6 (Blueprint §19): cancelación auditable. DeletedAt NO se reemplaza ni se deja de fijar —
+	// sigue siendo lo que excluye el pago de todo el resto del sistema vía el scope automático de
+	// GORM (docenas de sitios, ninguno usa .Unscoped()). Estos 3 campos son estrictamente aditivos:
+	// motivo, actor y una marca de tiempo con semántica de "anulación", que DeletedAt no provee.
+	// Nullable: nil = pago nunca anulado (incluye TODOS los pagos históricos, sin backfill — un pago
+	// histórico soft-eliminado antes de Fase 6 queda con DeletedAt fijado pero VoidedAt=nil a
+	// propósito, decisión explícita, ver docs/diseno-fase6-paso2-cancelaciones-writeoff-2026-09-15.md
+	// E.3: no se inventan datos históricos que no existen).
+	VoidedAt   *time.Time `json:"voided_at,omitempty"`
+	VoidedBy   *uint      `gorm:"index" json:"voided_by,omitempty"`
+	VoidReason string     `gorm:"type:text" json:"void_reason,omitempty"`
+
 	Company              *Company              `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
 	Document             *Document             `gorm:"foreignKey:DocumentID" json:"document,omitempty"`
 	TaxSettlement        *TaxSettlement        `gorm:"foreignKey:TaxSettlementID" json:"tax_settlement,omitempty"`

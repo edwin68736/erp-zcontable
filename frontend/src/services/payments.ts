@@ -92,8 +92,9 @@ export const paymentsService = {
     return res.data;
   },
 
-  async delete(id: number): Promise<void> {
-    await client.delete(`/payments/${id}`);
+  /** reason es obligatorio (Fase 6, Blueprint §19: cancelación auditable). */
+  async delete(id: number, reason: string): Promise<void> {
+    await client.delete(`/payments/${id}`, { data: { reason } });
   },
 
   async uploadAttachment(file: File): Promise<string> {

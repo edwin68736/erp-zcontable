@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 type ConfirmDialogProps = {
@@ -14,6 +14,10 @@ type ConfirmDialogProps = {
   danger?: boolean;
   /** Deshabilita botones (p. ej. mientras corre la petición). */
   loading?: boolean;
+  /** Contenido adicional opcional entre el mensaje y los botones (p. ej. un campo de motivo). */
+  children?: ReactNode;
+  /** Deshabilita solo el botón de confirmar (p. ej. mientras un campo requerido está vacío). */
+  confirmDisabled?: boolean;
 };
 
 const ConfirmDialog = ({
@@ -26,6 +30,8 @@ const ConfirmDialog = ({
   cancelLabel = 'Cancelar',
   danger = false,
   loading = false,
+  children,
+  confirmDisabled = false,
 }: ConfirmDialogProps) => {
   useEffect(() => {
     if (!open) return;
@@ -63,6 +69,7 @@ const ConfirmDialog = ({
           >
             {message}
           </p>
+          {children ? <div className="mt-3">{children}</div> : null}
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 py-3 sm:px-5 sm:py-4 bg-slate-50/80 rounded-b-2xl sm:rounded-b-2xl">
           <button
@@ -75,7 +82,7 @@ const ConfirmDialog = ({
           </button>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             onClick={onConfirm}
             className={`inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-sm disabled:opacity-50 ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'

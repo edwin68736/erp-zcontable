@@ -575,21 +575,50 @@ func (s *PaymentService) GetByID(id uint) (*models.Payment, error) {
 	return &p, nil
 }
 
-// DeletePaymentTx elimina el pago y sus imputaciones dentro de una transacción ya abierta (p. ej. cascada al borrar liquidación).
+// ErrPaymentAlreadyVoided (Fase 6, Blueprint §19): DeletePaymentTx devuelve este sentinel cuando el
+// pago ya tenía VoidedAt fijado — idempotencia real: el llamador puede distinguir "ya estaba anulado"
+// (no-op) de cualquier otro error, sin repetir ningún efecto secundario.
+var ErrPaymentAlreadyVoided = errors.New("el pago ya fue anulado")
+
+// DeletePaymentTx anula el pago (Fase 6, Blueprint §19: ya no es un DELETE físico —de hecho nunca lo
+// fue, Payment usa soft-delete de GORM vía DeletedAt desde siempre— ahora además queda auditado con
+// VoidedAt/VoidedBy/VoidReason) y revierte sus imputaciones dentro de una transacción ya abierta
+// (p. ej. cascada al borrar/revertir una liquidación).
 //
 // Fase 2.5 (docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md §7): el Payment se bloquea
 // (FOR UPDATE) inmediatamente al leerlo, y los Documents afectados (por sus allocations o por el
 // DocumentID legacy) se bloquean en orden ascendente por ID antes de borrar las allocations — mismo
 // orden Payment→Documents(ASC) que usan AllocateExistingPaymentTx/ApplyPaymentTx, para que un
 // borrado concurrente con una asignación sobre el mismo Payment quede serializado y nunca deje una
-// allocation huérfana ni dinero aplicado sin rastro.
-func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint) error {
+// allocation huérfana ni dinero aplicado sin rastro. Ese mismo lock es lo que hace atómica e
+// idempotente la anulación: dos anulaciones concurrentes del mismo Payment se serializan ahí; la
+// segunda, tras el lock, ve VoidedAt ya fijado y corta de inmediato sin repetir ningún efecto.
+//
+// Fase 6, Blueprint §19.5 (docs/diseno-fase6-paso2-cancelaciones-writeoff-2026-09-15.md A.3): además
+// revierte Document.tax_settlement_id cuando este pago lo había establecido, SOLO si ningún otro
+// Payment activo lo sigue sosteniendo (ver debt.Service.revertSettlementDebtLinksTx). No toca
+// TaxSettlementLine (decisión E.1: fuera de alcance de Fase 6).
+func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint, reason string, userID uint) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return errors.New("el motivo de anulación es obligatorio")
+	}
+
+	// Unscoped(): la primera anulación deja deleted_at fijado (igual que siempre), así que un
+	// reintento con el scope por defecto de GORM ya no encontraría la fila (falsamente,
+	// gorm.ErrRecordNotFound) y nunca llegaría al chequeo de idempotencia de abajo. Unscoped aquí NO
+	// cambia nada para una fila todavía activa (deleted_at NULL) — solo permite ver también la ya
+	// anulada, que es exactamente lo que la idempotencia necesita.
 	var p models.Payment
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, id).Error; err != nil {
+	if err := tx.Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, id).Error; err != nil {
 		return err
 	}
 
-	// Comprobantes fiscales Tukifac vinculados: revertir conciliación antes de borrar el pago.
+	if p.VoidedAt != nil {
+		return ErrPaymentAlreadyVoided
+	}
+
+	// Comprobantes fiscales Tukifac vinculados: revertir conciliación antes de anular el pago.
 	if err := tx.Model(&models.TukifacFiscalReceipt{}).
 		Where("linked_payment_id = ?", id).
 		Updates(map[string]interface{}{
@@ -621,12 +650,29 @@ func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint) error {
 		return err
 	}
 
-	result := tx.Delete(&models.Payment{}, id)
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	// Fase 6, Blueprint §19.5: revertir el vínculo deuda↔liquidación que este pago haya establecido,
+	// solo si ningún otro Payment activo con el mismo TaxSettlementID lo sigue sosteniendo. Debe
+	// correr DESPUÉS de borrar las allocations de este pago (para que la verificación de "¿sigue
+	// habiendo otro pago activo?" ya no cuente las de este mismo pago que se está anulando).
+	if p.TaxSettlementID != nil {
+		if err := debtsvc.NewService().RevertSettlementDebtLinksTx(tx, *p.TaxSettlementID, orderedDocIDs); err != nil {
+			return err
+		}
 	}
+
+	now := time.Now()
+	result := tx.Model(&models.Payment{}).Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]interface{}{
+			"deleted_at":  now,
+			"voided_at":   now,
+			"voided_by":   userID,
+			"void_reason": reason,
+		})
 	if result.Error != nil {
 		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 
 	for did := range docIDs {
@@ -637,9 +683,12 @@ func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint) error {
 	return nil
 }
 
-func (s *PaymentService) Delete(id uint) error {
+// Delete anula un pago fuera de una transacción ya abierta (endpoint manual). reason es obligatorio
+// (Blueprint §19); userID identifica al actor (0 si no aplica, p. ej. procesos internos sin usuario
+// humano directo — ninguno de los llamadores actuales usa 0, ver TaxSettlementService).
+func (s *PaymentService) Delete(id uint, reason string, userID uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		return s.DeletePaymentTx(tx, id)
+		return s.DeletePaymentTx(tx, id, reason, userID)
 	})
 }
 
