@@ -25,6 +25,13 @@ func Connect() error {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger:      logger.Default.LogMode(logger.Info),
 		PrepareStmt: true,
+		// Fase 5 Paso 2A (idempotencia POS): habilita la traducción de errores de GORM a errores
+		// genéricos (p. ej. gorm.ErrDuplicatedKey ante una violación de UNIQUE INDEX), portable entre
+		// el driver de MySQL de producción y el de sqlite usado en tests — sin esto, detectar una
+		// colisión de idempotencia de forma confiable requeriría inspeccionar el código de error
+		// específico del driver. No cambia el comportamiento de ningún error existente, solo permite
+		// identificarlos de forma estándar.
+		TranslateError: true,
 	})
 	if err != nil {
 		return fmt.Errorf("error conectando a la base de datos: %w", err)

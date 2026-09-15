@@ -24,7 +24,7 @@ const (
 type TukifacFiscalReceipt struct {
 	ID                     uint           `gorm:"primaryKey" json:"id"`
 	ExternalID             string         `gorm:"size:100;not null;uniqueIndex" json:"external_id"`
-	CompanyID              uint           `gorm:"not null;index" json:"company_id"`
+	CompanyID              uint           `gorm:"not null;index;uniqueIndex:idx_receipt_company_sale_client_ref,priority:1" json:"company_id"`
 	DocumentTypeID         string         `gorm:"size:50" json:"document_type_id"`
 	Number                 string         `gorm:"size:50;not null" json:"number"`
 	Total                  float64        `gorm:"type:decimal(15,2);not null" json:"total"`
@@ -39,6 +39,15 @@ type TukifacFiscalReceipt struct {
 	Origin                 string         `gorm:"size:30;not null;default:'tukifac_sync'" json:"origin"`
 	IssuedByUserID         *uint          `gorm:"index" json:"issued_by_user_id,omitempty"`
 	FiscalSeriesID         *uint          `gorm:"index" json:"fiscal_series_id,omitempty"`
+	// SaleClientRef (Fase 5 Paso 2A): referencia de idempotencia generada por el CLIENTE (POS
+	// Web/Android/Tauri) ANTES de enviar la venta — no es ExternalID (ese se genera en el backend a
+	// partir de time.Now()+correlativo y por eso NO sirve como idempotency key: cada retry recibiría
+	// un valor distinto). Nullable: orígenes que no son pos_sale, y solicitudes POS que todavía no la
+	// envíen (compatibilidad hacia atrás), quedan NULL — sin protección de idempotencia para esas
+	// filas, documentado explícitamente. Unicidad (CompanyID, SaleClientRef): dos empresas pueden
+	// generar localmente la misma referencia sin colisionar; NULL nunca colisiona consigo mismo
+	// (comportamiento estándar de UNIQUE INDEX en MySQL y sqlite).
+	SaleClientRef *string `gorm:"size:100;uniqueIndex:idx_receipt_company_sale_client_ref,priority:2" json:"sale_client_ref,omitempty"`
 	Subtotal               float64        `gorm:"type:decimal(15,2);not null;default:0" json:"subtotal"`
 	TaxAmount              float64        `gorm:"type:decimal(15,2);not null;default:0" json:"tax_amount"`
 	TotalDiscount          float64        `gorm:"type:decimal(15,2);not null;default:0" json:"total_discount"`

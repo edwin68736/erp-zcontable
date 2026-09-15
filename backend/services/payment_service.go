@@ -42,6 +42,13 @@ type PaymentCreateParams struct {
 	AllocationMode string // fifo, manual (implícito si hay allocations), vacío + document_id = un documento
 	Allocations    []PaymentAllocationInput
 	FiscalStatus   string // na, pending_receipt, linked
+	// Purpose (Fase 4 §2): decisión EXPLÍCITA del llamador sobre la naturaleza del dinero —
+	// models.PaymentPurposeDebt o models.PaymentPurposeService. Nil = sin clasificar, permitido
+	// únicamente por compatibilidad con los llamadores existentes que todavía no lo proporcionan
+	// (comportamiento sin cambios para ellos). Nunca se infiere aquí de Allocations, DocumentID,
+	// TaxSettlementID ni de ningún otro campo — si el flujo conoce la naturaleza del dinero, debe
+	// fijar este campo explícitamente.
+	Purpose *string
 	// AllowUnallocatedRemainder: en FIFO, si la deuda es menor que el monto, se imputa solo lo posible y el resto queda
 	// como saldo a favor en el mismo pago (monto total del pago sin cambiar). Típico en conciliación Tukifac.
 	AllowUnallocatedRemainder bool
@@ -132,6 +139,9 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 	if !isValidPaymentType(p.Type) {
 		return 0, errors.New("tipo de pago inválido")
 	}
+	if p.Purpose != nil && !models.IsValidPaymentPurpose(*p.Purpose) {
+		return 0, errors.New("purpose inválido: use 'deuda' o 'servicio'")
+	}
 
 	if p.DocumentID != nil && *p.DocumentID == 0 {
 		p.DocumentID = nil
@@ -151,6 +161,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			CompanyID:    p.CompanyID,
 			DocumentID:   nil,
 			Type:         "on_account",
+			Purpose:      p.Purpose,
 			Date:         p.Date,
 			Amount:       p.Amount,
 			Method:       p.Method,
@@ -200,6 +211,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 				CompanyID:    p.CompanyID,
 				DocumentID:   nil,
 				Type:         "on_account",
+				Purpose:      p.Purpose,
 				Date:         p.Date,
 				Amount:       p.Amount,
 				Method:       p.Method,
@@ -276,6 +288,7 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			Notes:           p.Notes,
 			FiscalStatus:    p.FiscalStatus,
 			TaxSettlementID: p.TaxSettlementID,
+			Purpose:         p.Purpose,
 			Lines:           applyLines,
 		})
 		if err != nil {

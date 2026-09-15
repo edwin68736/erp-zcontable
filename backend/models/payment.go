@@ -12,6 +12,19 @@ const (
 	PaymentPurposeService = "servicio"
 )
 
+// IsValidPaymentPurpose valida un valor no nulo de Payment.Purpose (Fase 4 §2-3, validación
+// centralizada y reutilizable: antes de esta función cada flujo comparaba el string a mano). Un
+// Purpose NULL no se valida aquí — sigue siendo un estado permitido de compatibilidad/legado
+// (pagos históricos sin clasificar), nunca una decisión de negocio de un flujo nuevo.
+func IsValidPaymentPurpose(v string) bool {
+	switch v {
+	case PaymentPurposeDebt, PaymentPurposeService:
+		return true
+	default:
+		return false
+	}
+}
+
 // Payment representa un pago registrado para una empresa (y opcionalmente asociado a un documento)
 type Payment struct {
 	ID         uint   `gorm:"primaryKey" json:"id"`

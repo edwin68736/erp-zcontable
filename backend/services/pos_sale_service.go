@@ -42,6 +42,12 @@ type PosSaleIssueInput struct {
 	PaymentMethod    string                `json:"payment_method"`
 	PaymentReference string                `json:"payment_reference"`
 	Notes            string                `json:"notes"`
+	// SaleClientRef (Fase 5 Paso 2A, opcional — compatibilidad hacia atrás): referencia de
+	// idempotencia generada por el cliente (POS Web/Android/Tauri) ANTES de enviar la venta. Si se
+	// envía y ya existe una venta con esa referencia para esta empresa, IssuePosSale devuelve esa
+	// venta existente sin crear nada nuevo. Si no se envía (clientes que todavía no lo soportan), el
+	// comportamiento es exactamente el de antes — sin ninguna protección de idempotencia.
+	SaleClientRef string `json:"sale_client_ref,omitempty"`
 }
 
 type posLineComputed struct {
@@ -52,6 +58,9 @@ type PosSaleService struct {
 	series  *FiscalDocumentSeriesService
 	receipt *FiscalReceiptService
 	access  *AccessService
+	// issue: infraestructura de Fase 4 Paso 2 reutilizada para crear Payment + comprobante de forma
+	// atómica (Fase 5 Paso 2B) — no se duplica su lógica en este servicio.
+	issue *FiscalReceiptIssueService
 }
 
 func NewPosSaleService() *PosSaleService {
@@ -59,6 +68,7 @@ func NewPosSaleService() *PosSaleService {
 		series:  NewFiscalDocumentSeriesService(),
 		receipt: NewFiscalReceiptService(),
 		access:  NewAccessService(),
+		issue:   NewFiscalReceiptIssueService(),
 	}
 }
 
@@ -280,7 +290,22 @@ func parseMoneyString(s string) float64 {
 	return v
 }
 
-// IssuePosSale registra comprobante POS con líneas snapshot e correlativo local.
+// IssuePosSale registra la venta POS: prepara los datos de la venta (validación de acceso,
+// resolución de serie, cálculo de líneas) y delega la creación atómica de Payment + comprobante +
+// líneas + desglose de métodos de pago en FiscalReceiptIssueService.CreatePaymentWithComprobante
+// (Fase 4 Paso 2) — no duplica esa lógica aquí.
+//
+// Fase 5 Paso 2B (Blueprint §17): una venta POS normal siempre es Purpose=servicio, decisión
+// explícita y fija — nunca inferida de Kind/Origin/monto/cliente. El comprobante nace directamente
+// vinculado (Linked) a un Payment recién creado, nunca en pendiente_vincular. La idempotencia
+// (SaleClientRef, Fase 5 Paso 2A) se conserva sin cambios de comportamiento — ahora la resuelve
+// CreatePaymentWithComprobante, que es quien realiza la escritura real.
+//
+// Caso "el cajero indica que el dinero corresponde a una deuda existente" (Blueprint: Purpose=deuda
+// + PaymentAllocation): auditado y NO implementado en este paso — PosSaleIssueInput hoy no
+// transporta ninguna información (DocumentID, indicación explícita) para identificar esa deuda.
+// Implementarlo requeriría inventar una regla de negocio o inferir la clasificación, exactamente lo
+// que esta fase prohíbe explícitamente. Documentado como hallazgo pendiente no bloqueante.
 func (s *PosSaleService) IssuePosSale(userID uint, in PosSaleIssueInput, allowPriceEdit bool) (*models.TukifacFiscalReceipt, error) {
 	kind := strings.ToLower(strings.TrimSpace(in.Kind))
 	if kind != "boleta" && kind != "factura" && kind != "sale_note" {
@@ -301,6 +326,9 @@ func (s *PosSaleService) IssuePosSale(userID uint, in PosSaleIssueInput, allowPr
 		}
 	}
 
+	// Resolución de serie por defecto: lógica propia de POS (elegir la primera serie activa del
+	// tipo pedido cuando el cliente no especifica una) — CreatePaymentWithComprobante exige
+	// SeriesID ya resuelto, no hace autodetección.
 	expectedSunat := SunatCodeForComprobanteKind(kind)
 	seriesID := in.SeriesID
 	if seriesID == 0 {
@@ -311,15 +339,8 @@ func (s *PosSaleService) IssuePosSale(userID uint, in PosSaleIssueInput, allowPr
 		}
 		seriesID = ser.ID
 	}
-	ser, err := s.series.GetByID(seriesID)
-	if err != nil {
-		return nil, errors.New("serie no encontrada")
-	}
-	if ser.SunatCode != expectedSunat {
-		return nil, fmt.Errorf("la serie no corresponde al tipo %s", kind)
-	}
 
-	computed, subtotal, tax, total, err := s.computeLines(in.Lines, allowPriceEdit)
+	computed, _, _, total, err := s.computeLines(in.Lines, allowPriceEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -327,81 +348,36 @@ func (s *PosSaleService) IssuePosSale(userID uint, in PosSaleIssueInput, allowPr
 		return nil, errors.New("el total debe ser mayor a cero")
 	}
 
-	paymentRows, headerMethod, headerRef, err := normalizePosPayments(&in, total)
-	if err != nil {
-		return nil, err
+	// Líneas ya calculadas por POS (catálogo o manuales) mapeadas 1:1 — sin recalcular nada.
+	lines := make([]PaymentWithComprobanteLine, 0, len(computed))
+	for _, c := range computed {
+		ln := c.line
+		lines = append(lines, PaymentWithComprobanteLine{
+			LineType: ln.LineType, ProductID: ln.ProductID, ProductName: ln.ProductName,
+			Description: ln.Description, InternalCode: ln.InternalCode, UnitTypeID: ln.UnitTypeID,
+			Quantity: ln.Quantity, UnitPrice: ln.UnitPrice, LineSubtotal: ln.LineSubtotal,
+			IGVRate: ln.IGVRate, IGVAmount: ln.IGVAmount, LineTotal: ln.LineTotal,
+		})
 	}
 
-	var co models.Company
-	if err := database.DB.First(&co, in.CompanyID).Error; err != nil {
-		return nil, err
-	}
-
-	fullNumber, _, err := s.series.ReserveNextNumber(ser.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	issueDate := time.Now().In(fiscalPeruTZ())
-	docType := ser.SunatCode
-	if kind == "sale_note" && docType == "00" {
-		docType = "NV"
-	}
-	customerName := strings.TrimSpace(co.BusinessName)
-	if customerName == "" {
-		customerName = "-"
-	}
 	uid := userID
-	sid := ser.ID
-
-	rec := models.TukifacFiscalReceipt{
-		ExternalID:           fmt.Sprintf("pos-%d-%s", time.Now().UnixNano(), fullNumber),
-		CompanyID:            co.ID,
-		DocumentTypeID:       docType,
-		Number:               fullNumber,
-		Total:                total,
-		Subtotal:             subtotal,
-		TaxAmount:            tax,
-		IssueDate:            issueDate,
-		CustomerNumber:       strings.TrimSpace(co.RUC),
-		CustomerName:         customerName,
-		ReconciliationStatus: models.TukifacReceiptPending,
-		StateTypeDescription: "Venta POS",
+	return s.issue.CreatePaymentWithComprobante(PaymentWithComprobanteInput{
+		CompanyID:            in.CompanyID,
+		Kind:                 kind,
+		SeriesID:             seriesID,
 		Origin:               models.TukifacReceiptOriginPOS,
+		Purpose:              models.PaymentPurposeService,
+		Amount:               total,
+		Date:                 time.Now(),
+		Method:               in.PaymentMethod,
+		PaymentReference:     in.PaymentReference,
+		Payments:             in.Payments,
+		Lines:                lines,
+		Notes:                in.Notes,
 		IssuedByUserID:       &uid,
-		FiscalSeriesID:       &sid,
-		PaymentMethod:        headerMethod,
-		PaymentReference:     headerRef,
-		Notes:                strings.TrimSpace(in.Notes),
-	}
-
-	err = database.DB.Transaction(func(tx *gorm.DB) error {
-		if e := tx.Create(&rec).Error; e != nil {
-			return e
-		}
-		for i := range computed {
-			ln := computed[i].line
-			ln.FiscalReceiptID = rec.ID
-			if e := tx.Create(&ln).Error; e != nil {
-				return e
-			}
-		}
-		for i := range paymentRows {
-			p := paymentRows[i]
-			p.FiscalReceiptID = rec.ID
-			if e := tx.Create(&p).Error; e != nil {
-				return e
-			}
-		}
-		return nil
+		StateTypeDescription: "Venta POS",
+		SaleClientRef:        in.SaleClientRef,
 	})
-	if err != nil {
-		return nil, err
-	}
-	_ = database.DB.Preload("Company").Preload("Lines").Preload("Payments", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC, id ASC")
-	}).Preload("IssuedByUser").First(&rec, rec.ID).Error
-	return &rec, nil
 }
 
 // PosSaleListParams filtros historial POS.

@@ -33,7 +33,11 @@ type ApplyPaymentInput struct {
 	Notes           string
 	FiscalStatus    string
 	TaxSettlementID *uint
-	Lines           []PaymentAllocationLine
+	// Purpose (Fase 4 §2): decisión explícita del llamador sobre la naturaleza del dinero
+	// (models.PaymentPurposeDebt/Service). Nil = sin clasificar (compatibilidad/legado) — nunca se
+	// infiere aquí a partir de Lines/TaxSettlementID ni de ningún otro dato.
+	Purpose *string
+	Lines   []PaymentAllocationLine
 }
 
 // DocumentOpenBalance saldo pendiente efectivo de una deuda.
@@ -197,6 +201,9 @@ func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error
 	if err := s.ValidatePaymentAmountsAndAllocations(tx, in.CompanyID, in.Amount, in.DiscountAmount, in.Lines, in.TaxSettlementID); err != nil {
 		return 0, err
 	}
+	if in.Purpose != nil && !models.IsValidPaymentPurpose(*in.Purpose) {
+		return 0, errors.New("purpose inválido: use 'deuda' o 'servicio'")
+	}
 
 	fs := strings.TrimSpace(in.FiscalStatus)
 	if fs == "" {
@@ -209,6 +216,7 @@ func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error
 		CompanyID:       in.CompanyID,
 		DocumentID:      nil,
 		Type:            "applied",
+		Purpose:         in.Purpose,
 		Date:            in.Date,
 		Amount:          in.Amount,
 		DiscountAmount:  roundMoney(in.DiscountAmount),
