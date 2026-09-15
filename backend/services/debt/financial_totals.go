@@ -58,6 +58,23 @@ func (s *Service) DineroTotalRecibido(db *gorm.DB, companyID uint) (float64, err
 	return roundMoney(total), nil
 }
 
+// SumDineroTotalRecibido — Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 2):
+// agrega DineroTotalRecibido sobre varias empresas, mismo patrón ya usado manualmente para
+// SaldoDocumentado en report_controller.go (sumSaldoDocumentado) y en los bucles de
+// dashboard_controller.go — no es una fórmula nueva, es la función oficial aplicada empresa por
+// empresa y sumada, centralizada aquí para no repetir el bucle en cada controller que la necesite.
+func (s *Service) SumDineroTotalRecibido(db *gorm.DB, companyIDs []uint) (float64, error) {
+	var total float64
+	for _, cid := range companyIDs {
+		v, err := s.DineroTotalRecibido(db, cid)
+		if err != nil {
+			return 0, err
+		}
+		total += v
+	}
+	return roundMoney(total), nil
+}
+
 // DineroAplicadoADeudas — Blueprint §22: SUM(PaymentAllocation.amount) cuyos Payments estén
 // activos (no soft-deleted, ver C1). Reutiliza exactamente el mismo patrón de JOIN que ya usa
 // PaidTotal (balance.go) — no introduce una fórmula nueva. GORM excluye automáticamente las

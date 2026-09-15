@@ -101,6 +101,20 @@ const Payments = () => {
       : 'bg-primary-50 text-primary-700 border border-primary-200';
   };
 
+  // Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md E.1): Purpose es un concepto distinto
+  // de Type (mecánico: aplicado/a cuenta) — nunca se fusionan en un solo badge, nunca se infiere.
+  const getPurposeLabel = (p: Payment) => {
+    if (p.purpose === 'deuda') return 'Deuda';
+    if (p.purpose === 'servicio') return 'Servicio';
+    return 'Sin clasificar';
+  };
+
+  const getPurposeClass = (p: Payment) => {
+    if (p.purpose === 'deuda') return 'bg-primary-50 text-primary-700 border border-primary-200';
+    if (p.purpose === 'servicio') return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+    return 'bg-slate-50 text-slate-500 border border-slate-200';
+  };
+
   const fetchCompanies = async () => {
     try {
       setError('');
@@ -257,6 +271,7 @@ const Payments = () => {
   const canCreate = useMemo(() => auth.hasPermission(P.paymentsCreate), []);
   const canEdit = useMemo(() => auth.hasPermission(P.paymentsUpdate), []);
   const canDeletePayment = useMemo(() => auth.hasPermission(P.paymentsDelete), []);
+  const canViewVoided = useMemo(() => auth.hasPermission(P.paymentsViewVoided), []);
 
   const closePreview = () => setPreviewUrl(null);
   const isPdf = (url: string) => url.toLowerCase().split('?')[0].endsWith('.pdf');
@@ -305,6 +320,16 @@ const Payments = () => {
           <h2 className="text-xl font-semibold text-slate-800">Pagos</h2>
           <p className="text-sm text-slate-500">Registro de pagos realizados por las empresas.</p>
         </div>
+        <div className="flex items-center gap-2">
+        {canViewVoided ? (
+          <Link
+            to="/payments/voided"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <i className="fas fa-ban text-xs"></i>
+            <span>Pagos anulados</span>
+          </Link>
+        ) : null}
         {canCreate ? (
           <Link
             to="/payments/new"
@@ -314,6 +339,7 @@ const Payments = () => {
             <span>Nuevo pago</span>
           </Link>
         ) : null}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
@@ -378,6 +404,7 @@ const Payments = () => {
                 <th className="px-4 py-3">Fecha pago</th>
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Propósito</th>
                 <th className="px-4 py-3">Comprobante</th>
                 <th className="px-4 py-3">PDF</th>
                 <th className="px-4 py-3">Deuda</th>
@@ -390,7 +417,7 @@ const Payments = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && payments.length === 0 ? (
                  <tr>
-                   <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
+                   <td colSpan={12} className="px-4 py-6 text-center text-slate-500 text-sm">
                      <i className="fas fa-spinner fa-spin mr-2"></i> Cargando pagos...
                    </td>
                  </tr>
@@ -416,6 +443,13 @@ const Payments = () => {
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTypeClass(payment)}`}
                       >
                         {getTypeLabel(payment)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPurposeClass(payment)}`}
+                      >
+                        {getPurposeLabel(payment)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs">
@@ -506,7 +540,7 @@ const Payments = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
+                  <td colSpan={12} className="px-4 py-6 text-center text-slate-500 text-sm">
                     {loading ? "Cargando..." : "No hay pagos registrados."}
                   </td>
                 </tr>

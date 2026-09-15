@@ -124,6 +124,88 @@ func (ctrl *PaymentController) ListAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": list})
 }
 
+// ListVoidedAPI GET /api/payments/voided — Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md
+// D.1): vía de auditoría dedicada para pagos anulados. Siempre paginado (es una vista de auditoría,
+// no un listado operativo) — nunca comparte código con ListAPI/ListPaged del listado activo.
+func (ctrl *PaymentController) ListVoidedAPI(c fiber.Ctx) error {
+	var params services.PaymentVoidedListParams
+	if companyIDStr := c.Query("company_id"); companyIDStr != "" {
+		if id, err := strconv.ParseUint(companyIDStr, 10, 32); err == nil {
+			params.CompanyID = uint(id)
+		}
+	}
+	if documentIDStr := c.Query("document_id"); documentIDStr != "" {
+		if id, err := strconv.ParseUint(documentIDStr, 10, 32); err == nil {
+			params.DocumentID = uint(id)
+		}
+	}
+	if fromStr := c.Query("voided_from", ""); fromStr != "" {
+		from, err := time.ParseInLocation("2006-01-02", fromStr, time.Local)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Fecha desde inválida"})
+		}
+		params.VoidedFrom = &from
+	}
+	if toStr := c.Query("voided_to", ""); toStr != "" {
+		to, err := time.ParseInLocation("2006-01-02", toStr, time.Local)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Fecha hasta inválida"})
+		}
+		toExclusive := to.AddDate(0, 0, 1)
+		params.VoidedTo = &toExclusive
+	}
+	if params.VoidedFrom != nil && params.VoidedTo != nil && params.VoidedTo.Before(*params.VoidedFrom) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rango de fechas inválido"})
+	}
+
+	if !hasStudioScope(c) {
+		userID, err := getUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ids, err := ctrl.accessService.GetAllowedCompanyIDs(userID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		params.AllowedCompanyIDs = ids
+	}
+
+	page := 1
+	perPage := 20
+	if pageStr := c.Query("page", ""); pageStr != "" {
+		v, err := strconv.Atoi(pageStr)
+		if err != nil || v <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Página inválida"})
+		}
+		page = v
+	}
+	if perPageStr := c.Query("per_page", ""); perPageStr != "" {
+		v, err := strconv.Atoi(perPageStr)
+		if err != nil || v <= 0 || v > 200 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Tamaño de página inválido"})
+		}
+		perPage = v
+	}
+
+	list, total, err := ctrl.paymentService.ListVoided(params, page, perPage)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	totalPages := 0
+	if perPage > 0 {
+		totalPages = int(math.Ceil(float64(total) / float64(perPage)))
+	}
+	return c.JSON(fiber.Map{
+		"data": list,
+		"pagination": fiber.Map{
+			"page":        page,
+			"per_page":    perPage,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+
 func (ctrl *PaymentController) GetAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {

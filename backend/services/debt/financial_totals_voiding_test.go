@@ -147,6 +147,28 @@ func TestDineroNoAplicado_ExcludesVoidedPayment(t *testing.T) {
 	}
 }
 
+// TestSumDineroTotalRecibido_AggregatesCompaniesAndExcludesVoided — Fase 7 Paso 3
+// (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 2): agrega DineroTotalRecibido
+// sobre varias empresas y excluye pagos anulados en cada una.
+func TestSumDineroTotalRecibido_AggregatesCompaniesAndExcludesVoided(t *testing.T) {
+	db := setupFinancialVoidingTestDB(t)
+	svc := debtsvc.NewService()
+	coA := seedFVCompany(t, db, "20951000001")
+	coB := seedFVCompany(t, db, "20951000002")
+
+	seedFVPayment(t, db, coA.ID, 100, nil, false)
+	seedFVPayment(t, db, coA.ID, 999, nil, true) // anulado, no debe contar
+	seedFVPayment(t, db, coB.ID, 50, nil, false)
+
+	total, err := svc.SumDineroTotalRecibido(db, []uint{coA.ID, coB.ID})
+	if err != nil {
+		t.Fatalf("SumDineroTotalRecibido: %v", err)
+	}
+	if total != 150 {
+		t.Fatalf("total=%v, want 150 (100+50, el anulado de 999 no debe contar)", total)
+	}
+}
+
 func TestPaidTotalAndEffectiveBalance_ExcludeVoidedPayment(t *testing.T) {
 	db := setupFinancialVoidingTestDB(t)
 	svc := debtsvc.NewService()

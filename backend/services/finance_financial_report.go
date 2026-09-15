@@ -164,7 +164,11 @@ func companyTotalsForReport(companyID uint, dateFrom, dateToExclusive *time.Time
 	}
 	dq.Select("COALESCE(SUM(total_amount),0)").Scan(&totalDocs)
 
-	pq := database.DB.Model(&models.Payment{}).Where("company_id = ?", companyID)
+	// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 3): esta función admite
+	// rango de fechas opcional, así que no puede llamar directamente a DineroTotalRecibido (que no
+	// acepta fechas — decisión J.1, no se toca su firma). Se agrega "voided_at IS NULL" a la consulta
+	// existente en su lugar: un pago anulado deja de contar aquí, sin introducir una fórmula nueva.
+	pq := database.DB.Model(&models.Payment{}).Where("company_id = ? AND voided_at IS NULL", companyID)
 	if dateFrom != nil {
 		pq = pq.Where("date >= ?", *dateFrom)
 	}

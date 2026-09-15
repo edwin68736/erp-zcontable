@@ -8,6 +8,7 @@ import (
 	"miappfiber/database"
 	"miappfiber/models"
 	"miappfiber/services"
+	debtsvc "miappfiber/services/debt"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -91,15 +92,23 @@ func (ctrl *DashboardController) getDashboardData(minOverdueMonths int) (*Dashbo
 	database.DB.Model(&models.Payment{}).Count(&paymentsCount)
 
 	finService := services.NewFinanceService()
+	debtSvc := debtsvc.NewService()
 	// Para el dashboard principal no calculamos por empresa específica,
 	// sino totales globales.
-	var totalDocs, totalPays float64
+	var totalDocs float64
 	database.DB.Model(&models.Document{}).
 		Where("status <> ?", "anulado").
 		Select("COALESCE(SUM(total_amount),0)").Scan(&totalDocs)
-	database.DB.Model(&models.Payment{}).
-		Where("deleted_at IS NULL").
-		Select("COALESCE(SUM(amount),0)").Scan(&totalPays)
+	// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 2): TotalPays ya no es
+	// un SUM ad-hoc propio — usa la función oficial agregada sobre todas las empresas.
+	var allCompanyIDs []uint
+	if err := database.DB.Model(&models.Company{}).Pluck("id", &allCompanyIDs).Error; err != nil {
+		return nil, err
+	}
+	totalPays, err := debtSvc.SumDineroTotalRecibido(database.DB, allCompanyIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Pagos por mes (año actual)
 	now := time.Now()
@@ -113,9 +122,11 @@ func (ctrl *DashboardController) getDashboardData(minOverdueMonths int) (*Dashbo
 	for i := 1; i <= 12; i++ {
 		start := time.Date(year, time.Month(i), 1, 0, 0, 0, 0, time.Local)
 		end := start.AddDate(0, 1, 0)
+		// Fase 7 (A.2 categoría 3): "voided_at IS NULL" agregado — no se cambia la firma de
+		// DineroTotalRecibido (decisión J.1), que no acepta rango de fechas.
 		var sum float64
 		database.DB.Model(&models.Payment{}).
-			Where("date >= ? AND date < ?", start, end).
+			Where("date >= ? AND date < ? AND voided_at IS NULL", start, end).
 			Select("COALESCE(SUM(amount),0)").Scan(&sum)
 
 		if sum > maxAmount {
@@ -179,12 +190,13 @@ func (ctrl *DashboardController) getDashboardData(minOverdueMonths int) (*Dashbo
 	yearStart := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
 	yearEnd := yearStart.AddDate(1, 0, 0)
 
+	// Fase 7 (A.2 categoría 3): "voided_at IS NULL" agregado a yearPays.
 	var yearDocs, yearPays float64
 	database.DB.Model(&models.Document{}).
 		Where("issue_date >= ? AND issue_date < ? AND status <> ?", yearStart, yearEnd, "anulado").
 		Select("COALESCE(SUM(total_amount),0)").Scan(&yearDocs)
 	database.DB.Model(&models.Payment{}).
-		Where("date >= ? AND date < ?", yearStart, yearEnd).
+		Where("date >= ? AND date < ? AND voided_at IS NULL", yearStart, yearEnd).
 		Select("COALESCE(SUM(amount),0)").Scan(&yearPays)
 
 	collectionPercent := 0.0
@@ -330,13 +342,15 @@ func (ctrl *DashboardController) getDashboardDataForCompanyIDs(companyIDs []uint
 	database.DB.Model(&models.Document{}).Where("company_id IN ?", companyIDs).Count(&documentsCount)
 	database.DB.Model(&models.Payment{}).Where("company_id IN ?", companyIDs).Count(&paymentsCount)
 
-	var totalDocs, totalPays float64
+	var totalDocs float64
 	database.DB.Model(&models.Document{}).
 		Where("company_id IN ? AND status <> ?", companyIDs, "anulado").
 		Select("COALESCE(SUM(total_amount),0)").Scan(&totalDocs)
-	database.DB.Model(&models.Payment{}).
-		Where("company_id IN ? AND deleted_at IS NULL", companyIDs).
-		Select("COALESCE(SUM(amount),0)").Scan(&totalPays)
+	// Fase 7 (A.2 categoría 2): TotalPays ya no es un SUM ad-hoc propio.
+	totalPays, err := debtsvc.NewService().SumDineroTotalRecibido(database.DB, companyIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	var maxAmount float64
 	var minAmount *float64
@@ -344,10 +358,11 @@ func (ctrl *DashboardController) getDashboardDataForCompanyIDs(companyIDs []uint
 	for i := 1; i <= 12; i++ {
 		start := time.Date(year, time.Month(i), 1, 0, 0, 0, 0, time.Local)
 		end := start.AddDate(0, 1, 0)
+		// Fase 7 (A.2 categoría 3): "voided_at IS NULL" agregado.
 		var sum float64
 		database.DB.Model(&models.Payment{}).
 			Where("company_id IN ?", companyIDs).
-			Where("date >= ? AND date < ?", start, end).
+			Where("date >= ? AND date < ? AND voided_at IS NULL", start, end).
 			Select("COALESCE(SUM(amount),0)").Scan(&sum)
 
 		if sum > maxAmount {
@@ -412,9 +427,10 @@ func (ctrl *DashboardController) getDashboardDataForCompanyIDs(companyIDs []uint
 		Where("company_id IN ?", companyIDs).
 		Where("issue_date >= ? AND issue_date < ? AND status <> ?", yearStart, yearEnd, "anulado").
 		Select("COALESCE(SUM(total_amount),0)").Scan(&yearDocs)
+	// Fase 7 (A.2 categoría 3): "voided_at IS NULL" agregado junto al ya existente "deleted_at IS NULL".
 	database.DB.Model(&models.Payment{}).
 		Where("company_id IN ?", companyIDs).
-		Where("date >= ? AND date < ? AND deleted_at IS NULL", yearStart, yearEnd).
+		Where("date >= ? AND date < ? AND deleted_at IS NULL AND voided_at IS NULL", yearStart, yearEnd).
 		Select("COALESCE(SUM(amount),0)").Scan(&yearPays)
 
 	collectionPercent := 0.0

@@ -106,6 +106,10 @@ func Setup(app *fiber.App) {
 
 	// Payments
 	api.Get("/payments", middleware.RequirePermission(rbac.PaymentsView), paymentCtrl.ListAPI)
+	// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.1): vía de auditoría de anulados,
+	// registrada ANTES de "/payments/:id" para que el router nunca confunda el literal "voided" con
+	// un :id. Permiso dedicado, separado de PaymentsView/PaymentsDelete (decisión J.2).
+	api.Get("/payments/voided", middleware.RequirePermission(rbac.PaymentsViewVoided), paymentCtrl.ListVoidedAPI)
 	api.Get("/payments/:id", middleware.RequirePermission(rbac.PaymentsView), paymentCtrl.GetAPI)
 	api.Post("/payments", middleware.RequirePermission(rbac.PaymentsCreate), paymentCtrl.CreateAPI)
 	api.Post("/payments/:id/issue-comprobante", middleware.RequirePermission(rbac.PaymentsIssueComprobante), paymentCtrl.IssueComprobanteAPI)

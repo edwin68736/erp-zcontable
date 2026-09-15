@@ -10,6 +10,7 @@ import (
 	"miappfiber/database"
 	"miappfiber/models"
 	"miappfiber/rbac"
+	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
 )
@@ -231,23 +232,40 @@ func companyListOrderByCode(codeOrder string) string {
 	return "(0 + TRIM(internal_code)) ASC, id ASC"
 }
 
-// loadCompanyListItemsByIDs carga filas con balance y respeta el orden de ids (GORM + Select con subconsultas
-// puede ignorar ORDER BY en algunos drivers; el orden se fija aquí).
+// loadCompanyListItemsByIDs carga filas con balance y respeta el orden de ids.
+//
+// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.1): Balance ya NO se calcula con la
+// fórmula ad-hoc SUM(documents.total_amount) - SUM(payments.amount) (companyListBalanceSelect,
+// eliminada) — esa fórmula es exactamente la prohibida por el Blueprint (mezcla dinero de
+// servicio/a-cuenta con la deuda, puede dar saldos negativos falsos, y no excluía Payments anulados).
+// Ahora usa debt.Service.SaldoDocumentado por empresa, el mismo patrón ya establecido en
+// GetCompanyBalance/GetCompanyStatement/GetFinancialReportRows/Dashboard desde Fase 3. Mismo
+// contrato JSON de siempre (CompanyListItem.Balance sigue siendo un float64).
 func (s *CompanyService) loadCompanyListItemsByIDs(ids []uint) ([]CompanyListItem, error) {
 	if len(ids) == 0 {
 		return []CompanyListItem{}, nil
 	}
-	var list []CompanyListItem
-	if err := database.DB.Model(&models.Company{}).Select(companyListBalanceSelect).Where("id IN ?", ids).Find(&list).Error; err != nil {
+	var companies []models.Company
+	if err := database.DB.Where("id IN ?", ids).Find(&companies).Error; err != nil {
 		return nil, err
 	}
 	pos := make(map[uint]int, len(ids))
 	for i, id := range ids {
 		pos[id] = i
 	}
-	sort.SliceStable(list, func(i, j int) bool {
-		return pos[list[i].ID] < pos[list[j].ID]
+	sort.SliceStable(companies, func(i, j int) bool {
+		return pos[companies[i].ID] < pos[companies[j].ID]
 	})
+
+	debtSvc := debtsvc.NewService()
+	list := make([]CompanyListItem, 0, len(companies))
+	for _, c := range companies {
+		bal, err := debtSvc.SaldoDocumentado(database.DB, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, CompanyListItem{Company: c, Balance: bal})
+	}
 	return list, nil
 }
 
@@ -733,13 +751,6 @@ func (s *CompanyService) companyListBaseQuery(params CompanyListParams) *gorm.DB
 	}
 	return q
 }
-
-const companyListBalanceSelect = `companies.*,
-			(
-				(SELECT COALESCE(SUM(total_amount),0) FROM documents WHERE documents.company_id = companies.id AND documents.status <> 'anulado')
-				-
-				(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.company_id = companies.id AND payments.deleted_at IS NULL)
-			) AS balance`
 
 func (s *CompanyService) GetByID(id uint) (*models.Company, error) {
 	var c models.Company

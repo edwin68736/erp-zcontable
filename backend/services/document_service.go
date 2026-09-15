@@ -456,7 +456,7 @@ func (s *DocumentService) List(params DocumentListParams) ([]models.Document, er
 	q := database.DB.Model(&models.Document{})
 	q = debtsvc.ScopeActiveDocuments(q)
 	q = s.applyDocumentListFilters(q, params)
-	if err := q.Preload("Company").Preload("TaxSettlement").Order("issue_date DESC, id DESC").Find(&list).Error; err != nil {
+	if err := q.Preload("Company").Preload("TaxSettlement").Preload("WriteoffByUser").Order("issue_date DESC, id DESC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	s.enrichDocumentDisplayNumbers(list)
@@ -482,7 +482,7 @@ func (s *DocumentService) ListPaged(params DocumentListParams, page int, perPage
 		return nil, 0, err
 	}
 
-	q := base.Preload("Company").Preload("TaxSettlement")
+	q := base.Preload("Company").Preload("TaxSettlement").Preload("WriteoffByUser")
 	if params.IncludeItems && params.CompanyID != 0 {
 		q = q.Preload("Items", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC, id ASC")
@@ -636,6 +636,7 @@ func (s *DocumentService) GetByID(id uint) (*models.Document, error) {
 			return db.Order("sort_order ASC, id ASC")
 		}).
 		Preload("Items.Product").
+		Preload("WriteoffByUser"). // Fase 7 — solo se popula si el documento tiene writeoff_by
 		First(&d, id).Error; err != nil {
 		return nil, err
 	}

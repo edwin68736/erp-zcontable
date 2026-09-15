@@ -63,6 +63,30 @@ const DocumentDebtDetailModal = ({ open, doc, onClose }: Props) => {
             </div>
           </dl>
 
+          {doc.writeoff_at ? (
+            <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-3">
+              <h3 className="text-sm font-semibold text-purple-900 mb-1">
+                Esta deuda fue {doc.status === 'exonerado' ? 'exonerada' : 'anulada'}
+              </h3>
+              <dl className="text-sm text-purple-900 space-y-0.5">
+                <div>
+                  <dt className="inline text-purple-700">Motivo: </dt>
+                  <dd className="inline">{doc.writeoff_reason || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-purple-700">Usuario: </dt>
+                  <dd className="inline">
+                    {doc.writeoff_by_user?.name || (doc.writeoff_by ? `Usuario #${doc.writeoff_by}` : '—')}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="inline text-purple-700">Fecha: </dt>
+                  <dd className="inline">{(doc.writeoff_at ?? '').slice(0, 10).split('-').reverse().join('/')}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+
           <div>
             <h3 className="text-sm font-semibold text-slate-800 mb-2">Historial de pagos</h3>
             {history.length === 0 ? (

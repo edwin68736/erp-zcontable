@@ -1,5 +1,5 @@
 import client from '../api/client';
-import type { Payment, TukifacFiscalReceipt } from '../types/dashboard';
+import type { Payment, TukifacFiscalReceipt, VoidedPayment } from '../types/dashboard';
 
 export interface PaymentsListParams {
   company_id?: string;
@@ -7,6 +7,16 @@ export interface PaymentsListParams {
   type?: string;
   date_from?: string;
   date_to?: string;
+}
+
+/** Filtros de GET /payments/voided (Fase 7 — vía de auditoría, separada del listado activo). */
+export interface VoidedPaymentsListParams {
+  company_id?: string;
+  document_id?: string;
+  voided_from?: string;
+  voided_to?: string;
+  page?: number;
+  per_page?: number;
 }
 
 export interface PaginationMeta {
@@ -95,6 +105,25 @@ export const paymentsService = {
   /** reason es obligatorio (Fase 6, Blueprint §19: cancelación auditable). */
   async delete(id: number, reason: string): Promise<void> {
     await client.delete(`/payments/${id}`, { data: { reason } });
+  },
+
+  /**
+   * Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.1): vía de auditoría dedicada — NUNCA
+   * usar esta función para poblar el listado activo de pagos ni ningún cálculo financiero.
+   */
+  async listVoided(params: VoidedPaymentsListParams = {}): Promise<{
+    items: VoidedPayment[];
+    pagination: PaginationMeta;
+  }> {
+    const page = params.page ?? 1;
+    const perPage = params.per_page ?? 20;
+    const res = await client.get<{ data: VoidedPayment[]; pagination: PaginationMeta }>('/payments/voided', {
+      params,
+    });
+    return {
+      items: res.data?.data ?? [],
+      pagination: res.data?.pagination ?? { page, per_page: perPage, total: 0, total_pages: 0 },
+    };
   },
 
   async uploadAttachment(file: File): Promise<string> {

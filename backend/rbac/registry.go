@@ -96,6 +96,7 @@ var registryDefs = []PermDef{
 	{PaymentsDelete, ModFinanzas, "Pagos", "Eliminar pago"},
 	{PaymentsIssueComprobante, ModFinanzas, "Pagos", "Emitir comprobante desde pago"},
 	{PaymentsUploadAttachment, ModFinanzas, "Pagos", "Subir adjunto de pago"},
+	{PaymentsViewVoided, ModFinanzas, "Pagos", "Ver auditoría de pagos anulados"},
 
 	{ProductsView, ModFinanzas, "Productos", "Ver productos"},
 	{ProductsCreate, ModFinanzas, "Productos", "Crear producto"},
@@ -222,7 +223,7 @@ var supervisorDeny = []string{
 	UsersView, UsersCreate, UsersUpdate, UsersDelete,
 	RBACRolesView, RBACRolesManage, RBACPermissionsCatalog,
 	SettingsFirmView, SettingsFirmUpdate, SettingsFirmUploadLogo, SettingsFirmUploadBankLogo, SettingsFirmUploadPaymentQR,
-	CompaniesDelete, SubscriptionPlansDelete, PlanCategoriesDelete, PaymentsDelete,
+	CompaniesDelete, SubscriptionPlansDelete, PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided,
 	FinanceCalendarManage, CompanyCredentialsManage, CompanyCredentialsImport,
 }
 
@@ -235,7 +236,7 @@ var contadorDeny = []string{
 	CompaniesValidateRUC, CompaniesNextCode, CompaniesImportTemplate, CompaniesImportSpreadsheet,
 	CompaniesCreate, CompaniesUpdate, CompaniesStatus, CompaniesDelete,
 	SubscriptionPlansCreate, SubscriptionPlansUpdate, SubscriptionPlansTiers, SubscriptionPlansDelete,
-	PlanCategoriesDelete, PaymentsDelete, ProductsDelete,
+	PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided, ProductsDelete,
 	FinanceSunatDueDatesManage,
 }
 

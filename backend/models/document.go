@@ -47,11 +47,15 @@ type Document struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Company       *Company            `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
-	TaxSettlement *TaxSettlement      `gorm:"foreignKey:TaxSettlementID" json:"tax_settlement,omitempty"`
-	Payments      []Payment           `gorm:"foreignKey:DocumentID" json:"payments,omitempty"`
-	Allocations   []PaymentAllocation `gorm:"foreignKey:DocumentID" json:"allocations,omitempty"`
-	Items         []DocumentItem      `gorm:"foreignKey:DocumentID" json:"items,omitempty"`
+	Company       *Company       `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
+	TaxSettlement *TaxSettlement `gorm:"foreignKey:TaxSettlementID" json:"tax_settlement,omitempty"`
+	// WriteoffByUser (Fase 7, docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md C): mismo patrón que
+	// Payment.VoidedByUser / TukifacFiscalReceipt.IssuedByUser — solo se popula cuando el llamador lo
+	// precarga explícitamente.
+	WriteoffByUser *User               `gorm:"foreignKey:WriteoffBy" json:"writeoff_by_user,omitempty"`
+	Payments       []Payment           `gorm:"foreignKey:DocumentID" json:"payments,omitempty"`
+	Allocations    []PaymentAllocation `gorm:"foreignKey:DocumentID" json:"allocations,omitempty"`
+	Items          []DocumentItem      `gorm:"foreignKey:DocumentID" json:"items,omitempty"`
 	// DisplayNumber legible para UI (p. ej. DEU-LI-202603 en deudas de liquidación); no persiste en BD.
 	DisplayNumber string `json:"display_number,omitempty" gorm:"-"`
 	// HasItems indica si existen filas en document_items (relleno en API, no columna en BD).

@@ -61,11 +61,13 @@ func (s *FinanceService) GetCompanyBalance(companyID uint) (*CompanyBalance, err
 		Select("COALESCE(SUM(total_amount),0)").
 		Scan(&totalDocs)
 
-	var totalPayments float64
-	database.DB.Model(&models.Payment{}).
-		Where("company_id = ?", companyID).
-		Select("COALESCE(SUM(amount),0)").
-		Scan(&totalPayments)
+	// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 1): ya no es un SUM
+	// ad-hoc propio (duplicaba DineroTotalRecibido sin filtrar voided_at) — llama directamente a la
+	// función oficial.
+	totalPayments, err := debtsvc.NewService().DineroTotalRecibido(database.DB, companyID)
+	if err != nil {
+		return nil, err
+	}
 
 	balance, err := debtsvc.NewService().SaldoDocumentado(database.DB, companyID)
 	if err != nil {
@@ -106,20 +108,24 @@ func (s *FinanceService) GetCompanyStatement(companyID uint, ledgerYear int, led
 		return nil, err
 	}
 
+	// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.3): "voided_at IS NULL" agregado —
+	// un pago anulado deja de aparecer aquí, y por lo tanto también en el Ledger (buildAccountLedger/
+	// buildAccountLedgerDateRange, que no necesitan ningún cambio propio: consumen exactamente esta
+	// slice ya filtrada) y en Payments/TotalPayments de la respuesta.
 	var pays []models.Payment
 	if err := database.DB.
 		Preload("Document").
 		Preload("TaxSettlement").
 		Preload("TukifacFiscalReceipt").
 		Preload("Allocations", "deleted_at IS NULL").
-		Where("company_id = ?", companyID).
+		Where("company_id = ? AND voided_at IS NULL", companyID).
 		Order("date DESC, id DESC").
 		Find(&pays).Error; err != nil {
 		return nil, err
 	}
 
 	statDocs := make([]DocumentStatement, 0, len(docs))
-	var totalDocs, totalPays float64
+	var totalDocs float64
 
 	for _, d := range docs {
 		if d.Status == "anulado" {
@@ -144,8 +150,11 @@ func (s *FinanceService) GetCompanyStatement(companyID uint, ledgerYear int, led
 		})
 	}
 
-	for _, p := range pays {
-		totalPays += p.Amount
+	// Fase 7 (A.2 categoría 1): ya no es un SUM manual sobre `pays` — llama directamente a la función
+	// oficial (que además ya está probada y ya filtra voided_at por su cuenta).
+	totalPays, err := debtsvc.NewService().DineroTotalRecibido(database.DB, companyID)
+	if err != nil {
+		return nil, err
 	}
 
 	var ledger *AccountLedger

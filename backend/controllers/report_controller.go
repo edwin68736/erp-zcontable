@@ -58,21 +58,18 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 	var totalDocs, totalPays, globalBalance float64
 	if len(allowedCompanyIDs) > 0 || hasStudioScope(c) {
 		docQ := database.DB.Model(&models.Document{}).Where("status <> ?", "anulado")
-		payQ := database.DB.Model(&models.Payment{})
 		if !hasStudioScope(c) {
 			docQ = docQ.Where("company_id IN ?", allowedCompanyIDs)
-			payQ = payQ.Where("company_id IN ?", allowedCompanyIDs)
 		}
 		docQ.Select("COALESCE(SUM(total_amount),0)").Scan(&totalDocs)
-		payQ.Select("COALESCE(SUM(amount),0)").Scan(&totalPays)
 
 		// Fase 3 Paso 4B (docs/auditoria-diseno-fase3-calculos-financieros-2026-09-14.md):
 		// global_balance ya NO se calcula como totalDocs-totalPays (mezclaba dinero de
 		// servicio/a-cuenta con la deuda y podía producir saldos negativos falsos) — se agrega
 		// debt.Service.SaldoDocumentado por cada empresa del ámbito visible, reutilizando la misma
 		// función centralizada que ya usan GetCompanyBalance/GetCompanyStatement/
-		// GetFinancialReportRows. totalDocs/totalPays se conservan sin cambios como datos
-		// informativos (total_documents_amount/total_payments_amount).
+		// GetFinancialReportRows. totalDocs se conserva sin cambios como dato informativo
+		// (total_documents_amount).
 		var companyIDsInScope []uint
 		if hasStudioScope(c) {
 			if err := database.DB.Model(&models.Company{}).Pluck("id", &companyIDsInScope).Error; err != nil {
@@ -81,11 +78,21 @@ func (ctrl *ReportController) FinancialSummaryAPI(c fiber.Ctx) error {
 		} else {
 			companyIDsInScope = allowedCompanyIDs
 		}
-		bal, err := sumSaldoDocumentado(database.DB, debtsvc.NewService(), companyIDsInScope)
+		debtSvc := debtsvc.NewService()
+		bal, err := sumSaldoDocumentado(database.DB, debtSvc, companyIDsInScope)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
 		globalBalance = bal
+
+		// Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md A.2 categoría 2): total_payments_amount
+		// ya no es un SUM ad-hoc propio (duplicaba DineroTotalRecibido sin filtrar voided_at) — usa
+		// la función oficial agregada sobre el mismo ámbito de empresas ya resuelto arriba.
+		pays, err := debtSvc.SumDineroTotalRecibido(database.DB, companyIDsInScope)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		totalPays = pays
 	}
 
 	include := c.Query("include", "")

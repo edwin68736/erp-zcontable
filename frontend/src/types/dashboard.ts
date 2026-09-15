@@ -137,6 +137,15 @@ export interface Document {
   balance_amount?: number;
   is_overdue?: boolean;
   payment_history?: DocumentPaymentHistoryEntry[];
+  /**
+   * Write-off (exoneración/anulación con motivo, Fase 6) — presentes cuando `status` es 'exonerado'
+   * o 'anulado' por esta vía. Fase 7: se muestran en el detalle de deuda
+   * (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md E.2).
+   */
+  writeoff_reason?: string;
+  writeoff_by?: number | null;
+  writeoff_at?: string | null;
+  writeoff_by_user?: { id: number; name: string };
 }
 
 export interface DocumentPaymentHistoryEntry {
@@ -175,6 +184,12 @@ export interface Payment {
   document_id?: number;
   tax_settlement_id?: number | null;
   type?: string;
+  /**
+   * Propósito del dinero recibido: 'deuda' (destinado a cancelar una cuenta por cobrar) o
+   * 'servicio' (ingreso independiente). Distinto de `type` (mecánico: aplicado/a cuenta) — nunca se
+   * infiere uno del otro (Fase 7, docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md E.1).
+   */
+  purpose?: 'deuda' | 'servicio' | null;
   date: string;
   amount: number;
   discount_amount?: number;
@@ -201,6 +216,26 @@ export interface Payment {
     print_ticket_url?: string;
     pdf_url?: string;
   };
+  /**
+   * Presentes SOLO cuando el pago fue anulado (Fase 6/7) — nunca aparecen en `GET /payments` ni
+   * `GET /payments/:id` (el backend excluye anulados de esas rutas); solo los devuelve
+   * `GET /payments/voided`, la vía de auditoría dedicada. Ver `VoidedPayment` abajo.
+   */
+  voided_at?: string | null;
+  voided_by?: number | null;
+  void_reason?: string;
+}
+
+/**
+ * Payment devuelto exclusivamente por `GET /payments/voided` (Fase 7, vía de auditoría — nunca se
+ * mezcla con `Payment` del listado activo). Los campos de anulación están siempre presentes aquí, a
+ * diferencia de `Payment` donde son opcionales/ausentes.
+ */
+export interface VoidedPayment extends Omit<Payment, 'voided_at' | 'voided_by' | 'void_reason'> {
+  voided_at: string;
+  voided_by: number;
+  voided_by_user?: { id: number; name: string };
+  void_reason: string;
 }
 
 export interface TukifacFiscalReceipt {

@@ -692,6 +692,82 @@ func (s *PaymentService) Delete(id uint, reason string, userID uint) error {
 	})
 }
 
+// PaymentVoidedListParams filtros para la vía de auditoría de pagos anulados (Fase 7,
+// docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.1). Deliberadamente un tipo separado de
+// PaymentListParams — no comparte código con el listado activo para que nunca puedan mezclarse por
+// accidente al reutilizar una misma función/ruta interna.
+type PaymentVoidedListParams struct {
+	CompanyID         uint
+	DocumentID        uint
+	VoidedFrom        *time.Time // filtra por voided_at, no por date (es una vista de auditoría de anulaciones)
+	VoidedTo          *time.Time
+	AllowedCompanyIDs []uint
+}
+
+// ListVoided devuelve EXCLUSIVAMENTE pagos anulados (voided_at IS NOT NULL), con la información de
+// auditoría precargada. Es la única función de lectura de Payment en todo el backend que usa
+// .Unscoped() — necesario porque el scope por defecto de GORM (que toda otra consulta de Payment
+// respeta) excluye estas filas automáticamente. El filtro explícito "voided_at IS NOT NULL" es la
+// condición excluyente que garantiza que nunca puede devolver un pago activo: estructuralmente no
+// puede solaparse con List/ListPaged/GetByID (ninguno de los tres usa Unscoped).
+func (s *PaymentService) ListVoided(params PaymentVoidedListParams, page, perPage int) ([]models.Payment, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if perPage <= 0 {
+		perPage = 20
+	}
+
+	base := database.DB.Unscoped().Model(&models.Payment{}).Where("voided_at IS NOT NULL")
+
+	if params.AllowedCompanyIDs != nil {
+		if len(params.AllowedCompanyIDs) == 0 {
+			return []models.Payment{}, 0, nil
+		}
+		base = base.Where("company_id IN ?", params.AllowedCompanyIDs)
+	}
+	if params.CompanyID != 0 {
+		base = base.Where("company_id = ?", params.CompanyID)
+	}
+	if params.DocumentID != 0 {
+		// Alcanza tanto el esquema legacy (Payment.DocumentID directo) como el moderno, vía
+		// subconsulta a las allocations (soft-eliminadas al anular, pero igual consultables Unscoped).
+		base = base.Where(
+			"document_id = ? OR id IN (SELECT payment_id FROM payment_allocations WHERE document_id = ?)",
+			params.DocumentID, params.DocumentID,
+		)
+	}
+	if params.VoidedFrom != nil {
+		base = base.Where("voided_at >= ?", *params.VoidedFrom)
+	}
+	if params.VoidedTo != nil {
+		base = base.Where("voided_at < ?", *params.VoidedTo)
+	}
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var list []models.Payment
+	err := base.
+		Preload("Company").
+		Preload("Document").      // legacy — Payment.DocumentID nunca se limpia al anular
+		Preload("TaxSettlement"). // Payment.TaxSettlementID nunca se limpia al anular
+		Preload("VoidedByUser").
+		Preload("Allocations", func(db *gorm.DB) *gorm.DB {
+			return db.Unscoped() // las allocations quedan soft-eliminadas (no destruidas) al anular
+		}).
+		Preload("Allocations.Document").
+		Order("voided_at DESC, id DESC").
+		Limit(perPage).Offset((page - 1) * perPage).
+		Find(&list).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
 func toDebtLines(lines []PaymentAllocationInput) []debtsvc.PaymentAllocationLine {
 	out := make([]debtsvc.PaymentAllocationLine, 0, len(lines))
 	for _, ln := range lines {

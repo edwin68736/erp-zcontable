@@ -23,6 +23,7 @@ import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
 import DocumentForm from './pages/DocumentForm';
 import Payments from './pages/Payments';
+import PaymentsVoided from './pages/PaymentsVoided';
 import PaymentForm from './pages/PaymentForm';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -135,6 +136,7 @@ function App() {
             <Route path="documents/new" element={guard(P.documentsView, <DocumentForm />)} />
             <Route path="documents/:id/edit" element={guard(P.documentsView, <DocumentForm />)} />
             <Route path="payments" element={guard(P.paymentsView, <Payments />)} />
+            <Route path="payments/voided" element={guard(P.paymentsViewVoided, <PaymentsVoided />)} />
             <Route path="payments/new" element={guard(P.paymentsView, <PaymentForm />)} />
             <Route path="payments/:id/edit" element={guard(P.paymentsView, <PaymentForm />)} />
             <Route path="reports/financial" element={guard(P.reportsFinancialView, <Reports />)} />

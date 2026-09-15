@@ -46,6 +46,10 @@ const (
 	PaymentsDelete           = "payments.delete"
 	PaymentsIssueComprobante = "payments.issue_comprobante"
 	PaymentsUploadAttachment = "payments.upload_attachment"
+	// PaymentsViewVoided (Fase 7, decisión J.2): permiso dedicado para la vía de auditoría de pagos
+	// anulados — separado de PaymentsView (listado activo) y de PaymentsDelete (capacidad de anular),
+	// para poder otorgar acceso de auditoría sin acoplarlo a ninguno de los otros dos.
+	PaymentsViewVoided = "payments.view_voided"
 
 	UsersView   = "users.view"
 	UsersCreate = "users.create"

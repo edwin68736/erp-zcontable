@@ -25,6 +25,7 @@ export const P = {
   paymentsCreate: 'payments.create',
   paymentsUpdate: 'payments.update',
   paymentsDelete: 'payments.delete',
+  paymentsViewVoided: 'payments.view_voided',
   paymentsIssueTukifac: 'payments.issue_tukifac',
   paymentsIssueComprobante: 'payments.issue_comprobante',
   fiscalSeriesView: 'fiscal.series_view',

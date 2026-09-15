@@ -102,6 +102,12 @@ export function debtCollectionBadge(doc: Document): DebtBadgeInfo {
   if (st === 'anulado') {
     return { label: 'Anulado', className: 'bg-slate-100 text-slate-700 border-slate-200' };
   }
+  // Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md E.2): 'exonerado' debe evaluarse ANTES
+  // que 'pagado'/balance<=0 — el write-off siempre deja balance_amount=0, así que sin esta rama
+  // primero una deuda condonada se mostraba como "Pagado", indistinguible de un cobro real.
+  if (st === 'exonerado') {
+    return { label: 'Exonerado', className: 'bg-purple-50 text-purple-800 border-purple-200' };
+  }
   if (st === 'pagado' || balance <= 0.005) {
     return { label: 'Pagado', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
   }
@@ -156,8 +162,8 @@ export function formatDocumentPeriod(doc: Document): string {
   return raw || '—';
 }
 
-/** Deuda con saldo pendiente y no anulada. */
+/** Deuda con saldo pendiente y no anulada/exonerada/pagada. */
 export function documentCanReceivePayment(doc: Document): boolean {
-  if (doc.status === 'anulado' || doc.status === 'pagado') return false;
+  if (doc.status === 'anulado' || doc.status === 'pagado' || doc.status === 'exonerado') return false;
   return documentBalanceAmount(doc) > 0.005;
 }
