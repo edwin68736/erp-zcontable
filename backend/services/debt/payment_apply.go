@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
 	"miappfiber/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // PaymentAllocationLine imputación a una deuda (equivale conceptualmente a payment_item).
@@ -43,12 +45,57 @@ func (s *Service) DocumentOpenBalance(tx *gorm.DB, documentID uint) (float64, er
 	return s.EffectiveBalance(tx, &d), nil
 }
 
+// LockDocumentsForUpdateAsc bloquea (SELECT ... FOR UPDATE) los Documents indicados, en orden
+// ASCENDENTE por ID sin importar el orden en que se solicitaron, dentro de la transacción `tx`
+// actual. Fase 2.5 (docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md §3-4): el orden
+// determinista evita deadlocks cuando dos transacciones concurrentes bloquean los mismos Documents
+// en secuencias distintas. El lock se mantiene hasta el COMMIT/ROLLBACK de `tx` — esta función no
+// libera nada explícitamente. IDs en 0 se ignoran; IDs repetidos se bloquean una sola vez.
+// Compartida entre ValidateAllocationsTx (mismo paquete) y PaymentService.DeletePaymentTx (paquete
+// services, vía debt.NewService()) para no duplicar la lógica de orden+lock.
+func (s *Service) LockDocumentsForUpdateAsc(tx *gorm.DB, documentIDs []uint) (map[uint]models.Document, error) {
+	seen := map[uint]struct{}{}
+	unique := make([]uint, 0, len(documentIDs))
+	for _, id := range documentIDs {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	sort.Slice(unique, func(i, j int) bool { return unique[i] < unique[j] })
+
+	locked := make(map[uint]models.Document, len(unique))
+	for _, id := range unique {
+		var d models.Document
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&d, id).Error; err != nil {
+			return nil, errors.New("documento inválido")
+		}
+		locked[id] = d
+	}
+	return locked, nil
+}
+
 // ValidateAllocationsTx valida imputaciones antes de persistir (sin escribir).
+//
+// Fase 2.5: los Documents de `lines` se bloquean (FOR UPDATE) en orden ascendente por ID ANTES de
+// leer su saldo — sin importar el orden en que llegaron las líneas — para que dos transacciones
+// concurrentes que imputan sobre los mismos Documents (desde AllocateExisting, ApplyPayment, o
+// ambas) queden serializadas. La comprobación de saldo usa directamente el `BalanceAmount` recién
+// leído bajo ese lock (no `EffectiveBalance`, que hace una segunda lectura sin lock — PaidTotal —
+// que bajo MySQL REPEATABLE READ puede quedar obsoleta frente a un commit concurrente que el lock
+// ya esperó; confirmado empíricamente, ver docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md
+// y docs/implementacion-fase2-5-locking-concurrencia-2026-09-14.md). EffectiveBalance/PaidTotal no
+// se modifican y siguen siendo la fórmula usada en el resto del código (p. ej. DocumentOpenBalance).
 func (s *Service) ValidateAllocationsTx(tx *gorm.DB, companyID uint, lines []PaymentAllocationLine, taxSettlementID *uint) error {
 	if len(lines) == 0 {
 		return errors.New("indique al menos una imputación")
 	}
 	seen := map[uint]struct{}{}
+	ids := make([]uint, 0, len(lines))
 	for _, ln := range lines {
 		if ln.DocumentID == 0 || ln.Amount <= 0 {
 			return errors.New("cada imputación requiere documento y monto válido")
@@ -57,9 +104,17 @@ func (s *Service) ValidateAllocationsTx(tx *gorm.DB, companyID uint, lines []Pay
 			return errors.New("documento repetido en imputación; una sola línea por documento")
 		}
 		seen[ln.DocumentID] = struct{}{}
+		ids = append(ids, ln.DocumentID)
+	}
 
-		var d models.Document
-		if err := tx.First(&d, ln.DocumentID).Error; err != nil {
+	locked, err := s.LockDocumentsForUpdateAsc(tx, ids)
+	if err != nil {
+		return err
+	}
+
+	for _, ln := range lines {
+		d, ok := locked[ln.DocumentID]
+		if !ok {
 			return errors.New("documento inválido")
 		}
 		if d.CompanyID != companyID {
@@ -68,7 +123,17 @@ func (s *Service) ValidateAllocationsTx(tx *gorm.DB, companyID uint, lines []Pay
 		if stringsTrimLower(d.Status) == StatusCancelled {
 			return errors.New("no se puede imputar a un documento anulado")
 		}
-		bal := s.EffectiveBalance(tx, &d)
+		// Fase 2.5: usar directamente d.BalanceAmount (el valor recién leído bajo el FOR UPDATE de
+		// LockDocumentsForUpdateAsc) en vez de EffectiveBalance. EffectiveBalance hace una segunda
+		// lectura sin lock (PaidTotal, un SUM plano) para autocorregir balance_amount legacy
+		// inconsistente; esa segunda lectura queda sujeta al snapshot REPEATABLE-READ de MySQL y
+		// puede ver datos anteriores a la transacción que acabamos de esperar, haciendo que la
+		// lógica de autocorrección de EffectiveBalance descarte el valor fresco y ya bloqueado por
+		// uno obsoleto (confirmado empíricamente contra MySQL real, ver docs/diseno-fase2-5-
+		// locking-concurrencia-2026-09-14.md y docs/implementacion-fase2-5-locking-concurrencia-
+		// 2026-09-14.md). d.BalanceAmount, al provenir de la lectura bloqueada, ya refleja el estado
+		// posterior a cualquier transacción concurrente que haya confirmado antes de este lock.
+		bal := d.BalanceAmount
 		if ln.Amount > bal+MoneyEpsilon {
 			return errors.New("el monto excede el saldo de un documento imputado")
 		}
@@ -193,9 +258,11 @@ type AllocateExistingInput struct {
 // validaciones por línea que ApplyPaymentTx (ValidateAllocationsTx) y el mismo mecanismo de saldo
 // (PersistBalanceAndStatus) — sin fórmulas nuevas. Ver docs/diseno-fase2-4-allocate-existing-2026-09-14.md.
 //
-// TODO Fase 2.5: esta operación necesita locking (SELECT ... FOR UPDATE) sobre el Payment y sobre
-// cada Document afectado antes de considerarse segura frente a solicitudes concurrentes sobre el
-// mismo Payment — deliberadamente NO implementado aquí.
+// Fase 2.5 (docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md): el Payment se bloquea
+// (FOR UPDATE) inmediatamente al leerlo, antes de calcular el remanente disponible, y los Documents
+// de `in.Lines` se bloquean en orden ascendente por ID dentro de ValidateAllocationsTx antes de
+// validar su saldo — el orden Payment→Documents(ASC) es el mismo en todas las operaciones que
+// comparten estos recursos (ApplyPaymentTx, DeletePaymentTx), para evitar deadlocks cruzados.
 func (s *Service) AllocateExistingPaymentTx(tx *gorm.DB, in AllocateExistingInput) error {
 	if in.PaymentID == 0 {
 		return errors.New("payment_id requerido")
@@ -205,7 +272,7 @@ func (s *Service) AllocateExistingPaymentTx(tx *gorm.DB, in AllocateExistingInpu
 	}
 
 	var pay models.Payment
-	if err := tx.First(&pay, in.PaymentID).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&pay, in.PaymentID).Error; err != nil {
 		return errors.New("pago no encontrado")
 	}
 	if pay.CompanyID != in.CompanyID {

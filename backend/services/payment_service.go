@@ -11,6 +11,7 @@ import (
 	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PaymentService struct{}
@@ -562,9 +563,16 @@ func (s *PaymentService) GetByID(id uint) (*models.Payment, error) {
 }
 
 // DeletePaymentTx elimina el pago y sus imputaciones dentro de una transacción ya abierta (p. ej. cascada al borrar liquidación).
+//
+// Fase 2.5 (docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md §7): el Payment se bloquea
+// (FOR UPDATE) inmediatamente al leerlo, y los Documents afectados (por sus allocations o por el
+// DocumentID legacy) se bloquean en orden ascendente por ID antes de borrar las allocations — mismo
+// orden Payment→Documents(ASC) que usan AllocateExistingPaymentTx/ApplyPaymentTx, para que un
+// borrado concurrente con una asignación sobre el mismo Payment quede serializado y nunca deje una
+// allocation huérfana ni dinero aplicado sin rastro.
 func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint) error {
 	var p models.Payment
-	if err := tx.First(&p, id).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, id).Error; err != nil {
 		return err
 	}
 
@@ -586,6 +594,14 @@ func (s *PaymentService) DeletePaymentTx(tx *gorm.DB, id uint) error {
 	}
 	if p.DocumentID != nil {
 		docIDs[*p.DocumentID] = struct{}{}
+	}
+
+	orderedDocIDs := make([]uint, 0, len(docIDs))
+	for did := range docIDs {
+		orderedDocIDs = append(orderedDocIDs, did)
+	}
+	if _, err := debtsvc.NewService().LockDocumentsForUpdateAsc(tx, orderedDocIDs); err != nil {
+		return err
 	}
 
 	if err := tx.Where("payment_id = ?", id).Delete(&models.PaymentAllocation{}).Error; err != nil {

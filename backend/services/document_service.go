@@ -13,6 +13,7 @@ import (
 	debtsvc "miappfiber/services/debt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const maxManualDebtNumberRunes = 6
@@ -651,31 +652,41 @@ func (s *DocumentService) GetByID(id uint) (*models.Document, error) {
 	return &d, nil
 }
 
+// Delete elimina físicamente un Document, si no tiene historial financiero o de liquidación.
+//
+// Fase 2.5 (docs/diseno-fase2-5-locking-concurrencia-2026-09-14.md §7): toda la operación corre
+// dentro de una transacción y el Document se bloquea (FOR UPDATE) ANTES de verificar su historial,
+// para cerrar la carrera "check sin historial -> AllocateExisting crea una allocation -> DELETE
+// document", que antes era posible porque el chequeo y el borrado eran sentencias sueltas sin
+// transacción ni lock.
 func (s *DocumentService) Delete(id uint) error {
-	var d models.Document
-	if err := database.DB.First(&d, id).Error; err != nil {
-		return err
-	}
-	// No permitir eliminar si tiene cualquier historial financiero o de liquidación (pagos legacy,
-	// imputaciones vía PaymentAllocation, o referencia de origen/actual a una liquidación) — la
-	// verificación anterior solo revisaba Payment.DocumentID (esquema legacy) y dejaba pasar deudas
-	// ya pagadas por el esquema moderno de PaymentAllocation. Blueprint Fase 1 §23: la protección
-	// contra borrado físico indebido debe ser global, no solo dentro de las rutas de liquidaciones.
-	hasHistory, reason, err := debtsvc.NewService().DocumentFinancialOrSettlementHistory(database.DB, &d)
-	if err != nil {
-		return err
-	}
-	if hasHistory {
-		return fmt.Errorf("no se puede eliminar: %s", reason)
-	}
-	if err := database.DB.Where("document_id = ?", id).Delete(&models.DocumentItem{}).Error; err != nil {
-		return err
-	}
-	result := database.DB.Delete(&models.Document{}, id)
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return result.Error
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var d models.Document
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&d, id).Error; err != nil {
+			return err
+		}
+		// No permitir eliminar si tiene cualquier historial financiero o de liquidación (pagos
+		// legacy, imputaciones vía PaymentAllocation, o referencia de origen/actual a una
+		// liquidación) — la verificación anterior solo revisaba Payment.DocumentID (esquema legacy)
+		// y dejaba pasar deudas ya pagadas por el esquema moderno de PaymentAllocation. Blueprint
+		// Fase 1 §23: la protección contra borrado físico indebido debe ser global, no solo dentro
+		// de las rutas de liquidaciones.
+		hasHistory, reason, err := debtsvc.NewService().DocumentFinancialOrSettlementHistory(tx, &d)
+		if err != nil {
+			return err
+		}
+		if hasHistory {
+			return fmt.Errorf("no se puede eliminar: %s", reason)
+		}
+		if err := tx.Where("document_id = ?", id).Delete(&models.DocumentItem{}).Error; err != nil {
+			return err
+		}
+		result := tx.Delete(&models.Document{}, id)
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return result.Error
+	})
 }
 
 func (s *DocumentService) RecalculateStatusFromPayments(documentID uint) error {
