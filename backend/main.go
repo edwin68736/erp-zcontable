@@ -49,6 +49,10 @@ func main() {
 		log.Printf("document migrations: %v", err)
 	}
 
+	if err := services.EnsurePaymentMigrationsOnStartup(); err != nil {
+		log.Printf("payment migrations: %v", err)
+	}
+
 	if err := database.BackfillUsernames(); err != nil {
 		log.Printf("backfill usernames: %v", err)
 	}
