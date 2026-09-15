@@ -110,6 +110,7 @@ func Setup(app *fiber.App) {
 	api.Post("/payments", middleware.RequirePermission(rbac.PaymentsCreate), paymentCtrl.CreateAPI)
 	api.Post("/payments/:id/issue-comprobante", middleware.RequirePermission(rbac.PaymentsIssueComprobante), paymentCtrl.IssueComprobanteAPI)
 	api.Post("/payments/:id/issue-tukifac", middleware.RequirePermission(rbac.PaymentsIssueComprobante), paymentCtrl.IssueTukifacAPI)
+	api.Post("/payments/:id/allocate", middleware.RequirePermission(rbac.PaymentsUpdate), paymentCtrl.AllocateExistingAPI)
 	api.Put("/payments/:id", middleware.RequirePermission(rbac.PaymentsUpdate), paymentCtrl.UpdateAPI)
 	api.Delete("/payments/:id", middleware.RequirePermission(rbac.PaymentsDelete), paymentCtrl.DeleteAPI)
 	api.Post("/payments/upload-attachment", middleware.RequirePermission(rbac.PaymentsUploadAttachment), paymentCtrl.UploadAttachmentAPI)

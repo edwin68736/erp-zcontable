@@ -179,6 +179,105 @@ func (s *Service) ApplyPaymentTx(tx *gorm.DB, in ApplyPaymentInput) (uint, error
 	return pay.ID, nil
 }
 
+// AllocateExistingInput datos para aplicar dinero ya recibido (Payment existente) a una o varias
+// deudas, sin crear un Payment nuevo. Blueprint Fase 2.4.
+type AllocateExistingInput struct {
+	PaymentID uint
+	CompanyID uint
+	Lines     []PaymentAllocationLine
+}
+
+// AllocateExistingPaymentTx aplica allocations nuevas a un Payment YA EXISTENTE (Fase 2.4). Nunca
+// modifica Payment.amount/date/method/reference/description/Purpose/DocumentID, nunca crea un
+// Payment ni un Document nuevo, y nunca toca TukifacFiscalReceipt. Reutiliza exactamente las mismas
+// validaciones por línea que ApplyPaymentTx (ValidateAllocationsTx) y el mismo mecanismo de saldo
+// (PersistBalanceAndStatus) — sin fórmulas nuevas. Ver docs/diseno-fase2-4-allocate-existing-2026-09-14.md.
+//
+// TODO Fase 2.5: esta operación necesita locking (SELECT ... FOR UPDATE) sobre el Payment y sobre
+// cada Document afectado antes de considerarse segura frente a solicitudes concurrentes sobre el
+// mismo Payment — deliberadamente NO implementado aquí.
+func (s *Service) AllocateExistingPaymentTx(tx *gorm.DB, in AllocateExistingInput) error {
+	if in.PaymentID == 0 {
+		return errors.New("payment_id requerido")
+	}
+	if len(in.Lines) == 0 {
+		return errors.New("indique al menos una imputación")
+	}
+
+	var pay models.Payment
+	if err := tx.First(&pay, in.PaymentID).Error; err != nil {
+		return errors.New("pago no encontrado")
+	}
+	if pay.CompanyID != in.CompanyID {
+		return errors.New("el pago no pertenece a la empresa")
+	}
+
+	// Payment.Purpose: solo los pagos ya clasificados como "deuda" pueden aplicarse a una deuda.
+	// Un pago "servicio" es un ingreso independiente por diseño (Fase 2.1/2.2) y nunca debe aplicarse
+	// a una deuda solo porque tiene dinero disponible. Un Purpose NULL (sin clasificar) tampoco se
+	// adivina — se rechaza hasta que exista una clasificación explícita (Fase 2.6).
+	if pay.Purpose == nil {
+		return errors.New("el pago no tiene un propósito (purpose) clasificado; no se puede aplicar a una deuda")
+	}
+	if *pay.Purpose != models.PaymentPurposeDebt {
+		return errors.New("solo los pagos con propósito 'deuda' pueden aplicarse a una deuda")
+	}
+
+	var appliedCount int64
+	if err := tx.Model(&models.PaymentAllocation{}).Where("payment_id = ?", pay.ID).Count(&appliedCount).Error; err != nil {
+		return err
+	}
+
+	// Estado B legacy: Payment.DocumentID apunta a un documento pero todavía no existe ninguna
+	// PaymentAllocation — el backfill de arranque (database.BackfillPaymentAllocations) aún no
+	// sincronizó ese vínculo. Calcular el disponible solo desde PaymentAllocation en este estado
+	// sobreestimaría el remanente real (el monto ya está comprometido con ese documento legacy).
+	if pay.DocumentID != nil && appliedCount == 0 {
+		return errors.New("el pago tiene una relación legacy (document_id) pendiente de sincronizar; intente nuevamente tras el próximo reinicio del sistema")
+	}
+
+	var appliedSum float64
+	if err := tx.Model(&models.PaymentAllocation{}).Where("payment_id = ?", pay.ID).
+		Select("COALESCE(SUM(amount),0)").Scan(&appliedSum).Error; err != nil {
+		return err
+	}
+	appliedSum = roundMoney(appliedSum)
+	available := roundMoney(pay.Amount - appliedSum)
+
+	var newSum float64
+	for _, ln := range in.Lines {
+		newSum += ln.Amount
+	}
+	newSum = roundMoney(newSum)
+	if newSum > available+MoneyEpsilon {
+		return fmt.Errorf("la suma de las nuevas imputaciones (%.2f) excede el disponible del pago (%.2f)", newSum, available)
+	}
+
+	// Mismas validaciones por línea que ApplyPaymentTx: documento existe, misma empresa, no anulado,
+	// monto positivo, no excede el saldo del documento, sin documentos repetidos entre sí.
+	if err := s.ValidateAllocationsTx(tx, in.CompanyID, in.Lines, nil); err != nil {
+		return err
+	}
+
+	for _, ln := range in.Lines {
+		a := models.PaymentAllocation{PaymentID: pay.ID, DocumentID: ln.DocumentID, Amount: roundMoney(ln.Amount)}
+		if err := tx.Create(&a).Error; err != nil {
+			return err
+		}
+		if err := s.PersistBalanceAndStatus(tx, ln.DocumentID); err != nil {
+			return fmt.Errorf("actualizar saldo documento %d: %w", ln.DocumentID, err)
+		}
+	}
+
+	if strings.ToLower(strings.TrimSpace(pay.Type)) != "applied" {
+		if err := tx.Model(&models.Payment{}).Where("id = ?", pay.ID).Update("type", "applied").Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // RevertPaymentAllocationsTx elimina allocations de un pago y restaura saldos (sin borrar el payment).
 // TODO: remove legacy after migration stable — solo usado si se migra Update de pagos aplicados.
 func (s *Service) RevertPaymentAllocationsTx(tx *gorm.DB, paymentID uint) ([]uint, error) {

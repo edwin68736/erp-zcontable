@@ -281,6 +281,49 @@ func (ctrl *PaymentController) IssueTukifacAPI(c fiber.Ctx) error {
 	return ctrl.IssueComprobanteAPI(c)
 }
 
+// AllocateExistingAPI POST /api/payments/:id/allocate — aplica dinero disponible de un pago ya
+// existente a una o varias deudas, sin crear un pago nuevo (Fase 2.4). Acción de negocio explícita
+// y separada de UpdateAPI (deliberadamente no reutiliza PaymentService.Update).
+func (ctrl *PaymentController) AllocateExistingAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	p, err := ctrl.paymentService.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pago no encontrado"})
+	}
+	if !hasStudioScope(c) {
+		userID, err := getUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, err := ctrl.accessService.CanAccessCompany(userID, p.CompanyID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+
+	var body struct {
+		Allocations []services.PaymentAllocationInput `json:"allocations"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+
+	if err := ctrl.paymentService.AllocateExisting(uint(id), p.CompanyID, body.Allocations); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	updated, err := ctrl.paymentService.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"id": id})
+	}
+	return c.JSON(updated)
+}
+
 func (ctrl *PaymentController) UpdateAPI(c fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {

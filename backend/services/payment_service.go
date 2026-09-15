@@ -441,6 +441,24 @@ func (s *PaymentService) Update(id uint, input *models.Payment) error {
 	})
 }
 
+// AllocateExisting aplica dinero disponible de un Payment YA EXISTENTE a una o varias deudas, sin
+// crear un Payment nuevo (Fase 2.4). Toda la validación de negocio vive en
+// debt.AllocateExistingPaymentTx — este wrapper solo abre la transacción, mismo patrón que
+// CreateFromParams.
+func (s *PaymentService) AllocateExisting(paymentID, companyID uint, lines []PaymentAllocationInput) error {
+	if len(lines) == 0 {
+		return errors.New("indique al menos una imputación")
+	}
+	debtSvc := debtsvc.NewService()
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		return debtSvc.AllocateExistingPaymentTx(tx, debtsvc.AllocateExistingInput{
+			PaymentID: paymentID,
+			CompanyID: companyID,
+			Lines:     toDebtLines(lines),
+		})
+	})
+}
+
 func (s *PaymentService) List(params PaymentListParams) ([]models.Payment, error) {
 	var list []models.Payment
 	q := database.DB.Preload("Company").Preload("Document").Preload("Allocations").Preload("TaxSettlement").Preload("TukifacFiscalReceipt").Model(&models.Payment{})
