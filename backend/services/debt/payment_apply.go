@@ -82,6 +82,13 @@ func (s *Service) ValidateAllocationsTx(tx *gorm.DB, companyID uint, lines []Pay
 }
 
 // ValidatePaymentAmountsAndAllocations valida monto, descuento e imputaciones antes de persistir.
+//
+// Fase 2.3 (Blueprint financiero): sin descuento, ya NO se exige que la suma de imputaciones iguale
+// exactamente el monto del pago — solo que no lo exceda. La diferencia (amount - sum(lines)) es un
+// remanente legítimo que queda sin aplicar dentro del mismo Payment (sobrepago). Con descuento, la
+// regla NO cambia: sigue exigiendo igualdad exacta (amount+discount == sum), porque el descuento solo
+// tiene sentido cuando cubre el saldo completo de cada deuda imputada — no hay remanente que
+// contemplar en ese caso.
 func (s *Service) ValidatePaymentAmountsAndAllocations(tx *gorm.DB, companyID uint, amount, discount float64, lines []PaymentAllocationLine, taxSettlementID *uint) error {
 	discount = roundMoney(discount)
 	if discount < 0 {
@@ -107,8 +114,8 @@ func (s *Service) ValidatePaymentAmountsAndAllocations(tx *gorm.DB, companyID ui
 			}
 		}
 	} else {
-		if math.Abs(sum-amount) > MoneyEpsilon {
-			return errors.New("la suma de imputaciones debe igualar el monto del pago")
+		if sum > amount+MoneyEpsilon {
+			return errors.New("la suma de imputaciones no puede exceder el monto del pago")
 		}
 	}
 	return s.ValidateAllocationsTx(tx, companyID, lines, taxSettlementID)

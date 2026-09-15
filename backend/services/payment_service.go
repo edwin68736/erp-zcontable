@@ -229,7 +229,16 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 			}
 			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: bal}}
 		} else {
-			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: p.Amount}}
+			// Fase 2.3: si el monto pagado excede el saldo de la deuda, se imputa solo hasta el
+			// saldo disponible — el resto queda como remanente sin aplicar dentro del mismo Payment,
+			// en vez de intentar imputar el monto completo (lo que antes siempre fallaba por exceder
+			// el saldo del documento). Si el monto no excede el saldo, el comportamiento es idéntico
+			// al de siempre (allocation = monto completo).
+			allocAmount := p.Amount
+			if allocAmount > bal {
+				allocAmount = bal
+			}
+			lines = []PaymentAllocationInput{{DocumentID: *p.DocumentID, Amount: allocAmount}}
 		}
 		mode = "single"
 	} else {
@@ -311,9 +320,10 @@ func (s *PaymentService) buildFIFOAllocations(companyID uint, amount float64, al
 		}
 	}
 
-	if remaining > 0.005 && !allowPartial {
-		return nil, errors.New("no hay deuda pendiente suficiente para aplicar todo el monto (FIFO)")
-	}
+	// Fase 2.3: ya no se rechaza únicamente porque sobre dinero (remaining>0) habiendo encontrado
+	// al menos una deuda que cubrir — es un sobrepago legítimo, el remanente queda sin aplicar
+	// dentro del mismo Payment (ValidatePaymentAmountsAndAllocations ya lo permite). Se preserva sin
+	// cambios el único caso que sigue bloqueado por defecto: no encontrar ninguna deuda en absoluto.
 	if len(lines) == 0 && !allowPartial {
 		if taxSettlementID != nil && *taxSettlementID > 0 {
 			return nil, errors.New("no hay deudas vinculadas a esta liquidación con saldo pendiente (FIFO)")
