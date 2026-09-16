@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { taxSettlementsService } from '../services/taxSettlements';
+import { taxSettlementsService, summarizeVoidedPayments } from '../services/taxSettlements';
 import type { TaxSettlement, TaxSettlementLine } from '../types/dashboard';
 import Pagination from '../components/Pagination';
 import CompanySearchInput from '../components/CompanySearchInput';
@@ -174,9 +174,11 @@ const TaxSettlements = () => {
     if (!deleteKeyTarget) return;
     setDeleteLoading(true);
     try {
-      await taxSettlementsService.delete(deleteKeyTarget.id, operationKey);
+      const { voided_payments } = await taxSettlementsService.delete(deleteKeyTarget.id, operationKey);
       window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación eliminada.' } }),
+        new CustomEvent('miweb:toast', {
+          detail: { type: 'success', message: `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}` },
+        }),
       );
       setDeleteKeyTarget(null);
       void fetchList();
@@ -248,7 +250,15 @@ const TaxSettlements = () => {
     if (!editKeyTarget) return;
     setEditKeyLoading(true);
     try {
-      await taxSettlementsService.revertToDraft(editKeyTarget.id);
+      const { voided_payments } = await taxSettlementsService.revertToDraft(editKeyTarget.id);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'success',
+            message: `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`,
+          },
+        }),
+      );
       const id = editKeyTarget.id;
       setEditKeyTarget(null);
       navigate(`/tax-settlements/${id}/edit`);

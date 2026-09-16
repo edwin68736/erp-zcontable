@@ -91,6 +91,23 @@ export interface SettlementDebtsContext {
   pending_from_previous_count?: number;
 }
 
+/** Pago anulado automáticamente en cascada al eliminar/revertir una liquidación emitida. */
+export interface VoidedPaymentInfo {
+  id: number;
+  amount: number;
+  date: string;
+}
+
+/** Resumen legible de la cascada de anulación, para mostrar después de eliminar/revertir una liquidación. */
+export function summarizeVoidedPayments(voided: VoidedPaymentInfo[] | null | undefined): string {
+  const list = voided ?? [];
+  if (list.length === 0) return '';
+  const total = list.reduce((s, p) => s + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+  const totalStr = total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const n = list.length;
+  return ` Se anuló ${n} ${n === 1 ? 'pago' : 'pagos'} por S/ ${totalStr}.`;
+}
+
 export const taxSettlementsService = {
   async preview(companyId: number, asOf?: string): Promise<SettlementPreviewLine[]> {
     const res = await client.get<{ data: SettlementPreviewLine[] }>(`/companies/${companyId}/settlements/preview`, {
@@ -196,12 +213,19 @@ export const taxSettlementsService = {
     return res.data;
   },
 
-  async revertToDraft(id: number): Promise<TaxSettlement> {
-    const res = await client.post<TaxSettlement>(`/tax-settlements/${id}/revert-to-draft`, {});
-    return res.data;
+  async revertToDraft(id: number): Promise<{ settlement: TaxSettlement; voided_payments: VoidedPaymentInfo[] }> {
+    const res = await client.post<{ settlement: TaxSettlement; voided_payments: VoidedPaymentInfo[] }>(
+      `/tax-settlements/${id}/revert-to-draft`,
+      {},
+    );
+    return { settlement: res.data.settlement, voided_payments: res.data.voided_payments ?? [] };
   },
 
-  async delete(id: number, operationKey: string): Promise<void> {
-    await client.delete(`/tax-settlements/${id}`, { data: { operation_key: operationKey } });
+  async delete(id: number, operationKey: string): Promise<{ voided_payments: VoidedPaymentInfo[] }> {
+    const res = await client.delete<{ message: string; voided_payments: VoidedPaymentInfo[] }>(
+      `/tax-settlements/${id}`,
+      { data: { operation_key: operationKey } },
+    );
+    return { voided_payments: res.data?.voided_payments ?? [] };
   },
 };

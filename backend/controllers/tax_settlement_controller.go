@@ -458,10 +458,11 @@ func (ctrl *TaxSettlementController) DeleteAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
-	if err := ctrl.svc.Delete(uint(id), userID); err != nil {
+	voided, err := ctrl.svc.Delete(uint(id), userID)
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"message": "Liquidación eliminada"})
+	return c.JSON(fiber.Map{"message": "Liquidación eliminada", "voided_payments": voided})
 }
 
 // RevertToDraftAPI POST /api/tax-settlements/:id/revert-to-draft — revierte vínculos y deja en borrador para editar.
@@ -488,10 +489,10 @@ func (ctrl *TaxSettlementController) RevertToDraftAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
-	ts, err := ctrl.svc.RevertToDraft(uint(id), userID)
+	ts, voided, err := ctrl.svc.RevertToDraft(uint(id), userID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	ctrl.attachCanRegisterPayment(ts)
-	return c.JSON(ts)
+	return c.JSON(fiber.Map{"settlement": ts, "voided_payments": voided})
 }

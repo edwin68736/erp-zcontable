@@ -250,8 +250,12 @@ func TestTaxSettlementService_Delete_VoidsLinkedPayments_WithSyntheticReason(t *
 	seedPVAllocation(t, db, pay.ID, doc.ID, 500)
 
 	svc := NewTaxSettlementService()
-	if err := svc.Delete(ts.ID, 9); err != nil {
+	voided, err := svc.Delete(ts.ID, 9)
+	if err != nil {
 		t.Fatalf("Delete: %v", err)
+	}
+	if len(voided) != 1 || voided[0].ID != pay.ID || voided[0].Amount != 500 {
+		t.Fatalf("voided=%+v, want [{ID:%d Amount:500}]", voided, pay.ID)
 	}
 
 	var gotPay models.Payment
@@ -282,12 +286,15 @@ func TestTaxSettlementService_RevertToDraft_VoidsLinkedPayments(t *testing.T) {
 	seedPVAllocation(t, db, pay.ID, doc.ID, 300)
 
 	svc := NewTaxSettlementService()
-	got, err := svc.RevertToDraft(ts.ID, 3)
+	got, voided, err := svc.RevertToDraft(ts.ID, 3)
 	if err != nil {
 		t.Fatalf("RevertToDraft: %v", err)
 	}
 	if got.Status != models.TaxSettlementStatusDraft {
 		t.Fatalf("Status=%s, want borrador", got.Status)
+	}
+	if len(voided) != 1 || voided[0].ID != pay.ID || voided[0].Amount != 300 {
+		t.Fatalf("voided=%+v, want [{ID:%d Amount:300}]", voided, pay.ID)
 	}
 
 	var gotPay models.Payment

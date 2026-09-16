@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { saveAs } from 'file-saver';
-import { taxSettlementsService, type SettlementDebtsContext } from '../services/taxSettlements';
+import { taxSettlementsService, summarizeVoidedPayments, type SettlementDebtsContext } from '../services/taxSettlements';
 import { configService } from '../services/config';
 import type { TaxSettlement } from '../types/dashboard';
 import { auth } from '../services/auth';
@@ -348,9 +348,11 @@ const TaxSettlementDetail = () => {
     if (!settlementId) return;
     setDeleteLoading(true);
     try {
-      await taxSettlementsService.delete(settlementId, operationKey);
+      const { voided_payments } = await taxSettlementsService.delete(settlementId, operationKey);
       window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación eliminada.' } }),
+        new CustomEvent('miweb:toast', {
+          detail: { type: 'success', message: `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}` },
+        }),
       );
       setDeleteKeyOpen(false);
       setDeleteDialogOpen(false);
@@ -381,7 +383,15 @@ const TaxSettlementDetail = () => {
     }
     setEditKeyLoading(true);
     try {
-      await taxSettlementsService.revertToDraft(settlementId);
+      const { voided_payments } = await taxSettlementsService.revertToDraft(settlementId);
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', {
+          detail: {
+            type: 'success',
+            message: `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`,
+          },
+        }),
+      );
       setEditKeyOpen(false);
       navigate(`/tax-settlements/${settlementId}/edit`);
     } catch (e: unknown) {

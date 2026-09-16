@@ -904,8 +904,9 @@ func (s *TaxSettlementService) CanRegisterPayment(settlementID uint) (bool, erro
 // No elimina documentos de deudas externas (líneas document_ref); solo desvincula tax_settlement_id.
 // Delete elimina la liquidación. userID (Fase 6, Blueprint §19) identifica al actor que, en cascada,
 // anula los Payments vinculados si la liquidación estaba emitida — ver revertSettlementPaymentsAndFiscal.
-func (s *TaxSettlementService) Delete(id uint, userID uint) error {
-	return database.DB.Transaction(func(tx *gorm.DB) error {
+func (s *TaxSettlementService) Delete(id uint, userID uint) ([]VoidedPaymentInfo, error) {
+	var voided []VoidedPaymentInfo
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var ts models.TaxSettlement
 		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC, id ASC")
@@ -918,9 +919,11 @@ func (s *TaxSettlementService) Delete(id uint, userID uint) error {
 
 		if ts.Status == models.TaxSettlementStatusIssued {
 			reason := fmt.Sprintf("Liquidación #%d eliminada", ts.ID)
-			if err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID); err != nil {
+			v, err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID)
+			if err != nil {
 				return err
 			}
+			voided = v
 		}
 		if err := debtsvc.NewService().PurgeSettlementDocumentsOnDelete(tx, &ts, ts.Lines); err != nil {
 			return err
@@ -938,12 +941,17 @@ func (s *TaxSettlementService) Delete(id uint, userID uint) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return voided, nil
 }
 
 // RevertToDraft revierte pagos y comprobantes de una liquidación emitida y la deja en borrador para
 // editar. userID (Fase 6, Blueprint §19) identifica al actor de la anulación en cascada de los
 // Payments vinculados.
-func (s *TaxSettlementService) RevertToDraft(id uint, userID uint) (*models.TaxSettlement, error) {
+func (s *TaxSettlementService) RevertToDraft(id uint, userID uint) (*models.TaxSettlement, []VoidedPaymentInfo, error) {
+	var voided []VoidedPaymentInfo
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var ts models.TaxSettlement
 		if err := tx.Preload("Lines", func(db *gorm.DB) *gorm.DB {
@@ -961,9 +969,11 @@ func (s *TaxSettlementService) RevertToDraft(id uint, userID uint) (*models.TaxS
 			return errors.New("solo se puede revertir una liquidación emitida")
 		}
 		reason := fmt.Sprintf("Liquidación #%d revertida a borrador", ts.ID)
-		if err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID); err != nil {
+		v, err := s.revertSettlementPaymentsAndFiscal(tx, &ts, reason, userID)
+		if err != nil {
 			return err
 		}
+		voided = v
 		ts.Status = models.TaxSettlementStatusDraft
 		ts.TotalHonorarios = 0
 		ts.TotalImpuestos = 0
@@ -971,39 +981,55 @@ func (s *TaxSettlementService) RevertToDraft(id uint, userID uint) (*models.TaxS
 		return tx.Save(&ts).Error
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return s.GetByID(id)
+	ts, err := s.GetByID(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ts, voided, nil
+}
+
+// VoidedPaymentInfo resume un pago anulado automáticamente al eliminar/revertir una liquidación —
+// cierre del ítem 7 de deuda técnica diferida (docs/resumen-cierre-blueprint-financiero-2026-09-15.md):
+// antes esta cascada no dejaba ningún resumen visible para el usuario después de confirmar la acción.
+type VoidedPaymentInfo struct {
+	ID     uint      `json:"id"`
+	Amount float64   `json:"amount"`
+	Date   time.Time `json:"date"`
 }
 
 // revertSettlementPaymentsAndFiscal anula (Fase 6, Blueprint §19) en cascada todos los Payments de la
 // liquidación, con un único motivo sintético (reason) y el mismo actor (userID) para todos. Un
 // ErrPaymentAlreadyVoided de un pago individual no aborta la cascada (idempotencia: un reintento
-// completo de Delete/RevertToDraft sobre una liquidación ya procesada no debe fallar).
-func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts *models.TaxSettlement, reason string, userID uint) error {
+// completo de Delete/RevertToDraft sobre una liquidación ya procesada no debe fallar) — ese pago
+// simplemente no se agrega al resumen devuelto, porque ya estaba anulado antes de esta llamada.
+func (s *TaxSettlementService) revertSettlementPaymentsAndFiscal(tx *gorm.DB, ts *models.TaxSettlement, reason string, userID uint) ([]VoidedPaymentInfo, error) {
 	if ts == nil {
-		return nil
+		return nil, nil
 	}
 	paySvc := NewPaymentService()
 
-	var payIDs []uint
-	if err := tx.Model(&models.Payment{}).Where("tax_settlement_id = ?", ts.ID).Pluck("id", &payIDs).Error; err != nil {
-		return err
+	var payments []models.Payment
+	if err := tx.Where("tax_settlement_id = ?", ts.ID).Find(&payments).Error; err != nil {
+		return nil, err
 	}
-	for _, pid := range payIDs {
-		if err := paySvc.DeletePaymentTx(tx, pid, reason, userID); err != nil {
+	var voided []VoidedPaymentInfo
+	for _, p := range payments {
+		if err := paySvc.DeletePaymentTx(tx, p.ID, reason, userID); err != nil {
 			if errors.Is(err, ErrPaymentAlreadyVoided) {
 				continue
 			}
-			return fmt.Errorf("no se pudo revertir el pago %d: %w", pid, err)
+			return nil, fmt.Errorf("no se pudo revertir el pago %d: %w", p.ID, err)
 		}
+		voided = append(voided, VoidedPaymentInfo{ID: p.ID, Amount: p.Amount, Date: p.Date})
 	}
 	if err := tx.Model(&models.TukifacFiscalReceipt{}).
 		Where("tax_settlement_id = ?", ts.ID).
 		Updates(map[string]interface{}{"tax_settlement_id": nil}).Error; err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return voided, nil
 }
 
 // SettlementDebtsContext deudas vinculadas y abiertas no vinculadas para editar/emitir liquidación.
