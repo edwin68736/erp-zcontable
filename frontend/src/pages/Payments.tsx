@@ -405,12 +405,12 @@ const Payments = () => {
                 <th className="px-4 py-3">Empresa</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Propósito</th>
-                <th className="px-4 py-3">Comprobante</th>
+                <th className="px-4 py-3">N° comprobante</th>
                 <th className="px-4 py-3">PDF</th>
                 <th className="px-4 py-3">Deuda</th>
                 <th className="px-4 py-3">Método</th>
                 <th className="px-4 py-3 text-right">Monto</th>
-                <th className="px-4 py-3">Comprobante</th>
+                <th className="px-4 py-3">Adjunto</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>

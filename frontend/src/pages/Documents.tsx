@@ -35,6 +35,7 @@ import {
   documentBalanceAmount,
   documentPaidAmount,
   documentCanReceivePayment,
+  documentIsWrittenOff,
   formatMoneyPen,
   stripLegacyMigrationNotes,
 } from '../utils/documentDebtUi';
@@ -1153,7 +1154,7 @@ const Documents = () => {
                         ) : null}
                         <TableRowMoreMenu
                           items={[
-                            ...(canUpsert
+                            ...(canUpsert && !documentIsWrittenOff(doc)
                               ? [{ type: 'link' as const, to: `/documents/${doc.id}/edit`, label: 'Editar', icon: 'fas fa-pen' }]
                               : []),
                             ...(canDelete
@@ -1611,7 +1612,7 @@ const Documents = () => {
                                       <TableRowMoreMenu
                                         buttonClassName="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                                         items={[
-                                          ...(canUpsert
+                                          ...(canUpsert && !documentIsWrittenOff(doc)
                                             ? [
                                                 {
                                                   type: 'link' as const,

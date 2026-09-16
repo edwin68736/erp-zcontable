@@ -7,6 +7,7 @@ import { documentsService, type DocumentItemInput, type DocumentUpsertInput } fr
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import type { Company } from '../types/dashboard';
+import { documentIsWrittenOff } from '../utils/documentDebtUi';
 import SearchableSelect from '../components/SearchableSelect';
 import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
 import type { Product } from '../services/products';
@@ -74,6 +75,13 @@ const DocumentForm = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editLocked, setEditLocked] = useState(false);
+  const [writeoffInfo, setWriteoffInfo] = useState<{
+    status: string;
+    reason?: string;
+    byUser?: string;
+    at?: string;
+  } | null>(null);
 
   const [companyId, setCompanyId] = useState(searchParams.get('company_id') ?? '');
   const [type, setType] = useState('nota_venta');
@@ -117,6 +125,17 @@ const DocumentForm = () => {
         ]);
 
         setCompanies(comps);
+
+        if (doc && documentIsWrittenOff(doc)) {
+          setEditLocked(true);
+          setWriteoffInfo({
+            status: (doc.status ?? '').toLowerCase(),
+            reason: doc.writeoff_reason,
+            byUser: doc.writeoff_by_user?.name || (doc.writeoff_by ? `Usuario #${doc.writeoff_by}` : undefined),
+            at: doc.writeoff_at ?? undefined,
+          });
+          return;
+        }
 
         if (doc) {
           setCompanyId(String(doc.company_id ?? ''));
@@ -169,6 +188,10 @@ const DocumentForm = () => {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isEdit && editLocked) {
+      setError('No se puede editar una deuda exonerada o anulada.');
+      return;
+    }
     if (!canUpsert) {
       setError('No tienes permisos para realizar esta acción');
       return;
@@ -319,6 +342,29 @@ const DocumentForm = () => {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
 
+      {editLocked && writeoffInfo ? (
+        <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-4 text-sm text-purple-900">
+          <h3 className="text-sm font-semibold text-purple-900 mb-1">
+            Esta deuda fue {writeoffInfo.status === 'exonerado' ? 'exonerada' : 'anulada'} y no se puede editar
+          </h3>
+          <dl className="space-y-0.5">
+            <div>
+              <dt className="inline text-purple-700">Motivo: </dt>
+              <dd className="inline">{writeoffInfo.reason || '—'}</dd>
+            </div>
+            <div>
+              <dt className="inline text-purple-700">Usuario: </dt>
+              <dd className="inline">{writeoffInfo.byUser || '—'}</dd>
+            </div>
+            <div>
+              <dt className="inline text-purple-700">Fecha: </dt>
+              <dd className="inline">
+                {writeoffInfo.at ? writeoffInfo.at.slice(0, 10).split('-').reverse().join('/') : '—'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -670,8 +716,9 @@ const DocumentForm = () => {
           </button>
         </div>
       </form>
+      )}
 
-      {!isPlanDebt ? (
+      {!isPlanDebt && !editLocked ? (
         <ProductPickerModal
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}

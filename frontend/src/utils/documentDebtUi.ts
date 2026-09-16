@@ -167,3 +167,9 @@ export function documentCanReceivePayment(doc: Document): boolean {
   if (doc.status === 'anulado' || doc.status === 'pagado' || doc.status === 'exonerado') return false;
   return documentBalanceAmount(doc) > 0.005;
 }
+
+/** Deuda dada de baja (exonerada o anulada) — no debe editarse desde el formulario manual (ítem 6 deuda técnica Fase 7). */
+export function documentIsWrittenOff(doc: Document): boolean {
+  const st = (doc.status ?? '').toLowerCase();
+  return st === 'anulado' || st === 'exonerado';
+}

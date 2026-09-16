@@ -209,6 +209,9 @@ func (s *DocumentService) Update(id uint, input *models.Document) error {
 		if err := tx.First(&d, id).Error; err != nil {
 			return err
 		}
+		if debtsvc.IsTerminalWriteoffStatus(d.Status) {
+			return errors.New("no se puede modificar una deuda exonerada o anulada")
+		}
 		if input.Type != "" {
 			d.Type = input.Type
 		}
