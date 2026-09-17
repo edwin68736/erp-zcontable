@@ -59,10 +59,11 @@ export interface CompanyUpsertInput {
   assistant_user_id?: number;
   subscription_plan_id?: number | null;
   billing_cycle?: string;
-  subscription_started_at?: string;
   subscription_ended_at?: string;
   subscription_active?: boolean;
   declared_billing_amount?: number | null;
+  /** rh (defecto) | factura. */
+  default_payment_document_type?: 'rh' | 'factura';
 }
 
 export const companiesService = {

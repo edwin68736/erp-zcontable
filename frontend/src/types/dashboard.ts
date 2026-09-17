@@ -36,6 +36,8 @@ export interface Company {
   subscription_active?: boolean;
   declared_billing_amount?: number | null;
   subscription_plan?: SubscriptionPlan;
+  /** rh (defecto) | factura — precarga "Tipo de documento de cobro" al crear una liquidación nueva. */
+  default_payment_document_type?: 'rh' | 'factura';
 }
 
 export interface PlanCategory {

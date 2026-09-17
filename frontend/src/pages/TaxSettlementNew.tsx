@@ -168,6 +168,15 @@ const TaxSettlementNew = () => {
   const companyPlanName =
     settlementCompany?.subscription_plan?.name ?? selectedCompany?.subscription_plan?.name ?? '';
 
+  /** Al crear (no editar) y elegir/cambiar empresa, precargar "Tipo de documento de cobro" con el
+   * default configurado en la ficha de esa empresa (Suscripción y facturación) — el usuario lo
+   * sigue pudiendo cambiar a mano después, esto solo fija el punto de partida. */
+  useEffect(() => {
+    if (isEdit) return;
+    if (!selectedCompany) return;
+    setPaymentDocumentType(selectedCompany.default_payment_document_type === 'factura' ? 'factura' : 'rh');
+  }, [isEdit, selectedCompany]);
+
   /** Al cambiar la fecha de emisión, sugerir el mes calendario anterior al de esa fecha como periodo liquidado (si el usuario no lo fijó a mano). */
   useEffect(() => {
     if (liquidationPeriodManualRef.current) return;

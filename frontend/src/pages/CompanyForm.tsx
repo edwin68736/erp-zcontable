@@ -95,10 +95,10 @@ const CompanyForm = () => {
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState('');
   const [billingCycle, setBillingCycle] = useState('start_month');
-  const [subscriptionStartedAt, setSubscriptionStartedAt] = useState('');
   const [subscriptionEndedAt, setSubscriptionEndedAt] = useState('');
   const [subscriptionActive, setSubscriptionActive] = useState(true);
   const [declaredBilling, setDeclaredBilling] = useState('');
+  const [defaultPaymentDocumentType, setDefaultPaymentDocumentType] = useState<'rh' | 'factura'>('rh');
   const [clientType, setClientType] = useState<'estudio' | 'externo'>('estudio');
 
   const [activeTab, setActiveTab] = useState<'company' | 'team' | 'contacts'>('company');
@@ -153,9 +153,9 @@ const CompanyForm = () => {
           setAccountantLabel(c.accountant ? formatUserPickLabel(c.accountant) : '');
           setSubscriptionPlanId(c.subscription_plan_id ? String(c.subscription_plan_id) : '');
           setBillingCycle(c.billing_cycle === 'end_month' ? 'end_month' : 'start_month');
-          setSubscriptionStartedAt(toDateInput(c.subscription_started_at));
           setSubscriptionEndedAt(toDateInput(c.subscription_ended_at));
           setSubscriptionActive(c.subscription_active !== false);
+          setDefaultPaymentDocumentType(c.default_payment_document_type === 'factura' ? 'factura' : 'rh');
           setDeclaredBilling(
             c.declared_billing_amount != null && Number.isFinite(Number(c.declared_billing_amount))
               ? String(c.declared_billing_amount)
@@ -379,10 +379,13 @@ const CompanyForm = () => {
         subscription_plan_id:
           subscriptionPlanId && Number(subscriptionPlanId) > 0 ? Number(subscriptionPlanId) : null,
         billing_cycle: billingCycle,
-        subscription_started_at: dateInputToRFC3339MidnightPeru(subscriptionStartedAt),
+        // Inicio de suscripción ya no es un campo propio del formulario — siempre es el mismo día
+        // que "Inicio de servicio" (el backend lo vuelve a forzar igual de todos modos, esto es
+        // solo para no mandar un valor inconsistente).
         subscription_ended_at: dateInputToRFC3339MidnightPeru(subscriptionEndedAt),
         subscription_active: subscriptionActive,
         declared_billing_amount: declaredBillingAmount,
+        default_payment_document_type: defaultPaymentDocumentType,
       };
 
       if (isAdmin) {
@@ -625,6 +628,9 @@ const CompanyForm = () => {
                   onChange={(e) => setServiceStartAt(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  También se usa como fecha de inicio de la suscripción.
+                </p>
               </div>
             </div>
 
@@ -741,16 +747,22 @@ const CompanyForm = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="subscription_started_at" className="block text-sm font-medium text-slate-700 mb-1">
-                    Inicio suscripción
+                  <label htmlFor="default_payment_document_type" className="block text-sm font-medium text-slate-700 mb-1">
+                    Tipo de documento por defecto
                   </label>
-                  <input
-                    type="date"
-                    id="subscription_started_at"
-                    value={subscriptionStartedAt}
-                    onChange={(e) => setSubscriptionStartedAt(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  <SearchableSelect
+                    id="default_payment_document_type"
+                    name="default_payment_document_type"
+                    value={defaultPaymentDocumentType}
+                    onChange={(v) => setDefaultPaymentDocumentType(v === 'factura' ? 'factura' : 'rh')}
+                    options={[
+                      { value: 'rh', label: 'RH (Recibo por Honorarios)' },
+                      { value: 'factura', label: 'Factura / Boleta' },
+                    ]}
                   />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Precarga el tipo de documento al crear una liquidación nueva para esta empresa.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="subscription_ended_at" className="block text-sm font-medium text-slate-700 mb-1">

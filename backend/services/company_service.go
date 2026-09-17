@@ -175,6 +175,19 @@ func validateCompanyTaxRegime(raw string) (string, error) {
 	return regime, nil
 }
 
+// validateCompanyDefaultPaymentDocumentType vacío se trata como "rh" (mismo default que la columna
+// en BD) — no obliga al caller (p. ej. importación masiva) a mandarlo siempre.
+func validateCompanyDefaultPaymentDocumentType(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return models.TaxSettlementPaymentDocTypeRH, nil
+	}
+	if v != models.TaxSettlementPaymentDocTypeRH && v != models.TaxSettlementPaymentDocTypeFactura {
+		return "", errors.New("tipo de documento por defecto inválido (use rh o factura)")
+	}
+	return v, nil
+}
+
 // NextInternalCode sugiere un código interno numérico de 4 dígitos (0001–9999) sin repetir
 // códigos ya usados. Parte de (cantidad de empresas + 1) y avanza hasta encontrar hueco.
 func (s *CompanyService) NextInternalCode() (string, error) {
@@ -349,6 +362,17 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 			return errors.New("plan de suscripción inválido o inactivo")
 		}
 	}
+
+	docType, err := validateCompanyDefaultPaymentDocumentType(input.DefaultPaymentDocumentType)
+	if err != nil {
+		return err
+	}
+	input.DefaultPaymentDocumentType = docType
+
+	// La suscripción empieza el mismo día que el servicio — un solo campo visible en el formulario
+	// (§ pedido del usuario 2026-09-17), se fuerza acá para no depender de que el frontend lo mande
+	// igual.
+	input.SubscriptionStartedAt = input.ServiceStartAt
 
 	rate, err := validateCompanyIgvRate(input.IgvRate)
 	if err != nil {
@@ -695,10 +719,19 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 			return errors.New("plan de suscripción inválido o inactivo")
 		}
 	}
-	c.SubscriptionStartedAt = input.SubscriptionStartedAt
+	// La suscripción empieza el mismo día que el servicio — un solo campo visible en el formulario,
+	// se fuerza acá en vez de leer input.SubscriptionStartedAt (mismo criterio que Create).
+	c.SubscriptionStartedAt = c.ServiceStartAt
 	c.SubscriptionEndedAt = input.SubscriptionEndedAt
 	c.SubscriptionActive = input.SubscriptionActive
 	c.DeclaredBillingAmount = input.DeclaredBillingAmount
+	if docType := strings.TrimSpace(input.DefaultPaymentDocumentType); docType != "" {
+		v, err := validateCompanyDefaultPaymentDocumentType(docType)
+		if err != nil {
+			return err
+		}
+		c.DefaultPaymentDocumentType = v
+	}
 
 	return database.DB.Save(&c).Error
 }

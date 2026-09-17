@@ -57,6 +57,11 @@ type Company struct {
 	SubscriptionEndedAt   *time.Time `json:"subscription_ended_at,omitempty"`
 	SubscriptionActive    bool       `gorm:"not null;default:true" json:"subscription_active"`
 	DeclaredBillingAmount *float64   `gorm:"type:decimal(15,2)" json:"declared_billing_amount,omitempty"`
+	// DefaultPaymentDocumentType: "rh" (por defecto) o "factura" — mismos valores que
+	// TaxSettlementPaymentDocType* (tax_settlement.go). Precarga el select "Tipo de documento de
+	// cobro" al crear una liquidación nueva para esta empresa; el usuario sigue pudiendo cambiarlo
+	// ahí, esto solo fija el valor inicial.
+	DefaultPaymentDocumentType string `gorm:"size:20;not null;default:'rh'" json:"default_payment_document_type"`
 
 	Accountant *User `gorm:"foreignKey:AccountantUserID" json:"accountant,omitempty"`
 	Supervisor *User `gorm:"foreignKey:SupervisorUserID" json:"supervisor,omitempty"`
