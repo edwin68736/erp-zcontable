@@ -139,7 +139,7 @@ const ActivityTemplates = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <ActivityTemplatesBreadcrumb
         items={[
-          { label: 'Finanzas', to: '/finance/calendar' },
+          { label: 'Estudio', to: '/settings/firm' },
           { label: 'Catálogo de actividades' },
         ]}
       />

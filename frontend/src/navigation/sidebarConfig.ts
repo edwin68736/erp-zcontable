@@ -126,20 +126,6 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
       },
       {
         type: 'group',
-        label: 'Catálogo',
-        items: [
-          {
-            to: '/finance/activity-templates',
-            icon: 'fas fa-list-check',
-            label: 'Catálogo de actividades',
-            permission: P.financeCalendarView,
-          },
-          { to: '/subscription-plans', icon: 'fas fa-layer-group', label: 'Planes', permission: P.subscriptionPlansView },
-          { to: '/products', icon: 'fas fa-box-open', label: 'Productos', permission: P.productsView },
-        ],
-      },
-      {
-        type: 'group',
         label: 'Informes',
         items: [{ to: '/reports/financial', icon: 'fas fa-chart-line', label: 'Reportes', permission: P.reportsFinancialView }],
       },
@@ -343,6 +329,14 @@ export const STUDIO_SECTION = {
       label: 'Series y correlativos',
       permission: P.fiscalSeriesView,
     },
+    {
+      to: '/finance/activity-templates',
+      icon: 'fas fa-list-check',
+      label: 'Catálogo de actividades',
+      permission: P.financeCalendarView,
+    },
+    { to: '/subscription-plans', icon: 'fas fa-layer-group', label: 'Planes', permission: P.subscriptionPlansView },
+    { to: '/products', icon: 'fas fa-box-open', label: 'Productos', permission: P.productsView },
   ] satisfies SidebarLinkItem[],
 };
 
