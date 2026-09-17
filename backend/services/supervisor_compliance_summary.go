@@ -205,13 +205,15 @@ func (s *SupervisorService) DetraccionesDashboardSummary(p SupervisorDashboardPa
 	return cs, nil
 }
 
-// MonthlyComplianceSummary combina PDT 601 + PDT 621 + Detracciones en un solo ComplianceSummary de
-// 5 categorías — **etapa 1** de §5.9.5 (Buzón SOL queda para la etapa 2, §5.9.6.5: su unidad de
-// conteo — 16 independientes por empresa/mes — todavía no tiene función de agregado ni el
-// calendario correctamente configurado). Reemplaza el uso de general_status en
-// Dashboard/ComplianceTrend/SupervisorComplianceRanking. El rótulo del dashboard debe decir
-// explícitamente "Cumplimiento (PDT 601/621, Detracciones)" mientras siga en esta etapa 1 — no
-// mencionar Buzón SOL todavía (§5.9.5).
+// MonthlyComplianceSummary combina PDT 601 + PDT 621 + Detracciones + Buzón SOL en un solo
+// ComplianceSummary de 5 categorías — **etapa 2** de §5.9.5/§5.9.6.5 (Buzón SOL ya sumado: su
+// calendario quedó retipeado y con actividades reales, §5.9.6.5). Reemplaza el uso de general_status
+// en Dashboard/ComplianceTrend/SupervisorComplianceRanking. El rótulo del dashboard debe decir
+// "Cumplimiento (PDT 601/621, Detracciones, Buzón SOL)".
+//
+// Si un período todavía no tiene el calendario de Buzón SOL retipeado/configurado,
+// SunatInboxDashboardSummary devuelve un ComplianceSummary vacío (ni suma ni resta) — no hace falta
+// ninguna condición especial acá, sumar un summary vacío es un no-op.
 func (s *SupervisorService) MonthlyComplianceSummary(p SupervisorDashboardParams) (ComplianceSummary, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return ComplianceSummary{}, errors.New("período inválido (use YYYY-MM)")
@@ -231,6 +233,12 @@ func (s *SupervisorService) MonthlyComplianceSummary(p SupervisorDashboardParams
 		return ComplianceSummary{}, err
 	}
 	cs.addSummary(det)
+
+	mailbox, err := s.SunatInboxDashboardSummary(p)
+	if err != nil {
+		return ComplianceSummary{}, err
+	}
+	cs.addSummary(mailbox)
 
 	cs.finalize()
 	return cs, nil

@@ -169,7 +169,7 @@ export function ProductivityRanking({ rows }: { rows: SupervisorProductivityRow[
     <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
       <p className="text-sm font-medium text-slate-700 px-4 pt-4">Productividad por supervisor</p>
       <p className="text-xs text-slate-500 px-4 mt-0.5">
-        Cumplimiento en vivo del período (PDT 601/621, Detracciones), por supervisor asignado.
+        Cumplimiento en vivo del período (PDT 601/621, Detracciones, Buzón SOL), por supervisor asignado.
       </p>
       <div className="p-4 space-y-2.5 min-w-[26rem]">
         {sorted.map((r) => (

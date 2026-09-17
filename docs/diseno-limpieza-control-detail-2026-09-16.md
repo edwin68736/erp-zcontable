@@ -1073,16 +1073,46 @@ propio. Dejo la pregunta original tachada, no borrada, como registro de por qué
 
 - [x] Confirmar §5.9.6.3 (semana parcial no suma cargas — siempre 8 fijas) y §5.9.6.4 (16 unidades/mes,
       SUNAT+SUNAFIL por separado).
-- [ ] Retipear la plantilla `REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL` a `sunat_inbox` (mismo
-      trabajo de datos que se hizo para PDT601/621 en la Sección 2, vía el catálogo de actividades).
-- [ ] Configurar 8 actividades de calendario reales por mes (una por miércoles/sábado), en vez de 1 con
-      `start_day`/`end_day` — permite además que cada una se mueva individualmente por feriado.
-- [ ] Backend: nueva función de selección por slot fijo (análoga a
-      `CalendarActivitiesForType`/`PickCalendarActivityByDigit`, pero con criterio de "slot 1 a 8 del
-      mes", no de RUC ni de semana calendario) — reemplaza el `First()` único de
-      `FindSunatInboxCalendarActivity`.
-- [ ] Backend: construir la función de resumen por empresa/período que suma las 16 unidades on_time/
-      late/pending del mes.
+- [x] Retipear la plantilla `REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL` (AC11) a `sunat_inbox`
+      (2026-09-17, hecho por el navegador en local dev, usuario `admin1`, vía
+      `/finance/activity-templates/11/edit`) — el select mostraba "PDT 601" en vez del tipo real porque
+      el valor guardado (`nps`) ya no existe entre las opciones válidas (NPS se eliminó, §1). El
+      duplicado `AC17` ("REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL,", con coma, sin regla asignada)
+      se dejó tal cual — no tenía ninguna actividad de calendario propia después de la limpieza de
+      abajo, no hacía falta tocarlo.
+- [x] Configurar 8 actividades de calendario reales por mes (una por miércoles/sábado) — hecho para
+      setiembre 2026 (2026-09-17) **por SQL directo** contra la BD de dev (`finance_calendar_activities`),
+      mismo criterio que el ajuste de `activity_rule_id` de §2.8: se encontraron 5 actividades viejas mal
+      tipadas (`nps`, `activity_rule_id` NULL salvo la del día 23) en los días 6/13/20/23/27 —
+      **domingos**, ninguna coincidía con miércoles/sábado real — se dieron de baja (soft-delete) y se
+      crearon 8 nuevas desde la plantilla AC11 ya corregida, una por cada miércoles/sábado real de
+      setiembre (días 2, 5, 9, 12, 16, 19, 23, 26), todas `sunat_inbox` + `activity_rule_id=2` (CONTROL
+      DE HORA). Verificado en `/finance/calendar` (aparecen en los días correctos) y contra la API real
+      del módulo (`GET .../activity-modules/sunat-inbox?period_ym=2026-09&week_start=2026-09-14`): el
+      slot 1 de esa semana ahora resuelve `due_at=2026-09-16T10:30` (miércoles real) y el slot 2
+      `due_at=2026-09-19T10:30` (sábado real), en vez del reparto matemático artificial de antes.
+- [x] Backend: nueva función de selección por slot fijo — `sunatInboxCalendarActivitiesForPeriod`
+      (`sunat_inbox_timeliness.go`) trae TODAS las actividades tipo `sunat_inbox` del período (reusa
+      `CalendarActivitiesForType`, ya existente) en vez de una sola; `mailboxDueDatesInWeekFromActivities`
+      junta las fechas reales de todas las actividades que caen en una semana dada, ordenadas
+      cronológicamente, y `dueDateForMailboxSlot` elige por posición (slot 1 = la más temprana). Cae al
+      reparto matemático de siempre si no hay ninguna actividad real en la semana (calendario sin
+      retipear). `mailboxTimelinessCtx.calendarAct` (uno) pasó a `calendarActs` (varios) — actualizados
+      todos los call sites y los tests existentes (`sunat_inbox_timeliness_test.go`), más un test nuevo
+      (`TestDueDateForMailboxSlot_usesDiscreteRealActivities`) para el caso de actividades discretas.
+- [x] Backend: función de resumen por empresa/período (`SunatInboxDashboardSummary`,
+      `supervisor_sunat_inbox_summary.go`) que suma las unidades on_time/late/pending/missing/exempt
+      del mes (`sunatInboxRealSlotsForPeriod` en `sunat_inbox_timeliness.go` agrupa las actividades de
+      calendario reales en semana+slot, mismo criterio que ya usa el resto del módulo) — sumada a
+      `MonthlyComplianceSummary` (etapa 2 completa: PDT 601/621 + Detracciones + Buzón SOL). Etiqueta
+      del dashboard actualizada a "Cumplimiento (PDT 601/621, Detracciones, Buzón SOL)". Tests en
+      `supervisor_sunat_inbox_summary_test.go` (agrupación por semana, missing/on_time/exempt).
+      **Costo real medido, no asumido (§5.9.4)**: contra las 255 empresas activas del dataset de dev,
+      la primera versión (`ComputeActivityRuleTimeliness` por unidad, sin cache de la regla) generaba
+      >4000 consultas individuales a `activity_rules` dentro de un solo request y hacía fallar el
+      dashboard en la práctica (`net::ERR_FAILED`, confirmado en el navegador) — se corrigió
+      precargando la regla una sola vez por id distinto (normalmente 1) en vez de una consulta por
+      unidad evaluada; verificado de nuevo en el navegador tras el fix, responde 200 OK.
 
 ## 5.9.7 "Suspendida" pasa a ser global por período (2026-09-17)
 

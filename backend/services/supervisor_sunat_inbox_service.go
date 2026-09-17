@@ -924,7 +924,7 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 
 	// Calculado una sola vez para todas las semanas pedidas (antes, mailboxTimelinessCtxFor lo
 	// recalculaba -con su propia consulta a BD- una vez por semana).
-	calendarAct := FindSunatInboxCalendarActivity(p.PeriodYM)
+	calendarActs := sunatInboxCalendarActivitiesForPeriod(p.PeriodYM)
 	statusFilter := strings.TrimSpace(p.Status)
 
 	rows := make([]SunatInboxExportRow, 0, len(allCompanies))
@@ -937,7 +937,7 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 			if !ok {
 				continue
 			}
-			ctx := mailboxTimelinessCtx{periodYM: p.PeriodYM, weekStart: ws, slotsPerWeek: slotsPerWeek, calendarAct: calendarAct}
+			ctx := mailboxTimelinessCtx{periodYM: p.PeriodYM, weekStart: ws, slotsPerWeek: slotsPerWeek, calendarActs: calendarActs}
 			var dbSlots map[int]*models.SupervisorMailboxCaptureSlot
 			if hasCtrl {
 				dbSlots = slotsByControlAndWeek[cr.ControlID][w.WeekStart]

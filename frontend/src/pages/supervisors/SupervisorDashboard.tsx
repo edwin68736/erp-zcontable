@@ -392,10 +392,10 @@ const SupervisorDashboard = () => {
             />
             <StatCard label="Sin control en período" value={data.companies_without_control ?? 0} icon="fas fa-plus-circle" />
             <StatCard
-              label="Cumplimiento (PDT 601/621, Detracciones)"
+              label="Cumplimiento (PDT 601/621, Detracciones, Buzón SOL)"
               value={`${data.monthly_compliance_pct}%`}
               icon="fas fa-percent"
-              hint="Cumplido a tiempo / (cumplido a tiempo + fuera de fecha + vencido sin entregar), sobre PDT 601, PDT 621 y Detracciones del período — pendientes (sin vencer todavía) y exentos/no aplica quedan fuera del cálculo. Buzón SOL todavía no está incluido."
+              hint="Cumplido a tiempo / (cumplido a tiempo + fuera de fecha + vencido sin entregar), sobre PDT 601, PDT 621, Detracciones y Buzón SOL del período — pendientes (sin vencer todavía) y exentos/no aplica quedan fuera del cálculo."
             />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -416,7 +416,7 @@ const SupervisorDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {chartTotal > 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-medium text-slate-700 mb-3">Distribución de cumplimiento (PDT 601/621, Detracciones)</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">Distribución de cumplimiento (PDT 601/621, Detracciones, Buzón SOL)</p>
                 {/* 5 categorías en vivo (§5.9.3) — reemplaza al donut viejo de general_status
                     (al_dia/pendiente/vencido/observado/cerrado, sin relación con esto). "Entregado
                     fuera de fecha" y "Vencido sin entregar" quedan separados a propósito: son
