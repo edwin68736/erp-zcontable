@@ -1137,6 +1137,25 @@ propio. Dejo la pregunta original tachada, no borrada, como registro de por qué
       banner de solo lectura en PDT 601 y PDT 621 para una empresa suspendida, badge morado en el
       listado de Buzón SOL. Todo el §5.9 queda verificado de punta a punta con datos reales, no solo
       con tests unitarios.
+- [x] **Deploy y backfill en producción (2026-09-17)**: push a `main` (11 commits de esta sesión),
+      deploy automático verificado sano (4 contenedores arriba, migraciones aplicadas sin error). El
+      calendario de Buzón SOL en producción tenía el mismo problema que dev — plantilla `AC20`
+      ("REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL") nunca retipeada a `sunat_inbox` — con una
+      diferencia real: **producción nunca tuvo la regla "CONTROL DE HORA"** (solo existía "Fecha
+      Simple"). Con autorización explícita del usuario, se creó la regla (datetime, corte 10:30am,
+      igual que dev), se retipeó `AC20` y se recrearon las actividades reales de calendario — **para
+      setiembre (período abierto) y, a pedido del usuario, también junio y julio (históricos
+      cerrados)** — en los miércoles/sábados correctos de cada mes (con la variante de 5
+      miércoles/4 sábados de julio resuelta igual que setiembre: se descarta el miércoles final
+      "huérfano" que no empareja con ningún sábado de ese mes). Agosto quedó sin backfill (0 unidades
+      de Buzón SOL ese mes, comportamiento seguro por diseño — no se decidió tocarlo).
+      **Bug de infraestructura encontrado y corregido de paso**: el contenedor del backend corría en
+      UTC (sin `TZ`), desfasando 5 horas cualquier plazo con hora (el corte de las 10:30am salía
+      "hasta las 5:30am"). Corregido agregando `TZ=America/Lima` a `backend`/`mysql` en
+      `docker-compose.yml` (commit aparte, segundo deploy) — verificado que ya no ocurre.
+      Verificado en navegador con datos reales de producción (269-285 empresas): dashboard,
+      Buzón SOL y modal de arrastre cargan sin error para junio/julio/setiembre, sin señales del bug
+      de unidades infladas.
 
 ## 5.9.7 "Suspendida" pasa a ser global por período (2026-09-17)
 
