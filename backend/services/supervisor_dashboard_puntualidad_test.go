@@ -6,6 +6,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -203,6 +204,74 @@ func TestPdtAssistantPerformance_OneRowPerAssistantAndType(t *testing.T) {
 	}
 	if totalRowsForPdt601 != 2 {
 		t.Fatalf("esperaba exactamente 2 filas pdt_601 (Juan y María), hubo %d", totalRowsForPdt601)
+	}
+}
+
+// TestPdtDashboardSummary_VencidoUsaCalendarioNoFechaGenericaDelControl cubre docs/diseno-limpieza-
+// control-detail-2026-09-16.md §5.7: una declaración PDT 601 todavía sin entregar debe contar como
+// "Vencido" cuando ya pasó la fecha límite del calendario interno (por grupo de RUC), aunque la
+// fecha genérica del control (periodDefaultDueDate, día 20 del mes SIGUIENTE) todavía no haya
+// llegado — antes de la corrección, esta empresa seguía en "Pendiente" hasta esa fecha genérica.
+func TestPdtDashboardSummary_VencidoUsaCalendarioNoFechaGenericaDelControl(t *testing.T) {
+	now := time.Now()
+	if now.Day() == 1 {
+		t.Skip("necesita al menos un día transcurrido del mes para fijar una fecha de calendario ya vencida")
+	}
+	db := setupDashboardPuntualidadTestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "D006")
+	periodYM := now.Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, now.Day()-1, 0)
+
+	if _, err := svc.EnsurePdt601(co.ID, periodYM); err != nil {
+		t.Fatalf("EnsurePdt601: %v", err)
+	}
+
+	out, err := svc.PdtDashboardSummary(SupervisorDashboardParams{PeriodYM: periodYM})
+	if err != nil {
+		t.Fatalf("PdtDashboardSummary: %v", err)
+	}
+	got := out[models.SupervisorDeclPDT601]
+	if got.Vencido != 1 {
+		t.Fatalf("Vencido=%d, want 1 (la fecha límite del calendario ya pasó, aunque la fecha genérica del control todavía no)", got.Vencido)
+	}
+	if got.Pendiente != 0 {
+		t.Fatalf("Pendiente=%d, want 0", got.Pendiente)
+	}
+}
+
+// Mismo caso que arriba, para PDT 621 — misma corrección aplicada en paralelo a pdt621Vencido.
+func TestPdtDashboardSummary_Pdt621VencidoUsaCalendarioNoFechaGenericaDelControl(t *testing.T) {
+	now := time.Now()
+	if now.Day() == 1 {
+		t.Skip("necesita al menos un día transcurrido del mes para fijar una fecha de calendario ya vencida")
+	}
+	db := setupDashboardPuntualidadTestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "D007")
+	periodYM := now.Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt621CalendarRule(t, db, periodYM, now.Day()-1, 0)
+
+	if _, err := svc.EnsurePdt621(co.ID, periodYM); err != nil {
+		t.Fatalf("EnsurePdt621: %v", err)
+	}
+
+	out, err := svc.PdtDashboardSummary(SupervisorDashboardParams{PeriodYM: periodYM})
+	if err != nil {
+		t.Fatalf("PdtDashboardSummary: %v", err)
+	}
+	got := out[models.SupervisorDeclPDT621]
+	if got.Vencido != 1 {
+		t.Fatalf("Vencido=%d, want 1 (la fecha límite del calendario ya pasó, aunque la fecha genérica del control todavía no)", got.Vencido)
+	}
+	if got.Pendiente != 0 {
+		t.Fatalf("Pendiente=%d, want 0", got.Pendiente)
 	}
 }
 

@@ -52,6 +52,11 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     () => workspace === 'supervisor' && auth.hasPermission(P.supervisorsDeclarationsApprove),
     [workspace],
   );
+  // "Suspendida" (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7): Control de Detracciones
+  // es el ÚNICO módulo de todo el sistema que la marca/desmarca — PDT 601/621 y Buzón SOL solo la
+  // leen. Mismo permiso que subir el PDF (lo puede marcar tanto el asistente como el supervisor,
+  // igual que el checkbox viejo de PDT 601 antes de este cambio).
+  const canSuspend = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
 
   const [detail, setDetail] = useState<DetraccionesDetail | null>(null);
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
@@ -163,6 +168,21 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     }
   };
 
+  const handleToggleSuspendida = async (next: boolean) => {
+    if (!canSuspend) return;
+    try {
+      setActionLoading(true);
+      setMsg('');
+      const updated = await detraccionesService.setSuspendida(companyId, periodYm, next);
+      setDetail(updated);
+      setMsg(next ? 'Empresa marcada como suspendida.' : 'Empresa reactivada.');
+    } catch (err) {
+      setMsg(extractApiErrorMessage(err, 'No se pudo actualizar la suspensión.'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={`${PAGE_WORKSPACE_CLASS} text-center text-slate-500 py-12`}>
@@ -185,9 +205,12 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     );
   }
 
-  const showUpload = canUpload && detraccionesAllowsUpload(status);
-  const showVerify = canVerify && workspace === 'supervisor' && status === 'cargado';
-  const showStatusEdit = canVerify && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status);
+  // Suspendida bloquea CUALQUIER otro registro en este módulo (docs/diseno-limpieza-control-detail-
+  // 2026-09-16.md §5.9.7.3 punto 5, mismo criterio "una sola puerta" que PDT 601/621).
+  const showUpload = canUpload && detraccionesAllowsUpload(status) && !detail.suspendida;
+  const showVerify = canVerify && workspace === 'supervisor' && status === 'cargado' && !detail.suspendida;
+  const showStatusEdit =
+    canVerify && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status) && !detail.suspendida;
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -257,6 +280,29 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
               </>
             ) : null}
           </dl>
+
+          {/* Único checkbox de todo el sistema que marca/desmarca "suspendida" (§5.9.7) — PDT 601/621
+              y Buzón SOL solo la leen desde su propio detalle/listado. */}
+          <label
+            className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+              detail.suspendida ? 'border-purple-300 bg-purple-50 text-purple-900' : 'border-slate-200 bg-slate-50 text-slate-700'
+            } ${canSuspend ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+          >
+            <input
+              type="checkbox"
+              disabled={!canSuspend || actionLoading}
+              checked={detail.suspendida}
+              onChange={(e) => void handleToggleSuspendida(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+            />
+            <span>
+              <span className="block font-medium">Esta empresa está suspendida en este período</span>
+              <span className="block text-xs mt-0.5 opacity-80">
+                Se aplica a Control de Detracciones, PDT 601, PDT 621 y Buzón SOL — no se registra
+                ningún otro dato en ninguno de estos módulos mientras esté suspendida.
+              </span>
+            </span>
+          </label>
         </div>
 
         {workspace === 'supervisor' && (showVerify || showStatusEdit) ? (

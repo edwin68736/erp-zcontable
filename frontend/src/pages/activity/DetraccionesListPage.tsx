@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import DetraccionesRowActions from '../../components/activity/DetraccionesRowActions';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   formatStoredAt,
   DETRACCIONES_STATUS_FILTER,
@@ -21,7 +22,11 @@ import {
 } from '../../navigation/activityRoutes';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
-import { detraccionesService, type DetraccionesListRow } from '../../services/detracciones';
+import {
+  detraccionesService,
+  type DetraccionesListRow,
+  type SuspensionCarryOverRow,
+} from '../../services/detracciones';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
@@ -69,6 +74,13 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
 
+  // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
+  // (§5.9.9.3), así que no se acota a canVerify/canUpload.
+  const [carryOverCompanies, setCarryOverCompanies] = useState<SuspensionCarryOverRow[]>([]);
+  const [carryOverOpen, setCarryOverOpen] = useState(false);
+  const [carryOverSaving, setCarryOverSaving] = useState(false);
+  const [carryOverError, setCarryOverError] = useState('');
+
   useEffect(() => {
     setSearchParams(
       (prev) => {
@@ -110,6 +122,52 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   useEffect(() => {
     setPage(1);
   }, [periodYm, debouncedQ, statusFilter]);
+
+  // Al entrar (o cambiar de período), se consulta si hay un arrastre de suspensión sin resolver — si
+  // el usuario cierra el modal sin decidir, NO se recuerda acá: la próxima vez que se entre a este
+  // período (nuevo mount o cambio de periodYm) se vuelve a preguntar, tal como pide §5.9.9.2.
+  useEffect(() => {
+    let cancelled = false;
+    detraccionesService
+      .getSuspensionCarryOverStatus(periodYm)
+      .then((status) => {
+        if (cancelled) return;
+        setCarryOverCompanies(status.companies ?? []);
+        setCarryOverOpen(status.pending);
+        setCarryOverError('');
+      })
+      .catch((err: unknown) => {
+        console.error(err);
+        // Silencioso: no bloquea el uso normal del listado si esta consulta falla.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [periodYm]);
+
+  const handleCarryOverConfirm = async (keepSuspendedCompanyIds: number[]) => {
+    try {
+      setCarryOverSaving(true);
+      setCarryOverError('');
+      await detraccionesService.applySuspensionCarryOver(periodYm, keepSuspendedCompanyIds);
+      setCarryOverOpen(false);
+      await load();
+    } catch (err) {
+      // Si ya lo resolvió otro usuario (§5.9.9.4), recargar el estado en vez de reintentar — deja de
+      // mostrar el modal porque el backend ya quedó "resuelto".
+      setCarryOverError(extractApiErrorMessage(err, 'No se pudo aplicar la decisión.'));
+      try {
+        const status = await detraccionesService.getSuspensionCarryOverStatus(periodYm);
+        setCarryOverCompanies(status.companies ?? []);
+        setCarryOverOpen(status.pending);
+        if (!status.pending) await load();
+      } catch (reloadErr) {
+        console.error(reloadErr);
+      }
+    } finally {
+      setCarryOverSaving(false);
+    }
+  };
 
   const detailLink = (companyId: number) => {
     const path = `${activityModulePath(workspace, 'detracciones')}/${companyId}`;
@@ -264,7 +322,19 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                       style={frozenIdBodyCellStyle('name')}
                       title={row.business_name}
                     >
-                      <span className="block truncate">{row.business_name || '—'}</span>
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span className="truncate">{row.business_name || '—'}</span>
+                        {row.suspendida ? (
+                          // §5.9.7: única fuente de esta marca es este módulo — sin esto, una
+                          // empresa suspendida podía verse como si se hubiera eliminado del listado.
+                          <span
+                            className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-900"
+                            title="Suspendida en este período"
+                          >
+                            Suspendida
+                          </span>
+                        ) : null}
+                      </span>
                     </td>
                     <td
                       className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
@@ -322,6 +392,15 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
           setPerPage(next);
           setPage(1);
         }}
+      />
+
+      <SuspensionCarryOverModal
+        open={carryOverOpen}
+        companies={carryOverCompanies}
+        saving={carryOverSaving}
+        error={carryOverError}
+        onClose={() => setCarryOverOpen(false)}
+        onConfirm={(ids) => void handleCarryOverConfirm(ids)}
       />
     </div>
   );

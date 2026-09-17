@@ -6,7 +6,6 @@ export type Pdt621Timeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exe
 
 /** Seguimiento manual PDT 621 del período (revisión de archivadores, importes, SIRE). */
 export interface Pdt621Record {
-  suspendida: boolean;
   primera_entrega_fecha?: string | null;
   primera_entrega_hora: string;
   observacion: string;
@@ -28,7 +27,6 @@ export interface Pdt621Record {
 
 /** Cuerpo que envía el supervisor al guardar el seguimiento (fechas como AAAA-MM-DD). */
 export interface Pdt621RecordInput {
-  suspendida: boolean;
   primera_entrega_fecha: string;
   primera_entrega_hora: string;
   observacion: string;
@@ -69,6 +67,9 @@ export interface Pdt621ListRow {
    * que el asistente haga la primera entrega — distinto de declaration_timeliness (cronograma
    * SUNAT). No valida nada contra SUNAT, solo la entrega interna del asistente. */
   assistant_timeliness: Pdt621Timeliness;
+  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
+  // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
+  suspendida: boolean;
 }
 
 export interface Pdt621Detail {
@@ -87,6 +88,14 @@ export interface Pdt621Detail {
   /** Mismo criterio que Pdt621ListRow.assistant_timeliness (calendario interno, no SUNAT) — permite
    * mostrar "Entregado fuera de fecha" en el detalle sin recalcular nada en el frontend. */
   assistant_timeliness: Pdt621Timeliness;
+  /** Fecha límite resuelta por el calendario interno del estudio para el grupo de RUC de esta
+   * empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — undefined si el período no
+   * tiene ninguna actividad "pdt_621" configurada. Fuente para mostrar "Vencimiento", reemplaza a
+   * `declaration.due_date` (0% de uso real, §3.1). */
+  calendar_due_date?: string;
+  // control_suspendida: ver comentario en Pdt621ListRow.suspendida — de solo lectura acá, se marca
+  // desde Control de Detracciones.
+  control_suspendida: boolean;
 }
 
 export interface Pdt621ListResponse {

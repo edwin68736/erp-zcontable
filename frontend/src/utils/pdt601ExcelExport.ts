@@ -113,7 +113,7 @@ export async function exportPdt601ReportExcel(options: {
   for (const row of rows) {
     const pl = row.planilla;
     const sinPlanilla = !!pl?.sin_planilla;
-    const suspendida = !!pl?.suspendida;
+    const suspendida = !!row.suspendida;
     // "Suspendida" tiene prioridad sobre "sin planilla" (mutuamente excluyentes) y bloquea
     // CUALQUIER otro dato — ver Pdt601DetailPage.tsx.
     const blocked = suspendida || sinPlanilla;

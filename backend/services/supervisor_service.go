@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -55,6 +56,10 @@ type SupervisorDashboard struct {
 	ControlsCerrado         int64                       `json:"controls_cerrado"`
 	DeclarationsObserved    int64                       `json:"declarations_observed"`
 	MonthlyCompliancePct    float64                     `json:"monthly_compliance_pct"`
+	// ComplianceBreakdown desglose en vivo de 5 categorías (§5.9.3) detrás de MonthlyCompliancePct —
+	// alimenta el donut "Distribución por estado" rediseñado. Etapa 1: solo PDT 601/621 +
+	// Detracciones (§5.9.5) — Buzón SOL se suma en la etapa 2.
+	ComplianceBreakdown     ComplianceSummary           `json:"compliance_breakdown"`
 	ByStatus                map[string]int64            `json:"by_status"`
 	Alerts                  []SupervisorAlert           `json:"alerts"`
 	Productivity            []SupervisorProductivityRow `json:"productivity"`
@@ -295,8 +300,6 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	}
 	_ = qCompanies.Count(&out.TotalActiveCompanies).Error
 
-	base := s.dashboardControlsQuery(p)
-
 	countStatus := func(st string, dest *int64) {
 		q := s.dashboardControlsQuery(p).Where("general_status = ?", st)
 		_ = q.Count(dest).Error
@@ -353,10 +356,14 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	out.ByStatus[models.SupervisorControlCerrado] = controlsCerrado
 	out.ControlsCerrado = controlsCerrado
 
-	var totalControls int64
-	_ = base.Count(&totalControls).Error
-	if totalControls > 0 {
-		out.MonthlyCompliancePct = math.Round((float64(out.ControlsAlDia+controlsCerrado)/float64(totalControls))*1000) / 10
+	// "Cumplimiento %" en vivo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9) — ya NO se
+	// calcula desde general_status (campo manual, 0% de uso real, §5.5); se agrega desde los
+	// veredictos de puntualidad de PDT 601/621 + Detracciones (etapa 1, §5.9.5). `base`/
+	// `controlsCerrado` quedan arriba solo para los conteos de "Controles por estado", que sí siguen
+	// leyendo general_status (no es parte de este rediseño, §5.9.3 "lo que NO cambia").
+	if cs, err := s.MonthlyComplianceSummary(p); err == nil {
+		out.MonthlyCompliancePct = cs.CompliancePct
+		out.ComplianceBreakdown = cs
 	}
 
 	// qDecl comparte los mismos filtros de alcance que el resto del dashboard (empresa, estado
@@ -444,11 +451,12 @@ type PdtTypeSummary struct {
 // La fecha límite de cada declaración es la suya propia si la tiene, si no la de su control
 // (mismo criterio que resolvePdt601DueDate en el frontend). "Vencido" solo aplica a
 // declaraciones que siguen abiertas (ni observadas ni ya completadas) y cuya fecha límite
-// resuelta ya pasó. pl.sin_planilla/pl.suspendida son datos del CONTROL vía PDT 601 (una
-// planilla por control, no por declaración) y r.suspendida el equivalente vía PDT 621 (un
-// registro por control) — ambos LEFT JOIN traen la misma fila para pdt_601 Y pdt_621 de ese
-// control, así que hay que exigir el declaration_type correspondiente en cada condición: si no,
-// una empresa marcada sin planilla/suspendida en un módulo aparecía también así en el otro.
+// resuelta ya pasó. pl.sin_planilla es dato del CONTROL vía PDT 601 (una planilla por control, no
+// por declaración) — el LEFT JOIN trae la misma fila para pdt_601 Y pdt_621 de ese control, así
+// que hay que exigir declaration_type = pdt_601 para no contar "sin planilla" también para PDT 621.
+// "Suspendida" (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), en cambio, es global por
+// control desde la Sección 5.9 — ya no distingue tipo de declaración, aplica igual a pdt_601 y
+// pdt_621 de un mismo control.
 //
 // Los nombres de tipo/estado de declaración (SupervisorDeclXxx) son constantes Go del propio
 // código — nunca vienen del request — así que se insertan directo en el SQL (fmt.Sprintf) en
@@ -457,10 +465,7 @@ type PdtTypeSummary struct {
 func pdtBucketsSelectSQL(periodYM string) string {
 	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
-	isSuspendida := fmt.Sprintf(
-		"((d.declaration_type = %s AND COALESCE(pl.suspendida, 0) = 1) OR (d.declaration_type = %s AND COALESCE(r.suspendida, 0) = 1))",
-		sq(models.SupervisorDeclPDT601), sq(models.SupervisorDeclPDT621),
-	)
+	isSuspendida := "COALESCE(c.suspendida, 0) = 1"
 	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
 	// "entregado" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) se suma acá como terminal para
 	// pdt_601/pdt_621 — los valores viejos (aprobado/presentado/cerrado) se mantienen para no romper
@@ -503,17 +508,44 @@ func pdtBucketsSelectSQL(periodYM string) string {
 		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601Late, sq(models.SupervisorDeclPDT621), pdt621Late,
 	)
 
+	// "Vencido" (declaración TODAVÍA abierta, sin entregar, cuya fecha límite ya pasó) — docs/diseno-
+	// limpieza-control-detail-2026-09-16.md §5.7: antes comparaba contra COALESCE(d.due_date, c.due_date)
+	// (fecha propia de la declaración, 0% de uso real — o si no, la fecha genérica del control, ~día 20
+	// del mes siguiente), sin relación con la fecha límite por grupo de RUC del calendario interno que
+	// ya usan entregado_a_tiempo/fuera_de_fecha arriba. Ahora usa la misma fecha por grupo de RUC; si el
+	// período no tiene ninguna actividad pdt_601/pdt_621 configurada en el calendario, cae al fallback
+	// viejo para no perder cobertura. Si SÍ hay actividades pero el dígito de una empresa puntual no cae
+	// en ningún rango (sin comodín), esa fila no cuenta como vencida — mismo criterio "no castigar por
+	// falta de configuración" que pdt601OnTime/pdt601Late.
+	oldDue := "COALESCE(d.due_date, c.due_date)"
+	pdt601Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
+	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt601Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
+	}
+	pdt621Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
+	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt621Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
+	}
+	isVencidoAbierto := fmt.Sprintf(
+		"((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s))",
+		sq(models.SupervisorDeclPDT601), pdt601Vencido, sq(models.SupervisorDeclPDT621), pdt621Vencido,
+	)
+
+	// Vencido/Pendiente (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.2b): "observado" ya NO
+	// se excluye de acá — antes una declaración observada nunca contaba como vencida/pendiente sin
+	// importar cuánto tiempo llevara sin resolverse; ahora se evalúa por fecha igual que "pendiente"
+	// (si ya venció el plazo del calendario y sigue observada, cuenta como vencido). El conteo de
+	// "observado" (bucket propio, `SUM(... d.status = observadoStatus)`) sigue existiendo aparte para
+	// la tarjeta "Declaraciones observadas" — es intencional que una fila observada y ya vencida
+	// aparezca en LOS DOS conteos a la vez, son métricas distintas (revisión pendiente vs. cumplimiento).
 	return fmt.Sprintf(`
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
 		SUM(CASE WHEN NOT %s AND d.status = %s THEN 1 ELSE 0 END) AS observado,
 		SUM(CASE WHEN NOT %s AND d.status IN %s THEN 1 ELSE 0 END) AS completado,
-		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
-			AND COALESCE(d.due_date, c.due_date) IS NOT NULL
-			AND COALESCE(d.due_date, c.due_date) < %s
+		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND %s
 			THEN 1 ELSE 0 END) AS vencido,
-		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
-			AND NOT (COALESCE(d.due_date, c.due_date) IS NOT NULL AND COALESCE(d.due_date, c.due_date) < %s)
+		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND NOT %s
 			THEN 1 ELSE 0 END) AS pendiente,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_a_tiempo,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_fuera_de_fecha,
@@ -521,8 +553,8 @@ func pdtBucketsSelectSQL(periodYM string) string {
 		isSinPlanilla, isSuspendida,
 		isExempt, observadoStatus,
 		isExempt, completadoStatuses,
-		isExempt, completadoStatuses, observadoStatus, todayLit,
-		isExempt, completadoStatuses, observadoStatus, todayLit,
+		isExempt, completadoStatuses, isVencidoAbierto,
+		isExempt, completadoStatuses, isVencidoAbierto,
 		isEntregadoATiempo,
 		isEntregadoFueraDeFecha,
 	)
@@ -711,9 +743,10 @@ func trailingPeriods(periodYM string, months int) []string {
 	return out
 }
 
-// ComplianceTrend cumplimiento mensual de los últimos `months` meses terminando en p.PeriodYM
-// (incluido) — mismos filtros que el resto del dashboard, en una sola consulta agrupada por
-// período (antes no existía ninguna vista de tendencia: solo se podía ver un mes a la vez).
+// ComplianceTrend cumplimiento en vivo (§5.9, ComplianceSummary — ya no general_status) de los
+// últimos `months` meses terminando en p.PeriodYM (incluido), mismos filtros que el resto del
+// dashboard. Una llamada a MonthlyComplianceSummary por período (antes no existía ninguna vista de
+// tendencia: solo se podía ver un mes a la vez).
 func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months int) ([]ComplianceTrendPoint, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido (use YYYY-MM)")
@@ -729,51 +762,15 @@ func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months 
 		return nil, errors.New("período inválido (use YYYY-MM)")
 	}
 
-	type row struct {
-		PeriodYM  string
-		Compliant int64
-		Total     int64
-	}
-	q := database.DB.Model(&models.SupervisorMonthlyControl{}).
-		Select(`period_ym,
-			SUM(CASE WHEN general_status IN ? THEN 1 ELSE 0 END) AS compliant,
-			COUNT(*) AS total`,
-			[]string{models.SupervisorControlAlDia, models.SupervisorControlCerrado}).
-		Where("period_ym IN ?", periods)
-	if p.CompanyID > 0 {
-		q = q.Where("company_id = ?", p.CompanyID)
-	}
-	if p.GeneralStatus != "" {
-		q = q.Where("general_status = ?", p.GeneralStatus)
-	}
-	if p.RiskLevel != "" {
-		q = q.Where("risk_level = ?", p.RiskLevel)
-	}
-	if p.ResponsibleUserID > 0 {
-		q = q.Where("responsible_user_id = ?", p.ResponsibleUserID)
-	}
-	if p.SupervisorUserID > 0 {
-		q = q.Where("supervisor_user_id = ?", p.SupervisorUserID)
-	}
-	q = s.applyCompanyScope(q, p.AllowedCompanyIDs)
-
-	var rows []row
-	if err := q.Group("period_ym").Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	byPeriod := make(map[string]row, len(rows))
-	for _, r := range rows {
-		byPeriod[r.PeriodYM] = r
-	}
-
 	out := make([]ComplianceTrendPoint, 0, len(periods))
 	for _, ym := range periods {
-		r := byPeriod[ym]
-		pt := ComplianceTrendPoint{PeriodYM: ym, TotalControls: r.Total}
-		if r.Total > 0 {
-			pt.CompliancePct = math.Round((float64(r.Compliant)/float64(r.Total))*1000) / 10
+		periodParams := p
+		periodParams.PeriodYM = ym
+		cs, err := s.MonthlyComplianceSummary(periodParams)
+		if err != nil {
+			return nil, err
 		}
-		out = append(out, pt)
+		out = append(out, ComplianceTrendPoint{PeriodYM: ym, CompliancePct: cs.CompliancePct, TotalControls: cs.Total})
 	}
 	return out, nil
 }
@@ -1729,13 +1726,61 @@ func (s *SupervisorService) ReportProductivity(p SupervisorDashboardParams) ([]S
 	return s.complianceRankingBy(p, "responsible_user_id")
 }
 
-// SupervisorComplianceRanking cumplimiento por SUPERVISOR — a diferencia de ReportProductivity,
-// esto es lo que alimenta el widget "Productividad" del propio dashboard del supervisor: como el
-// resto de la pantalla ya está acotado a las empresas del supervisor que la está viendo, acá ve su
-// PROPIO avance (un supervisor con alcance de estudio sin restricción, en cambio, ve una fila por
-// cada supervisor — útil para comparar entre ellos).
+// SupervisorComplianceRanking cumplimiento EN VIVO por SUPERVISOR (§5.9 — ya no general_status vía
+// complianceRankingBy; ReportProductivity, por responsable, no cambió, sigue usando ese criterio
+// viejo, fuera del alcance de §5.9.5). Alimenta el widget "Productividad" del dashboard del
+// supervisor: como el resto de la pantalla ya está acotado a las empresas del supervisor que la
+// está viendo, acá ve su PROPIO avance (un supervisor con alcance de estudio sin restricción, en
+// cambio, ve una fila por cada supervisor — útil para comparar entre ellos).
+//
+// Reutiliza MonthlyComplianceSummary una vez por supervisor encontrado en el período (en vez de
+// duplicar su SQL agrupado por supervisor_user_id) — el costo total de trabajo por empresa es el
+// mismo (cada empresa pertenece a un solo supervisor), solo cambia en cuántas llamadas se reparte.
 func (s *SupervisorService) SupervisorComplianceRanking(p SupervisorDashboardParams) ([]SupervisorProductivityRow, error) {
-	return s.complianceRankingBy(p, "supervisor_user_id")
+	if !validPeriodYM(p.PeriodYM) {
+		return nil, errors.New("período inválido")
+	}
+
+	var supervisorIDs []uint
+	if err := s.dashboardControlsQuery(p).
+		Where("supervisor_user_id IS NOT NULL").
+		Distinct().
+		Pluck("supervisor_user_id", &supervisorIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(supervisorIDs) == 0 {
+		return []SupervisorProductivityRow{}, nil
+	}
+
+	var users []models.User
+	_ = database.DB.Select("id", "name", "username").Where("id IN ?", supervisorIDs).Find(&users).Error
+	nameByID := make(map[uint]string, len(users))
+	for _, u := range users {
+		name := u.Name
+		if name == "" {
+			name = u.Username
+		}
+		nameByID[u.ID] = name
+	}
+
+	out := make([]SupervisorProductivityRow, 0, len(supervisorIDs))
+	for _, uid := range supervisorIDs {
+		scoped := p
+		scoped.SupervisorUserID = uid
+		cs, err := s.MonthlyComplianceSummary(scoped)
+		if err != nil {
+			return nil, err
+		}
+		// Total/AlDia se reusan con el nuevo significado en vivo (on_time+late+missing / on_time) —
+		// mismo shape de SupervisorProductivityRow que ya consume el frontend, para no duplicar el tipo.
+		out = append(out, SupervisorProductivityRow{
+			UserID: uid, UserName: nameByID[uid],
+			Total: cs.OnTime + cs.Late + cs.Missing, AlDia: cs.OnTime,
+			CompliancePct: cs.CompliancePct,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].UserName < out[j].UserName })
+	return out, nil
 }
 
 func (s *SupervisorService) ReportObservationsHistory(p SupervisorReportListParams) ([]SupervisorObservationReportRow, int64, error) {

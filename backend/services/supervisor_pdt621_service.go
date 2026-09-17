@@ -53,6 +53,9 @@ type Pdt621ListRow struct {
 	// declaración ante SUNAT contra el cronograma oficial por dígito de RUC. No evalúa si SUNAT
 	// aceptó o no la declaración: solo mide la entrega interna del asistente vs. el calendario.
 	AssistantTimeliness string `json:"assistant_timeliness"`
+	// Suspendida: SupervisorMonthlyControl.Suspendida (§5.9.7) — global, siempre presente aunque
+	// `Record` sea nil (empresa sin registro todavía).
+	Suspendida bool `json:"suspendida"`
 }
 
 // Pdt621Detail detalle tras EnsurePdt621 (lazy create o reutiliza bootstrap).
@@ -67,12 +70,21 @@ type Pdt621Detail struct {
 	AssistantUsername string                       `json:"assistant_username"`
 	ControlID         uint                         `json:"control_id"`
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
+	// ControlSuspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-
+	// 2026-09-16.md §5.9.7) — global, de solo lectura acá; se marca/desmarca únicamente desde Control
+	// de Detracciones. Siempre presente (a diferencia de Record, que puede ser nil).
+	ControlSuspendida bool                         `json:"control_suspendida"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
 	Record            *Pdt621RecordDTO             `json:"record,omitempty"`
 	// AssistantTimeliness mismo criterio que Pdt621ListRow.AssistantTimeliness — plazo interno del
 	// estudio (no el cronograma SUNAT), presente acá para que el detalle pueda mostrar "Entregado" vs
 	// "Entregado fuera de fecha" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§12).
 	AssistantTimeliness string `json:"assistant_timeliness"`
+	// CalendarDueDate fecha límite resuelta por el calendario interno del estudio para el grupo de
+	// RUC de esta empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — nil si el
+	// período no tiene ninguna actividad "pdt_621" configurada. Reemplaza a `declaration.due_date`
+	// (0% de uso real, §3.1) como fuente para mostrar "Vencimiento" en el frontend.
+	CalendarDueDate *time.Time `json:"calendar_due_date,omitempty"`
 }
 
 // pdt621StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
@@ -86,9 +98,9 @@ const (
 	pdt621StatusFilterEntregadoFueraDeFecha = "entregado_fuera_de_fecha"
 )
 
-// Pdt621RecordDTO seguimiento manual PDT 621 del período (salida a UI).
+// Pdt621RecordDTO seguimiento manual PDT 621 del período (salida a UI). Suspendida ya no es parte de
+// este DTO — es global por control, ver Pdt621Detail.ControlSuspendida (§5.9.7).
 type Pdt621RecordDTO struct {
-	Suspendida          bool    `json:"suspendida"`
 	PrimeraEntregaFecha *string `json:"primera_entrega_fecha,omitempty"`
 	PrimeraEntregaHora  string  `json:"primera_entrega_hora"`
 	Observacion         string  `json:"observacion"`
@@ -108,9 +120,9 @@ type Pdt621RecordDTO struct {
 	MotivoNoEnvio              string  `json:"motivo_no_envio"`
 }
 
-// Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD).
+// Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD). Suspendida ya no es
+// parte de este input — se marca/desmarca solo desde Control de Detracciones (§5.9.7).
 type Pdt621RecordInput struct {
-	Suspendida                 bool    `json:"suspendida"`
 	PrimeraEntregaFecha        string  `json:"primera_entrega_fecha"`
 	PrimeraEntregaHora         string  `json:"primera_entrega_hora"`
 	Observacion                string  `json:"observacion"`
@@ -133,7 +145,6 @@ func pdt621RecordToDTO(r *models.SupervisorPdt621Record) *Pdt621RecordDTO {
 		return nil
 	}
 	return &Pdt621RecordDTO{
-		Suspendida:                 r.Suspendida,
 		PrimeraEntregaFecha:        pdt601DateString(r.PrimeraEntregaFecha),
 		PrimeraEntregaHora:         r.PrimeraEntregaHora,
 		Observacion:                r.Observacion,
@@ -337,6 +348,7 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 	}
 
 	dig := s.companyDig(company.ID)
+	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, ctrl.Suspendida, recordDTO)
 	return &Pdt621Detail{
 		PeriodYM:            periodYM,
 		CompanyID:           company.ID,
@@ -348,23 +360,28 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 		AssistantUsername:   assistantUsername(company.Assistant),
 		ControlID:           ctrl.ID,
 		ControlDueDate:      ctrl.DueDate,
+		ControlSuspendida:   ctrl.Suspendida,
 		Declaration:         decl,
 		Record:              recordDTO,
-		AssistantTimeliness: pdt621AssistantTimeliness(periodYM, dig, recordDTO),
+		AssistantTimeliness: assistantTimeliness.Timeliness,
+		CalendarDueDate:     assistantTimeliness.DueAt,
 	}, nil
 }
 
-// pdt621AssistantTimeliness plazo interno del estudio (calendario de actividades, no el cronograma
-// SUNAT) — extraído para reutilizarse tanto en EnsurePdt621 (detalle) como en SavePdt621Record
-// (recalcular tras guardar) sin duplicar la lógica de exempt/deliveredAt. `dig` es el dígito de RUC
-// de la empresa (§2.7b) — elige la actividad correcta entre las 6 agrupadas por rango.
-func pdt621AssistantTimeliness(periodYM, dig string, recordDTO *Pdt621RecordDTO) string {
-	exempt := recordDTO != nil && recordDTO.Suspendida
+// pdt621AssistantTimelinessDTO plazo interno del estudio (calendario de actividades, no el
+// cronograma SUNAT) — extraído para reutilizarse tanto en EnsurePdt621 (detalle) como en
+// SavePdt621Record (recalcular tras guardar, vía el propio EnsurePdt621) sin duplicar la lógica de
+// exempt/deliveredAt. `dig` es el dígito de RUC de la empresa (§2.7b) — elige la actividad correcta
+// entre las 6 agrupadas por rango. `controlSuspendida` es SupervisorMonthlyControl.Suspendida (§5.9.7,
+// global, ya no vive en Pdt621RecordDTO). Devuelve el DTO completo (no solo el label) para que el
+// caller también pueda exponer la fecha límite resuelta (`CalendarDueDate`, §5.7b).
+func pdt621AssistantTimelinessDTO(periodYM, dig string, controlSuspendida bool, recordDTO *Pdt621RecordDTO) UploadTimelinessDTO {
+	exempt := controlSuspendida
 	var primeraEntregaAt *time.Time
 	if recordDTO != nil && recordDTO.PrimeraEntregaFecha != nil {
 		primeraEntregaAt = pdt601ParseDate(*recordDTO.PrimeraEntregaFecha)
 	}
-	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), primeraEntregaAt, exempt).Timeliness
+	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), primeraEntregaAt, exempt)
 }
 
 // GetPdt621Record lectura pura del seguimiento PDT 621 del período (sin crear control/declaración).
@@ -400,6 +417,12 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
+	// Suspendida ahora es global por control y solo se marca/desmarca desde Control de Detracciones
+	// (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — mientras esté marcada, PDT 621
+	// queda de solo lectura.
+	if detail.ControlSuspendida {
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
 		return nil, err
@@ -411,43 +434,21 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 		return nil, err
 	}
 	record.MonthlyControlID = ctrl.ID
-	// "Suspendida" bloquea CUALQUIER otro dato — mismo criterio que SavePdt601Planilla, reforzado
-	// acá server-side. Observacion se fuerza a la nota fija para que quede visible en el listado y
-	// el Excel.
-	record.Suspendida = in.Suspendida
-	if record.Suspendida {
-		record.PrimeraEntregaFecha = nil
-		record.PrimeraEntregaHora = ""
-		record.Observacion = supervisorSuspendidaNote
-		record.SegundaEntregaFecha = nil
-		record.SegundaEntregaHora = ""
-		record.FechaDeclaracion = nil
-		record.TotalVentas = 0
-		record.TotalCompras = 0
-		record.Igv = 0
-		record.Rta = 0
-		record.CantidadComprobantesVenta = 0
-		record.CantidadComprobantesCompra = 0
-		record.EnvioSire = ""
-		record.FechaEnvioSire = nil
-		record.MotivoNoEnvio = ""
-	} else {
-		record.PrimeraEntregaFecha = pdt601ParseDate(in.PrimeraEntregaFecha)
-		record.PrimeraEntregaHora = strings.TrimSpace(in.PrimeraEntregaHora)
-		record.Observacion = strings.TrimSpace(in.Observacion)
-		record.SegundaEntregaFecha = pdt601ParseDate(in.SegundaEntregaFecha)
-		record.SegundaEntregaHora = strings.TrimSpace(in.SegundaEntregaHora)
-		record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
-		record.TotalVentas = in.TotalVentas
-		record.TotalCompras = in.TotalCompras
-		record.Igv = in.Igv
-		record.Rta = in.Rta
-		record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
-		record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
-		record.EnvioSire = strings.TrimSpace(in.EnvioSire)
-		record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
-		record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
-	}
+	record.PrimeraEntregaFecha = pdt601ParseDate(in.PrimeraEntregaFecha)
+	record.PrimeraEntregaHora = strings.TrimSpace(in.PrimeraEntregaHora)
+	record.Observacion = strings.TrimSpace(in.Observacion)
+	record.SegundaEntregaFecha = pdt601ParseDate(in.SegundaEntregaFecha)
+	record.SegundaEntregaHora = strings.TrimSpace(in.SegundaEntregaHora)
+	record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
+	record.TotalVentas = in.TotalVentas
+	record.TotalCompras = in.TotalCompras
+	record.Igv = in.Igv
+	record.Rta = in.Rta
+	record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
+	record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
+	record.EnvioSire = strings.TrimSpace(in.EnvioSire)
+	record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
+	record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
 
 	declStatus := detail.Declaration.Status
 	declID := detail.Declaration.ID
@@ -526,10 +527,11 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
 		)`, models.SupervisorDeclPDT621, p.PeriodYM)
 	} else if statusFilter == pdt621StatusFilterSuspendida {
+		// Suspendida es global por control desde §5.9.7 — ya no requiere join con
+		// supervisor_pdt621_records (esa tabla perdió su propio campo suspendida).
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
-			INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
-			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND r.suspendida = ?
+			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND c.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt621StatusFilterEntregadoATiempo {
 		dueCase, hasAny := pdt621DueDateSQLCase(p.PeriodYM, "companies.id")
@@ -633,6 +635,22 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		credDig[cr.CompanyID] = strings.TrimSpace(cr.Dig)
 	}
 
+	// Suspendida es global por control desde §5.9.7 — una sola consulta para todas las empresas del
+	// listado, en vez de leerla desde el record (que ya no la tiene).
+	suspendidaByCompany := map[uint]bool{}
+	type suspendidaRow struct {
+		CompanyID  uint
+		Suspendida bool
+	}
+	var suspRows []suspendidaRow
+	_ = database.DB.Table("supervisor_monthly_controls").
+		Select("company_id, suspendida").
+		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, periodYM).
+		Scan(&suspRows).Error
+	for _, r := range suspRows {
+		suspendidaByCompany[r.CompanyID] = r.Suspendida
+	}
+
 	// Seguimiento PDT 621 del período por empresa (LEFT JOIN vía control mensual).
 	type recordRow struct {
 		CompanyID uint
@@ -666,6 +684,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 			AssistantUsername: assistantUsername(co.Assistant),
 			Status:            models.SupervisorSunatSinRegistro,
 			Record:            recordByCompany[co.ID],
+			Suspendida:        suspendidaByCompany[co.ID],
 		}
 		if d, ok := declByCompany[co.ID]; ok {
 			cid, did := d.ControlID, d.DeclarationID
@@ -682,9 +701,9 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		}
 
 		// Empresa suspendida en el período: exime ambos cumplimientos (declaración SUNAT y entrega
-		// interna del asistente), igual que "sin planilla" en PDT 601 — ver
-		// pdt601BuildRows/exempt más arriba.
-		exempt := row.Record != nil && row.Record.Suspendida
+		// interna del asistente) — global por control desde §5.9.7, ya no depende de que exista
+		// Record.
+		exempt := row.Suspendida
 		if exempt {
 			row.IsOverdue = false
 			row.DaysRemaining = nil

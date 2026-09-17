@@ -4,7 +4,6 @@ import type { SupervisorDeclaration } from './supervisors';
 /** Datos de planilla PDT 601 del período (salida del backend). */
 export interface Pdt601Planilla {
   sin_planilla: boolean;
-  suspendida: boolean;
   /** Régimen laboral de la empresa en el período: 'general' | 'remype' (obligatorio, sin default). */
   regimen_laboral: string;
   trabajadores_onp: number;
@@ -33,7 +32,6 @@ export interface Pdt601Planilla {
 /** Cuerpo que envía el supervisor al guardar la planilla (fechas como AAAA-MM-DD). */
 export interface Pdt601PlanillaInput {
   sin_planilla: boolean;
-  suspendida: boolean;
   regimen_laboral: string;
   trabajadores_onp: number;
   trabajadores_afp: number;
@@ -79,6 +77,9 @@ export interface Pdt601ListRow {
   last_stored_at?: string;
   planilla?: Pdt601Planilla | null;
   timeliness: Pdt601Timeliness;
+  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
+  // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
+  suspendida: boolean;
 }
 
 export interface Pdt601Detail {
@@ -93,9 +94,17 @@ export interface Pdt601Detail {
   control_due_date?: string;
   declaration: SupervisorDeclaration;
   planilla?: Pdt601Planilla | null;
+  // control_suspendida: ver comentario en Pdt601ListRow.suspendida — de solo lectura acá, se marca
+  // desde Control de Detracciones.
+  control_suspendida: boolean;
   /** Mismo criterio que Pdt601ListRow.timeliness — permite mostrar "Entregado fuera de fecha" en el
    * detalle sin recalcular nada en el frontend. */
   timeliness: Pdt601Timeliness;
+  /** Fecha límite resuelta por el calendario interno del estudio para el grupo de RUC de esta
+   * empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — undefined si el período no
+   * tiene ninguna actividad "pdt_601" configurada. Fuente para mostrar "Vencimiento", reemplaza a
+   * `declaration.due_date` (0% de uso real, §3.1). */
+  calendar_due_date?: string;
 }
 
 export interface Pdt601ListResponse {

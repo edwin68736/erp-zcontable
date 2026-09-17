@@ -37,6 +37,10 @@ type DetraccionesListRow struct {
 	FileName          string                    `json:"file_name,omitempty"`
 	FileURL           string                    `json:"file_url,omitempty"`
 	Timeliness        DetraccionesTimelinessDTO `json:"timeliness"`
+	// Suspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-2026-09-
+	// 16.md §5.9.7) — global para las 4 actividades parametrizadas. Control de Detracciones es el
+	// ÚNICO lugar que la marca/desmarca; PDT 601/621/Buzón SOL solo la leen.
+	Suspendida bool `json:"suspendida"`
 }
 
 // DetraccionesDetail detalle tras EnsureDetracciones (lazy create).
@@ -51,6 +55,9 @@ type DetraccionesDetail struct {
 	ControlID         uint                         `json:"control_id"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
 	Timeliness        DetraccionesTimelinessDTO    `json:"timeliness"`
+	// Suspendida: ver comentario en DetraccionesListRow.Suspendida — acá SÍ es editable (checkbox
+	// "Marcar como suspendida" en DetraccionesDetailPage.tsx, único lugar del sistema que la marca).
+	Suspendida bool `json:"suspendida"`
 }
 
 type detraccionesListResult struct {
@@ -136,10 +143,29 @@ func (s *SupervisorService) EnsureDetracciones(companyID uint, periodYM string) 
 		RUC:               strings.TrimSpace(company.RUC),
 		AssistantUsername: assistantUsername(company.Assistant),
 		ControlID:         ctrl.ID,
+		Suspendida:        ctrl.Suspendida,
 		Declaration:       decl,
 	}
 	enrichDetraccionesDetail(detail, s.detraccionesLatestStoredAt(decl.ID))
 	return detail, nil
+}
+
+// SetDetraccionesSuspendida marca/desmarca una empresa como suspendida para el período — ÚNICO
+// punto de escritura de este campo en todo el sistema (docs/diseno-limpieza-control-detail-2026-09-
+// 16.md §5.9.7): PDT 601, PDT 621 y Buzón SOL solo lo leen desde
+// SupervisorMonthlyControl.Suspendida, nunca lo modifican. Reutiliza EnsureDetracciones para
+// garantizar que el control exista y validar acceso/periodo, igual que Save/EnsurePdt601.
+func (s *SupervisorService) SetDetraccionesSuspendida(companyID uint, periodYM string, suspendida bool) (*DetraccionesDetail, error) {
+	detail, err := s.EnsureDetracciones(companyID, periodYM)
+	if err != nil {
+		return nil, err
+	}
+	if err := database.DB.Model(&models.SupervisorMonthlyControl{}).
+		Where("id = ?", detail.ControlID).
+		Update("suspendida", suspendida).Error; err != nil {
+		return nil, err
+	}
+	return s.EnsureDetracciones(companyID, periodYM)
 }
 
 func (s *SupervisorService) detraccionesLatestStoredAt(declarationID uint) *time.Time {
@@ -314,6 +340,22 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 		credDig[cr.CompanyID] = strings.TrimSpace(cr.Dig)
 	}
 
+	// Suspendida es global por control desde §5.9.7 — una sola consulta para todas las empresas del
+	// listado.
+	suspendidaByCompany := map[uint]bool{}
+	type suspendidaRow struct {
+		CompanyID  uint
+		Suspendida bool
+	}
+	var suspRows []suspendidaRow
+	_ = database.DB.Table("supervisor_monthly_controls").
+		Select("company_id, suspendida").
+		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, p.PeriodYM).
+		Scan(&suspRows).Error
+	for _, r := range suspRows {
+		suspendidaByCompany[r.CompanyID] = r.Suspendida
+	}
+
 	deadlineCtx := findDetraccionesCalendarActivity(p.PeriodYM)
 
 	for _, co := range companies {
@@ -325,6 +367,7 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 			RUC:               strings.TrimSpace(co.RUC),
 			AssistantUsername: assistantUsername(co.Assistant),
 			Status:            models.SupervisorDeclPendiente,
+			Suspendida:        suspendidaByCompany[co.ID],
 		}
 		if d, ok := declByCompany[co.ID]; ok {
 			cid, did := d.ControlID, d.DeclarationID
@@ -338,7 +381,7 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 				row.FileURL = st.FileURL
 			}
 		}
-		row.Timeliness = enrichDetraccionesListRow(p.PeriodYM, row.Status, row.LastStoredAt, deadlineCtx)
+		row.Timeliness = enrichDetraccionesListRow(p.PeriodYM, row.Status, row.Suspendida, row.LastStoredAt, deadlineCtx)
 		rows = append(rows, row)
 	}
 
@@ -382,6 +425,11 @@ func (s *SupervisorService) UploadDetraccionesPDF(companyID uint, periodYM, file
 	detail, err := s.EnsureDetracciones(companyID, periodYM)
 	if err != nil {
 		return nil, err
+	}
+	// Suspendida bloquea CUALQUIER otro dato — mismo criterio que PDT 601/621 (§5.9.7.3 punto 4),
+	// acá aplicado por primera vez ya que este es el único módulo que la puede marcar/desmarcar.
+	if detail.Suspendida {
+		return nil, errors.New("esta empresa está suspendida en este período; no se puede cargar nada más")
 	}
 	decl := detail.Declaration
 	if !detraccionesAllowsUpload(decl.Status) {
@@ -435,6 +483,15 @@ func (s *SupervisorService) SetDetraccionesSupervisorStatus(declarationID uint, 
 	}
 	if !isDetraccionesDeclarationType(d.DeclarationType) {
 		return nil, errors.New("no es un registro de Control de Detracciones")
+	}
+	// Suspendida bloquea CUALQUIER otro dato — mismo criterio que UploadDetraccionesPDF (§5.9.7.3
+	// punto 4).
+	var ctrl models.SupervisorMonthlyControl
+	if err := database.DB.Select("suspendida").First(&ctrl, d.MonthlyControlID).Error; err != nil {
+		return nil, err
+	}
+	if ctrl.Suspendida {
+		return nil, errors.New("esta empresa está suspendida en este período; no se puede editar")
 	}
 	if err := validateDetraccionesSupervisorStatusTransition(d.Status, status); err != nil {
 		return nil, err

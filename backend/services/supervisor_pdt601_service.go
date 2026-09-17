@@ -46,6 +46,9 @@ type Pdt601ListRow struct {
 	// /settings/activity-configuration para la actividad "PDT 601" del calendario
 	// financiero del período (on_time | late | pending | missing | exempt | no_rule).
 	Timeliness string `json:"timeliness"`
+	// Suspendida: SupervisorMonthlyControl.Suspendida (§5.9.7) — global, siempre presente aunque
+	// `Planilla` sea nil (empresa sin planilla registrada todavía).
+	Suspendida bool `json:"suspendida"`
 }
 
 // Pdt601Detail detalle tras EnsurePdt601 (lazy create o reutiliza bootstrap).
@@ -59,12 +62,22 @@ type Pdt601Detail struct {
 	AssistantUsername string                       `json:"assistant_username"`
 	ControlID         uint                         `json:"control_id"`
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
+	// ControlSuspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-
+	// 2026-09-16.md §5.9.7) — global para las 4 actividades parametrizadas, de solo lectura acá; se
+	// marca/desmarca únicamente desde Control de Detracciones. Siempre presente (a diferencia de
+	// Planilla, que puede ser nil si todavía no se guardó ninguna).
+	ControlSuspendida bool                         `json:"control_suspendida"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
 	Planilla          *Pdt601PlanillaDTO           `json:"planilla,omitempty"`
 	// Timeliness mismo criterio que Pdt601ListRow.Timeliness — presente acá también para que el
 	// detalle pueda mostrar "Entregado" vs "Entregado fuera de fecha" sin recalcular nada en el
 	// frontend (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§12).
 	Timeliness string `json:"timeliness"`
+	// CalendarDueDate fecha límite resuelta por el calendario interno del estudio para el grupo de
+	// RUC de esta empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — nil si el
+	// período no tiene ninguna actividad "pdt_601" configurada. Reemplaza a `declaration.due_date`
+	// (0% de uso real, §3.1) como fuente para mostrar "Vencimiento" en el frontend.
+	CalendarDueDate *time.Time `json:"calendar_due_date,omitempty"`
 }
 
 // pdt601StatusFilterSinPlanilla filtro sintético del listado: empresas marcadas sin planilla.
@@ -83,10 +96,12 @@ const (
 	pdt601StatusFilterEntregadoFueraDeFecha = "entregado_fuera_de_fecha"
 )
 
-// supervisorSuspendidaNote nota fija que se fuerza en el campo de observación (PDT 601 y PDT 621)
-// cuando la empresa está marcada "suspendida" — así queda visible en el listado y en el reporte
-// Excel sin depender de que alguien la escriba a mano. Compartida por ambos módulos (mismo
-// package), definida acá una sola vez.
+// supervisorSuspendidaNote nota fija que se fuerza en el campo de observación cuando la empresa está
+// marcada "suspendida" — así queda visible en el listado y en el reporte Excel sin depender de que
+// alguien la escriba a mano. Desde §5.9.7, "suspendida" es global (SupervisorMonthlyControl.Suspendida,
+// solo se marca desde Control de Detracciones) — esta nota se usa en Detracciones al marcarla, y PDT
+// 601/621 la siguen mostrando de forma read-only si ya quedó grabada en su propio campo Observaciones
+// histórico.
 const supervisorSuspendidaNote = "Empresa suspendida"
 
 // isPdt601Pdt621DeclarationType true para el enum reducido de estados
@@ -109,9 +124,10 @@ func validatePdt601Pdt621StatusTransition(from, to string) error {
 }
 
 // Pdt601PlanillaDTO datos de planilla PDT 601 del período (salida a UI).
+// Suspendida ya no es parte de este DTO — es global por control, ver Pdt601Detail.ControlSuspendida
+// (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7).
 type Pdt601PlanillaDTO struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
-	Suspendida                  bool    `json:"suspendida"`
 	RegimenLaboral              string  `json:"regimen_laboral"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
@@ -136,9 +152,10 @@ type Pdt601PlanillaDTO struct {
 }
 
 // Pdt601PlanillaInput datos de planilla enviados por el supervisor (fechas como AAAA-MM-DD).
+// Suspendida ya no es parte del input de planilla — se marca/desmarca solo desde Control de
+// Detracciones (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), vía un endpoint propio.
 type Pdt601PlanillaInput struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
-	Suspendida                  bool    `json:"suspendida"`
 	RegimenLaboral              string  `json:"regimen_laboral"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
@@ -347,7 +364,6 @@ func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO 
 	}
 	return &Pdt601PlanillaDTO{
 		SinPlanilla:       p.SinPlanilla,
-		Suspendida:        p.Suspendida,
 		RegimenLaboral:    p.RegimenLaboral,
 		TrabajadoresONP:   p.TrabajadoresONP,
 		TrabajadoresAFP:   p.TrabajadoresAFP,
@@ -503,14 +519,14 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		return nil, err
 	}
 
-	// Mismo cálculo que pdt601BuildRows (lista/export) — ver comentario en Pdt601Detail.Timeliness.
-	exempt := planillaDTO != nil && (planillaDTO.SinPlanilla || planillaDTO.Suspendida)
+	// Suspendida es global por control (§5.9.7), no depende de que exista planilla todavía.
+	exempt := ctrl.Suspendida || (planillaDTO != nil && planillaDTO.SinPlanilla)
 	var deliveredAt *time.Time
 	if planillaDTO != nil && planillaDTO.FechaEntrega != nil {
 		deliveredAt = pdt601ParseDate(*planillaDTO.FechaEntrega)
 	}
 	dig := s.companyDig(company.ID)
-	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, dig), deliveredAt, exempt).Timeliness
+	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, dig), deliveredAt, exempt)
 
 	return &Pdt601Detail{
 		PeriodYM:          periodYM,
@@ -522,9 +538,11 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		AssistantUsername: assistantUsername(company.Assistant),
 		ControlID:         ctrl.ID,
 		ControlDueDate:    ctrl.DueDate,
+		ControlSuspendida: ctrl.Suspendida,
 		Declaration:       decl,
 		Planilla:          planillaDTO,
-		Timeliness:        timeliness,
+		Timeliness:        timeliness.Timeliness,
+		CalendarDueDate:   timeliness.DueAt,
 	}, nil
 }
 
@@ -548,6 +566,12 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
+	// Suspendida ahora es global por control y solo se marca/desmarca desde Control de Detracciones
+	// (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — mientras esté marcada, PDT 601
+	// queda de solo lectura, ni el asistente ni el supervisor pueden registrar nada acá.
+	if detail.ControlSuspendida {
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+	}
 
 	var pl models.SupervisorPdt601Planilla
 	err = database.DB.Where("monthly_control_id = ?", detail.ControlID).First(&pl).Error
@@ -559,53 +583,25 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	}
 
 	pl.RegimenLaboral = regimen
-
-	// "Suspendida" es más restrictivo que "sin planilla" y mutuamente excluyente con ella: mientras
-	// esté marcada, no se permite registrar NADA más (ver Pdt601DetailPage.tsx, SUSPENDIDA_RESET) —
-	// reforzado acá server-side para que quede así incluso si el cliente no lo aplicara. El campo
-	// Observaciones se fuerza a la nota fija, para que quede visible en el listado y el Excel.
-	pl.Suspendida = in.Suspendida
-	if pl.Suspendida {
-		pl.SinPlanilla = false
-		pl.TrabajadoresONP = 0
-		pl.TrabajadoresAFP = 0
-		pl.Essalud = 0
-		pl.Onp = 0
-		pl.Afp = 0
-		pl.Sis = 0
-		pl.Rta4ta = 0
-		pl.Rta5ta = 0
-		pl.Sctr = 0
-		pl.Rh = 0
-		pl.FechaEntrega = nil
-		pl.HoraEntrega = ""
-		pl.Observaciones = supervisorSuspendidaNote
-		pl.FechaDeclaracionPdt = nil
-		pl.NPS = ""
-		pl.TicketAFP = ""
-		pl.EstadoEnvioBoletas = ""
-		pl.FechaEnvioNpsTicketsBoletas = nil
-	} else {
-		pl.SinPlanilla = in.SinPlanilla
-		pl.TrabajadoresONP = maxInt0(in.TrabajadoresONP)
-		pl.TrabajadoresAFP = maxInt0(in.TrabajadoresAFP)
-		pl.Essalud = in.Essalud
-		pl.Onp = in.Onp
-		pl.Afp = in.Afp
-		pl.Sis = in.Sis
-		pl.Rta4ta = in.Rta4ta
-		pl.Rta5ta = in.Rta5ta
-		pl.Sctr = in.Sctr
-		pl.Rh = in.Rh
-		pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
-		pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)
-		pl.Observaciones = strings.TrimSpace(in.Observaciones)
-		pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
-		pl.NPS = strings.TrimSpace(in.NPS)
-		pl.TicketAFP = strings.TrimSpace(in.TicketAFP)
-		pl.EstadoEnvioBoletas = strings.TrimSpace(in.EstadoEnvioBoletas)
-		pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
-	}
+	pl.SinPlanilla = in.SinPlanilla
+	pl.TrabajadoresONP = maxInt0(in.TrabajadoresONP)
+	pl.TrabajadoresAFP = maxInt0(in.TrabajadoresAFP)
+	pl.Essalud = in.Essalud
+	pl.Onp = in.Onp
+	pl.Afp = in.Afp
+	pl.Sis = in.Sis
+	pl.Rta4ta = in.Rta4ta
+	pl.Rta5ta = in.Rta5ta
+	pl.Sctr = in.Sctr
+	pl.Rh = in.Rh
+	pl.FechaEntrega = pdt601ParseDate(in.FechaEntrega)
+	pl.HoraEntrega = strings.TrimSpace(in.HoraEntrega)
+	pl.Observaciones = strings.TrimSpace(in.Observaciones)
+	pl.FechaDeclaracionPdt = pdt601ParseDate(in.FechaDeclaracionPdt)
+	pl.NPS = strings.TrimSpace(in.NPS)
+	pl.TicketAFP = strings.TrimSpace(in.TicketAFP)
+	pl.EstadoEnvioBoletas = strings.TrimSpace(in.EstadoEnvioBoletas)
+	pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
 
 	declStatus := detail.Declaration.Status
 	declID := detail.Declaration.ID
@@ -641,9 +637,13 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	}
 	detail.Planilla = pdt601PlanillaToDTO(&pl)
 	// Recalcula con los datos recién guardados — el valor de EnsurePdt601 al principio de esta función
-	// quedó desactualizado (se calculó antes de este guardado).
-	exempt := pl.SinPlanilla || pl.Suspendida
-	detail.Timeliness = ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, detail.Dig), pl.FechaEntrega, exempt).Timeliness
+	// quedó desactualizado (se calculó antes de este guardado). Suspendida ya está bloqueada más
+	// arriba (no se llega hasta acá si detail.ControlSuspendida es true), pero se incluye igual por
+	// consistencia con el resto de cálculos de exempt.
+	exempt := pl.SinPlanilla || detail.ControlSuspendida
+	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, detail.Dig), pl.FechaEntrega, exempt)
+	detail.Timeliness = timeliness.Timeliness
+	detail.CalendarDueDate = timeliness.DueAt
 	return detail, nil
 }
 
@@ -698,10 +698,11 @@ func pdt601FilteredCompaniesQuery(p Pdt601ListParams) *gorm.DB {
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.sin_planilla = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt601StatusFilterSuspendida {
+		// Suspendida es global por control desde §5.9.7 — ya no requiere join con
+		// supervisor_pdt601_planillas (esa tabla perdió su propio campo suspendida).
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
-			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
-			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.suspendida = ?
+			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND c.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt601StatusFilterEntregadoATiempo {
 		// Sin ninguna actividad pdt_601 configurada, cualquier "entregado" cuenta como a tiempo — no
@@ -810,6 +811,22 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 		credDig[cr.CompanyID] = strings.TrimSpace(cr.Dig)
 	}
 
+	// Suspendida es global por control desde §5.9.7 — una sola consulta para todas las empresas del
+	// listado, en vez de leerla desde la planilla (que ya no la tiene).
+	suspendidaByCompany := map[uint]bool{}
+	type suspendidaRow struct {
+		CompanyID  uint
+		Suspendida bool
+	}
+	var suspRows []suspendidaRow
+	_ = database.DB.Table("supervisor_monthly_controls").
+		Select("company_id, suspendida").
+		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, periodYM).
+		Scan(&suspRows).Error
+	for _, r := range suspRows {
+		suspendidaByCompany[r.CompanyID] = r.Suspendida
+	}
+
 	// Planilla PDT 601 del período por empresa (LEFT JOIN vía control mensual).
 	type planillaRow struct {
 		CompanyID uint
@@ -842,6 +859,7 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 			AssistantUsername: assistantUsername(co.Assistant),
 			Status:            models.SupervisorSunatSinRegistro,
 			Planilla:          planillaByCompany[co.ID],
+			Suspendida:        suspendidaByCompany[co.ID],
 		}
 		if d, ok := declByCompany[co.ID]; ok {
 			cid, did := d.ControlID, d.DeclarationID
@@ -856,7 +874,7 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 				row.LastStoredAt = st.LastAt
 			}
 		}
-		exempt := row.Planilla != nil && (row.Planilla.SinPlanilla || row.Planilla.Suspendida)
+		exempt := row.Suspendida || (row.Planilla != nil && row.Planilla.SinPlanilla)
 		if exempt {
 			row.IsOverdue = false
 			row.DaysRemaining = nil

@@ -458,10 +458,12 @@ func TestListPdt601TimelinessExemptWhenSinPlanilla(t *testing.T) {
 	}
 }
 
-// TestSavePdt601PlanillaSuspendidaBlocksOtherFields cubre "empresa suspendida": server-side debe
-// forzar Observaciones a la nota fija, vaciar TODOS los demás campos (aunque el cliente enviara
-// datos) y quedar mutuamente excluyente con "sin planilla" — más restrictivo que ella.
-func TestSavePdt601PlanillaSuspendidaBlocksOtherFields(t *testing.T) {
+// TestPdt601BlockedWhenControlSuspendida cubre docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.7: "suspendida" pasó a ser global por control (ya no se marca desde la propia planilla PDT
+// 601, solo desde Control de Detracciones) — PDT 601 debe quedar de solo lectura y rechazar
+// SavePdt601Planilla mientras el control esté suspendido, y el listado debe reflejarlo como exenta
+// (Timeliness=exempt) aunque nunca se haya guardado ninguna planilla.
+func TestPdt601BlockedWhenControlSuspendida(t *testing.T) {
 	db := setupPdt601TestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "P020")
@@ -472,30 +474,32 @@ func TestSavePdt601PlanillaSuspendidaBlocksOtherFields(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	detail, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{
-		RegimenLaboral: models.Pdt601RegimenGeneral, SinPlanilla: true, Suspendida: true, Essalud: 500, Observaciones: "nota manual",
-	})
+	detail, err := svc.EnsurePdt601(co.ID, periodYM)
 	if err != nil {
-		t.Fatalf("SavePdt601Planilla: %v", err)
+		t.Fatalf("EnsurePdt601: %v", err)
 	}
-	if detail.Planilla == nil || !detail.Planilla.Suspendida {
-		t.Fatalf("planilla no quedó marcada suspendida: %+v", detail.Planilla)
+	if detail.ControlSuspendida {
+		t.Fatalf("control no debía nacer suspendido")
 	}
-	if detail.Planilla.SinPlanilla {
-		t.Fatalf("suspendida debe forzar sin_planilla=false (mutuamente excluyentes): %+v", detail.Planilla)
+
+	// Simula lo que hace Control de Detracciones (§5.9.7.3) — el único lugar que en el código real
+	// marca este campo.
+	if err := db.Model(&models.SupervisorMonthlyControl{}).
+		Where("id = ?", detail.ControlID).Update("suspendida", true).Error; err != nil {
+		t.Fatalf("marcar suspendida: %v", err)
 	}
-	if detail.Planilla.Essalud != 0 {
-		t.Fatalf("suspendida debe vaciar essalud aunque se haya enviado: got %v", detail.Planilla.Essalud)
-	}
-	if detail.Planilla.Observaciones != supervisorSuspendidaNote {
-		t.Fatalf("observaciones=%q want %q", detail.Planilla.Observaciones, supervisorSuspendidaNote)
+
+	if _, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{
+		RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 500,
+	}); err == nil {
+		t.Fatal("SavePdt601Planilla debía rechazarse con la empresa suspendida")
 	}
 
 	res, err := svc.ListPdt601(Pdt601ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
 	if err != nil {
 		t.Fatalf("ListPdt601: %v", err)
 	}
-	if len(res.Rows) != 1 || res.Rows[0].Timeliness != TimelinessExempt {
+	if len(res.Rows) != 1 || !res.Rows[0].Suspendida || res.Rows[0].Timeliness != TimelinessExempt {
 		t.Fatalf("empresa suspendida: %+v", res.Rows)
 	}
 }

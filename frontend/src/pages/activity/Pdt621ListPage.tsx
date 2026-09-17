@@ -380,7 +380,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
               ) : (
                 rows.map((row, idx) => {
                   const rec = row.record;
-                  const suspendida = !!rec?.suspendida;
+                  const suspendida = !!row.suspendida;
                   const displayStatus = pdt621DisplayStatus({
                     status: row.status,
                     suspendida,

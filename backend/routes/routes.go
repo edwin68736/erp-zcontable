@@ -249,6 +249,14 @@ func Setup(app *fiber.App) {
 	sup.Post("/activity-modules/sunat-inbox/slots/:slotId/verify", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.SunatInboxVerifySlotAPI)
 	sup.Get("/activity-modules/detracciones", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesListAPI)
 	sup.Get("/activity-modules/detracciones/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesDetailAPI)
+	// Modal de arrastre de suspensión entre períodos (§5.9.9) — sin restricción de permiso más allá
+	// de poder ver/interactuar con Detracciones (confirmado con el usuario, §5.9.9.3).
+	sup.Get("/activity-modules/detracciones/suspension-carry-over", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesSuspensionCarryOverStatusAPI)
+	sup.Post("/activity-modules/detracciones/suspension-carry-over/apply", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesApplySuspensionCarryOverAPI)
+	// Único endpoint de todo el sistema que marca/desmarca "suspendida" (§5.9.7) — mismo permiso que
+	// subir el PDF (lo puede hacer tanto el asistente como el supervisor, igual que el checkbox viejo
+	// de PDT 601 antes de este cambio).
+	sup.Put("/activity-modules/detracciones/companies/:companyId/suspendida", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesSetSuspendidaAPI)
 	sup.Post("/activity-modules/detracciones/companies/:companyId/upload", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesUploadAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/verify", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesVerifyAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/validate", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesValidateAPI)

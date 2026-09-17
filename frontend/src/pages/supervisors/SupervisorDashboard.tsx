@@ -13,7 +13,7 @@ import { usersService } from '../../services/users';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import type { Company, User } from '../../types/dashboard';
-import { controlStatusLabel, previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import {
   ComplianceTrendChart,
   ProductivityRanking,
@@ -235,19 +235,9 @@ const SupervisorDashboard = () => {
     };
   }, [allowed, periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId]);
 
-  // Incluye "cerrado" para que el total de la barra sea el MISMO universo que usa el backend
-  // para calcular monthly_compliance_pct (antes la barra excluía "cerrado" y el % de al lado sí
-  // lo incluía en su base — dos números uno junto al otro que no eran comparables entre sí).
-  const chartTotal = useMemo(() => {
-    if (!data) return 0;
-    return (
-      data.controls_al_dia +
-      data.controls_pendiente +
-      data.controls_vencido +
-      data.controls_observado +
-      data.controls_cerrado
-    );
-  }, [data]);
+  // Mismo universo que monthly_compliance_pct (docs/diseno-limpieza-control-detail-2026-09-16.md
+  // §5.9.3) — 5 categorías en vivo de compliance_breakdown, ya no general_status.
+  const chartTotal = data?.compliance_breakdown?.total ?? 0;
 
   // El backend limita las alertas individuales de "control vencido" a 8 (Limit(8), para no
   // inundar la lista) — esto cuenta cuántas de esas 8 vinieron, para poder avisar cuando el total
@@ -402,10 +392,10 @@ const SupervisorDashboard = () => {
             />
             <StatCard label="Sin control en período" value={data.companies_without_control ?? 0} icon="fas fa-plus-circle" />
             <StatCard
-              label="Cumplimiento %"
+              label="Cumplimiento (PDT 601/621, Detracciones)"
               value={`${data.monthly_compliance_pct}%`}
               icon="fas fa-percent"
-              hint="(Controles al día + cerrados) / total de controles del período."
+              hint="Cumplido a tiempo / (cumplido a tiempo + fuera de fecha + vencido sin entregar), sobre PDT 601, PDT 621 y Detracciones del período — pendientes (sin vencer todavía) y exentos/no aplica quedan fuera del cálculo. Buzón SOL todavía no está incluido."
             />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -426,15 +416,19 @@ const SupervisorDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {chartTotal > 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-medium text-slate-700 mb-3">Distribución por estado</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">Distribución de cumplimiento (PDT 601/621, Detracciones)</p>
+                {/* 5 categorías en vivo (§5.9.3) — reemplaza al donut viejo de general_status
+                    (al_dia/pendiente/vencido/observado/cerrado, sin relación con esto). "Entregado
+                    fuera de fecha" y "Vencido sin entregar" quedan separados a propósito: son
+                    situaciones distintas para decidir a quién presionar. */}
                 <StatusDistributionDonut
                   total={chartTotal}
                   slices={[
-                    { label: controlStatusLabel('al_dia'), value: data.controls_al_dia, colorClass: 'stroke-emerald-500' },
-                    { label: controlStatusLabel('pendiente'), value: data.controls_pendiente, colorClass: 'stroke-amber-400' },
-                    { label: controlStatusLabel('vencido'), value: data.controls_vencido, colorClass: 'stroke-red-500' },
-                    { label: controlStatusLabel('observado'), value: data.controls_observado, colorClass: 'stroke-orange-400' },
-                    { label: controlStatusLabel('cerrado'), value: data.controls_cerrado, colorClass: 'stroke-slate-400' },
+                    { label: 'Cumplido a tiempo', value: data.compliance_breakdown.on_time, colorClass: 'stroke-emerald-500' },
+                    { label: 'Entregado fuera de fecha', value: data.compliance_breakdown.late, colorClass: 'stroke-orange-400' },
+                    { label: 'Vencido sin entregar', value: data.compliance_breakdown.missing, colorClass: 'stroke-red-500' },
+                    { label: 'Pendiente (sin vencer)', value: data.compliance_breakdown.pending, colorClass: 'stroke-amber-400' },
+                    { label: 'Exento o no aplica', value: data.compliance_breakdown.exempt, colorClass: 'stroke-slate-400' },
                   ]}
                 />
                 <p className="text-xs text-slate-500 mt-3">Cumplimiento: {data.monthly_compliance_pct}%</p>

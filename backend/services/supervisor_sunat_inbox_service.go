@@ -72,6 +72,11 @@ type SunatInboxListRow struct {
 	DeclarationID      *uint                   `json:"declaration_id,omitempty"`
 	SummaryStatus      string                  `json:"summary_status"`
 	Slots              []SunatInboxCaptureSlot `json:"slots"`
+	// Suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/
+	// §5.9.8) — Buzón SOL solo la lee, se marca desde Control de Detracciones. Sin este dato una
+	// empresa suspendida se veía igual que cualquier otra en el listado (o directamente desaparecía
+	// de un filtro por estado), sin que el usuario supiera que sigue existiendo.
+	Suspendida bool `json:"suspendida"`
 }
 
 // SunatInboxListMeta metadatos del listado (config y semanas).
@@ -695,6 +700,23 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 		}
 	}
 
+	// Suspendida es global por control desde §5.9.7 — se lee para todas las empresas del listado.
+	suspendidaByCompany := map[uint]bool{}
+	if len(ids) > 0 {
+		type suspendidaRow struct {
+			CompanyID  uint
+			Suspendida bool
+		}
+		var suspRows []suspendidaRow
+		_ = database.DB.Table("supervisor_monthly_controls").
+			Select("company_id, suspendida").
+			Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, p.PeriodYM).
+			Scan(&suspRows).Error
+		for _, r := range suspRows {
+			suspendidaByCompany[r.CompanyID] = r.Suspendida
+		}
+	}
+
 	statusFilter := strings.TrimSpace(p.Status)
 	timelinessCtx := mailboxTimelinessCtxFor(p.PeriodYM, weekStart, slotsPerWeek)
 	filteredRows := make([]SunatInboxListRow, 0, len(allCompanies))
@@ -723,6 +745,7 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			DeclarationID:      declID,
 			SummaryStatus:      summary,
 			Slots:              dtoSlots,
+			Suspendida:         suspendidaByCompany[co.ID],
 		})
 	}
 
@@ -760,6 +783,8 @@ type SunatInboxExportRow struct {
 	AssistantUsername  string                              `json:"assistant_username"`
 	SupervisorUsername string                              `json:"supervisor_username"`
 	Weeks              map[string][]SunatInboxCaptureSlot `json:"weeks"`
+	// Suspendida: ver comentario en SunatInboxListRow.Suspendida.
+	Suspendida bool `json:"suspendida"`
 }
 
 // SunatInboxExportResult resultado completo (sin paginar) para el reporte Excel.
@@ -880,6 +905,23 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 		}
 	}
 
+	// Suspendida es global por control desde §5.9.7 — se lee para todas las empresas del reporte.
+	suspendidaByCompany := map[uint]bool{}
+	if len(ids) > 0 {
+		type suspendidaRow struct {
+			CompanyID  uint
+			Suspendida bool
+		}
+		var suspRows []suspendidaRow
+		_ = database.DB.Table("supervisor_monthly_controls").
+			Select("company_id, suspendida").
+			Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, p.PeriodYM).
+			Scan(&suspRows).Error
+		for _, r := range suspRows {
+			suspendidaByCompany[r.CompanyID] = r.Suspendida
+		}
+	}
+
 	// Calculado una sola vez para todas las semanas pedidas (antes, mailboxTimelinessCtxFor lo
 	// recalculaba -con su propia consulta a BD- una vez por semana).
 	calendarAct := FindSunatInboxCalendarActivity(p.PeriodYM)
@@ -921,6 +963,7 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 			AssistantUsername:  assistantUsername(co.Assistant),
 			SupervisorUsername: userUsername(co.Supervisor),
 			Weeks:              weeksOut,
+			Suspendida:         suspendidaByCompany[co.ID],
 		})
 	}
 

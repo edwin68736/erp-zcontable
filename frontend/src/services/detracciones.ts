@@ -30,6 +30,9 @@ export interface DetraccionesListRow {
   file_name?: string;
   file_url?: string;
   timeliness: DetraccionesTimeliness;
+  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — solo
+  // se marca/desmarca desde este módulo (Control de Detracciones), PDT 601/621/Buzón SOL solo la leen.
+  suspendida: boolean;
 }
 
 export interface DetraccionesDetail {
@@ -43,6 +46,9 @@ export interface DetraccionesDetail {
   control_id: number;
   declaration: SupervisorDeclaration;
   timeliness: DetraccionesTimeliness;
+  // suspendida: ver comentario en DetraccionesListRow — acá SÍ es editable (checkbox "Marcar como
+  // suspendida", único lugar del sistema que la modifica).
+  suspendida: boolean;
 }
 
 export interface DetraccionesListResponse {
@@ -53,6 +59,22 @@ export interface DetraccionesListResponse {
     total: number;
     total_pages: number;
   };
+}
+
+// Modal de arrastre de suspensión entre períodos (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.9) — "suspendida" es por período (§5.9.7), así que un control nuevo siempre nace en false;
+// esto avisa si el período anterior tenía empresas suspendidas que nadie decidió reactivar todavía.
+export interface SuspensionCarryOverRow {
+  company_id: number;
+  code: string;
+  dig: string;
+  business_name: string;
+  ruc: string;
+}
+
+export interface SuspensionCarryOverStatus {
+  pending: boolean;
+  companies: SuspensionCarryOverRow[];
 }
 
 export const detraccionesService = {
@@ -101,8 +123,41 @@ export const detraccionesService = {
     return res.data.data;
   },
 
+  // setSuspendida único punto de escritura de "suspendida" en todo el sistema (§5.9.7) — PDT 601/621
+  // y Buzón SOL solo la leen desde su propio detalle/listado, nunca la modifican.
+  async setSuspendida(companyId: number, periodYm: string, suspendida: boolean): Promise<DetraccionesDetail> {
+    const res = await client.put<{ data: DetraccionesDetail }>(
+      `/supervisors/activity-modules/detracciones/companies/${companyId}/suspendida`,
+      { suspendida },
+      { params: { period_ym: periodYm } },
+    );
+    return res.data.data;
+  },
+
   /** @deprecated usar verify */
   async validate(declarationId: number): Promise<SupervisorDeclaration> {
     return this.verify(declarationId);
+  },
+
+  // Modal de arrastre de suspensión (§5.9.9) — getSuspensionCarryOverStatus se llama al abrir
+  // Control de Detracciones para un período; si pending=true, mostrar el modal con `companies`.
+  async getSuspensionCarryOverStatus(periodYm: string): Promise<SuspensionCarryOverStatus> {
+    const res = await client.get<{ data: SuspensionCarryOverStatus }>(
+      '/supervisors/activity-modules/detracciones/suspension-carry-over',
+      { params: { period_ym: periodYm } },
+    );
+    return res.data.data;
+  },
+
+  // applySuspensionCarryOver aplica la decisión — `keepSuspendedCompanyIds` son las empresas que se
+  // dejaron tildadas (se mantienen suspendidas); las demás candidatas quedan reactivadas. Si otro
+  // usuario ya resolvió el arrastre para este período, el backend rechaza con error — el caller debe
+  // recargar el estado (getSuspensionCarryOverStatus) en vez de reintentar (§5.9.9.4).
+  async applySuspensionCarryOver(periodYm: string, keepSuspendedCompanyIds: number[]): Promise<void> {
+    await client.post(
+      '/supervisors/activity-modules/detracciones/suspension-carry-over/apply',
+      { keep_suspended_company_ids: keepSuspendedCompanyIds },
+      { params: { period_ym: periodYm } },
+    );
   },
 };

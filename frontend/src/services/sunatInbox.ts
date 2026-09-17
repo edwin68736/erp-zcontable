@@ -48,6 +48,9 @@ export interface SunatInboxListRow {
   declaration_id?: number;
   summary_status: string;
   slots: SunatInboxCaptureSlot[];
+  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/§5.9.8)
+  // — Buzón SOL solo la lee, se marca desde Control de Detracciones.
+  suspendida: boolean;
 }
 
 export interface SunatInboxDetail {
@@ -88,6 +91,8 @@ export interface SunatInboxExportRow {
   assistant_username: string;
   supervisor_username: string;
   weeks: Record<string, SunatInboxCaptureSlot[]>;
+  // suspendida: ver comentario en SunatInboxListRow.suspendida.
+  suspendida: boolean;
 }
 
 export interface SunatInboxExportResponse {

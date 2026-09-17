@@ -122,9 +122,13 @@ type SupervisorPeriod struct {
 	Notes          string         `gorm:"type:text" json:"notes,omitempty"`
 	ClosedAt       *time.Time     `json:"closed_at,omitempty"`
 	ClosedByUserID *uint          `gorm:"index" json:"closed_by_user_id,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
+	// SuspensionCarryOverResolved: si ya se resolvió (o no hacía falta) el arrastre de empresas
+	// suspendidas del período anterior (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.9) —
+	// evita repetir el modal de "¿mantener las mismas empresas suspendidas?" en cada visita.
+	SuspensionCarryOverResolved bool           `gorm:"not null;default:false" json:"suspension_carry_over_resolved"`
+	CreatedAt                   time.Time      `json:"created_at"`
+	UpdatedAt                   time.Time      `json:"updated_at"`
+	DeletedAt                   gorm.DeletedAt `gorm:"index" json:"-"`
 
 	ClosedBy *User `gorm:"foreignKey:ClosedByUserID" json:"closed_by,omitempty"`
 }
@@ -142,11 +146,18 @@ type SupervisorMonthlyControl struct {
 	DueDate           *time.Time     `gorm:"type:date" json:"due_date,omitempty"`
 	GeneralStatus     string         `gorm:"size:30;not null;default:'pendiente'" json:"general_status"`
 	RiskLevel         string         `gorm:"size:20;not null;default:'bajo'" json:"risk_level"`
-	Observations      string         `gorm:"type:text" json:"observations,omitempty"`
-	InfoReceivedAt    *time.Time     `json:"info_received_at,omitempty"`
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
+	// Suspendida: la empresa está suspendida para este período — global para las 4 actividades
+	// parametrizadas (PDT 601/621, Detracciones, Buzón SOL), no por módulo (docs/diseno-limpieza-
+	// control-detail-2026-09-16.md §5.9.7). Se marca/desmarca únicamente desde Control de Detracciones
+	// (primera actividad del flujo); los demás módulos la leen de acá, de solo lectura. Reemplaza a los
+	// campos `Suspendida` que antes vivían por separado en SupervisorPdt601Planilla/
+	// SupervisorPdt621Record.
+	Suspendida     bool           `gorm:"not null;default:false" json:"suspendida"`
+	Observations   string         `gorm:"type:text" json:"observations,omitempty"`
+	InfoReceivedAt *time.Time     `json:"info_received_at,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 
 	Company     *Company `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
 	Responsible *User    `gorm:"foreignKey:ResponsibleUserID" json:"responsible,omitempty"`
@@ -218,10 +229,6 @@ type SupervisorPdt601Planilla struct {
 	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
 	// La empresa no tiene planilla en este período: no se exige registrar nada más.
 	SinPlanilla bool `gorm:"not null;default:false" json:"sin_planilla"`
-	// La empresa está suspendida en este período: no se exige (ni permite) registrar nada más —
-	// más restrictivo que SinPlanilla, mutuamente excluyente con ella (ver
-	// services/supervisor_pdt601_service.go, SavePdt601Planilla).
-	Suspendida bool `gorm:"not null;default:false" json:"suspendida"`
 	// RegimenLaboral: "general" o "remype" (ver Pdt601RegimenGeneral/Pdt601RegimenRemype).
 	// Obligatorio — sin valor por defecto a propósito, para forzar a elegir (ver
 	// services/supervisor_pdt601_service.go, SavePdt601Planilla).
@@ -271,9 +278,6 @@ const (
 type SupervisorPdt621Record struct {
 	ID               uint `gorm:"primaryKey" json:"id"`
 	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
-	// La empresa está suspendida en este período: no se exige (ni permite) registrar nada más
-	// (ver services/supervisor_pdt621_service.go, SavePdt621Record).
-	Suspendida bool `gorm:"not null;default:false" json:"suspendida"`
 	// Revisión de archivadores.
 	PrimeraEntregaFecha *time.Time `gorm:"type:date" json:"primera_entrega_fecha,omitempty"`
 	PrimeraEntregaHora  string     `gorm:"size:5" json:"primera_entrega_hora,omitempty"`

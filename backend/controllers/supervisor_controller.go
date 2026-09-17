@@ -1035,6 +1035,94 @@ func (ctrl *SupervisorController) DetraccionesDetailAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// DetraccionesSetSuspendidaAPI PUT /api/supervisors/activity-modules/detracciones/companies/:companyId/suspendida
+// Único endpoint de todo el sistema que marca/desmarca "suspendida" (docs/diseno-limpieza-control-
+// detail-2026-09-16.md §5.9.7) — PDT 601, PDT 621 y Buzón SOL solo la leen, nunca la escriben.
+func (ctrl *SupervisorController) DetraccionesSetSuspendidaAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	var body struct {
+		Suspendida bool `json:"suspendida"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	row, err := ctrl.svc.SetDetraccionesSuspendida(uint(companyID), periodYM, body.Suspendida)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// DetraccionesSuspensionCarryOverStatusAPI GET /api/supervisors/activity-modules/detracciones/suspension-carry-over
+// Modal de arrastre de suspensión entre períodos (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.9) — sin restricción de permiso más allá de poder ver Detracciones (§5.9.9.3, confirmado con
+// el usuario: "por ahora debería trabajar sin permiso").
+func (ctrl *SupervisorController) DetraccionesSuspensionCarryOverStatusAPI(c fiber.Ctx) error {
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	out, err := ctrl.svc.GetSuspensionCarryOverStatus(periodYM, allowed)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": out})
+}
+
+// DetraccionesApplySuspensionCarryOverAPI POST /api/supervisors/activity-modules/detracciones/suspension-carry-over/apply
+// Aplica la decisión del modal — compare-and-swap atómico sobre `suspension_carry_over_resolved`
+// (§5.9.9.4): si otro usuario ya lo resolvió, el servicio devuelve error y no toca ningún dato.
+func (ctrl *SupervisorController) DetraccionesApplySuspensionCarryOverAPI(c fiber.Ctx) error {
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	var body struct {
+		KeepSuspendedCompanyIDs []uint `json:"keep_suspended_company_ids"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	if err := ctrl.svc.ApplySuspensionCarryOver(periodYM, body.KeepSuspendedCompanyIDs, allowed); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"resolved": true}})
+}
+
 // DetraccionesValidateAPI POST /api/supervisors/activity-modules/detracciones/declarations/:declarationId/validate
 func (ctrl *SupervisorController) DetraccionesValidateAPI(c fiber.Ctx) error {
 	declarationID, err := strconv.ParseUint(c.Params("declarationId"), 10, 32)

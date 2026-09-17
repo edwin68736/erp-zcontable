@@ -106,7 +106,7 @@ export async function exportPdt621ReportExcel(options: {
   let rowIdx = 5;
   for (const row of rows) {
     const rec = row.record;
-    const suspendida = !!rec?.suspendida;
+    const suspendida = !!row.suspendida;
     const rowFill = suspendida
       ? SUSPENDIDA_FILL
       : row.declaration_timeliness === 'on_time'

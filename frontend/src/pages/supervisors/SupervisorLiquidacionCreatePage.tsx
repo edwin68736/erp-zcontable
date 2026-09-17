@@ -361,14 +361,13 @@ const SupervisorLiquidacionCreatePage = () => {
     if (!hasMoney) return;
     try {
       const current = await pdt601Service.getDetail(targetCompanyId, periodYm);
+      // Suspendida (§5.9.7) ahora bloquea CUALQUIER guardado en el backend (SavePdt601Planilla
+      // rechaza de plano) — evita el intento inútil, no hay nada que "preservar" acá.
+      if (current.control_suspendida) return;
       const base = current.planilla;
       await pdt601Service.savePlanilla(targetCompanyId, periodYm, {
         regimen_laboral: base?.regimen_laboral ?? '',
         sin_planilla: false,
-        // Se preserva lo que ya hubiera (nunca se fuerza a false acá): si la empresa está
-        // suspendida, el backend igual va a ignorar estos importes y no hay que deshacer la
-        // suspensión como efecto secundario de sincronizar la liquidación.
-        suspendida: base?.suspendida ?? false,
         trabajadores_onp: base?.trabajadores_onp ?? 0,
         trabajadores_afp: base?.trabajadores_afp ?? 0,
         essalud: p601.essalud,
@@ -425,10 +424,11 @@ const SupervisorLiquidacionCreatePage = () => {
     if (!hasData) return;
     try {
       const current = await pdt621Service.getDetail(targetCompanyId, periodYm);
+      // Suspendida (§5.9.7) ahora bloquea CUALQUIER guardado en el backend (SavePdt621Record
+      // rechaza de plano) — evita el intento inútil, mismo criterio que syncPdt601Planilla.
+      if (current.control_suspendida) return;
       const base = current.record;
       await pdt621Service.saveRecord(targetCompanyId, periodYm, {
-        // Se preserva lo que ya hubiera (mismo criterio que syncPdt601Planilla, ver arriba).
-        suspendida: base?.suspendida ?? false,
         primera_entrega_fecha: base?.primera_entrega_fecha ?? '',
         primera_entrega_hora: base?.primera_entrega_hora ?? '',
         observacion: base?.observacion ?? '',

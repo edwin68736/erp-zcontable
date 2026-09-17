@@ -14,6 +14,7 @@ const (
 	migDetraccionesStatusSimplified = "supervisor_v2_detracciones_status_simplified"
 	migPdt601Pdt621StatusEnum      = "supervisor_v1_pdt601_pdt621_status_enum"
 	migDropNPSTable                = "supervisor_v1_drop_nps_table"
+	migSuspendidaGlobalPorControl  = "supervisor_v1_suspendida_global_por_control"
 )
 
 // RunSupervisorMigrations ejecuta migraciones de datos del módulo supervisores (una sola vez).
@@ -30,6 +31,7 @@ func RunSupervisorMigrations(db *gorm.DB) error {
 		{migDetraccionesStatusSimplified, migrateDetraccionesStatusSimplified},
 		{migPdt601Pdt621StatusEnum, migratePdt601Pdt621StatusEnum},
 		{migDropNPSTable, migrateDropNPSTable},
+		{migSuspendidaGlobalPorControl, migrateSuspendidaGlobalPorControl},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -278,4 +280,41 @@ func migrateDropNPSTable(db *gorm.DB) error {
 		return nil
 	}
 	return db.Migrator().DropTable("supervisor_nps")
+}
+
+// migrateSuspendidaGlobalPorControl "suspendida" pasa de vivir por separado en cada módulo
+// (supervisor_pdt601_planillas.suspendida / supervisor_pdt621_records.suspendida) a un solo campo
+// compartido en supervisor_monthly_controls (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.7) — se marca/desmarca únicamente desde Control de Detracciones. Migra las filas que ya
+// estaban marcadas suspendidas en cualquiera de los dos módulos hacia el control compartido, y
+// luego elimina las columnas viejas (esta app corre en MySQL/SQLite, ambos soportan DROP COLUMN vía
+// GORM Migrator — no se mantienen dos fuentes de verdad).
+func migrateSuspendidaGlobalPorControl(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&models.SupervisorPdt601Planilla{}, "suspendida") {
+		if err := db.Exec(`
+			UPDATE supervisor_monthly_controls c
+			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id
+			SET c.suspendida = 1
+			WHERE pl.suspendida = 1 AND pl.deleted_at IS NULL
+		`).Error; err != nil {
+			return fmt.Errorf("migrar suspendida desde pdt601: %w", err)
+		}
+		if err := db.Migrator().DropColumn(&models.SupervisorPdt601Planilla{}, "suspendida"); err != nil {
+			return fmt.Errorf("drop pdt601Planilla.suspendida: %w", err)
+		}
+	}
+	if db.Migrator().HasColumn(&models.SupervisorPdt621Record{}, "suspendida") {
+		if err := db.Exec(`
+			UPDATE supervisor_monthly_controls c
+			INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id
+			SET c.suspendida = 1
+			WHERE r.suspendida = 1 AND r.deleted_at IS NULL
+		`).Error; err != nil {
+			return fmt.Errorf("migrar suspendida desde pdt621: %w", err)
+		}
+		if err := db.Migrator().DropColumn(&models.SupervisorPdt621Record{}, "suspendida"); err != nil {
+			return fmt.Errorf("drop pdt621Record.suspendida: %w", err)
+		}
+	}
+	return nil
 }

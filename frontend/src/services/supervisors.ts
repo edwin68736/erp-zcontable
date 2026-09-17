@@ -89,6 +89,18 @@ export interface SupervisorAlert {
   period_ym?: string;
 }
 
+// ComplianceSummary desglose en vivo de 5 categorías (docs/diseno-limpieza-control-detail-2026-09-
+// 16.md §5.9.3) detrás de monthly_compliance_pct — etapa 1: solo PDT 601/621 + Detracciones.
+export interface ComplianceSummary {
+  on_time: number;
+  late: number;
+  missing: number;
+  pending: number;
+  exempt: number;
+  total: number;
+  compliance_pct: number;
+}
+
 export interface SupervisorDashboardData {
   total_active_companies: number;
   companies_al_dia: number;
@@ -102,6 +114,7 @@ export interface SupervisorDashboardData {
   controls_cerrado: number;
   declarations_observed: number;
   monthly_compliance_pct: number;
+  compliance_breakdown: ComplianceSummary;
   by_status: Record<string, number>;
   alerts?: SupervisorAlert[];
   productivity?: SupervisorProductivityRow[];

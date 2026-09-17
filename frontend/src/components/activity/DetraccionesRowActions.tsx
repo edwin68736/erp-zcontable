@@ -59,10 +59,13 @@ const DetraccionesRowActions = ({
   const status = normalizeDetraccionesStatus(row.status);
   const fileName = row.file_name?.trim() || 'Comprobante.pdf';
   const fileUrl = row.file_url ? resolveBackendUrl(row.file_url) : '';
-  const showUpload = canUpload && workspace === 'assistant' && detraccionesAllowsUpload(status);
-  const showVerify = canVerify && workspace === 'supervisor' && status === 'cargado' && Boolean(row.declaration_id);
+  // Suspendida (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) bloquea CUALQUIER otro
+  // registro en este módulo — mismo criterio que DetraccionesDetailPage.tsx.
+  const showUpload = canUpload && workspace === 'assistant' && detraccionesAllowsUpload(status) && !row.suspendida;
+  const showVerify =
+    canVerify && workspace === 'supervisor' && status === 'cargado' && Boolean(row.declaration_id) && !row.suspendida;
   const showStatusEdit =
-    canSetStatus && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status);
+    canSetStatus && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status) && !row.suspendida;
 
   const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

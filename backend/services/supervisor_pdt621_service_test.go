@@ -257,10 +257,12 @@ func TestListPdt621DeclarationTimelinessMissing(t *testing.T) {
 	}
 }
 
-// TestListPdt621TimelinessExemptWhenSuspendida cubre el caso "empresa suspendida": debe salir
-// exempt en ambos cumplimientos (declaración SUNAT y entrega interna del asistente) sin importar
-// la regla configurada — mismo criterio que "sin planilla" en PDT 601.
-func TestListPdt621TimelinessExemptWhenSuspendida(t *testing.T) {
+// TestPdt621BlockedWhenControlSuspendida cubre docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.7: "suspendida" pasó a ser global por control (ya no se marca desde el propio record PDT
+// 621, solo desde Control de Detracciones) — debe salir exempt en ambos cumplimientos (declaración
+// SUNAT y entrega interna del asistente) sin importar la regla configurada, mismo criterio que "sin
+// planilla" en PDT 601, y SavePdt621Record debe rechazarse mientras el control esté suspendido.
+func TestPdt621BlockedWhenControlSuspendida(t *testing.T) {
 	db := setupPdt621TestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "R020")
@@ -281,15 +283,19 @@ func TestListPdt621TimelinessExemptWhenSuspendida(t *testing.T) {
 	}
 	seedSunatSchedule(t, db, month, dates)
 
-	saved, err := svc.SavePdt621Record(co.ID, periodYM, Pdt621RecordInput{Suspendida: true, TotalVentas: 999})
+	detail, err := svc.EnsurePdt621(co.ID, periodYM)
 	if err != nil {
-		t.Fatalf("SavePdt621Record: %v", err)
+		t.Fatalf("EnsurePdt621: %v", err)
 	}
-	if saved.Record == nil || !saved.Record.Suspendida {
-		t.Fatalf("record no quedó marcado suspendida: %+v", saved.Record)
+	// Simula lo que hace Control de Detracciones (§5.9.7.3) — el único lugar que en el código real
+	// marca este campo.
+	if err := db.Model(&models.SupervisorMonthlyControl{}).
+		Where("id = ?", detail.ControlID).Update("suspendida", true).Error; err != nil {
+		t.Fatalf("marcar suspendida: %v", err)
 	}
-	if saved.Record.TotalVentas != 0 || saved.Record.Observacion != supervisorSuspendidaNote {
-		t.Fatalf("suspendida no bloqueó/forzó los demás campos: %+v", saved.Record)
+
+	if _, err := svc.SavePdt621Record(co.ID, periodYM, Pdt621RecordInput{TotalVentas: 999}); err == nil {
+		t.Fatal("SavePdt621Record debía rechazarse con la empresa suspendida")
 	}
 
 	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
@@ -300,6 +306,9 @@ func TestListPdt621TimelinessExemptWhenSuspendida(t *testing.T) {
 		t.Fatalf("filas inesperadas: %+v", res.Rows)
 	}
 	row := res.Rows[0]
+	if !row.Suspendida {
+		t.Fatalf("row.Suspendida debía ser true: %+v", row)
+	}
 	if row.DeclarationTimeliness != TimelinessExempt {
 		t.Fatalf("empresa suspendida: declaration_timeliness=%q want %q", row.DeclarationTimeliness, TimelinessExempt)
 	}

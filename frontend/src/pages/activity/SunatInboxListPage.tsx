@@ -59,6 +59,19 @@ const EMPTY_SLOT_FALLBACK = (slotIndex: number): SunatInboxCaptureSlot => ({
   sunafil: { status: 'pendiente' },
 });
 
+// SuspendidaBadge (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.8): Buzón SOL no tiene
+// botón propio para marcar suspendida (se marca desde Control de Detracciones, §5.9.7), pero sin
+// este aviso una empresa suspendida se veía igual que cualquier otra acá — o se podía pensar que se
+// eliminó, si algún filtro la dejaba fuera.
+const SuspendidaBadge = () => (
+  <span
+    className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-900"
+    title="Suspendida en este período"
+  >
+    Suspendida
+  </span>
+);
+
 const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const homePath = workspaceHomePath(workspace);
   const canUpload = useMemo(
@@ -510,7 +523,10 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           style={frozenIdBodyCellStyle('name')}
                           title={row.business_name}
                         >
-                          <span className="block truncate">{row.business_name || '—'}</span>
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span className="truncate">{row.business_name || '—'}</span>
+                            {row.suspendida ? <SuspendidaBadge /> : null}
+                          </span>
                         </td>
                         <td
                           className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
@@ -615,7 +631,10 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                             style={frozenIdBodyCellStyle('name')}
                             title={row.business_name}
                           >
-                            <span className="block truncate">{row.business_name || '—'}</span>
+                            <span className="flex items-center gap-1.5 truncate">
+                              <span className="truncate">{row.business_name || '—'}</span>
+                              {row.suspendida ? <SuspendidaBadge /> : null}
+                            </span>
                           </td>
                           <td
                             className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}

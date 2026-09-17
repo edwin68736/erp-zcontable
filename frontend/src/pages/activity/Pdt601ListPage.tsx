@@ -397,48 +397,48 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                   const pl = row.planilla;
                   // "Suspendida" tiene prioridad sobre "sin planilla" (mutuamente excluyentes, ver
                   // Pdt601DetailPage.tsx) — bloquea CUALQUIER otro dato, no solo lo numérico.
-                  const blocked = !!pl?.suspendida || !!pl?.sin_planilla;
+                  const blocked = !!row.suspendida || !!pl?.sin_planilla;
                   const displayStatus = pdt601DisplayStatus({
                     status: row.status,
                     sinPlanilla: pl?.sin_planilla,
-                    suspendida: pl?.suspendida,
+                    suspendida: row.suspendida,
                     timeliness: row.timeliness,
                   });
                   return (
-                    <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}>
+                    <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}>
                       <td
-                        className={`${TD} font-mono ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} font-mono ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('code')}
                       >
                         {row.code || '—'}
                       </td>
                       <td
-                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('dig')}
                       >
                         {row.dig || '—'}
                       </td>
                       <td
-                        className={`${TD} font-medium ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} font-medium ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('name')}
                         title={row.business_name}
                       >
                         <span className="block truncate">{row.business_name || '—'}</span>
                       </td>
                       <td
-                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} font-mono whitespace-nowrap ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('ruc')}
                       >
                         {row.ruc || '—'}
                       </td>
                       <td
-                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('regimen')}
                       >
                         {pdt601RegimenLaboralLabel(pl?.regimen_laboral)}
                       </td>
                       <td
-                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, row.suspendida)}`}
                         style={frozenIdBodyCellStyle('assistant')}
                         title={row.assistant_username}
                       >

@@ -27,7 +27,6 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 
 const EMPTY_RECORD: Pdt621RecordInput = {
-  suspendida: false,
   primera_entrega_fecha: '',
   primera_entrega_hora: '',
   observacion: '',
@@ -45,35 +44,9 @@ const EMPTY_RECORD: Pdt621RecordInput = {
   motivo_no_envio: '',
 };
 
-/** Nota fija que se fuerza en Observación cuando la empresa está marcada "suspendida" — mismo
- * texto que usa el backend (server-side, ver SavePdt621Record). */
-const SUSPENDIDA_NOTE = 'Empresa suspendida';
-
-/** Campos que no aplican cuando se marca "suspendida" (se limpian al activar el flag) — bloquea
- * CUALQUIER otro registro, más restrictivo que cualquier otro estado de este módulo. Observación
- * se fuerza a la nota fija en vez de limpiarse, para que quede visible en el listado y el Excel. */
-const SUSPENDIDA_RESET: Partial<Pdt621RecordInput> = {
-  primera_entrega_fecha: '',
-  primera_entrega_hora: '',
-  observacion: SUSPENDIDA_NOTE,
-  segunda_entrega_fecha: '',
-  segunda_entrega_hora: '',
-  fecha_declaracion: '',
-  total_ventas: 0,
-  total_compras: 0,
-  igv: 0,
-  rta: 0,
-  cantidad_comprobantes_venta: 0,
-  cantidad_comprobantes_compra: 0,
-  envio_sire: '',
-  fecha_envio_sire: '',
-  motivo_no_envio: '',
-};
-
 function recordToInput(r: Pdt621Record | null | undefined): Pdt621RecordInput {
   if (!r) return { ...EMPTY_RECORD };
-  const base: Pdt621RecordInput = {
-    suspendida: r.suspendida ?? false,
+  return {
     primera_entrega_fecha: r.primera_entrega_fecha ?? '',
     primera_entrega_hora: r.primera_entrega_hora ?? '',
     observacion: r.observacion ?? '',
@@ -90,12 +63,6 @@ function recordToInput(r: Pdt621Record | null | undefined): Pdt621RecordInput {
     fecha_envio_sire: r.fecha_envio_sire ?? '',
     motivo_no_envio: r.motivo_no_envio ?? '',
   };
-  if (base.suspendida) {
-    // Autocorrige registros previos a este fix (o guardados antes de que el backend reforzara el
-    // bloqueo) que hayan quedado con datos colgados pese a estar marcados "suspendida".
-    return { ...base, ...SUSPENDIDA_RESET };
-  }
-  return base;
 }
 
 const FIELD_INPUT =
@@ -142,14 +109,19 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // Terminal: una vez "Entregado", nadie edita nada (ni el asistente ni el supervisor) salvo que se
   // reabra con el permiso dedicado — mismo criterio que Pdt601DetailPage.tsx.
   const declarationLocked = !!declaration && PDT621_TERMINAL_STATUSES.has(declaration.status);
+  // Suspendida (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) ya NO se marca desde este
+  // módulo — se lee de solo lectura desde el control (Control de Detracciones es el único que la
+  // escribe). formLocked bloquea el formulario igual que declarationLocked.
+  const controlSuspendida = !!detail?.control_suspendida;
+  const formLocked = declarationLocked || controlSuspendida;
   const displayStatus = useMemo(
     () =>
       pdt621DisplayStatus({
         status: declaration?.status ?? '',
-        suspendida: record.suspendida,
+        suspendida: controlSuspendida,
         assistantTimeliness: detail?.assistant_timeliness,
       }),
-    [declaration?.status, record.suspendida, detail?.assistant_timeliness],
+    [declaration?.status, controlSuspendida, detail?.assistant_timeliness],
   );
 
   // Estos 4 campos se llenan por sincronización desde la liquidación (ver syncPdt621Record en
@@ -163,12 +135,16 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     return rec.total_ventas > 0 || rec.total_compras > 0 || rec.igv !== 0 || rec.rta > 0;
   }, [detail?.record]);
 
+  // Fecha límite por grupo de RUC del calendario interno (docs/diseno-limpieza-control-detail-2026-
+  // 09-16.md §5.7b) — reemplaza a declaration.due_date (0% de uso real, §3.1) como fuente de
+  // "Vencimiento", con la fecha genérica del control como respaldo si el período no tiene ninguna
+  // actividad "pdt_621" configurada en el calendario.
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
-    const dueDate = resolvePdt621DueDate(declaration.due_date, detail.control_due_date);
-    const meta = computePdt621DueMeta(declaration.status, dueDate, record.suspendida);
+    const dueDate = resolvePdt621DueDate(detail.calendar_due_date, detail.control_due_date);
+    const meta = computePdt621DueMeta(declaration.status, dueDate, controlSuspendida);
     return { dueDate, ...meta };
-  }, [detail, declaration, record.suspendida]);
+  }, [detail, declaration, controlSuspendida]);
 
   const loadAttachments = useCallback(async (declarationId: number) => {
     const rows = await supervisorsService.listAttachments(0, declarationId);
@@ -312,23 +288,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     setRecord((prev) => ({ ...prev, ...patch }));
   };
 
-  // "Suspendida" bloquea registrar CUALQUIER otro dato (incluida Observación, que se fuerza a la
-  // nota fija) hasta que se desmarque — mismo criterio que PDT 601 (Pdt601DetailPage.tsx). Al
-  // desmarcar, se limpia la nota fija para que el supervisor pueda escribir una observación real.
-  const handleToggleSuspendida = (checked: boolean) => {
-    setRecord((prev) =>
-      checked
-        ? { ...prev, suspendida: true, ...SUSPENDIDA_RESET }
-        : {
-            ...prev,
-            suspendida: false,
-            observacion: prev.observacion === SUSPENDIDA_NOTE ? '' : prev.observacion,
-          },
-    );
-  };
-
   const handleSaveRecord = async () => {
-    if (!canUpdate || declarationLocked) return;
+    if (!canUpdate || formLocked) return;
     if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) {
       setMsg('Ingrese el motivo por el que no se envió SIRE.');
       return;
@@ -341,7 +302,15 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       // docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — se refleja acá también el estado y la
       // puntualidad recalculada, no solo el registro.
       setDetail((d) =>
-        d ? { ...d, record: updated.record, declaration: updated.declaration, assistant_timeliness: updated.assistant_timeliness } : d,
+        d
+          ? {
+              ...d,
+              record: updated.record,
+              declaration: updated.declaration,
+              assistant_timeliness: updated.assistant_timeliness,
+              control_suspendida: updated.control_suspendida,
+            }
+          : d,
       );
       setRecord(recordToInput(updated.record));
       setMsg('Registro guardado.');
@@ -411,30 +380,13 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               {formatPdt621DueDetail(dueResolved.dueDate, dueResolved.isOverdue, dueResolved.daysRemaining)}
             </dd>
           </dl>
-          {canUpdate ? (
-            <label
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
-                record.suspendida ? 'border-purple-300 bg-purple-50 text-purple-900' : 'border-slate-200 bg-slate-50 text-slate-700'
-              } ${declarationLocked ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
-            >
-              <input
-                type="checkbox"
-                disabled={declarationLocked}
-                checked={record.suspendida}
-                onChange={(e) => handleToggleSuspendida(e.target.checked)}
-                className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-              />
-              <span>
-                <span className="block font-medium">Esta empresa está suspendida en este período</span>
-                <span className="block text-xs mt-0.5 opacity-80">
-                  No se registra ningún otro dato (ni Observación) mientras esté suspendida.
-                </span>
-              </span>
-            </label>
-          ) : record.suspendida ? (
+          {controlSuspendida ? (
+            // Suspendida (§5.9.7) ya NO se marca desde este módulo — de solo lectura, se marca
+            // desde Control de Detracciones.
             <p className="flex items-start gap-2 text-sm text-slate-500">
               <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-              Esta empresa está marcada "Suspendida" en este período.
+              Esta empresa está marcada "Suspendida" en este período (desde Control de
+              Detracciones).
             </p>
           ) : null}
         </div>
@@ -442,7 +394,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         {(canApprove || canObserve) && (
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
             <h2 className="text-sm font-semibold text-slate-800">Revisión supervisor</h2>
-            {record.suspendida ? (
+            {controlSuspendida ? (
               // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
@@ -563,7 +515,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         {/* Una sola puerta para todo lo que no aplica con Suspendida (antes eran 4 condicionales
             sueltas: entregas, importes/comprobantes/SIRE, más el select de estado ya eliminado) —
             mismo criterio de "una sola puerta" que Pdt601DetailPage.tsx. */}
-        {record.suspendida ? (
+        {controlSuspendida ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>
@@ -765,7 +717,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         <div>
           <label className="block text-xs text-slate-500 mb-1">Observación</label>
           <textarea
-            disabled={!canUpdate || declarationLocked || record.suspendida}
+            disabled={!canUpdate || formLocked}
             value={record.observacion}
             onChange={(e) => patchRecord({ observacion: e.target.value })}
             rows={2}
@@ -778,7 +730,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={recordSaving || declarationLocked}
+              disabled={recordSaving || formLocked}
               onClick={() => void handleSaveRecord()}
               className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
             >

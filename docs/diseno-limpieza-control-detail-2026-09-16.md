@@ -625,3 +625,694 @@ será con una página dedicada propia (fuera de alcance de esta limpieza).
 
 - `company_assignments` (huérfana — se lee pero no hay forma de escribir).
 - `activity_params`/`activity_param_audits` (huérfana — sin controlador ni UI).
+
+## 5. Dashboard de supervisores — auditoría de filtros y métricas (2026-09-17)
+
+Verificación pedida por el usuario una vez implementadas las Secciones 1-3: revisar si los filtros,
+las tarjetas, los dos gráficos (distribución por estado, tendencia 6 meses) y la productividad por
+supervisor del dashboard (`/supervisors/dashboard`) muestran datos reales y consistentes. Metodología:
+lectura de `SupervisorDashboard.tsx` + `supervisor_service.go`, cruzada con consultas SQL directas a
+la BD local (`supervisor_monthly_controls`, `companies`, `supervisor_change_logs`) y prueba en vivo en
+el navegador (usuario `admin1`, período agosto/setiembre 2026).
+
+**Conclusión general**: no se encontró ningún bug de cálculo ni de wiring — cada tarjeta, filtro y
+gráfico corresponde exactamente a la consulta SQL que dice calcular (verificado número por número
+contra la BD). Lo que se encontró son **funcionalidades manuales que nunca se usaron**, con el mismo
+patrón que ya se documentó en la Sección 3 para los campos de la pestaña Declaraciones — y un hueco
+real de alcance en la Sección 2 (el bucket "Vencido" de PDT 601/621 no quedó cableado a la fecha
+límite por grupo de RUC).
+
+### 5.1 Filtro "Riesgo" — código correcto, dato sin usar (0% en 1530 controles)
+
+`risk_level` (`SupervisorMonthlyControl.RiskLevel`, editable a mano desde "Nivel de riesgo" en el
+detalle del control) está en `'bajo'` en el **100% de los controles, en los 6 períodos existentes**
+(abril a setiembre 2026, 1530 filas). Confirmado además que `supervisor_change_logs` no tiene ninguna
+fila con `field_name = 'risk_level'` — nunca se cambió a mano ni una vez. Probado en el navegador:
+filtrar por "Medio" devuelve el dashboard entero en cero (incluida "Empresas activas"). El filtro
+funciona bien, pero es inútil en la práctica porque no hay variación en el dato que filtra.
+
+### 5.2 Filtro "Responsable" — el desplegable no distingue quién es realmente "responsable" de algo
+
+El combo "Responsable" (`responsibleUserId`) lista **todos los usuarios del sistema** vía
+`usersService.list()`, sin acotar a quiénes tienen empresas asignadas. En la práctica, de 255 empresas
+activas, **255 tienen el mismo `accountant_user_id` = 7** (EDWIN ZAPANA CHOQUEMAQUE) y solo 2 quedan en
+`NULL` — ningún otro usuario del combo (incluidos los 4 supervisores reales) tiene una sola empresa
+asignada como responsable. Probado en el navegador: filtrar por cualquier usuario distinto de Edwin
+devuelve el dashboard en cero. El campo que alimenta esto (`companies.accountant_user_id`) nunca se
+individualizó por empresa — es un dato de `companies`, no de este dashboard ni de esta sesión.
+
+### 5.3 Filtro "Supervisor" — funciona bien, dato real y distribuido
+
+`supervisor_user_id` sí está poblado con variación real entre 4 usuarios (6/82/84/83 empresas cada
+uno) — consistente con lo que muestra "Productividad por supervisor" más abajo. Sin hallazgos.
+
+### 5.4 Tarjetas y resumen PDT 601/621 — coinciden con la BD; confirma que el fix de la Sección 2 ya funciona con datos reales
+
+Todos los números de las tarjetas ("Empresas activas/al día/pendientes/vencidas", "Sin control en
+período", "Declaraciones observadas") coinciden exactamente con consultas SQL directas. El resumen PDT
+601/621 del período agosto 2026 ya muestra **"Entregado a tiempo: 3" (PDT 601) y "1" (PDT 621)** —
+declaraciones reales con `status = 'entregado'` de pruebas anteriores, clasificadas correctamente. Es
+la primera confirmación con datos reales (no solo tests unitarios) de que el cálculo de puntualidad de
+la Sección 2 está funcionando end-to-end.
+
+### 5.5 "Cumplimiento %" y "Tendencia de cumplimiento (6 meses)" — 0% siempre, en los 6 períodos, por la misma causa raíz que §5.1
+
+`monthly_compliance_pct` = `(controles al_dia + cerrado) / total` — y `general_status` **nunca llegó a
+`al_dia` ni a `cerrado` en ningún control, de ningún período** (los 1530 controles de abril-setiembre
+están repartidos solo entre `pendiente`/`vencido`/`observado`). `al_dia` se marca a mano (botón
+"info recibida" en `RegisterInfoReceived`, o el selector de estado en el detalle del control) y no se
+usa. Consecuencia directa: la tarjeta "Cumplimiento %", el gráfico "Tendencia (6 meses)" (que usa la
+misma fórmula período a período) y "Productividad por supervisor" (mismo cálculo, agrupado por
+supervisor) **muestran 0% siempre**, no por un bug de cálculo sino porque el numerador nunca tiene
+nada que sumar. Gráficos y card están bien calculados — la funcionalidad que los alimenta (marcar un
+control "al día") está muerta.
+
+### 5.6 Hallazgo adicional — el auto-"vencido" solo corre para el mes en curso
+
+`StartSupervisorAutomationLoop` (backend, corre cada 6h) llama `RunMonthlyAutomations` **solo para
+`time.Now()`'s período** (`ym := time.Now().Format("2006-01")`) — nunca para períodos anteriores. La
+única otra vía que transiciona `pendiente`/`al_dia` → `vencido` es `SyncOverdueControls`, que se
+dispara de forma perezosa dentro de `Dashboard()` **solo para el período que se está consultando en
+ese momento**. Resultado observado en BD: julio 2026 quedó 100% `vencido` (alguien abrió esa vista en
+algún momento, después de que su `due_date` ya había pasado), pero **abril, mayo y junio siguen 100%
+`pendiente`** pese a que sus fechas de vencimiento pasaron hace meses — simplemente nadie volvió a
+abrir esos períodos desde entonces. No es un bug introducido esta sesión (afecta períodos anteriores a
+cualquier cambio de esta limpieza), pero es un hueco operativo real: períodos viejos y abandonados
+pueden quedar subestimados como "pendiente" indefinidamente.
+
+### 5.7 Hallazgo de alcance — el bucket "Vencido" de PDT 601/621 no usa la fecha límite por grupo de RUC de la Sección 2
+
+El bucket `vencido` de `pdtBucketsSelectSQL` (usado por el resumen del dashboard y el filtro del
+listado PDT 601/621) compara `COALESCE(d.due_date, c.due_date) < hoy` — es decir, la fecha propia de
+la declaración (`d.due_date`, confirmado 0% de uso real en la Sección 3, §3.1) o, si no existe, la
+fecha límite **genérica del control** (`c.due_date`, ~día 20 del mes siguiente). **No usa**
+`pdt601DueDateSQLCase`/`pdt621DueDateSQLCase` (la fecha límite por grupo de RUC que sí implementamos en
+la Sección 2) — esa función solo se usa para clasificar `entregado_a_tiempo`/`entregado_fuera_de_fecha`
+(declaraciones ya entregadas), no para decidir si una declaración **todavía pendiente** ya está
+vencida.
+
+**Consecuencia práctica**: una declaración PDT 601 cuyo grupo de RUC vence el 4 de setiembre y sigue
+sin entregarse **no se marca "Vencida" hasta el 20 de octubre** (fecha genérica del control del período
+siguiente), no el 4 de setiembre. Esto es consistente con el alcance que se decidió explícitamente en
+§2.7 punto 2 ("el cálculo de 'Entregado a tiempo/fuera de fecha' debe comparar...") — el "Vencido" de
+declaraciones pendientes quedó fuera de esa decisión, no fue un olvido de implementación, pero sigue
+siendo una inconsistencia real de cara al usuario: el mismo panel muestra puntualidad calculada por
+grupo de RUC para lo ya entregado, y una fecha límite completamente distinta (genérica, un mes
+después) para decidir si lo no entregado ya está vencido.
+
+### 5.7b Investigación de alcance real (2026-09-17) — dónde vive cada pieza de "Vencido" hoy
+
+Antes de tocar código, se rastreó cada lugar donde "Vencido"/fecha de vencimiento se calcula o se
+muestra para PDT 601/621, backend y frontend:
+
+| Lugar | Fuente de fecha hoy | ¿Usa el calendario por grupo de RUC? |
+|---|---|---|
+| Dashboard — bucket `vencido`/`pendiente` (`pdtBucketsSelectSQL`) | `COALESCE(d.due_date, c.due_date)` | No |
+| Listado PDT601/621 — fondo de fila (`pdt601RowBgClass`/`pdt621RowBgClass`) | `row.timeliness`/`row.declaration_timeliness` | **Sí, ya** |
+| Listado PDT601/621 — Excel export | `row.timeliness` | **Sí, ya** |
+| Detalle de una empresa (`Pdt601DetailPage.tsx`/`Pdt621DetailPage.tsx`) — campo "Vencimiento" | `resolvePdt601DueDate(declaration.due_date, control_due_date)` (cliente) | No |
+| `Pdt601ListRow.DueDate/IsOverdue/DaysRemaining` (`Pdt621ListRow` ídem) | `COALESCE(d.due_date, c.due_date)` (servidor) | No — **y no se usa en ningún lado del frontend** (confirmado: ni el listado ni el Excel los leen; son cálculo muerto desde que el listado migró a `timeliness`) |
+
+Hallazgo clave que simplifica la corrección: `ComputeCalendarActivityTimeliness` (usada para
+`Timeliness`/`AssistantTimeliness`) **ya devuelve "missing"** cuando la declaración sigue sin
+entregarse y la fecha límite del calendario ya pasó — es decir, el concepto "Vencido por grupo de RUC"
+ya existe y ya se calcula correctamente, solo que (a) el bucket agregado del dashboard no lo usa, y
+(b) las páginas de detalle no lo consumen porque el backend nunca expuso la **fecha** resuelta del
+calendario (`UploadTimelinessDTO.DueAt`), solo la etiqueta de puntualidad — así que el frontend
+recalculaba la fecha por su cuenta, con la fuente vieja.
+
+✅ **DECIDIDO (2026-09-17)** — plan de corrección, 3 partes:
+
+1. **`pdtBucketsSelectSQL`** (backend, `supervisor_service.go`): el bucket `vencido`/`pendiente` pasa a
+   comparar contra `pdt601DueDateSQLCase`/`pdt621DueDateSQLCase` (igual patrón que
+   `entregado_a_tiempo`/`fuera_de_fecha`) en vez de `COALESCE(d.due_date, c.due_date)`. Si el período no
+   tiene ninguna actividad `pdt_601`/`pdt_621` configurada (`ok=false`), se mantiene el fallback viejo
+   (`COALESCE(d.due_date, c.due_date)`) para no perder cobertura en períodos sin calendario armado. Si
+   el período SÍ tiene actividades pero el dígito de una empresa puntual no cae en ningún rango (caso
+   raro, sin comodín), esa fila no cuenta como vencida — mismo criterio "no castigar por falta de
+   configuración" que ya usan `pdt601OnTime`/`pdt601Late`.
+2. **Exponer la fecha límite resuelta**: agregar `CalendarDueDate *time.Time`
+   (`json:"calendar_due_date,omitempty"`) a `Pdt601Detail`/`Pdt621Detail`, tomado de
+   `ComputeCalendarActivityTimeliness(...).DueAt` (hoy se descarta, solo se guarda `.Timeliness`).
+3. **Frontend — páginas de detalle**: `Pdt601DetailPage.tsx`/`Pdt621DetailPage.tsx` dejan de llamar
+   `resolvePdt601DueDate(declaration.due_date, control_due_date)` y en su lugar usan
+   `resolvePdt601DueDate(detail.calendar_due_date, detail.control_due_date)` — mismo helper de
+   formateo (`computePdt601DueMeta`/`formatPdt601DueDetail`), solo cambia la fuente de la fecha. Se deja
+   de leer `declaration.due_date` (0% de uso real, §3.1) como fuente prioritaria.
+
+**No incluido en este cambio** (anotado para después, no bloquea esto): `Pdt601ListRow.DueDate/
+IsOverdue/DaysRemaining` (`Pdt621ListRow` ídem) y sus funciones `pdt601ResolveDueDate`/`pdt601DueMeta`
+quedan confirmados como cálculo muerto — el listado y el Excel ya usan `timeliness` desde antes de esta
+sesión. Se documenta acá para una limpieza futura (mismo criterio que NPS/campos de Declaraciones), no
+se borra en este cambio para no mezclar el fix de "Vencido" con una limpieza de código no relacionada.
+
+### 5.7c Implementado y verificado (2026-09-17)
+
+- [x] Backend: `pdtBucketsSelectSQL` (`supervisor_service.go`) — `vencido`/`pendiente` ahora usan
+      `pdt601DueDateSQLCase`/`pdt621DueDateSQLCase` con fallback a `COALESCE(d.due_date, c.due_date)`
+      cuando el período no tiene calendario configurado.
+- [x] Backend: `Pdt601Detail.CalendarDueDate`/`Pdt621Detail.CalendarDueDate` — nuevo campo
+      `calendar_due_date`, poblado desde `ComputeCalendarActivityTimeliness(...).DueAt` en
+      `EnsurePdt601`/`SavePdt601Planilla` y en `EnsurePdt621` (vía `pdt621AssistantTimelinessDTO`,
+      antes `pdt621AssistantTimeliness` — se cambió para devolver el DTO completo, no solo el label).
+- [x] Frontend: `Pdt601DetailPage.tsx`/`Pdt621DetailPage.tsx` — "Vencimiento" ahora usa
+      `detail.calendar_due_date` en vez de `declaration.due_date` como fuente prioritaria.
+- [x] Tests nuevos: `TestPdtDashboardSummary_VencidoUsaCalendarioNoFechaGenericaDelControl` y su
+      equivalente PDT 621 (`supervisor_dashboard_puntualidad_test.go`) — prueban explícitamente que
+      una declaración sin entregar cuenta como "Vencido" cuando pasó la fecha del calendario aunque la
+      fecha genérica del control todavía no llegue (antes del fix, estos casos hubieran quedado en
+      "Pendiente"). `go build`/`go test ./services/...` limpio.
+- [x] Verificado en navegador (dev local, backend reiniciado para tomar el código nuevo — `go run .`
+      no recarga en caliente):
+      - Detalle de una empresa PDT 601 (RUC dígito 0, setiembre) ahora muestra "Vencimiento: 04/09/2026
+        · Vencido hace 13 día(s)" (antes: "20/10/2026 · 33 días restantes", la fecha genérica del
+        control).
+      - Dashboard, período setiembre: PDT 601/621 pasan de "Vencidas: 0/0" a "Vencidas: 255/255" (nadie
+        entregó y las 8 actividades del calendario ya vencieron respecto a hoy, 17 de setiembre).
+      - Dashboard, período agosto (sin calendario `pdt_601`/`pdt_621` configurado — fuera de alcance de
+        esta limpieza, §2.6): números idénticos a antes del cambio (fallback correcto, sin regresión).
+
+### 5.8 Pendiente de decisión con el usuario
+
+- [x] **§5.7 (el más importante)** — ✅ decidido e implementado 2026-09-17, ver §5.7b.
+- [x] §5.6 — ✅ **replanteado 2026-09-17, ver §5.9**: en vez de hacer que el loop de 6h sincronice
+      más períodos, se decidió dejar de depender de `general_status` para "Cumplimiento %" — el
+      cálculo pasa a hacerse en vivo, igual que ya funciona §5.7. El mecanismo de períodos
+      (`supervisor_periods`/`supervisor_monthly_controls`) **sigue siendo necesario** (es lo que
+      agrupa empresa+período+declaraciones, ver §5.9.0) — lo que se descarta es depender de él para
+      medir cumplimiento. El loop de 6h en sí **no se elimina**: queda como candidato a reutilizarse
+      para notificaciones u otras automaciones (fuera de alcance de esta sección, anotado para
+      después).
+- [ ] §5.1/§5.5: decidir si `risk_level` y el estado manual "al día" son funciones a promover
+      (capacitar al equipo para que las use) o a simplificar/quitar, igual criterio que se aplicó a
+      NPS y a los campos de la pestaña Declaraciones (0% de uso real). Con §5.9 implementado, esto
+      pierde urgencia (ya no alimenta ningún número visible del dashboard), pero sigue siendo un
+      campo sin uso real que vale la pena resolver en algún momento.
+- [ ] §5.2: decidir si el filtro "Responsable" debe acotarse a usuarios que efectivamente tienen
+      empresas asignadas (`accountant_user_id`), o si el dato de origen (`companies.accountant_user_id`)
+      necesita individualizarse primero — eso último es trabajo de datos, no de este dashboard.
+
+## 5.9 Rediseño — "Cumplimiento %" en vivo, reemplaza a `general_status` (2026-09-17)
+
+### 5.9.0 Contexto de negocio (aportado por el usuario, confirmado con el estudio)
+
+- **Todas las actividades del calendario son lo que se controla realmente.** PDT 601 y PDT 621 ya
+  están parametrizados por grupo de RUC (Sección 2); el resto de actividades del catálogo puede
+  parametrizarse más adelante (hoy están en `other` a propósito, no por descuido — ver §2.3). El
+  cumplimiento de asistentes y supervisores se mide contra ESE calendario, no contra el control
+  general.
+- **El período (`supervisor_periods`/`supervisor_monthly_controls.period_ym`) es el mismo en toda la
+  app** — confirmado en código: PDT 601, PDT 621, Detracciones y Buzón SOL filtran todos por la misma
+  columna `period_ym`, y los 4 exigen que el período esté abierto (`validateOpenPeriod`) para poder
+  entrar. El Dashboard y Reportes usan el mismo campo pero **no** exigen que el período exista (solo
+  validan el formato `YYYY-MM`) — inconsistencia real, anotada, no bloqueante para esta sección.
+- **El día 20 de `periodDefaultDueDate` no es arbitrario**: el estudio tiene una reunión real cada 20
+  de mes donde se revisa el cumplimiento del período anterior con supervisores y asistentes (coherente
+  con "se trabaja pasando el mes" — en setiembre se controla lo de agosto, cuya reunión de corte es el
+  20 de setiembre). Esto **corrige una lectura anterior** de este documento, que había sugerido ese
+  campo como candidato a simplificar por "confuso" — no lo es, modela un proceso real.
+- **Conclusión operativa**: no tiene sentido seguir dependiendo de `general_status` (marcado a mano,
+  0% de uso real, §5.5) para medir cumplimiento, cuando el dato real de cumplimiento ya se calcula en
+  vivo por actividad desde hace rato (§5.7 lo probó para PDT 601/621). La solución correcta no es
+  "sincronizar más seguido" (§5.6 original) sino **dejar de depender de un campo que nadie llena**.
+
+### 5.9.1 Qué módulos ya calculan cumplimiento en vivo hoy (investigado 2026-09-17)
+
+Los 4 módulos con calendario parametrizado (§2.3: solo `pdt_601`, `pdt_621`, `detracciones` y
+`sunat_inbox` tienen lógica de evaluación de cumplimiento construida) ya usan el mismo mecanismo base
+(`ComputeCalendarActivityTimeliness`/`ComputeActivityRuleTimeliness`/`EvaluateUploadTimeliness`,
+`upload_timeliness.go`), pero con **formas de dato muy distintas**:
+
+| | PDT 601/621 | Detracciones | Buzón SOL |
+|---|---|---|---|
+| Función de agregado por período | `PdtDashboardSummary` (ya existe) | **no existe** | **no existe** |
+| Unidad de Timeliness | 1 por declaración/empresa/período | 1 por declaración/empresa/período | 1 por (semana × slot × SUNAT/SUNAFIL) — **muchas por empresa/período** |
+| Exención (no cuenta ni a favor ni en contra) | `sin_planilla`/`suspendida` | `sin_clave`/`no_corresponde` | **no existe** — siempre las `semanas × slots × 2` |
+| Creación para todas las empresas activas | Sí (la consulta del dashboard las trae todas) | No — perezosa, filas "virtuales pendiente" para las que no tienen declaración | No — perezosa, slots "virtuales pendiente" |
+
+> ⚠️ **Esta fila de "Exención" quedó desactualizada por §5.9.7** (escrita después): `suspendida` deja
+> de vivir en cada módulo por separado y pasa a ser un campo único y compartido
+> (`SupervisorMonthlyControl.Suspendida`) — los 4 módulos, incluido Buzón SOL (que acá decía "no
+> existe"), lo leen de ahí. Ver §5.9.7 para el diseño vigente; esta tabla queda como registro de cómo
+> era el punto de partida, no como el diseño final.
+
+**El problema central a resolver**: PDT601, PDT621 y Detracciones son directamente comparables (1
+unidad = 1 empresa en ese módulo para ese período). Buzón SOL no — una empresa puede tener 16+ puntos
+de captura trackeados en un mes (p. ej. 4 semanas × 2 slots × 2 mesas de partes). Sumarlo tal cual a
+los otros 3 en una sola cuenta global haría que Buzón SOL **domine numéricamente** el "Cumplimiento %"
+del estudio entero, sin que eso sea la intención.
+
+### 5.9.2 Diseño — ✅ confirmado (título histórico: originalmente "pendiente de confirmación en 2 puntos")
+
+**Paso 1 — un solo veredicto por (empresa, módulo, período)**, mismo peso para los 4 módulos:
+
+- Detracciones: usa directamente su `Timeliness` ya calculado (`on_time` / `late` / `missing` /
+  `pending` / `exempt` / `no_rule`) — no hay que inventar nada nuevo acá, ver §5.9.1.
+- PDT 601 / PDT 621: usan sus propios buckets (§5.9.1), **con un ajuste** — ver §5.9.2b (`observado`).
+- Buzón SOL — ~~propuesta original de "un solo veredicto por empresa" (descartada)~~. **Reemplazada
+  por §5.9.6.4**: no hay un solo veredicto por empresa — SUNAT y SUNAFIL cuentan por separado, 16
+  unidades independientes por empresa/mes, cada una con su propio veredicto. Ver §5.9.6 para el
+  detalle completo (esta sección quedó desactualizada por la investigación posterior, no borro el
+  historial pero la propuesta de acá ya no aplica).
+
+**Paso 2 — fórmula del "Cumplimiento %"**: `on_time / (on_time + late + missing)` (las 5 categorías de
+§5.9.3 — `late` y `missing` son las dos formas de "no cumplió a tiempo", se suman para el %), sumando
+los veredictos de los 4 módulos para todas las empresas del período (mismos filtros que hoy: empresa/
+responsable/supervisor/riesgo — este último ya vimos que no sirve de nada real, §5.1, pero se mantiene
+el filtro por si se recupera su uso).
+
+- `exempt` y `no_rule` (período sin calendario configurado) — **no cuentan ni a favor ni en contra**,
+  se excluyen del denominador (mismo criterio "no castigar por falta de configuración" de toda la
+  Sección 2).
+- `pending` (todavía no vence, no se le pasó la fecha límite) — ✅ **CONFIRMADO (2026-09-17)**: se
+  excluye del denominador (una obligación que recién el día 20 vence no cuenta como "incumplida" el
+  día 5) y se muestra aparte ("180 de 220 obligaciones ya resueltas, 92% a tiempo — 40 todavía sin
+  vencer"). El cálculo es "a hoy, de lo que ya debía estar resuelto, cuánto se cumplió a tiempo" — no
+  "de todo lo del mes, cuánto ya se cumplió", que es lo que hacía `general_status` y por qué daba 0%
+  siempre temprano en el mes.
+
+**Alcance explícito — qué NO entra**: los tipos de declaración SIRE y Renta Anual (sin calendario
+parametrizado hoy), y cualquier otra actividad del calendario financiero que siga tipada `other` sin
+su propia parametrización todavía (enums distintos — `SupervisorDeclarationType` vs
+`CalendarActivityType` — que solo se correlacionan de forma laxa, no hay que confundirlos). El número
+y la etiqueta en el dashboard deben decir explícitamente *"Cumplimiento (PDT 601/621, Detracciones,
+Buzón SOL)"*, no un genérico "Cumplimiento %" que sugiera que cubre el 100% del trabajo del estudio —
+sería engañoso mientras esos otros módulos no tengan su
+propio calendario.
+
+### 5.9.2b PDT 601/621 — qué hacer con `observado`, confirmado con el usuario 2026-09-17
+
+Hoy `pdtBucketsSelectSQL` excluye `observado` del cálculo de `vencido`/`pendiente`
+(`d.status <> observadoStatus` en ambas condiciones) — una declaración observada nunca se clasifica
+como vencida ni pendiente en el agregado, sin importar cuánto tiempo lleve sin resolverse.
+
+✅ **DECIDIDO**: `observado` se evalúa **igual que `pendiente`, por fecha**, mientras siga sin
+resolverse — si ya pasó la fecha límite del calendario y sigue observada (el asistente todavía no
+"levantó" la observación), cuenta como `vencido`/`missing`; si no pasó, cuenta como `pending`. El
+usuario dio el ejemplo exacto: una entrega vence hoy, el supervisor la observa hoy mismo, el asistente
+debía corregir y reentregar ese mismo día pero lo hace recién mañana — ya pasada la hora límite. Una
+vez que se resuelve (vuelve a "Entregado"), esa nueva entrega ya se compara contra el plazo con la
+lógica que **ya existe** (`entregado_a_tiempo`/`entregado_fuera_de_fecha`, sobre `fecha_entrega`) — no
+hace falta nada especial para ese caso, ya funciona.
+
+**Cambio de código real, no solo de criterio**: hay que sacar la exclusión `d.status <>
+observadoStatus` de las condiciones `vencido`/`pendiente` en `pdtBucketsSelectSQL`
+(`supervisor_service.go`) — una vez sacada, una declaración observada cae naturalmente en vencido o
+pendiente según la misma fecha límite por grupo de RUC que ya usa el resto de la función (§5.7). La
+tarjeta separada "Declaraciones observadas" (cuenta cruda de `status = observado`) **no se toca** — es
+una métrica distinta (cuántas hay en revisión), no afecta a "Cumplimiento %".
+
+### 5.9.3 Qué partes del dashboard cambian
+
+- **Tarjeta "Cumplimiento %"** → nueva fórmula en vivo (§5.9.2), ya no lee `general_status`.
+- **"Distribución por estado" (donut)** → deja de usar
+  `al_dia`/`pendiente`/`vencido`/`observado`/`cerrado` (categorías del control general, sin relación
+  con esto) y pasa a mostrar **5 categorías** (✅ confirmado 2026-09-17 — el usuario pidió distinguir
+  esto, no simplificarlo): **Cumplido a tiempo / Entregado fuera de fecha / Vencido sin entregar /
+  Pendiente (sin vencer) / Exento o no aplica**, sumando los 4 módulos. "Entregado fuera de fecha"
+  (sí se entregó, pero tarde) y "Vencido sin entregar" (nunca se entregó) quedan separados — son
+  situaciones distintas para decidir a quién presionar. Coincide 1 a 1 con los valores que ya
+  devuelve `UploadTimelinessDTO.Timeliness` (`on_time`/`late`/`missing`/`pending`/`exempt`/`no_rule`,
+  `upload_timeliness.go`) — Detracciones y Buzón SOL ya exponen exactamente esta granularidad sin
+  cambios; PDT 601/621 la arma desde sus propios buckets
+  (`entregado_a_tiempo`→on_time, `entregado_fuera_de_fecha`→late, `vencido`→missing,
+  `pendiente`→pending, `sin_planilla` (propio del módulo) + `control.Suspendida` (compartido,
+  §5.9.7)→exempt). Fórmula del % sigue siendo
+  `on_time / (on_time + late + missing)` — las 2 categorías de incumplimiento se suman para el
+  porcentaje, solo se muestran separadas en el donut.
+- **"Tendencia de cumplimiento (6 meses)"** → misma fórmula nueva, aplicada a cada uno de los últimos
+  6 períodos (reemplaza `ComplianceTrend`, que hoy también lee `general_status`).
+- **"Productividad por supervisor"** → se reagrupan los mismos veredictos por
+  `supervisor_monthly_controls.supervisor_user_id` (se mantiene esta fuente — es la misma que ya usan
+  todos los filtros del dashboard hoy, por consistencia) en vez de contar `general_status = al_dia`.
+- **Lo que NO cambia**: los 6 resúmenes propios de cada módulo (las tarjetas PDT 601/PDT 621 con sus
+  propios "Pendientes/Vencidas/Completadas", el desglose por asistente) — siguen calculándose igual
+  que hoy, esto solo afecta al número agregado de portada y sus 3 visualizaciones.
+
+### 5.9.4 Nota de implementación — costo de calcular Buzón SOL en vivo
+
+A diferencia de PDT601/621/Detracciones (agregables con una sola consulta SQL tipo
+`pdtBucketsSelectSQL`), Buzón SOL resuelve su fecha límite por slot **en código Go**
+(`dueDateForMailboxSlot`/`mailboxDueDaysInWeek`), no en SQL — para las 328 empresas del estudio, esto
+implica iterar semanas × slots en memoria, no una sola query agregada. Hay que fijarse en el costo
+real (probablemente aceptable dado que ya se usa así para `ListSunatInboxMonth`/`ExportSunatInbox`,
+pero nunca se corrió para las 328 empresas de una sola vez como pide un dashboard) antes de dar esto
+por cerrado — verificar con datos reales, no asumir.
+
+### 5.9.5 Checklist
+
+> ⚠️ **Orden de implementación**: §5.9.7 (campo global `SupervisorMonthlyControl.Suspendida`) es
+> **prerequisito** de los 2 ítems de abajo que tocan `isExempt`/`pdtBucketsSelectSQL` y el agregado de
+> Detracciones — si se construyen primero contra los campos viejos (`pl.suspendida`/`r.suspendida`,
+> `sin_clave`/`no_corresponde` sin el flag compartido) y se corrige después, es trabajo duplicado.
+> Conviene resolver §5.9.7 en la misma pasada que estos ítems, no como algo aparte después.
+
+- [x] Confirmar con el usuario los puntos de §5.9.2 (`pending` excluido — ✅) y §5.9.2b (`observado`
+      tratado como pendiente por fecha — ✅). Buzón SOL confirmado aparte en §5.9.6. Suspensión global
+      confirmada en §5.9.7/§5.9.8/§5.9.9.
+- [x] Backend: sacar la exclusión `d.status <> observadoStatus` de `vencido`/`pendiente` en
+      `pdtBucketsSelectSQL` (§5.9.2b) — con test nuevo (observada + plazo ya vencido → cuenta como
+      vencido/missing, `TestPdtBucketsSQL_ObservadoCuentaComoVencidoSiYaPaso`). `isExempt` ya lee
+      `control.Suspendida` (§5.9.7.3 punto 2) en vez de `pl.suspendida`/`r.suspendida`.
+- [x] Backend: función de agregado nueva para Detracciones (`DetraccionesDashboardSummary`,
+      `supervisor_compliance_summary.go`) — su exención ya lee `control.Suspendida` además de
+      `sin_clave`/`no_corresponde` (vía `computeDetraccionesTimeliness`).
+- [x] Backend: función combinadora — **etapa 1**, solo PDT 601/PDT 621/Detracciones
+      (`MonthlyComplianceSummary`, `supervisor_compliance_summary.go`) — suma los 3 módulos y devuelve
+      `ComplianceSummary` (on_time/late/missing/pending/exempt + el % ya calculado), reutilizada por
+      Dashboard, ComplianceTrend y SupervisorComplianceRanking. La etiqueta del dashboard dice
+      *"Cumplimiento (PDT 601/621, Detracciones)"* en esta etapa 1.
+- [x] Backend: `Dashboard`/`ComplianceTrend`/`SupervisorComplianceRanking` (`supervisor_service.go`)
+      usan la función combinadora en vez de `general_status`. `ReportProductivity` (por responsable) NO
+      se tocó — sigue con `general_status`, fuera del alcance de esta sección.
+- [x] Frontend: tarjeta, donut (5 categorías) y label actualizados en `SupervisorDashboard.tsx`/
+      `DashboardCharts.tsx` para decir explícitamente qué módulos cubre (etapa 1: PDT 601/621 +
+      Detracciones).
+- [x] Tests: `supervisor_compliance_summary_test.go` — un caso por módulo (Detracciones: missing/
+      pending/exempt×2/on_time; combinadora; `observado` de §5.9.2b).
+- [ ] **Etapa 2 (Buzón SOL, después)**: función de resumen por empresa/período (16 unidades, §5.9.6.4),
+      sumada a la combinadora; medir el costo real de calcularla para las 328 empresas antes de dar por
+      cerrado (§5.9.4); actualizar la etiqueta del dashboard para incluir Buzón SOL. **No implementado
+      todavía** — solo se hizo el badge visual de suspendida (§5.9.8), que no depende de esto.
+
+## 5.9.6 Buzón SOL — investigación profunda contra el proceso real del estudio (2026-09-17)
+
+El usuario pidió cerrar bien Buzón SOL antes de seguir con PDT/Detracciones, porque es el módulo con
+la estructura más distinta. Se contrastó la descripción del proceso real (dada por el usuario, quien la
+confirmó con el estudio) contra el código y los datos reales de setiembre 2026.
+
+### 5.9.6.1 Lo que coincide con el código actual
+
+- Corte por **hora**, no por día: antes de las 10:30 = "presentado", después = "presentado fuera de
+  hora" — mismo día, no al día siguiente. Ya implementado (`ActivityRule` id=2 "CONTROL DE HORA",
+  `compare_mode=datetime`, `max_upload_time=10:30`, confirmado en BD).
+- 2 cargas por semana (`mailbox_captures_per_week=2` en `firm_config`, confirmado en BD).
+- SUNAT y SUNAFIL se evalúan **de forma independiente**, no como una sola unidad combinada — el
+  usuario lo confirmó explícitamente: *"si un día carga uno solo, por ejemplo solo carga buzón SUNAT
+  pero falta SUNAFIL, solo cuenta una carga según el horario que cargó y una [fila] queda pendiente de
+  cumplimiento"*. Esto coincide exactamente con cómo ya está hecho el código
+  (`slot.Sunat.Timeliness`/`slot.Sunafil.Timeliness`, calculados por separado, `sunat_inbox_timeliness.go:122-134`).
+  **Conclusión de diseño**: la unidad de conteo NO es "1 carga = 2 buzones juntos" — son dos unidades
+  independientes por carga (SUNAT y SUNAFIL), cada una con su propio veredicto on_time/late/pending.
+
+### 5.9.6.2 Lo que NO coincide — el calendario real está mal configurado (mismo problema que PDT601/621 antes de la Sección 2)
+
+Confirmado en la BD: la actividad que hoy alimenta Buzón SOL en setiembre
+(`REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL`, id 162) tiene **`start_day=23, end_day=23,
+due_day=23`** — un solo día fijo del mes, todavía tipada `nps` (nunca se retipeó, quedó fuera del
+alcance de la Sección 2). Con esa configuración, `mailboxDueDaysInWeek` solo encuentra una fecha real
+para la semana que contiene el día 23; las otras 3 semanas caen al reparto matemático artificial
+(`mailboxSlotDefaultDueDay`), que no corresponde a miércoles ni a sábado reales.
+
+✅ **DECIDIDO (2026-09-17, confirmado por el usuario)**: hay que corregir esto — las cargas del mes
+siempre son 8 (2 por semana × 4 semanas), y el día exacto (miércoles/sábado) es **movible por feriados**
+vía el mismo mecanismo de arrastrar-y-soltar del calendario que ya existe para otras actividades (si un
+sábado cae feriado, la carga se mueve a viernes o lunes).
+
+**Esto implica una limitación de código, no solo de datos** — a diferencia de PDT601/621 (2 y 6
+actividades por período, elegidas por **dígito de RUC** vía `PickCalendarActivityByDigit`), Buzón SOL
+necesitaría **8 actividades de calendario por mes** (una por cada ocurrencia de miércoles/sábado),
+elegidas por **coincidencia de semana/slot**, no por RUC — un criterio de selección distinto que hoy no
+existe. `FindSunatInboxCalendarActivity` (`sunat_inbox_timeliness.go:18-49`) solo trae **una** actividad
+por período (`First(&act)`, ordenada por `due_day`) — con 8 actividades reales configuradas, seguiría
+trayendo solo la primera e ignorando las otras 7. Se necesita una función nueva, análoga a
+`CalendarActivitiesForType`+`PickCalendarActivityByDigit`, pero que elija por semana/slot en vez de por
+dígito.
+
+### 5.9.6.3 `weeksInPeriodYM` no siempre da exactamente 4 semanas — resuelto, no afecta el conteo
+
+Se le consultó al usuario si la semana parcial de inicio/fin de mes (setiembre 2026: 1-2 de setiembre,
+antes del primer lunes 7) suma cargas extra. ✅ **RESUELTO (2026-09-17)**: no — **las cargas del mes
+son siempre 8**, sin importar cuántas "semanas" tenga el calendario según `weeksInPeriodYM`. Lo normal
+es 2 por semana × 4 semanas, pero el día concreto es movible (feriados); lo que se evalúa siempre es la
+hora de carga contra el slot que le corresponde, no la cantidad de "semanas" que devuelva ese helper.
+
+**Implicación de diseño importante**: `weeksInPeriodYM` (y el parámetro `week_start` que se ve en la
+URL del módulo, `/assistant/activities/sunat-inbox?period_ym=...&week_start=...`) es un eje de
+**navegación/carga** (para que el asistente sepa en qué semana subir su captura) — **no** es el eje que
+debe usarse para calcular el cumplimiento mensual. El modelo de cumplimiento debe tratarse como **8
+slots fijos por mes**, cada uno con su propia actividad de calendario (día específico, movible), igual
+en espíritu a como PDT 621 tiene 6 actividades fijas por grupo de RUC — no como "N semanas que
+resulten de iterar el mes".
+
+### 5.9.6.4 Definición final de la unidad de conteo — confirmado 2026-09-17
+
+✅ **DECIDIDO**: SUNAT y SUNAFIL cuentan **por separado** (no un AND) — **16 unidades por mes**
+(8 slots × 2 buzones), cada una con su propio veredicto `on_time`/`late`/`pending`/`missing`. Fórmula:
+`% = unidades on_time / (on_time + late + missing)` — igual que el resto de la Sección 5.9 (§5.9.3),
+`pending` excluido del denominador (✅ confirmado en §5.9.2, ya no está abierto).
+
+~~❓ Pregunta que nunca se había hecho: PDT 601 tiene `sin_planilla`/`suspendida` como exención,
+Detracciones tiene `sin_clave`/`no_corresponde` — Buzón SOL no tiene ningún mecanismo de exención hoy
+(`exempt` hardcodeado en `false`). ¿Existe algún caso real donde una empresa no deba controlarse por
+Buzón SOL?~~ **✅ RESUELTA en §5.9.7**: sí hacía falta, y quedó resuelta de yapa — Buzón SOL ahora
+también lee `control.Suspendida` (el campo global compartido de §5.9.7), sin necesitar ningún mecanismo
+propio. Dejo la pregunta original tachada, no borrada, como registro de por qué se llegó a §5.9.7.
+
+### 5.9.6.5 Checklist Buzón SOL (se suma al checklist general de §5.9.5)
+
+- [x] Confirmar §5.9.6.3 (semana parcial no suma cargas — siempre 8 fijas) y §5.9.6.4 (16 unidades/mes,
+      SUNAT+SUNAFIL por separado).
+- [ ] Retipear la plantilla `REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL` a `sunat_inbox` (mismo
+      trabajo de datos que se hizo para PDT601/621 en la Sección 2, vía el catálogo de actividades).
+- [ ] Configurar 8 actividades de calendario reales por mes (una por miércoles/sábado), en vez de 1 con
+      `start_day`/`end_day` — permite además que cada una se mueva individualmente por feriado.
+- [ ] Backend: nueva función de selección por slot fijo (análoga a
+      `CalendarActivitiesForType`/`PickCalendarActivityByDigit`, pero con criterio de "slot 1 a 8 del
+      mes", no de RUC ni de semana calendario) — reemplaza el `First()` único de
+      `FindSunatInboxCalendarActivity`.
+- [ ] Backend: construir la función de resumen por empresa/período que suma las 16 unidades on_time/
+      late/pending del mes.
+
+## 5.9.7 "Suspendida" pasa a ser global por período (2026-09-17)
+
+### 5.9.7.1 Contexto y decisión
+
+El usuario notó que "suspendida" hoy vive por separado en cada módulo (PDT601, PDT621) y pidió
+manejarlo de forma global: si una empresa está suspendida, **ninguna** de sus actividades del
+calendario debe contar para el cumplimiento — sin tener que marcarlo módulo por módulo.
+
+✅ **DECIDIDO (2026-09-17)**:
+- **Por período**, no persistente a nivel empresa — se marca en la "carpeta" compartida
+  (`SupervisorMonthlyControl`, 1 por empresa+período, la misma que se explicó en §5.9.0), no en
+  `Company`. Si sigue suspendida el mes siguiente, se vuelve a marcar ese período — mismo criterio que
+  ya usa hoy PDT601/621 (no es un cambio de comportamiento, solo de dónde vive el dato).
+- **Sigue apareciendo en listados y exports Excel** de PDT 601/621 (y ahora también Detracciones) **con
+  su estado real** ("Suspendida") — no desaparece de la vista. Esto ya es así hoy para PDT601/621
+  (`pdt601DisplayStatus` prioriza Suspendida sobre el resto), no cambia.
+- **No cuenta para "Cumplimiento %"** — es la 5ª categoría "exempt" de §5.9.3, igual que
+  `sin_planilla`/`sin_clave`/`no_corresponde`.
+- **Debe verse cuántas empresas están suspendidas**, de forma coherente entre módulos — hoy cada
+  módulo tiene su propio mini-stat "Suspendida" (`PdtMiniStat`); con el campo compartido, PDT601 y
+  PDT621 van a mostrar **el mismo número** para un período dado (antes podían diferir, ya que cada uno
+  tenía su propio flag) — eso es intencional, es la prueba de que quedó unificado.
+- **Detracciones necesita un botón nuevo** — hoy no tiene forma de marcar una empresa suspendida (solo
+  tiene `sin_clave`/`no_corresponde`, conceptos distintos a "suspendida temporalmente"). Hay que
+  agregarlo a `DetraccionesDetailPage.tsx`.
+
+### 5.9.7.2 Cómo funciona hoy (investigado, para no romper la UX que ya funciona)
+
+`Suspendida` vive hoy en `SupervisorPdt601Planilla.Suspendida`/`SupervisorPdt621Record.Suspendida`
+(campo propio de cada módulo) — confirmado en BD: solo 2 empresas marcadas así hoy (ambas en PDT601,
+agosto 2026; cero en PDT621 — otra prueba de que no está ni siquiera sincronizado entre los dos
+módulos hermanos). En el frontend (`Pdt601DetailPage.tsx:694-718`) es un checkbox dentro del propio
+formulario de planilla: al marcarlo, bloquea **todo** el resto del formulario (fuerza una nota fija en
+Observaciones, es mutuamente excluyente con "Sin planilla", bloquea Aprobar/Observar), y lo puede
+marcar tanto el asistente como el supervisor. Este comportamiento visual/UX **se mantiene igual** — lo
+que cambia es a qué campo escribe.
+
+También se confirmó: no existe ningún flag persistente de "empresa suspendida" a nivel `Company` — lo
+único parecido es el "estado"/"condición" de SUNAT que se trae una sola vez al crear la empresa (vía
+ApiPeru.dev), como aviso transitorio, no como dato que se vuelva a consultar. No es la misma fuente ni
+sirve para este propósito (no se actualiza solo si SUNAT cambia el estado del RUC después).
+
+### 5.9.7.3 Diseño propuesto — ✅ confirmado 2026-09-17: Detracciones es el ÚNICO lugar donde se marca
+
+El usuario aclaró algo importante que cambia el diseño: **Control de Detracciones es la primera
+actividad del flujo del estudio cada período** — por eso es el único lugar donde se marca/desmarca
+"suspendida". Los demás módulos (PDT 601, PDT 621, Buzón SOL) son **de solo lectura** para esto: si
+otro usuario entra a esas pantallas, simplemente ve "Suspendida" y no puede hacer nada más ahí — no
+hay un botón propio para marcarlo desde esos otros módulos.
+
+1. **Backend**: agregar `Suspendida bool` a `SupervisorMonthlyControl` (campo nuevo, default `false`).
+2. **Backend**: los puntos que hoy calculan "exempt" pasan a leer `control.Suspendida`:
+   - `isExempt` en `pdtBucketsSelectSQL` (hoy: `pl.suspendida`/`r.suspendida` por tipo) — agregar `OR
+     c.suspendida` (con `c` = `supervisor_monthly_controls`, ya está en el JOIN).
+   - `detraccionesIsExemptStatus` — hoy solo mira el status de la declaración; pasa a mirar también
+     `control.Suspendida`.
+   - `enrichSunatInboxMailboxSideTimeliness` — **responde la pregunta abierta de §5.9.6.4**: Buzón SOL
+     no tenía NINGÚN mecanismo de exención (`exempt` hardcodeado en `false`); ahora sí lo tiene, vía
+     este mismo campo compartido — sin necesitar nada propio de Buzón SOL.
+3. **Backend**: endpoint para marcar/desmarcar, expuesto **solo** desde el flujo de Detracciones (p.
+   ej. parte de `SaveDetraccionesXxx` o un endpoint dedicado llamado únicamente por
+   `DetraccionesDetailPage.tsx`) — no expuesto desde PDT601/621.
+4. **Frontend — Detracciones (`DetraccionesDetailPage.tsx`)**: agregar el checkbox/botón nuevo
+   ("Marcar como suspendida"), con el mismo bloqueo total del resto del formulario mientras esté
+   marcada — mismo patrón UX que ya existe hoy en PDT601 (§5.9.7.2), aplicado acá por primera vez.
+5. **Frontend — PDT601/PDT621**: **se saca el checkbox** de `Pdt601DetailPage.tsx`/
+   `Pdt621DetailPage.tsx` (ya no se marca desde ahí) — se reemplaza por un aviso de solo lectura
+   ("Esta empresa está suspendida en este período — marcado desde Control de Detracciones") cuando
+   `control.Suspendida` es verdadero, con el mismo bloqueo del resto del formulario que ya tenían. **Los
+   filtros de listado ("Suspendida" en `PDT601_STATUS_FILTER`/equivalente PDT621) siguen funcionando
+   igual** — siguen mostrando las empresas suspendidas, solo cambia de dónde sale el dato.
+6. **Migración**: ✅ **confirmado** — las 2 filas ya marcadas suspendidas en `Pdt601Planilla` se migran
+   a `control.Suspendida`, y los campos viejos (`Pdt601Planilla.Suspendida`/`Pdt621Record.Suspendida`)
+   **se eliminan** después de migrar — no se mantienen dos fuentes de verdad.
+
+### 5.9.7.4 Una pregunta que queda, derivada de la aclaración de arriba
+
+Con Detracciones como único lugar de marcado, con bloqueo total del formulario (punto 4) — ¿es
+correcto asumir que **Buzón SOL no necesita ningún control propio, ni de lectura especial** más allá
+de excluir esas empresas del cálculo de cumplimiento (§5.9.7.3 punto 2)? Dado que Buzón SOL no tiene
+una pantalla de "detalle por empresa" igual a las otras (es captura semanal por slot), no veo dónde
+mostraría un aviso de "suspendida" aunque quisiera — solo lo dejaría afuera del cálculo, sin avisar
+visualmente en esa pantalla. Confirmame si eso es suficiente o si hace falta algo más ahí.
+
+### 5.9.7.5 Checklist
+
+- [x] Confirmar §5.9.7.4 — ✅ resuelto en §5.9.8: Buzón SOL sí necesita aviso visual (badge en el
+      listado), no queda sin ningún indicador.
+- [x] Backend: agregar `SupervisorMonthlyControl.Suspendida` + migración
+      (`migSuspendidaGlobalPorControl`, `supervisor_migrations.go`).
+- [x] Backend: endpoint de marcar/desmarcar (`PUT .../detracciones/companies/:companyId/suspendida`,
+      `DetraccionesSetSuspendidaAPI`), expuesto solo desde el flujo de Detracciones.
+- [x] Backend: `isExempt` (PDT601/621) y `detraccionesIsExemptStatus`/`computeDetraccionesTimeliness`
+      leen el campo compartido. Buzón SOL (`enrichSunatInboxMailboxSideTimeliness`) **no** se tocó —
+      su timeliness no distinguía exención por suspendida antes de este cambio tampoco; el badge de
+      §5.9.8 es solo visual, no afecta su cálculo de puntualidad (queda anotado como pendiente si se
+      necesita más adelante).
+- [x] Backend: migradas las filas existentes y **eliminados** los campos viejos
+      (`Pdt601Planilla.Suspendida`/`Pdt621Record.Suspendida`) — incluye los tipos TypeScript
+      correspondientes (`Pdt601Planilla`/`Pdt621Record`/`*Input` en `frontend/src/services/`).
+- [x] Frontend: control de suspensión (checkbox + bloqueo total del formulario) agregado a
+      `DetraccionesDetailPage.tsx`.
+- [x] Frontend: checkbox sacado de `Pdt601DetailPage.tsx`/`Pdt621DetailPage.tsx`, reemplazado por
+      aviso de solo lectura cuando `control_suspendida` es verdadero — bloquea el resto del formulario
+      (`formLocked = declarationLocked || controlSuspendida`).
+- [x] Frontend: badge "Suspendida" en el listado de Buzón SOL (§5.9.8) — ver nota de alcance en
+      §5.9.8, se mantiene la grilla de slots visible junto al badge (no se ocultó).
+- [ ] Verificar que los mini-stats "Suspendida" de PDT601 y PDT621 den el mismo número para un mismo
+      período — no verificado manualmente contra datos reales todavía (sí cubierto por los tests
+      unitarios `TestPdt601BlockedWhenControlSuspendida`/`TestPdt621BlockedWhenControlSuspendida`).
+
+## 5.9.8 Buzón SOL — sí necesita aviso visual de suspendida (2026-09-17)
+
+✅ **DECIDIDO**: aunque Buzón SOL no tiene pantalla de detalle por empresa (es captura semanal por
+slot), **sí hace falta mostrar algo** para las empresas suspendidas — el usuario señaló el riesgo real:
+si una empresa suspendida simplemente desaparece de la vista sin ninguna marca, alguien puede pensar
+que la empresa se eliminó o que algo falló, en vez de entender que está suspendida a propósito.
+
+**Dónde mostrarlo**: en el listado semanal (`ListSunatInbox`/`ListSunatInboxMonth`,
+`/assistant/activities/sunat-inbox`), la empresa debe seguir apareciendo en la fila (no ocultarse) con
+un indicador visual de "Suspendida" — mismo criterio visual que ya usan PDT601/621/Detracciones (badge
+morado, fuera de la grilla de slots normal). No hace falta un aviso "de formulario" porque no hay
+formulario por empresa acá, alcanza con la marca en la fila del listado.
+
+### 5.9.8 Checklist
+
+- [x] Backend: `SunatInboxListRow`/`SunatInboxExportRow` exponen `suspendida` (leído de
+      `control.Suspendida`, §5.9.7).
+- [x] Frontend: fila de empresa suspendida en el listado semanal/mensual de Buzón SOL — badge morado
+      "Suspendida" junto al nombre. **Desviación de lo documentado**: se mantiene la grilla de slots
+      normal visible (no se ocultó) — más simple de implementar y no pierde información si la
+      suspensión fue reciente; revisar con el usuario si de verdad hace falta ocultarla.
+
+## 5.9.9 Alerta de arrastre de suspensión entre períodos (2026-09-17)
+
+### 5.9.9.1 El problema
+
+Como "suspendida" es **por período** (§5.9.7 — no persiste sola de un mes al otro), una empresa
+suspendida en agosto vuelve a `false` automáticamente en setiembre en cuanto se bootstrapea el control
+nuevo — nadie decide activamente "reactivarla", simplemente el campo nace en `false` porque es un
+control nuevo. Si la empresa sigue realmente suspendida (situación que dura varios meses en la
+práctica — SUNAT no reactiva un RUC de un día para el otro), alguien tiene que acordarse de volver a
+marcarla, mes a mes, o se cuela como si estuviera activa de nuevo sin que nadie lo haya decidido así.
+
+### 5.9.9.2 Diseño — ✅ confirmado (título histórico: originalmente "pendiente de precisar")
+
+✅ **DECIDIDO en principio**: al entrar a un período nuevo, si el período anterior tenía empresas
+suspendidas, mostrar una alerta/modal informando la lista y preguntando qué hacer — **no es todo o
+nada**: debe permitir elegir, empresa por empresa, cuáles se mantienen suspendidas para el nuevo
+período y cuáles se reactivan.
+
+Como Detracciones es el único lugar donde se marca/desmarca suspensión (§5.9.7.3), este modal
+naturalmente pertenece a **Control de Detracciones** — es coherente con "la primera actividad del
+período".
+
+Propuesta de mecánica:
+1. Se agrega `SuspensionCarryOverResolved bool` a `SupervisorPeriod` (default `false`) — para saber si
+   ya se resolvió el arrastre de este período o todavía no, y no repetir la alerta cada vez que alguien
+   entra.
+2. Al abrir Control de Detracciones para un período con `SuspensionCarryOverResolved = false` **y** el
+   período anterior tiene al menos 1 empresa con `control.Suspendida = true`: se muestra el modal —
+   lista de esas empresas, cada una con un checkbox marcado por defecto (mantener suspendida), el
+   usuario puede destildar las que quiere reactivar, confirma, y eso:
+   - aplica `Suspendida = true` al control de este período para las que quedaron tildadas,
+   - deja `Suspendida = false` (el valor por defecto) para las destildadas,
+   - marca `SuspensionCarryOverResolved = true` para no volver a preguntar.
+3. ✅ **CONFIRMADO (2026-09-17)**: si nadie interactúa con el modal (lo cierra sin decidir), **vuelve a
+   aparecer** la próxima vez que alguien entre a Detracciones de ese período — no se asume "reactivar
+   todas" por defecto.
+
+### 5.9.9.3 Permisos — ✅ confirmado, sin restricción por ahora
+
+✅ **CONFIRMADO (2026-09-17)**: por ahora, **cualquier usuario** que entre a Detracciones puede ver y
+resolver el modal, sin restricción de permiso — el usuario aclaró que en la práctica así debería
+trabajar hoy. Queda **anotado como pendiente a decidir más adelante** si conviene acotarlo a un
+permiso de gestión/aprobación (p. ej. para que un asistente no reactive por su cuenta una empresa
+suspendida) — no bloquea esta implementación, es una mejora futura.
+
+### 5.9.9.4 Concurrencia — dos usuarios resolviendo el mismo modal al mismo tiempo
+
+El usuario señaló un caso real no cubierto: si **dos usuarios entran al mismo tiempo** a un período con
+el arrastre sin resolver, ambos ven el modal, y cada uno guarda una decisión **distinta** (p. ej. uno
+mantiene las 5 empresas suspendidas, el otro reactiva 2 de esas 5) — sin control de concurrencia, el
+segundo guardado pisaría al primero silenciosamente, y nadie sabría cuál de las dos decisiones quedó
+vigente.
+
+✅ **DECIDIDO**: gana **quien guardó primero** — el segundo intento debe rechazarse, no fusionarse ni
+sobrescribir. Mecánica propuesta (compare-and-swap atómico, sin necesitar un lock explícito):
+
+```go
+res := database.DB.Model(&models.SupervisorPeriod{}).
+    Where("id = ? AND suspension_carry_over_resolved = ?", periodID, false).
+    Update("suspension_carry_over_resolved", true)
+if res.RowsAffected == 0 {
+    return errors.New("este arrastre ya fue resuelto por otro usuario — recargá la página")
+}
+// recién acá, adentro del mismo UPDATE ganador, aplicar el bulk update de Suspendida por empresa
+```
+
+El `UPDATE ... WHERE suspension_carry_over_resolved = false` solo puede tener éxito para **uno** de los
+dos guardados simultáneos (el motor de base de datos serializa la fila) — el que llega segundo obtiene
+`RowsAffected = 0` y se rechaza con un mensaje claro, sin tocar ningún dato. El frontend, ante ese
+error, debe recargar el estado del período (ya no va a mostrar el modal, porque `resolved` ya quedó en
+`true`) en vez de reintentar guardar.
+
+### 5.9.9.5 Checklist
+
+- [x] Backend: agregar `SupervisorPeriod.SuspensionCarryOverResolved` — campo en el modelo
+      (`models/supervisor.go`).
+- [x] Backend: endpoint que devuelve las empresas suspendidas del período anterior
+      (`GET .../detracciones/suspension-carry-over`, `GetSuspensionCarryOverStatus`,
+      `supervisor_suspension_carryover.go`).
+- [x] Backend: endpoint que aplica la decisión (`POST .../detracciones/suspension-carry-over/apply`,
+      `ApplySuspensionCarryOver`) — compare-and-swap atómico sobre `suspension_carry_over_resolved`
+      (§5.9.9.4) antes de aplicar `SetDetraccionesSuspendida` por cada empresa que quedó tildada;
+      rechaza con error claro si ya lo resolvió otro usuario, sin tocar ningún dato.
+- [x] Frontend: modal en `DetraccionesListPage.tsx` (`SuspensionCarryOverModal.tsx`, nuevo
+      componente) — se eligió esta página porque es donde se entra primero al período (§5.9.9.2:
+      "Detracciones es la primera actividad"); lista de empresas con checkbox marcado por defecto
+      (mantener suspendida); si el guardado falla, recarga el estado en vez de reintentar; si se cierra
+      sin decidir, no queda nada guardado — vuelve a aparecer la próxima vez que se entre a la página
+      para ese período.
+- [x] Test: `supervisor_suspension_carryover_test.go` —
+      `TestApplySuspensionCarryOver_SecondAttemptFailsCleanly` simula dos guardados sobre el mismo
+      período (llamadas secuenciales al mismo código, no goroutines reales — sqlite en memoria de los
+      tests no da mucho margen para concurrencia real, pero ejercita exactamente la misma rama de
+      compare-and-swap): el segundo falla limpio y no pisa la decisión del primero.
+
+> Nota: "agregar el control de suspensión a `DetraccionesDetailPage.tsx`" y "verificar que los
+> mini-stats coincidan entre PDT601/621" son ítems de §5.9.7.5 (ya están ahí) — se habían duplicado acá
+> por error al escribir esta sección, se sacaron de esta lista para no repetir el mismo trabajo dos
+> veces en dos checklists distintos.
