@@ -14,6 +14,11 @@ export type ActivityTemplate = {
   sort_order: number;
   is_validatable: boolean;
   active: boolean;
+  // Grupo de dígitos de RUC (0-9) al que aplica esta actividad — ambos null/undefined = aplica a
+  // todas las empresas, sin distinción de dígito (docs/diseno-limpieza-control-detail-2026-09-16.md
+  // §2.7b). Van juntos o ninguno.
+  ruc_digit_start?: number | null;
+  ruc_digit_end?: number | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -28,6 +33,8 @@ export type ActivityTemplateCreateInput = {
   sort_order?: number;
   is_validatable?: boolean;
   active?: boolean;
+  ruc_digit_start?: number | null;
+  ruc_digit_end?: number | null;
 };
 
 export type ActivityTemplateUpdateInput = Partial<ActivityTemplateCreateInput>;
@@ -115,6 +122,8 @@ export const activityTemplatesService = {
       sort_order: input.sort_order ?? 0,
       is_validatable: input.is_validatable,
       active: input.active,
+      ruc_digit_start: input.ruc_digit_start ?? null,
+      ruc_digit_end: input.ruc_digit_end ?? null,
     });
     return unwrap(res);
   },
@@ -130,6 +139,10 @@ export const activityTemplatesService = {
     if (input.sort_order !== undefined) body.sort_order = input.sort_order;
     if (input.is_validatable !== undefined) body.is_validatable = input.is_validatable;
     if (input.active !== undefined) body.active = input.active;
+    // Van siempre (aunque sea null) — el backend sobreescribe sin condicionar (mismo patrón que
+    // name/activity_type/etc.), así que omitirlos borraría en silencio un rango ya guardado.
+    body.ruc_digit_start = input.ruc_digit_start ?? null;
+    body.ruc_digit_end = input.ruc_digit_end ?? null;
 
     const res = await client.put<{ data: ActivityTemplate }>(`/finance/activity-templates/${id}`, body);
     return unwrap(res);

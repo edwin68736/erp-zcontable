@@ -124,6 +124,13 @@ func (s *SupervisorService) validateOpenPeriod(periodYM string) error {
 }
 
 func (s *SupervisorService) companyDig(companyID uint) string {
+	return companyDigForID(companyID)
+}
+
+// companyDigForID función de paquete (no atada a SupervisorService) para que otros services del
+// mismo paquete (ej. FinanceCalendarService) también puedan resolver el dígito de RUC de una
+// empresa sin duplicar la consulta — usada desde §2.7b/§2.9.
+func companyDigForID(companyID uint) string {
 	var cred models.CompanyAccessCredential
 	if err := database.DB.Where("company_id = ?", companyID).First(&cred).Error; err != nil {
 		return ""

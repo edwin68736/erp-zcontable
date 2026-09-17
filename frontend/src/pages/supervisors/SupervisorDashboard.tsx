@@ -410,8 +410,6 @@ const SupervisorDashboard = () => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatCard label="Declaraciones observadas" value={data.declarations_observed} icon="fas fa-exclamation-triangle" />
-            <StatCard label="NPS pendientes" value={data.nps_pending} icon="fas fa-receipt" />
-            <StatCard label="Pagos SUNAT" value={data.payments_pending} icon="fas fa-wallet" />
           </div>
 
           <PdtSummarySection

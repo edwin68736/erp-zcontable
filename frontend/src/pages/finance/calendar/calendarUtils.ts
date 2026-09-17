@@ -4,13 +4,11 @@ import type { FinanceCalendarActivity, FinanceCalendarMark } from '../../../serv
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 export const ACTIVITY_KINDS = [
-  { value: 'nps', label: 'Generación NPS' },
   { value: 'pdt_601', label: 'PDT 601' },
   { value: 'pdt_621', label: 'PDT 621' },
   { value: 'sire', label: 'SIRE' },
   { value: 'detracciones', label: 'Detracciones SUNAT' },
   { value: 'sunat_inbox', label: 'Buzón SOL SUNAT – SUNAFIL' },
-  { value: 'payment', label: 'Pagos' },
   { value: 'liquidation', label: 'Liquidación' },
   { value: 'closing', label: 'Cierre contable' },
   { value: 'report', label: 'Reporte' },

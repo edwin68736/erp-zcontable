@@ -13,6 +13,7 @@ const (
 	migDetraccionesStatusF41a      = "supervisor_v1_detracciones_status_f41a"
 	migDetraccionesStatusSimplified = "supervisor_v2_detracciones_status_simplified"
 	migPdt601Pdt621StatusEnum      = "supervisor_v1_pdt601_pdt621_status_enum"
+	migDropNPSTable                = "supervisor_v1_drop_nps_table"
 )
 
 // RunSupervisorMigrations ejecuta migraciones de datos del módulo supervisores (una sola vez).
@@ -28,6 +29,7 @@ func RunSupervisorMigrations(db *gorm.DB) error {
 		{migDetraccionesStatusF41a, migrateDetraccionesStatusF41a},
 		{migDetraccionesStatusSimplified, migrateDetraccionesStatusSimplified},
 		{migPdt601Pdt621StatusEnum, migratePdt601Pdt621StatusEnum},
+		{migDropNPSTable, migrateDropNPSTable},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -265,4 +267,15 @@ func declarationProgressFromStatusForMigration(status string) int {
 	default:
 		return 0
 	}
+}
+
+// migrateDropNPSTable elimina la tabla supervisor_nps — feature "Nota de Pago SUNAT" sin uso real
+// (0 filas en dev y producción, confirmado dos veces contra datos reales; ver
+// docs/diseno-limpieza-control-detail-2026-09-16.md §1). No solo se dejó de referenciar en código:
+// se decidió DROP explícito en vez de dejarla huérfana.
+func migrateDropNPSTable(db *gorm.DB) error {
+	if !db.Migrator().HasTable("supervisor_nps") {
+		return nil
+	}
+	return db.Migrator().DropTable("supervisor_nps")
 }

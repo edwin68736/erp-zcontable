@@ -33,7 +33,7 @@ func TestCreateActivity_FromTemplateSnapshots(t *testing.T) {
 	svc := NewFinanceCalendarService()
 
 	tpl := models.ActivityTemplate{
-		Code: "AC010", Name: "Generación NPS", ActivityType: models.CalendarActivityNPS,
+		Code: "AC010", Name: "Descarga estados de cuenta", ActivityType: models.CalendarActivityDetracciones,
 		Priority: models.SupervisorPriorityAlta, TextColor: "#047857", Icon: "fas fa-file-invoice",
 		Active: true,
 	}
@@ -52,10 +52,10 @@ func TestCreateActivity_FromTemplateSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if dto.Name != "Generación NPS" {
+	if dto.Name != "Descarga estados de cuenta" {
 		t.Fatalf("name=%q", dto.Name)
 	}
-	if dto.ActivityKind != "nps" {
+	if dto.ActivityKind != "detracciones" {
 		t.Fatalf("kind=%q", dto.ActivityKind)
 	}
 	if dto.Priority != "alta" {
@@ -78,7 +78,7 @@ func TestCreateActivity_FromTemplateSnapshots(t *testing.T) {
 	if err := db.First(&stored, dto.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if stored.NameSnapshot != "Generación NPS" || stored.ActivityTypeSnapshot != "nps" {
+	if stored.NameSnapshot != "Descarga estados de cuenta" || stored.ActivityTypeSnapshot != "detracciones" {
 		t.Fatalf("snapshots not stored")
 	}
 }

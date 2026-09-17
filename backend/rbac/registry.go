@@ -150,13 +150,6 @@ var registryDefs = []PermDef{
 	{SupervisorsLiquidationsDelete, ModSupervisores, "Liquidaciones", "Eliminar liquidación tributaria"},
 	{SupervisorsLiquidationsApprove, ModSupervisores, "Liquidaciones", "Aprobar liquidación tributaria"},
 
-	{SupervisorsNPSView, ModSupervisores, "NPS", "Ver NPS"},
-	{SupervisorsNPSCreate, ModSupervisores, "NPS", "Crear NPS"},
-	{SupervisorsNPSUpdate, ModSupervisores, "NPS", "Editar NPS"},
-	{SupervisorsNPSDelete, ModSupervisores, "NPS", "Eliminar NPS"},
-	{SupervisorsNPSGenerate, ModSupervisores, "NPS", "Generar código NPS"},
-	{SupervisorsNPSRegisterPayment, ModSupervisores, "NPS", "Registrar pago NPS"},
-
 	{SupervisorsObservationsView, ModSupervisores, "Observaciones", "Ver observaciones"},
 	{SupervisorsObservationsCreate, ModSupervisores, "Observaciones", "Registrar observaciones"},
 
@@ -258,7 +251,6 @@ var asistenteCodes = []string{
 	SupervisorsControlsView, SupervisorsControlsUpdate,
 	SupervisorsDeclarationsView, SupervisorsDeclarationsUpdate,
 	SupervisorsLiquidationsView, SupervisorsLiquidationsUpdate,
-	SupervisorsNPSView, SupervisorsNPSUpdate,
 	SupervisorsObservationsView, SupervisorsObservationsCreate,
 	SupervisorsHistoryView, SupervisorsAttachmentsUpload, SupervisorsNotificationsView,
 }
@@ -269,7 +261,6 @@ var analistaCodes = []string{
 	SupervisorsControlsView, SupervisorsControlsUpdate,
 	SupervisorsDeclarationsView, SupervisorsDeclarationsUpdate,
 	SupervisorsLiquidationsView, SupervisorsLiquidationsCreate, SupervisorsLiquidationsUpdate,
-	SupervisorsNPSView, SupervisorsNPSUpdate,
 	SupervisorsReportsView,
 	SupervisorsObservationsView, SupervisorsObservationsCreate,
 	SupervisorsHistoryView, SupervisorsAttachmentsUpload, SupervisorsNotificationsView,

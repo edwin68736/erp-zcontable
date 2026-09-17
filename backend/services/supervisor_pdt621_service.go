@@ -181,24 +181,25 @@ func fmtSscanfMonth(periodYM string, month *int) (int, error) {
 	return fmt.Sscanf(periodYM, "%d-%d", &year, month)
 }
 
-// findPdt621CalendarActivity busca la instancia "PDT 621" del calendario financiero para el
-// período (tipo pdt_621), de donde se resuelve la regla de cumplimiento configurada en
-// /settings/activity-configuration — el plazo INTERNO del estudio para que el asistente entregue
-// su parte. Distinto de pdt621ScheduleDueDate (cronograma SUNAT por dígito de RUC), que valida la
-// fecha de declaración; acá no se evalúa nada contra SUNAT, solo la entrega interna del asistente.
-func findPdt621CalendarActivity(periodYM string) *models.FinanceCalendarActivity {
-	act, err := FindCalendarActivityByType(periodYM, models.CalendarActivityPDT621)
+// findPdt621CalendarActivity busca la instancia "PDT 621" del calendario financiero para el período
+// (tipo pdt_621) que le corresponde al dígito de RUC de la empresa — puede haber varias agrupadas por
+// rango de dígitos (docs/diseno-limpieza-control-detail-2026-09-16.md §2.2/§2.7b, 6 grupos hoy), cada
+// una con su propia fecha límite. `dig=""` no distingue (usa la primera/comodín). Distinto de
+// pdt621ScheduleDueDate (cronograma SUNAT por dígito de RUC), que valida la fecha de declaración; acá
+// no se evalúa nada contra SUNAT, solo la entrega interna del asistente.
+func findPdt621CalendarActivity(periodYM, dig string) *models.FinanceCalendarActivity {
+	act, err := FindCalendarActivityByTypeAndDigit(periodYM, models.CalendarActivityPDT621, pdt601DigitFromString(dig))
 	if err != nil {
 		return nil
 	}
 	return act
 }
 
-// pdt621PeriodDueDate fecha límite ÚNICA del período para PDT 621, según el calendario INTERNO de
-// actividades — nunca el cronograma SUNAT (que varía por dígito de RUC, ver findPdt621CalendarActivity
-// arriba). Mismo criterio que pdt601PeriodDueDate; ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§11.
-func pdt621PeriodDueDate(periodYM string) *time.Time {
-	act := findPdt621CalendarActivity(periodYM)
+// pdt621PeriodDueDate fecha límite para PDT 621 según el calendario INTERNO de actividades, **para
+// el dígito de RUC de una empresa específica** (§2.7b) — nunca el cronograma SUNAT (ver
+// findPdt621CalendarActivity arriba). Mismo criterio que pdt601PeriodDueDate.
+func pdt621PeriodDueDate(periodYM, dig string) *time.Time {
+	act := findPdt621CalendarActivity(periodYM, dig)
 	if act == nil {
 		return nil
 	}
@@ -212,6 +213,60 @@ func pdt621PeriodDueDate(periodYM string) *time.Time {
 	}
 	deadline := BuildUploadDeadline(dueDate, rule)
 	return &deadline
+}
+
+// pdt621DueDateCandidates trae y resuelve TODAS las actividades "pdt_621" del período — mismo patrón
+// que pdt601DueDateCandidates (supervisor_pdt601_service.go), reutilizado por el filtro SQL del
+// listado y el desglose del dashboard.
+func pdt621DueDateCandidates(periodYM string) []pdt601DueDateCandidate {
+	var acts []models.FinanceCalendarActivity
+	_ = database.DB.Table("finance_calendar_activities AS a").
+		Select("a.*").
+		Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
+		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, models.CalendarActivityPDT621).
+		Order("a.due_day ASC, a.id ASC").
+		Find(&acts).Error
+	out := make([]pdt601DueDateCandidate, 0, len(acts))
+	for _, act := range acts {
+		dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+		if err != nil {
+			continue
+		}
+		deadline := dueDate
+		if rule, err := LoadActiveActivityRule(act.ActivityRuleID); err == nil && rule != nil {
+			deadline = BuildUploadDeadline(dueDate, rule)
+		}
+		out = append(out, pdt601DueDateCandidate{Start: act.RucDigitStartSnapshot, End: act.RucDigitEndSnapshot, Due: deadline})
+	}
+	return out
+}
+
+// pdt621DueDateSQLCase mismo mecanismo que pdt601DueDateSQLCase (supervisor_pdt601_service.go), para
+// PDT 621.
+func pdt621DueDateSQLCase(periodYM, companyIDExpr string) (sqlExpr string, ok bool) {
+	candidates := pdt621DueDateCandidates(periodYM)
+	if len(candidates) == 0 {
+		return "", false
+	}
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	digExpr := fmt.Sprintf("(SELECT cac.dig FROM company_access_credentials cac WHERE cac.company_id = %s LIMIT 1)", companyIDExpr)
+	var whens []string
+	wildcard := "NULL"
+	for _, c := range candidates {
+		lit := sq(c.Due.Format("2006-01-02 15:04:05"))
+		if c.Start == nil || c.End == nil {
+			wildcard = lit
+			continue
+		}
+		whens = append(whens, fmt.Sprintf(
+			"WHEN CAST(%s AS UNSIGNED) BETWEEN %d AND %d THEN %s",
+			digExpr, *c.Start, *c.End, lit,
+		))
+	}
+	if len(whens) == 0 {
+		return wildcard, true
+	}
+	return "(CASE " + strings.Join(whens, " ") + " ELSE " + wildcard + " END)", true
 }
 
 type pdt621ListResult struct {
@@ -281,11 +336,12 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 		recordDTO = pdt621RecordToDTO(&record)
 	}
 
+	dig := s.companyDig(company.ID)
 	return &Pdt621Detail{
 		PeriodYM:            periodYM,
 		CompanyID:           company.ID,
 		Code:                strings.TrimSpace(company.InternalCode),
-		Dig:                 s.companyDig(company.ID),
+		Dig:                 dig,
 		BusinessName:        strings.TrimSpace(company.BusinessName),
 		RUC:                 strings.TrimSpace(company.RUC),
 		TaxRegime:           strings.TrimSpace(company.TaxRegime),
@@ -294,20 +350,21 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 		ControlDueDate:      ctrl.DueDate,
 		Declaration:         decl,
 		Record:              recordDTO,
-		AssistantTimeliness: pdt621AssistantTimeliness(periodYM, recordDTO),
+		AssistantTimeliness: pdt621AssistantTimeliness(periodYM, dig, recordDTO),
 	}, nil
 }
 
 // pdt621AssistantTimeliness plazo interno del estudio (calendario de actividades, no el cronograma
 // SUNAT) — extraído para reutilizarse tanto en EnsurePdt621 (detalle) como en SavePdt621Record
-// (recalcular tras guardar) sin duplicar la lógica de exempt/deliveredAt.
-func pdt621AssistantTimeliness(periodYM string, recordDTO *Pdt621RecordDTO) string {
+// (recalcular tras guardar) sin duplicar la lógica de exempt/deliveredAt. `dig` es el dígito de RUC
+// de la empresa (§2.7b) — elige la actividad correcta entre las 6 agrupadas por rango.
+func pdt621AssistantTimeliness(periodYM, dig string, recordDTO *Pdt621RecordDTO) string {
 	exempt := recordDTO != nil && recordDTO.Suspendida
 	var primeraEntregaAt *time.Time
 	if recordDTO != nil && recordDTO.PrimeraEntregaFecha != nil {
 		primeraEntregaAt = pdt601ParseDate(*recordDTO.PrimeraEntregaFecha)
 	}
-	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM), primeraEntregaAt, exempt).Timeliness
+	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), primeraEntregaAt, exempt).Timeliness
 }
 
 // GetPdt621Record lectura pura del seguimiento PDT 621 del período (sin crear control/declaración).
@@ -475,34 +532,34 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND r.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt621StatusFilterEntregadoATiempo {
-		due := pdt621PeriodDueDate(p.PeriodYM)
-		if due == nil {
+		dueCase, hasAny := pdt621DueDateSQLCase(p.PeriodYM, "companies.id")
+		if !hasAny {
 			q = q.Where(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
 			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
 		} else {
-			q = q.Where(`EXISTS (
+			q = q.Where(fmt.Sprintf(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND (r.primera_entrega_fecha IS NULL OR r.primera_entrega_fecha <= ?)
-			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+				AND (r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)
+			)`, dueCase, dueCase), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter == pdt621StatusFilterEntregadoFueraDeFecha {
-		due := pdt621PeriodDueDate(p.PeriodYM)
-		if due == nil {
+		dueCase, hasAny := pdt621DueDateSQLCase(p.PeriodYM, "companies.id")
+		if !hasAny {
 			q = q.Where("1 = 0")
 		} else {
-			q = q.Where(`EXISTS (
+			q = q.Where(fmt.Sprintf(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND r.primera_entrega_fecha IS NOT NULL AND r.primera_entrega_fecha > ?
-			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+				AND r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s
+			)`, dueCase, dueCase), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
@@ -593,9 +650,10 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		recordByCompany[records[i].CompanyID] = pdt621RecordToDTO(&rec)
 	}
 
-	// Instancia "PDT 621" del calendario financiero del período (una sola consulta, no por
-	// empresa) — trae la regla de plazo interno asignada en Ajustes, si la hay.
-	pdt621Act := findPdt621CalendarActivity(periodYM)
+	// Instancias "PDT 621" del calendario financiero del período (una sola consulta, no por
+	// empresa) — puede haber varias agrupadas por rango de RUC (§2.7b, 6 grupos hoy); se elige la
+	// que corresponde a cada empresa dentro del loop, por su dígito (`row.Dig`).
+	pdt621Acts, _ := CalendarActivitiesForType(periodYM, models.CalendarActivityPDT621)
 
 	for _, co := range companies {
 		row := Pdt621ListRow{
@@ -656,6 +714,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		if row.Record != nil && row.Record.PrimeraEntregaFecha != nil {
 			primeraEntregaAt = pdt601ParseDate(*row.Record.PrimeraEntregaFecha)
 		}
+		pdt621Act := PickCalendarActivityByDigit(pdt621Acts, pdt601DigitFromString(row.Dig))
 		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, exempt).Timeliness
 
 		rows = append(rows, row)

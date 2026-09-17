@@ -15,17 +15,15 @@ const (
 
 // Tipos de actividad contable global (vinculan cumplimiento con supervisor_*).
 const (
-	CalendarActivityNPS         = "nps"
-	CalendarActivityPDT601        = "pdt_601"
-	CalendarActivityPDT621        = "pdt_621"
-	CalendarActivitySIRE          = "sire"
-	CalendarActivityPayment       = "payment"
-	CalendarActivityLiquidation   = "liquidation"
-	CalendarActivityReport        = "report"
-	CalendarActivityClosing       = "closing"
-	CalendarActivityDetracciones  = "detracciones"
-	CalendarActivitySunatInbox    = "sunat_inbox"
-	CalendarActivityOther         = "other"
+	CalendarActivityPDT601       = "pdt_601"
+	CalendarActivityPDT621       = "pdt_621"
+	CalendarActivitySIRE         = "sire"
+	CalendarActivityLiquidation  = "liquidation"
+	CalendarActivityReport       = "report"
+	CalendarActivityClosing      = "closing"
+	CalendarActivityDetracciones = "detracciones"
+	CalendarActivitySunatInbox   = "sunat_inbox"
+	CalendarActivityOther        = "other"
 )
 
 // FinanceCalendar calendario mensual global de obligaciones contables (no por empresa).
@@ -79,6 +77,11 @@ type FinanceCalendarActivity struct {
 	PrioritySnapshot     string `gorm:"size:20;not null" json:"priority_snapshot,omitempty"`
 	TextColorSnapshot    string `gorm:"size:7;not null" json:"text_color_snapshot,omitempty"`
 	IconSnapshot         string `gorm:"size:80" json:"icon_snapshot,omitempty"`
+	// RucDigitStartSnapshot/RucDigitEndSnapshot: copia congelada del grupo de RUC de la plantilla
+	// (ver ActivityTemplate.RucDigitStart/End) — `nil` en cualquiera de los dos = aplica a todas las
+	// empresas del período, sin distinción de dígito.
+	RucDigitStartSnapshot *int `json:"ruc_digit_start_snapshot,omitempty"`
+	RucDigitEndSnapshot   *int `json:"ruc_digit_end_snapshot,omitempty"`
 
 	StartDay int    `gorm:"not null" json:"start_day"`
 	EndDay   int    `gorm:"not null" json:"end_day"`

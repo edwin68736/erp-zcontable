@@ -25,11 +25,9 @@ var (
 )
 
 var validActivityTypes = map[string]struct{}{
-	models.CalendarActivityNPS:          {},
 	models.CalendarActivityPDT601:       {},
 	models.CalendarActivityPDT621:       {},
 	models.CalendarActivitySIRE:         {},
-	models.CalendarActivityPayment:      {},
 	models.CalendarActivityLiquidation:  {},
 	models.CalendarActivityReport:       {},
 	models.CalendarActivityClosing:      {},
@@ -56,6 +54,10 @@ type ActivityTemplateInput struct {
 	SortOrder     int
 	IsValidatable *bool
 	Active        *bool
+	// RucDigitStart/RucDigitEnd: grupo de dígitos de RUC (0-9) al que aplica esta actividad — ambos
+	// nil = aplica a todas las empresas (docs/diseno-limpieza-control-detail-2026-09-16.md §2.7b).
+	RucDigitStart *int
+	RucDigitEnd   *int
 }
 
 // ActivityTemplateListParams filtros de listado.
@@ -185,6 +187,27 @@ func (s *ActivityTemplateService) normalizeInput(in *ActivityTemplateInput) erro
 	if err := validateTemplateIcon(in.Icon); err != nil {
 		return err
 	}
+	if err := validateRucDigitRange(in.RucDigitStart, in.RucDigitEnd); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateRucDigitRange exige que estén las dos puntas o ninguna, ambas entre 0 y 9, y que el inicio
+// no sea mayor que el fin (docs/diseno-limpieza-control-detail-2026-09-16.md §2.7b).
+func validateRucDigitRange(start, end *int) error {
+	if start == nil && end == nil {
+		return nil
+	}
+	if start == nil || end == nil {
+		return errors.New("ruc_digit_start y ruc_digit_end deben ir juntos, o ninguno")
+	}
+	if *start < 0 || *start > 9 || *end < 0 || *end > 9 {
+		return errors.New("ruc_digit_start/ruc_digit_end deben estar entre 0 y 9")
+	}
+	if *start > *end {
+		return errors.New("ruc_digit_start no puede ser mayor que ruc_digit_end")
+	}
 	return nil
 }
 
@@ -241,6 +264,8 @@ func (s *ActivityTemplateService) Create(in ActivityTemplateInput) (*models.Acti
 			SortOrder:     in.SortOrder,
 			IsValidatable: isValidatable,
 			Active:        active,
+			RucDigitStart: in.RucDigitStart,
+			RucDigitEnd:   in.RucDigitEnd,
 		}
 		return tx.Create(&created).Error
 	})
@@ -266,6 +291,8 @@ func (s *ActivityTemplateService) Update(id uint, in ActivityTemplateInput) (*mo
 	row.TextColor = in.TextColor
 	row.Icon = in.Icon
 	row.SortOrder = in.SortOrder
+	row.RucDigitStart = in.RucDigitStart
+	row.RucDigitEnd = in.RucDigitEnd
 	if in.IsValidatable != nil {
 		row.IsValidatable = *in.IsValidatable
 	}

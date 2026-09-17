@@ -67,22 +67,12 @@ func (ctrl *SupervisorController) ensureDeclarationCompany(c fiber.Ctx, declarat
 	return ctrl.ensureControlCompany(c, controlID)
 }
 
-func (ctrl *SupervisorController) ensureNPSCompany(c fiber.Ctx, npsID uint) error {
-	controlID, err := ctrl.svc.ControlIDForNPS(npsID)
-	if err != nil {
-		return fiber.NewError(fiber.StatusNotFound, "NPS no encontrado")
-	}
-	return ctrl.ensureControlCompany(c, controlID)
-}
-
 func (ctrl *SupervisorController) ensureHistoryEntityAccess(c fiber.Ctx, entityType string, entityID uint) error {
 	switch entityType {
 	case "monthly_control", "control":
 		return ctrl.ensureControlCompany(c, entityID)
 	case "declaration":
 		return ctrl.ensureDeclarationCompany(c, entityID)
-	case "nps":
-		return ctrl.ensureNPSCompany(c, entityID)
 	default:
 		return fiber.NewError(fiber.StatusBadRequest, "entity_type no soportado")
 	}
@@ -768,136 +758,6 @@ func (ctrl *SupervisorController) ObserveLiquidationAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
-// NPS
-func (ctrl *SupervisorController) ListNPSAPI(c fiber.Ctx) error {
-	cid, err := strconv.ParseUint(c.Params("controlId"), 10, 32)
-	if err != nil || cid == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "controlId inválido"})
-	}
-	if err := ctrl.ensureControlCompany(c, uint(cid)); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	rows, err := ctrl.svc.ListNPS(uint(cid))
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{"data": rows})
-}
-
-func (ctrl *SupervisorController) CreateNPSAPI(c fiber.Ctx) error {
-	var body struct {
-		MonthlyControlID uint    `json:"monthly_control_id"`
-		Tributo          string  `json:"tributo"`
-		Importe          float64 `json:"importe"`
-		CodigoNPS        string  `json:"codigo_nps"`
-		PaymentDueDate   *string `json:"payment_due_date"`
-		PaymentStatus    string  `json:"payment_status"`
-		Notes            string  `json:"notes"`
-	}
-	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
-	}
-	if err := ctrl.ensureControlCompany(c, body.MonthlyControlID); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	in := services.SupervisorNPSInput{
-		MonthlyControlID: body.MonthlyControlID,
-		Tributo:          body.Tributo,
-		Importe:          body.Importe,
-		CodigoNPS:        body.CodigoNPS,
-		PaymentStatus:    body.PaymentStatus,
-		Notes:            body.Notes,
-	}
-	if body.PaymentDueDate != nil {
-		t, e := parseDatePtr(*body.PaymentDueDate)
-		if e != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "fecha inválida"})
-		}
-		in.PaymentDueDate = t
-	}
-	row, err := ctrl.svc.CreateNPS(in)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": row})
-}
-
-func (ctrl *SupervisorController) UpdateNPSAPI(c fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
-	if err != nil || id == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
-	}
-	if err := ctrl.ensureNPSCompany(c, uint(id)); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	var body struct {
-		Tributo        string  `json:"tributo"`
-		Importe        float64 `json:"importe"`
-		CodigoNPS      string  `json:"codigo_nps"`
-		PaymentDueDate *string `json:"payment_due_date"`
-		PaymentStatus  string  `json:"payment_status"`
-		Notes          string  `json:"notes"`
-	}
-	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
-	}
-	in := services.SupervisorNPSInput{
-		Tributo: body.Tributo, Importe: body.Importe, CodigoNPS: body.CodigoNPS,
-		PaymentStatus: body.PaymentStatus, Notes: body.Notes,
-	}
-	if body.PaymentDueDate != nil {
-		t, e := parseDatePtr(*body.PaymentDueDate)
-		if e != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "fecha inválida"})
-		}
-		in.PaymentDueDate = t
-	}
-	row, err := ctrl.svc.UpdateNPS(uint(id), in)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{"data": row})
-}
-
-func (ctrl *SupervisorController) GenerateNPSAPI(c fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
-	if err != nil || id == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
-	}
-	if err := ctrl.ensureNPSCompany(c, uint(id)); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	row, err := ctrl.svc.GenerateNPS(uint(id))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{"data": row})
-}
-
-func (ctrl *SupervisorController) DeleteNPSAPI(c fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
-	if err != nil || id == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
-	}
-	if err := ctrl.ensureNPSCompany(c, uint(id)); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	if err := ctrl.svc.DeleteNPS(uint(id)); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{"ok": true})
-}
-
 // Reports
 func (ctrl *SupervisorController) reportListParams(c fiber.Ctx) (services.SupervisorReportListParams, int, int, error) {
 	ym := c.Query("period_ym", "")
@@ -1111,27 +971,6 @@ func (ctrl *SupervisorController) MarkNotificationReadAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"ok": true})
-}
-
-func (ctrl *SupervisorController) RegisterNPSPaymentAPI(c fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
-	if err != nil || id == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
-	}
-	if err := ctrl.ensureNPSCompany(c, uint(id)); err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-	}
-	uid, err := getUserID(c)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
-	}
-	row, err := ctrl.svc.RegisterNPSPayment(uint(id), uid)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(fiber.Map{"data": row})
 }
 
 // DetraccionesListAPI GET /api/supervisors/activity-modules/detracciones

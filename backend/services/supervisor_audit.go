@@ -233,20 +233,6 @@ func (s *SupervisorService) validatePeriodCloseReady(periodYM string) error {
 	return nil
 }
 
-func (s *SupervisorService) RegisterNPSPayment(id uint, userID uint) (*models.SupervisorNPS, error) {
-	var nps models.SupervisorNPS
-	if err := database.DB.First(&nps, id).Error; err != nil {
-		return nil, err
-	}
-	old := nps.PaymentStatus
-	nps.PaymentStatus = models.SupervisorNPSPagado
-	if err := database.DB.Save(&nps).Error; err != nil {
-		return nil, err
-	}
-	s.LogChange("nps", id, "payment_status", old, nps.PaymentStatus, userID)
-	return &nps, nil
-}
-
 type SupervisorDashboardParams struct {
 	PeriodYM          string
 	CompanyID         uint
@@ -285,7 +271,6 @@ func (s *SupervisorService) RunAutomations(periodYM string) error {
 		return nil
 	}
 	_, _ = s.SyncOverdueControls(periodYM, nil)
-	_, _ = s.SyncOverdueNPS(periodYM)
 
 	var controls []models.SupervisorMonthlyControl
 	if err := database.DB.Where("period_ym = ?", periodYM).Find(&controls).Error; err != nil {

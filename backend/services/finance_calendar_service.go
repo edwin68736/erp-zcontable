@@ -184,6 +184,8 @@ func applySnapshotsFromTemplate(a *models.FinanceCalendarActivity, tpl *models.A
 		a.IconSnapshot = ""
 	}
 	a.ActivityRuleID = tpl.ActivityRuleID
+	a.RucDigitStartSnapshot = tpl.RucDigitStart
+	a.RucDigitEndSnapshot = tpl.RucDigitEnd
 }
 
 func (s *FinanceCalendarService) loadTemplateCodes(ids []uint) map[uint]string {
@@ -482,6 +484,8 @@ func (s *FinanceCalendarService) DuplicateCalendar(fromYM, toYM string, opts Dup
 				TextColorSnapshot:    a.TextColorSnapshot,
 				IconSnapshot:         a.IconSnapshot,
 				ActivityRuleID:       a.ActivityRuleID,
+				RucDigitStartSnapshot: a.RucDigitStartSnapshot,
+				RucDigitEndSnapshot:   a.RucDigitEndSnapshot,
 				StartDay:             startDay,
 				EndDay:               endDay,
 				DueDay:               dueDay,
@@ -635,7 +639,15 @@ func (s *FinanceCalendarService) DeleteActivity(id uint) error {
 	return database.DB.Delete(&models.FinanceCalendarActivity{}, id).Error
 }
 
-func declarationComplete(status string) bool {
+// declarationComplete — pdt_601/pdt_621 usan el enum reducido de 4 valores desde el rediseño
+// (docs/diseno-estados-pdt601-pdt621-2026-09-16.md): "completa" = entregado. SIRE se quedó fuera de
+// ese rediseño a propósito y sigue con el enum viejo de 7 valores (docs/diseno-limpieza-control-
+// detail-2026-09-16.md §2.1 nota) — de ahí la distinción por tipo acá, antes no hacía falta porque
+// pdt_601/pdt_621/sire compartían el mismo enum viejo.
+func declarationComplete(declarationType, status string) bool {
+	if isPdt601Pdt621DeclarationType(declarationType) {
+		return status == models.SupervisorDeclEntregado
+	}
 	return status == models.SupervisorDeclAprobado ||
 		status == models.SupervisorDeclPresentado ||
 		status == models.SupervisorDeclCerrado
@@ -655,57 +667,53 @@ func (s *FinanceCalendarService) companyCompliance(
 
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	d := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, time.Local)
-	markOverdue := func() string {
-		if d.Before(today) {
-			return "vencida"
+	markOverdueFor := func(d time.Time) func() string {
+		dd := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local)
+		return func() string {
+			if dd.Before(today) {
+				return "vencida"
+			}
+			return "pendiente"
 		}
-		return "pendiente"
 	}
+	markOverdue := markOverdueFor(due)
 
 	switch kind {
-	case models.CalendarActivityPDT601, models.CalendarActivityPDT621, models.CalendarActivitySIRE:
+	case models.CalendarActivityPDT601, models.CalendarActivityPDT621:
 		var decl models.SupervisorDeclaration
 		if err := database.DB.Where("monthly_control_id = ? AND declaration_type = ?", ctrl.ID, kind).
 			First(&decl).Error; err != nil {
 			return markOverdue(), "Declaración no encontrada"
 		}
-		if declarationComplete(decl.Status) {
+		// La fecha límite varía por grupo de RUC de la empresa (docs/diseno-limpieza-control-detail-
+		// 2026-09-16.md §2.7b/§2.9) — `due` es la de la actividad específica que se está viendo (una
+		// entre varias posibles agrupadas por RUC), no necesariamente la que le corresponde a ESTA
+		// empresa. Se reemplaza por la del grupo correcto si hay un candidato mejor para su dígito.
+		dueForCompany := due
+		var candidates []pdt601DueDateCandidate
+		if kind == models.CalendarActivityPDT601 {
+			candidates = pdt601DueDateCandidates(periodYM)
+		} else {
+			candidates = pdt621DueDateCandidates(periodYM)
+		}
+		if cand := pickDueDateCandidateByDigit(candidates, pdt601DigitFromString(companyDigForID(companyID))); cand != nil {
+			dueForCompany = cand.Due
+		}
+		if declarationComplete(kind, decl.Status) {
+			return "completada", declarationStatusLabel(decl.Status)
+		}
+		return markOverdueFor(dueForCompany)(), declarationStatusLabel(decl.Status)
+
+	case models.CalendarActivitySIRE:
+		var decl models.SupervisorDeclaration
+		if err := database.DB.Where("monthly_control_id = ? AND declaration_type = ?", ctrl.ID, kind).
+			First(&decl).Error; err != nil {
+			return markOverdue(), "Declaración no encontrada"
+		}
+		if declarationComplete(kind, decl.Status) {
 			return "completada", declarationStatusLabel(decl.Status)
 		}
 		return markOverdue(), declarationStatusLabel(decl.Status)
-
-	case models.CalendarActivityNPS:
-		var total int64
-		_ = database.DB.Model(&models.SupervisorNPS{}).Where("monthly_control_id = ?", ctrl.ID).Count(&total).Error
-		if total == 0 {
-			return markOverdue(), "Sin NPS registrados"
-		}
-		var done int64
-		_ = database.DB.Model(&models.SupervisorNPS{}).
-			Where("monthly_control_id = ? AND payment_status NOT IN ?", ctrl.ID,
-				[]string{models.SupervisorNPSPendienteGenerar}).
-			Count(&done).Error
-		if done > 0 {
-			return "completada", "NPS generado o en gestión"
-		}
-		return markOverdue(), "NPS pendiente de generar"
-
-	case models.CalendarActivityPayment:
-		var pending int64
-		_ = database.DB.Model(&models.SupervisorNPS{}).
-			Where("monthly_control_id = ? AND payment_status IN ?", ctrl.ID,
-				[]string{models.SupervisorNPSPendientePago, models.SupervisorNPSVencido, models.SupervisorNPSPendienteGenerar, models.SupervisorNPSGenerado, models.SupervisorNPSEnviadoCliente}).
-			Count(&pending).Error
-		if pending == 0 {
-			var any int64
-			_ = database.DB.Model(&models.SupervisorNPS{}).Where("monthly_control_id = ?", ctrl.ID).Count(&any).Error
-			if any == 0 {
-				return markOverdue(), "Sin NPS"
-			}
-			return "completada", "Pagos al día"
-		}
-		return markOverdue(), "Pagos pendientes"
 
 	case models.CalendarActivityLiquidation:
 		var liq models.SupervisorTaxLiquidation

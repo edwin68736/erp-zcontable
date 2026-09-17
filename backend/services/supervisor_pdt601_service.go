@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -179,26 +181,42 @@ func pdt601DateString(t *time.Time) *string {
 	return &s
 }
 
-// findPdt601CalendarActivity busca la instancia "PDT 601" del calendario financiero
-// para el período (tipo pdt_601), de donde se resuelve la regla de cumplimiento
-// configurada en /settings/activity-configuration. Nil si aún no está en el calendario.
-func findPdt601CalendarActivity(periodYM string) *models.FinanceCalendarActivity {
-	act, err := FindCalendarActivityByType(periodYM, models.CalendarActivityPDT601)
+// pdt601DigitFromString parsea un dígito de RUC ("0".."9", mismo formato que
+// CompanyAccessCredential.Dig) a *int — nil si viene vacío o inválido (sin distinguir por dígito).
+func pdt601DigitFromString(dig string) *int {
+	dig = strings.TrimSpace(dig)
+	if dig == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(dig)
+	if err != nil || n < 0 || n > 9 {
+		return nil
+	}
+	return &n
+}
+
+// findPdt601CalendarActivity busca la instancia "PDT 601" del calendario financiero para el período
+// (tipo pdt_601) que le corresponde al dígito de RUC de la empresa — puede haber varias agrupadas por
+// rango de dígitos (docs/diseno-limpieza-control-detail-2026-09-16.md §2.2/§2.7b), cada una con su
+// propia fecha límite. `dig=""` no distingue (usa la primera/comodín, mismo comportamiento que antes
+// de §2.7b). Nil si aún no está en el calendario.
+func findPdt601CalendarActivity(periodYM, dig string) *models.FinanceCalendarActivity {
+	act, err := FindCalendarActivityByTypeAndDigit(periodYM, models.CalendarActivityPDT601, pdt601DigitFromString(dig))
 	if err != nil {
 		return nil
 	}
 	return act
 }
 
-// pdt601PeriodDueDate fecha límite ÚNICA del período para PDT 601, según el calendario interno de
-// actividades (/settings/activity-configuration) — igual para todas las empresas, nunca por empresa
-// (a diferencia del cronograma SUNAT de PDT 621, que sí varía por dígito de RUC — ese no participa acá,
-// ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§11). Nil si el período no tiene esta
-// actividad configurada en el calendario, o no tiene regla activa asignada — en ese caso no hay nada
+// pdt601PeriodDueDate fecha límite para PDT 601 según el calendario interno de actividades
+// (/settings/activity-configuration), **para el dígito de RUC de una empresa específica** — desde
+// §2.7b ya no es una fecha única para todo el período, el estudio agrupa las plantillas por rango de
+// RUC (2 grupos hoy) igual que ya hacía el cronograma SUNAT de PDT 621. Nil si el período no tiene
+// actividad configurada para ese dígito, o no tiene regla activa asignada — en ese caso no hay nada
 // contra qué comparar, y tanto el filtro como el label tratan la entrega como "a tiempo" (no se
 // castiga por falta de configuración).
-func pdt601PeriodDueDate(periodYM string) *time.Time {
-	act := findPdt601CalendarActivity(periodYM)
+func pdt601PeriodDueDate(periodYM, dig string) *time.Time {
+	act := findPdt601CalendarActivity(periodYM, dig)
 	if act == nil {
 		return nil
 	}
@@ -212,6 +230,107 @@ func pdt601PeriodDueDate(periodYM string) *time.Time {
 	}
 	deadline := BuildUploadDeadline(dueDate, rule)
 	return &deadline
+}
+
+// pdt601DueDateCandidate una actividad "pdt_601" del período ya resuelta a fecha límite absoluta
+// (día + regla), con su rango de dígitos — usada para construir el CASE SQL de §2.7b sin repetir la
+// consulta a `finance_calendar_activities` por cada empresa.
+type pdt601DueDateCandidate struct {
+	Start, End *int
+	Due        time.Time
+}
+
+// pdt601DueDateCandidates trae y resuelve TODAS las actividades "pdt_601" del período — una sola
+// consulta, reutilizada tanto por el filtro SQL del listado como por el desglose del dashboard.
+func pdt601DueDateCandidates(periodYM string) []pdt601DueDateCandidate {
+	var acts []models.FinanceCalendarActivity
+	_ = database.DB.Table("finance_calendar_activities AS a").
+		Select("a.*").
+		Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
+		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, models.CalendarActivityPDT601).
+		Order("a.due_day ASC, a.id ASC").
+		Find(&acts).Error
+	out := make([]pdt601DueDateCandidate, 0, len(acts))
+	for _, act := range acts {
+		dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+		if err != nil {
+			continue
+		}
+		deadline := dueDate
+		if rule, err := LoadActiveActivityRule(act.ActivityRuleID); err == nil && rule != nil {
+			deadline = BuildUploadDeadline(dueDate, rule)
+		}
+		out = append(out, pdt601DueDateCandidate{Start: act.RucDigitStartSnapshot, End: act.RucDigitEndSnapshot, Due: deadline})
+	}
+	return out
+}
+
+// pickDueDateCandidateByDigit elige, entre varios candidatos ya resueltos (pdt601DueDateCandidates/
+// pdt621DueDateCandidates), el que le corresponde a `rucDigit` — mismo criterio que
+// `PickCalendarActivityByDigit` (calendar_activity_timeliness.go) pero sobre fechas ya resueltas en
+// vez de actividades crudas (usado por `companyCompliance`, §2.9, que ya tiene un `due` por defecto
+// que solo se reemplaza si hay un candidato mejor para el dígito de la empresa).
+func pickDueDateCandidateByDigit(candidates []pdt601DueDateCandidate, rucDigit *int) *pdt601DueDateCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+	var wildcard *pdt601DueDateCandidate
+	for i := range candidates {
+		cand := &candidates[i]
+		if cand.Start == nil || cand.End == nil {
+			if wildcard == nil {
+				wildcard = cand
+			}
+			continue
+		}
+		if rucDigit != nil && *rucDigit >= *cand.Start && *rucDigit <= *cand.End {
+			return cand
+		}
+	}
+	if wildcard != nil {
+		return wildcard
+	}
+	if rucDigit == nil {
+		return &candidates[0]
+	}
+	return nil
+}
+
+// pdt601DueDateSQLCase arma una expresión SQL `CASE` que resuelve la fecha límite que le corresponde
+// a una empresa según su dígito de RUC (subconsulta correlacionada a `company_access_credentials`,
+// contra `companyIDExpr` — la columna/expresión SQL que da el ID de empresa en el contexto de la
+// consulta que la usa: `companies.id` en el listado, `c.company_id` en el dashboard) contra los
+// grupos configurados en el calendario del período — o `NULL` si el dígito de la empresa no cae en
+// ningún grupo y no hay comodín. `ok=false` si no hay ninguna actividad pdt_601 configurada (el
+// caller debe tratarlo igual que antes: "a tiempo" sin castigar por falta de configuración). Los
+// valores en el CASE son literales de constantes internas (nunca input del usuario), igual criterio
+// que `pdtBucketsSelectSQL` en supervisor_service.go.
+func pdt601DueDateSQLCase(periodYM, companyIDExpr string) (sqlExpr string, ok bool) {
+	candidates := pdt601DueDateCandidates(periodYM)
+	if len(candidates) == 0 {
+		return "", false
+	}
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	digExpr := fmt.Sprintf("(SELECT cac.dig FROM company_access_credentials cac WHERE cac.company_id = %s LIMIT 1)", companyIDExpr)
+	var whens []string
+	wildcard := "NULL"
+	for _, c := range candidates {
+		lit := sq(c.Due.Format("2006-01-02 15:04:05"))
+		if c.Start == nil || c.End == nil {
+			wildcard = lit
+			continue
+		}
+		whens = append(whens, fmt.Sprintf(
+			"WHEN CAST(%s AS UNSIGNED) BETWEEN %d AND %d THEN %s",
+			digExpr, *c.Start, *c.End, lit,
+		))
+	}
+	if len(whens) == 0 {
+		// Solo hay comodín (sin ninguna plantilla agrupada por RUC) — no hace falta CASE, un `CASE
+		// ELSE x END` sin ningún WHEN es sintácticamente inválido.
+		return wildcard, true
+	}
+	return "(CASE " + strings.Join(whens, " ") + " ELSE " + wildcard + " END)", true
 }
 
 func maxInt0(n int) int {
@@ -390,13 +509,14 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 	if planillaDTO != nil && planillaDTO.FechaEntrega != nil {
 		deliveredAt = pdt601ParseDate(*planillaDTO.FechaEntrega)
 	}
-	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM), deliveredAt, exempt).Timeliness
+	dig := s.companyDig(company.ID)
+	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, dig), deliveredAt, exempt).Timeliness
 
 	return &Pdt601Detail{
 		PeriodYM:          periodYM,
 		CompanyID:         company.ID,
 		Code:              strings.TrimSpace(company.InternalCode),
-		Dig:               s.companyDig(company.ID),
+		Dig:               dig,
 		BusinessName:      strings.TrimSpace(company.BusinessName),
 		RUC:               strings.TrimSpace(company.RUC),
 		AssistantUsername: assistantUsername(company.Assistant),
@@ -523,7 +643,7 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	// Recalcula con los datos recién guardados — el valor de EnsurePdt601 al principio de esta función
 	// quedó desactualizado (se calculó antes de este guardado).
 	exempt := pl.SinPlanilla || pl.Suspendida
-	detail.Timeliness = ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM), pl.FechaEntrega, exempt).Timeliness
+	detail.Timeliness = ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM, detail.Dig), pl.FechaEntrega, exempt).Timeliness
 	return detail, nil
 }
 
@@ -584,37 +704,39 @@ func pdt601FilteredCompaniesQuery(p Pdt601ListParams) *gorm.DB {
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt601StatusFilterEntregadoATiempo {
-		// Sin fecha límite configurada, cualquier "entregado" cuenta como a tiempo — no se castiga por
-		// falta de configuración (mismo criterio que el label calculado, ver §5/§11 del diseño).
-		due := pdt601PeriodDueDate(p.PeriodYM)
-		if due == nil {
+		// Sin ninguna actividad pdt_601 configurada, cualquier "entregado" cuenta como a tiempo — no
+		// se castiga por falta de configuración (mismo criterio que el label calculado, ver §5/§11 del
+		// diseño). Con actividades configuradas, la fecha límite varía por grupo de RUC de la empresa
+		// (§2.7b) — dueCase es un CASE SQL, no un valor único, resuelto una vez por período.
+		dueCase, hasAny := pdt601DueDateSQLCase(p.PeriodYM, "companies.id")
+		if !hasAny {
 			q = q.Where(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
 			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM)
 		} else {
-			q = q.Where(`EXISTS (
+			q = q.Where(fmt.Sprintf(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND (pl.fecha_entrega IS NULL OR pl.fecha_entrega <= ?)
-			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+				AND (pl.fecha_entrega IS NULL OR %s IS NULL OR pl.fecha_entrega <= %s)
+			)`, dueCase, dueCase), models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter == pdt601StatusFilterEntregadoFueraDeFecha {
-		due := pdt601PeriodDueDate(p.PeriodYM)
-		if due == nil {
-			// Sin fecha límite configurada no hay "fuera de fecha" posible.
+		dueCase, hasAny := pdt601DueDateSQLCase(p.PeriodYM, "companies.id")
+		if !hasAny {
+			// Sin ninguna actividad pdt_601 configurada no hay "fuera de fecha" posible.
 			q = q.Where("1 = 0")
 		} else {
-			q = q.Where(`EXISTS (
+			q = q.Where(fmt.Sprintf(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND pl.fecha_entrega IS NOT NULL AND pl.fecha_entrega > ?
-			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+				AND pl.fecha_entrega IS NOT NULL AND %s IS NOT NULL AND pl.fecha_entrega > %s
+			)`, dueCase, dueCase), models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
@@ -705,9 +827,10 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 		planillaByCompany[planillas[i].CompanyID] = pdt601PlanillaToDTO(&pl)
 	}
 
-	// Instancia "PDT 601" del calendario financiero del período (una sola consulta,
-	// no por empresa): trae la regla de cumplimiento asignada en Ajustes.
-	pdt601Act := findPdt601CalendarActivity(periodYM)
+	// Instancias "PDT 601" del calendario financiero del período (una sola consulta, no por empresa)
+	// — puede haber varias agrupadas por rango de RUC (§2.7b); se elige la que corresponde a cada
+	// empresa dentro del loop, por su dígito (`credDig`).
+	pdt601Acts, _ := CalendarActivitiesForType(periodYM, models.CalendarActivityPDT601)
 
 	for _, co := range companies {
 		row := Pdt601ListRow{
@@ -742,6 +865,7 @@ func (s *SupervisorService) pdt601BuildRows(companies []models.Company, periodYM
 		if row.Planilla != nil && row.Planilla.FechaEntrega != nil {
 			deliveredAt = pdt601ParseDate(*row.Planilla.FechaEntrega)
 		}
+		pdt601Act := PickCalendarActivityByDigit(pdt601Acts, pdt601DigitFromString(credDig[co.ID]))
 		row.Timeliness = ComputeCalendarActivityTimeliness(periodYM, pdt601Act, deliveredAt, exempt).Timeliness
 		rows = append(rows, row)
 	}

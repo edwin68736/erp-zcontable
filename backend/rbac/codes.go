@@ -132,12 +132,6 @@ const (
 	SupervisorsLiquidationsDelete  = "supervisors.liquidations_delete"
 	SupervisorsLiquidationsApprove = "supervisors.liquidations_approve"
 
-	SupervisorsNPSView     = "supervisors.nps_view"
-	SupervisorsNPSCreate   = "supervisors.nps_create"
-	SupervisorsNPSUpdate   = "supervisors.nps_update"
-	SupervisorsNPSDelete   = "supervisors.nps_delete"
-	SupervisorsNPSGenerate = "supervisors.nps_generate"
-
 	SupervisorsReportsView = "supervisors.reports_view"
 
 	SupervisorsObservationsView   = "supervisors.observations_view"
@@ -145,7 +139,6 @@ const (
 	SupervisorsHistoryView        = "supervisors.history_view"
 	SupervisorsAttachmentsUpload  = "supervisors.attachments_upload"
 	SupervisorsNotificationsView  = "supervisors.notifications_view"
-	SupervisorsNPSRegisterPayment = "supervisors.nps_register_payment"
 
 	FinanceCalendarView   = "finance.calendar_view"
 	FinanceCalendarManage = "finance.calendar_manage"

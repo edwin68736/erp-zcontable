@@ -114,15 +114,6 @@ const (
 	SupervisorLiqObservada = "observada"
 )
 
-const (
-	SupervisorNPSPendienteGenerar = "pendiente_generar"
-	SupervisorNPSGenerado         = "generado"
-	SupervisorNPSEnviadoCliente   = "enviado_cliente"
-	SupervisorNPSPendientePago    = "pendiente_pago"
-	SupervisorNPSPagado           = "pagado"
-	SupervisorNPSVencido          = "vencido"
-)
-
 // SupervisorPeriod período mensual del módulo supervisores (YYYY-MM).
 type SupervisorPeriod struct {
 	ID             uint           `gorm:"primaryKey" json:"id"`
@@ -312,23 +303,3 @@ type SupervisorPdt621Record struct {
 }
 
 func (SupervisorPdt621Record) TableName() string { return "supervisor_pdt621_records" }
-
-// SupervisorNPS registro de NPS por control.
-type SupervisorNPS struct {
-	ID               uint           `gorm:"primaryKey" json:"id"`
-	MonthlyControlID uint           `gorm:"not null;index" json:"monthly_control_id"`
-	Tributo          string         `gorm:"size:80;not null" json:"tributo"`
-	Importe          float64        `gorm:"type:decimal(15,2);not null;default:0" json:"importe"`
-	CodigoNPS        string         `gorm:"size:120" json:"codigo_nps,omitempty"`
-	GeneratedAt      *time.Time     `json:"generated_at,omitempty"`
-	PaymentDueDate   *time.Time     `gorm:"type:date" json:"payment_due_date,omitempty"`
-	PaymentStatus    string         `gorm:"size:30;not null;default:'pendiente_generar'" json:"payment_status"`
-	Notes            string         `gorm:"type:text" json:"notes,omitempty"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
-
-	MonthlyControl *SupervisorMonthlyControl `gorm:"foreignKey:MonthlyControlID" json:"monthly_control,omitempty"`
-}
-
-func (SupervisorNPS) TableName() string { return "supervisor_nps" }

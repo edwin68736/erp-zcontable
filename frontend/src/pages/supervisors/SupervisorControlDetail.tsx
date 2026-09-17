@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { resolveBackendUrl } from '../../api/client';
 import SearchableSelect from '../../components/SearchableSelect';
@@ -8,7 +8,6 @@ import {
   type SupervisorChangeLog,
   type SupervisorDeclaration,
   type SupervisorMonthlyControl,
-  type SupervisorNPS,
   type SupervisorObservation,
   type SupervisorTaxLiquidation,
 } from '../../services/supervisors';
@@ -25,7 +24,6 @@ import {
   declarationStatusLabel,
   declarationTypeLabel,
   liquidationValidationLabel,
-  npsStatusLabel,
   priorityLabel,
   riskLevelLabel,
 } from '../../utils/supervisorLabels';
@@ -48,12 +46,6 @@ const SupervisorControlDetail = () => {
   const canLiqView = useMemo(() => auth.hasPermission(P.supervisorsLiquidationsView), []);
   const canLiqUpdate = useMemo(() => auth.hasPermission(P.supervisorsLiquidationsUpdate), []);
   const canLiqApprove = useMemo(() => auth.hasPermission(P.supervisorsLiquidationsApprove), []);
-  const canNpsView = useMemo(() => auth.hasPermission(P.supervisorsNPSView), []);
-  const canNpsCreate = useMemo(() => auth.hasPermission(P.supervisorsNPSCreate), []);
-  const canNpsUpdate = useMemo(() => auth.hasPermission(P.supervisorsNPSUpdate), []);
-  const canNpsGenerate = useMemo(() => auth.hasPermission(P.supervisorsNPSGenerate), []);
-  const canNpsDelete = useMemo(() => auth.hasPermission(P.supervisorsNPSDelete), []);
-  const canNpsPay = useMemo(() => auth.hasPermission(P.supervisorsNPSRegisterPayment), []);
   const canObsView = useMemo(() => auth.hasPermission(P.supervisorsObservationsView), []);
   const canObsCreate = useMemo(() => auth.hasPermission(P.supervisorsObservationsCreate), []);
   const canHistory = useMemo(() => auth.hasPermission(P.supervisorsHistoryView), []);
@@ -76,7 +68,6 @@ const SupervisorControlDetail = () => {
   const [control, setControl] = useState<SupervisorMonthlyControl | null>(null);
   const [declarations, setDeclarations] = useState<SupervisorDeclaration[]>([]);
   const [liquidation, setLiquidation] = useState<SupervisorTaxLiquidation | null>(null);
-  const [npsList, setNpsList] = useState<SupervisorNPS[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [observations, setObservations] = useState<SupervisorObservation[]>([]);
   const [history, setHistory] = useState<SupervisorChangeLog[]>([]);
@@ -84,7 +75,7 @@ const SupervisorControlDetail = () => {
   const [declAttachments, setDeclAttachments] = useState<Record<number, SupervisorAttachment[]>>({});
   const [newObservation, setNewObservation] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<'decl' | 'liq' | 'nps' | 'audit'>('decl');
+  const [tab, setTab] = useState<'decl' | 'liq' | 'audit'>('decl');
   const [msg, setMsg] = useState('');
   const [liqForm, setLiqForm] = useState({
     igv: 0,
@@ -95,17 +86,6 @@ const SupervisorControlDetail = () => {
     approver_user_id: '',
     validation_status: 'pendiente',
   });
-  const [newNps, setNewNps] = useState({ tributo: 'IGV', importe: 0, payment_due_date: '' });
-  const [editingNpsId, setEditingNpsId] = useState<number | null>(null);
-  const [npsEdit, setNpsEdit] = useState({
-    tributo: '',
-    importe: 0,
-    codigo_nps: '',
-    payment_due_date: '',
-    payment_status: 'pendiente_generar',
-    notes: '',
-  });
-
   const userOptions = useMemo(
     () =>
       users.map((u) => ({
@@ -158,14 +138,11 @@ const SupervisorControlDetail = () => {
           setLiquidation(null);
         }
       }
-      if (canNpsView) {
-        setNpsList(await supervisorsService.listNPS(controlId));
-      }
       setMsg('');
     } catch {
       setMsg('No se pudo cargar el control');
     }
-  }, [controlId, canLiqView, canNpsView, canAttach, canObsView]);
+  }, [controlId, canLiqView, canAttach, canObsView]);
 
   useEffect(() => {
     if (canView && controlId) void load();
@@ -240,15 +217,6 @@ const SupervisorControlDetail = () => {
     }
   };
 
-  const patchDeclaration = async (id: number, body: Parameters<typeof supervisorsService.updateDeclaration>[1]) => {
-    try {
-      await supervisorsService.updateDeclaration(id, body);
-      await load();
-    } catch {
-      setMsg('No se pudo actualizar la declaración');
-    }
-  };
-
   const saveLiquidation = async () => {
     if (!controlId) return;
     try {
@@ -265,53 +233,6 @@ const SupervisorControlDetail = () => {
       setMsg('Liquidación guardada.');
     } catch {
       setMsg('Error al guardar liquidación');
-    }
-  };
-
-  const addNps = async () => {
-    if (!controlId) return;
-    try {
-      await supervisorsService.createNPS({
-        monthly_control_id: controlId,
-        tributo: newNps.tributo,
-        importe: newNps.importe,
-        payment_due_date: newNps.payment_due_date || undefined,
-      });
-      setNewNps({ tributo: 'IGV', importe: 0, payment_due_date: '' });
-      setNpsList(await supervisorsService.listNPS(controlId));
-    } catch {
-      setMsg('Error al crear NPS');
-    }
-  };
-
-  const startEditNps = (n: SupervisorNPS) => {
-    setEditingNpsId(n.id);
-    setNpsEdit({
-      tributo: n.tributo,
-      importe: n.importe,
-      codigo_nps: n.codigo_nps ?? '',
-      payment_due_date: n.payment_due_date?.slice(0, 10) ?? '',
-      payment_status: n.payment_status,
-      notes: n.notes ?? '',
-    });
-  };
-
-  const saveNpsEdit = async () => {
-    if (!editingNpsId || !controlId) return;
-    try {
-      await supervisorsService.updateNPS(editingNpsId, {
-        tributo: npsEdit.tributo,
-        importe: npsEdit.importe,
-        codigo_nps: npsEdit.codigo_nps,
-        payment_status: npsEdit.payment_status,
-        payment_due_date: npsEdit.payment_due_date || null,
-        notes: npsEdit.notes,
-      });
-      setEditingNpsId(null);
-      setNpsList(await supervisorsService.listNPS(controlId));
-      setMsg('NPS actualizado.');
-    } catch {
-      setMsg('Error al actualizar NPS');
     }
   };
 
@@ -465,7 +386,7 @@ const SupervisorControlDetail = () => {
       ) : null}
 
       <div className="flex gap-2 border-b border-slate-200">
-        {(['decl', 'liq', 'nps', 'audit'] as const).map((t) => (
+        {(['decl', 'liq', 'audit'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -474,19 +395,20 @@ const SupervisorControlDetail = () => {
               tab === t ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500'
             }`}
           >
-            {t === 'decl'
-              ? 'Declaraciones'
-              : t === 'liq'
-                ? 'Liquidación'
-                : t === 'nps'
-                  ? 'NPS'
-                  : 'Historial'}
+            {t === 'decl' ? 'Declaraciones' : t === 'liq' ? 'Liquidación' : 'Historial'}
           </button>
         ))}
       </div>
 
       {tab === 'decl' ? (
         <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+          {/* Solo lectura a propósito (docs/diseno-limpieza-control-detail-2026-09-16.md §3): el
+              estado real de pdt_601/pdt_621/detracciones/sunat_inbox se gestiona desde sus páginas
+              dedicadas, con sus propias reglas de transición — editar acá era una vía paralela sin
+              esas reglas (y sin auditoría en Historial para %/prioridad/vencimiento/responsable).
+              SIRE y Renta Anual, los dos tipos sin página propia, quedan en solo lectura también: 0%
+              de uso real en producción (nunca salieron de "Pendiente") no justifica mantener una vía
+              de edición. */}
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -495,115 +417,23 @@ const SupervisorControlDetail = () => {
                 <th className="text-right px-4 py-3">Avance %</th>
                 <th className="text-left px-4 py-3">Prioridad</th>
                 <th className="text-left px-4 py-3">Vence</th>
-                <th className="text-left px-4 py-3">Responsable</th>
                 <th className="text-left px-4 py-3">Aprobador</th>
                 <th className="text-left px-4 py-3">Adjuntos</th>
-                <th className="text-right px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {declarations.map((d) => (
                 <tr key={d.id}>
                   <td className="px-4 py-3">{declarationTypeLabel(d.declaration_type)}</td>
+                  <td className="px-4 py-3">{declarationStatusLabel(d.status)}</td>
+                  <td className="px-4 py-3 text-right">{d.progress_pct ?? 0}%</td>
+                  <td className="px-4 py-3">{priorityLabel(d.priority || 'media')}</td>
                   <td className="px-4 py-3">
-                    {canDeclUpdate ? (
-                      <select
-                        value={d.status}
-                        onChange={(e) => void patchDeclaration(d.id, { status: e.target.value })}
-                        className="border border-slate-200 rounded px-2 py-1 text-xs"
-                      >
-                        <option value="pendiente">Pendiente</option>
-                        <option value="en_elaboracion">En elaboración</option>
-                        <option value="en_revision">En revisión</option>
-                        <option value="observado">Observado</option>
-                        <option value="aprobado">Aprobado</option>
-                        <option value="presentado">Presentado</option>
-                        <option value="cerrado">Cerrado</option>
-                      </select>
-                    ) : (
-                      declarationStatusLabel(d.status)
-                    )}
+                    <span className="text-xs text-slate-600">
+                      {d.due_date ? new Date(d.due_date).toLocaleDateString() : '—'}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {canDeclUpdate ? (
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        defaultValue={d.progress_pct ?? 0}
-                        onBlur={(e) =>
-                          void patchDeclaration(d.id, { progress_pct: Number(e.target.value) })
-                        }
-                        className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-right"
-                      />
-                    ) : (
-                      `${d.progress_pct ?? 0}%`
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {canDeclUpdate ? (
-                      <select
-                        value={d.priority || 'media'}
-                        onChange={(e) => void patchDeclaration(d.id, { priority: e.target.value })}
-                        className="border border-slate-200 rounded px-2 py-1 text-xs"
-                      >
-                        <option value="baja">Baja</option>
-                        <option value="media">Media</option>
-                        <option value="alta">Alta</option>
-                        <option value="critica">Crítica</option>
-                      </select>
-                    ) : (
-                      priorityLabel(d.priority || 'media')
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {canDeclUpdate ? (
-                      <input
-                        type="date"
-                        value={d.due_date ? d.due_date.slice(0, 10) : ''}
-                        onChange={(e) =>
-                          void patchDeclaration(d.id, { due_date: e.target.value || null })
-                        }
-                        className="border border-slate-200 rounded px-2 py-1 text-xs"
-                      />
-                    ) : (
-                      <span className="text-xs text-slate-600">
-                        {d.due_date ? new Date(d.due_date).toLocaleDateString() : '—'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 min-w-[140px]">
-                    {canDeclUpdate && canPickUsers ? (
-                      <SearchableSelect
-                        value={d.responsible_user_id ? String(d.responsible_user_id) : ''}
-                        onChange={(v) =>
-                          void patchDeclaration(d.id, {
-                            responsible_user_id: v ? Number(v) : null,
-                          })
-                        }
-                        options={[{ value: '', label: 'Sin asignar' }, ...userOptions]}
-                        placeholder="Responsable"
-                      />
-                    ) : (
-                      supervisorUserLabel(d.responsible)
-                    )}
-                  </td>
-                  <td className="px-4 py-3 min-w-[140px]">
-                    {canDeclUpdate && canPickUsers ? (
-                      <SearchableSelect
-                        value={d.approver_user_id ? String(d.approver_user_id) : ''}
-                        onChange={(v) =>
-                          void patchDeclaration(d.id, {
-                            approver_user_id: v ? Number(v) : null,
-                          })
-                        }
-                        options={[{ value: '', label: 'Sin asignar' }, ...userOptions]}
-                        placeholder="Aprobador"
-                      />
-                    ) : (
-                      supervisorUserLabel(d.approver)
-                    )}
-                  </td>
+                  <td className="px-4 py-3">{supervisorUserLabel(d.approver)}</td>
                   <td className="px-4 py-3">
                     <ul className="space-y-1 text-xs">
                       {(declAttachments[d.id] ?? []).map((a) => (
@@ -618,46 +448,10 @@ const SupervisorControlDetail = () => {
                           </a>
                         </li>
                       ))}
+                      {(declAttachments[d.id] ?? []).length === 0 ? (
+                        <li className="text-slate-400">Sin adjuntos</li>
+                      ) : null}
                     </ul>
-                    {canAttach ? (
-                      <label className="inline-block mt-1 text-xs text-primary-700 cursor-pointer">
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) void uploadFile(f, d.id);
-                            e.target.value = '';
-                          }}
-                        />
-                        Subir
-                      </label>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                    {canDeclApprove && !isOperatorOnly ? (
-                      <button
-                        type="button"
-                        className="text-emerald-700 text-xs font-medium"
-                        onClick={() => void supervisorsService.approveDeclaration(d.id).then(() => load())}
-                      >
-                        Aprobar
-                      </button>
-                    ) : null}
-                    {canDeclObserve && !isOperatorOnly ? (
-                      <button
-                        type="button"
-                        className="text-amber-700 text-xs font-medium"
-                        onClick={() => {
-                          const notes = window.prompt('Observación:') ?? '';
-                          if (notes.trim()) {
-                            void supervisorsService.observeDeclaration(d.id, notes.trim()).then(() => load());
-                          }
-                        }}
-                      >
-                        Observar
-                      </button>
-                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -820,210 +614,6 @@ const SupervisorControlDetail = () => {
           ) : (
             <p className="text-sm text-slate-500">Sin liquidación (se crea al generar el control del período).</p>
           )}
-        </div>
-      ) : null}
-
-      {tab === 'nps' && canNpsView ? (
-        <div className="space-y-4">
-          {canNpsCreate ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap gap-3 items-end">
-              <label className="text-sm">
-                Tributo
-                <input
-                  value={newNps.tributo}
-                  onChange={(e) => setNewNps((n) => ({ ...n, tributo: e.target.value }))}
-                  className="block mt-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                Importe
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newNps.importe}
-                  onChange={(e) => setNewNps((n) => ({ ...n, importe: Number(e.target.value) }))}
-                  className="block mt-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                Vencimiento pago
-                <input
-                  type="date"
-                  value={newNps.payment_due_date}
-                  onChange={(e) => setNewNps((n) => ({ ...n, payment_due_date: e.target.value }))}
-                  className="block mt-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => void addNps()}
-                className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm"
-              >
-                Agregar NPS
-              </button>
-            </div>
-          ) : null}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="text-left px-4 py-3">Tributo</th>
-                  <th className="text-left px-4 py-3">Importe</th>
-                  <th className="text-left px-4 py-3">Estado</th>
-                  <th className="text-left px-4 py-3">Código</th>
-                  <th className="text-left px-4 py-3">Vence</th>
-                  <th className="text-right px-4 py-3">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {npsList.map((n) => (
-                  <Fragment key={n.id}>
-                    <tr>
-                      <td className="px-4 py-3">{n.tributo}</td>
-                      <td className="px-4 py-3">S/ {n.importe.toFixed(2)}</td>
-                      <td className="px-4 py-3">{npsStatusLabel(n.payment_status)}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{n.codigo_nps || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {n.payment_due_date ? n.payment_due_date.slice(0, 10) : '—'}
-                        {n.generated_at ? (
-                          <span className="block text-slate-400">
-                            Gen: {new Date(n.generated_at).toLocaleDateString()}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-2">
-                        {canNpsUpdate ? (
-                          <button
-                            type="button"
-                            className="text-slate-600 text-xs font-medium"
-                            onClick={() => startEditNps(n)}
-                          >
-                            Editar
-                          </button>
-                        ) : null}
-                        {canNpsGenerate && n.payment_status === 'pendiente_generar' ? (
-                          <button
-                            type="button"
-                            className="text-primary-700 text-xs font-medium"
-                            onClick={() => {
-                              void supervisorsService.generateNPS(n.id).then(() => load());
-                            }}
-                          >
-                            Generar
-                          </button>
-                        ) : null}
-                        {canNpsPay &&
-                        ['pendiente_pago', 'vencido', 'generado', 'enviado_cliente'].includes(n.payment_status) ? (
-                          <button
-                            type="button"
-                            className="text-emerald-700 text-xs font-medium"
-                            onClick={() => {
-                              void supervisorsService.registerNPSPayment(n.id).then(() => load());
-                            }}
-                          >
-                            Marcar pagado
-                          </button>
-                        ) : null}
-                        {canNpsDelete ? (
-                          <button
-                            type="button"
-                            className="text-red-600 text-xs font-medium"
-                            onClick={() => {
-                              void supervisorsService.deleteNPS(n.id).then(() => load());
-                            }}
-                          >
-                            Eliminar
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                    {editingNpsId === n.id && canNpsUpdate ? (
-                      <tr key={`${n.id}-edit`}>
-                        <td colSpan={6} className="px-4 py-3 bg-slate-50">
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                            <label>
-                              Tributo
-                              <input
-                                value={npsEdit.tributo}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, tributo: e.target.value }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1"
-                              />
-                            </label>
-                            <label>
-                              Importe
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={npsEdit.importe}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, importe: Number(e.target.value) }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1"
-                              />
-                            </label>
-                            <label>
-                              Código NPS
-                              <input
-                                value={npsEdit.codigo_nps}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, codigo_nps: e.target.value }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1 font-mono text-xs"
-                              />
-                            </label>
-                            <label>
-                              Vencimiento pago
-                              <input
-                                type="date"
-                                value={npsEdit.payment_due_date}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, payment_due_date: e.target.value }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1"
-                              />
-                            </label>
-                            <label>
-                              Estado
-                              <select
-                                value={npsEdit.payment_status}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, payment_status: e.target.value }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1"
-                              >
-                                <option value="pendiente_generar">Pendiente generar</option>
-                                <option value="generado">Generado</option>
-                                <option value="enviado_cliente">Enviado al cliente</option>
-                                <option value="pendiente_pago">Pendiente de pago</option>
-                                <option value="pagado">Pagado</option>
-                                <option value="vencido">Vencido</option>
-                              </select>
-                            </label>
-                            <label className="md:col-span-3">
-                              Notas
-                              <input
-                                value={npsEdit.notes}
-                                onChange={(e) => setNpsEdit((f) => ({ ...f, notes: e.target.value }))}
-                                className="block w-full mt-1 border border-slate-200 rounded-lg px-2 py-1"
-                              />
-                            </label>
-                          </div>
-                          <div className="flex gap-2 mt-3">
-                            <button
-                              type="button"
-                              onClick={() => void saveNpsEdit()}
-                              className="px-3 py-1.5 rounded-full bg-primary-600 text-white text-xs"
-                            >
-                              Guardar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingNpsId(null)}
-                              className="text-xs text-slate-600"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       ) : null}
 

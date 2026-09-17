@@ -30,11 +30,16 @@ const ActivityTemplateForm = () => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [activityType, setActivityType] = useState('nps');
+  const [activityType, setActivityType] = useState('other');
   const [priority, setPriority] = useState('media');
   const [textColor, setTextColor] = useState<string>(DEFAULT_ACTIVITY_COLOR);
   const [icon, setIcon] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
+  // Grupo de dígitos de RUC (0-9) al que aplica esta actividad — vacío = aplica a todas las empresas
+  // (docs/diseno-limpieza-control-detail-2026-09-16.md §2.7b). Texto libre en el estado para permitir
+  // el input vacío mientras se escribe; se valida/convierte a número recién al enviar.
+  const [rucDigitStart, setRucDigitStart] = useState('');
+  const [rucDigitEnd, setRucDigitEnd] = useState('');
   const [isValidatable, setIsValidatable] = useState(true);
   const [active, setActive] = useState(true);
   const [loading, setLoading] = useState(isEdit);
@@ -60,6 +65,8 @@ const ActivityTemplateForm = () => {
         setTextColor(row.text_color || DEFAULT_ACTIVITY_COLOR);
         setIcon(row.icon ?? '');
         setSortOrder(String(row.sort_order ?? 0));
+        setRucDigitStart(row.ruc_digit_start != null ? String(row.ruc_digit_start) : '');
+        setRucDigitEnd(row.ruc_digit_end != null ? String(row.ruc_digit_end) : '');
         setIsValidatable(row.is_validatable);
         setActive(row.active);
       })
@@ -82,6 +89,26 @@ const ActivityTemplateForm = () => {
       setError('Sin permiso para guardar plantillas.');
       return;
     }
+    const startTrim = rucDigitStart.trim();
+    const endTrim = rucDigitEnd.trim();
+    if ((startTrim === '') !== (endTrim === '')) {
+      setError('Dígito RUC desde/hasta van juntos, o ninguno.');
+      return;
+    }
+    let rucStart: number | null = null;
+    let rucEnd: number | null = null;
+    if (startTrim !== '' && endTrim !== '') {
+      rucStart = Number(startTrim);
+      rucEnd = Number(endTrim);
+      if (!Number.isInteger(rucStart) || !Number.isInteger(rucEnd) || rucStart < 0 || rucStart > 9 || rucEnd < 0 || rucEnd > 9) {
+        setError('Dígito RUC desde/hasta deben estar entre 0 y 9.');
+        return;
+      }
+      if (rucStart > rucEnd) {
+        setError('Dígito RUC desde no puede ser mayor que hasta.');
+        return;
+      }
+    }
     setSaving(true);
     setError('');
     try {
@@ -95,6 +122,8 @@ const ActivityTemplateForm = () => {
         sort_order: Number(sortOrder) || 0,
         is_validatable: isValidatable,
         active,
+        ruc_digit_start: rucStart,
+        ruc_digit_end: rucEnd,
       };
       if (isEdit && editId) {
         await activityTemplatesService.update(editId, payload);
@@ -145,7 +174,7 @@ const ActivityTemplateForm = () => {
     <div className={`${PAGE_WORKSPACE_CLASS} max-w-3xl`}>
       <ActivityTemplatesBreadcrumb
         items={[
-          { label: 'Finanzas', to: '/finance/calendar' },
+          { label: 'Estudio', to: '/settings/firm' },
           { label: 'Catálogo de actividades', to: '/finance/activity-templates' },
           { label: title },
         ]}
@@ -247,6 +276,47 @@ const ActivityTemplateForm = () => {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-sm font-medium mb-1">Grupo de RUC (opcional)</span>
+            <p className="text-xs text-slate-500 mb-2">
+              Si el estudio divide esta obligación por dígito de RUC (ej. "RUC 0 AL 4" vence un día,
+              "RUC 5 AL 9" otro), indica el rango acá para que el sistema calcule la fecha límite
+              correcta por empresa. Déjalo vacío si esta actividad aplica igual a todas.
+            </p>
+            <div className="grid grid-cols-2 gap-4 max-w-xs">
+              <div>
+                <label htmlFor="tpl-form-ruc-start" className="block text-xs text-slate-500 mb-1">
+                  Dígito desde
+                </label>
+                <input
+                  id="tpl-form-ruc-start"
+                  type="number"
+                  min={0}
+                  max={9}
+                  value={rucDigitStart}
+                  onChange={(e) => setRucDigitStart(e.target.value)}
+                  placeholder="—"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="tpl-form-ruc-end" className="block text-xs text-slate-500 mb-1">
+                  Dígito hasta
+                </label>
+                <input
+                  id="tpl-form-ruc-end"
+                  type="number"
+                  min={0}
+                  max={9}
+                  value={rucDigitEnd}
+                  onChange={(e) => setRucDigitEnd(e.target.value)}
+                  placeholder="—"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                />
+              </div>
             </div>
           </div>
 

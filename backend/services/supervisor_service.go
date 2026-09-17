@@ -54,8 +54,6 @@ type SupervisorDashboard struct {
 	ControlsObservado       int64                       `json:"controls_observado"`
 	ControlsCerrado         int64                       `json:"controls_cerrado"`
 	DeclarationsObserved    int64                       `json:"declarations_observed"`
-	NPSPending              int64                       `json:"nps_pending"`
-	PaymentsPending         int64                       `json:"payments_pending"`
 	MonthlyCompliancePct    float64                     `json:"monthly_compliance_pct"`
 	ByStatus                map[string]int64            `json:"by_status"`
 	Alerts                  []SupervisorAlert           `json:"alerts"`
@@ -109,15 +107,6 @@ func (s *SupervisorService) ControlIDForDeclaration(declarationID uint) (uint, e
 		return 0, err
 	}
 	return d.MonthlyControlID, nil
-}
-
-// ControlIDForNPS devuelve el control mensual de un registro NPS.
-func (s *SupervisorService) ControlIDForNPS(npsID uint) (uint, error) {
-	var nps models.SupervisorNPS
-	if err := database.DB.Select("monthly_control_id").First(&nps, npsID).Error; err != nil {
-		return 0, err
-	}
-	return nps.MonthlyControlID, nil
 }
 
 // CompanyIDForControl devuelve la empresa asociada a un control mensual.
@@ -211,13 +200,6 @@ func (s *SupervisorService) buildDashboardAlerts(p SupervisorDashboardParams, ou
 			Message: fmt.Sprintf("%d declaración(es) observadas", out.DeclarationsObserved),
 		})
 	}
-	if out.NPSPending > 0 {
-		alerts = append(alerts, SupervisorAlert{
-			Kind: "nps_pending", PeriodYM: periodYM,
-			Message: fmt.Sprintf("%d NPS pendiente(s) de gestión", out.NPSPending),
-		})
-	}
-
 	var missing int64
 	qMiss := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
 	if allowed != nil {
@@ -377,10 +359,8 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 		out.MonthlyCompliancePct = math.Round((float64(out.ControlsAlDia+controlsCerrado)/float64(totalControls))*1000) / 10
 	}
 
-	// qDecl/qNPS/qPay comparten los mismos filtros de alcance que el resto del dashboard (empresa,
-	// estado general, riesgo, responsable, supervisor) — antes solo qDecl aplicaba empresa/estado,
-	// y qNPS/qPay no aplicaban NINGUNO de los filtros del panel salvo período y alcance de
-	// empresas del usuario, así que no cambiaban al filtrar por empresa/riesgo/responsable.
+	// qDecl comparte los mismos filtros de alcance que el resto del dashboard (empresa, estado
+	// general, riesgo, responsable, supervisor).
 	applyDashboardFilters := func(q *gorm.DB, companyCol, riskCol, respCol, supCol string) *gorm.DB {
 		if p.CompanyID > 0 {
 			q = q.Where(companyCol+" = ?", p.CompanyID)
@@ -409,25 +389,6 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	qDecl = s.applyCompanyScope(qDecl, p.AllowedCompanyIDs)
 	_ = qDecl.Count(&out.DeclarationsObserved).Error
 
-	qNPS := database.DB.Model(&models.SupervisorNPS{}).
-		Joins("JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_nps.monthly_control_id").
-		Where("supervisor_monthly_controls.period_ym = ? AND supervisor_nps.payment_status IN ?", p.PeriodYM,
-			[]string{models.SupervisorNPSPendienteGenerar, models.SupervisorNPSGenerado, models.SupervisorNPSEnviadoCliente})
-	qNPS = applyDashboardFilters(qNPS,
-		"supervisor_monthly_controls.company_id", "supervisor_monthly_controls.risk_level",
-		"supervisor_monthly_controls.responsible_user_id", "supervisor_monthly_controls.supervisor_user_id")
-	qNPS = s.applyCompanyScope(qNPS, p.AllowedCompanyIDs)
-	_ = qNPS.Count(&out.NPSPending).Error
-
-	qPay := database.DB.Model(&models.SupervisorNPS{}).
-		Joins("JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_nps.monthly_control_id").
-		Where("supervisor_monthly_controls.period_ym = ? AND supervisor_nps.payment_status IN ?", p.PeriodYM,
-			[]string{models.SupervisorNPSPendientePago, models.SupervisorNPSVencido})
-	qPay = applyDashboardFilters(qPay,
-		"supervisor_monthly_controls.company_id", "supervisor_monthly_controls.risk_level",
-		"supervisor_monthly_controls.responsible_user_id", "supervisor_monthly_controls.supervisor_user_id")
-	qPay = s.applyCompanyScope(qPay, p.AllowedCompanyIDs)
-	_ = qPay.Count(&out.PaymentsPending).Error
 	out.ByStatus[models.SupervisorControlAlDia] = out.ControlsAlDia
 	out.ByStatus[models.SupervisorControlPendiente] = out.ControlsPendiente
 	out.ByStatus[models.SupervisorControlVencido] = out.ControlsVencido
@@ -510,22 +471,23 @@ func pdtBucketsSelectSQL(periodYM string) string {
 
 	// Apertura de "Completado" por puntualidad, solo para pdt_601/pdt_621 en estado "entregado" —
 	// compara la fecha de entrega de cada tipo (columnas distintas: pl.fecha_entrega vs.
-	// r.primera_entrega_fecha) contra la fecha límite ÚNICA del período de CADA módulo (calendario
-	// interno, nunca el cronograma SUNAT — ver pdt601PeriodDueDate/pdt621PeriodDueDate). Sin
-	// calendario configurado para un módulo, todo lo "entregado" de ese módulo cuenta como a tiempo
-	// (mismo criterio que el filtro del listado, §11).
-	dateTimeLit := func(t time.Time) string { return "'" + t.Format("2006-01-02 15:04:05") + "'" }
+	// r.primera_entrega_fecha) contra la fecha límite que le corresponde a cada empresa según su
+	// grupo de RUC (calendario interno, nunca el cronograma SUNAT — ver
+	// pdt601DueDateSQLCase/pdt621DueDateSQLCase, docs/diseno-limpieza-control-detail-2026-09-16.md
+	// §2.7b). Sin ninguna actividad configurada para un módulo, todo lo "entregado" de ese módulo
+	// cuenta como a tiempo (mismo criterio que el filtro del listado, §11).
+	// La fecha límite de PDT 601 varía por grupo de RUC de cada empresa desde §2.7b — ya no es un
+	// valor único, es un CASE SQL correlacionado a `c.company_id` (aquí `c` es
+	// supervisor_monthly_controls, no `companies` — este query no la joinea directo).
 	pdt601OnTime, pdt601Late := "1=1", "1=0"
-	if due := pdt601PeriodDueDate(periodYM); due != nil {
-		lit := dateTimeLit(*due)
-		pdt601OnTime = fmt.Sprintf("(pl.fecha_entrega IS NULL OR pl.fecha_entrega <= %s)", lit)
-		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND pl.fecha_entrega > %s)", lit)
+	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt601OnTime = fmt.Sprintf("(pl.fecha_entrega IS NULL OR %s IS NULL OR pl.fecha_entrega <= %s)", dueCase, dueCase)
+		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND %s IS NOT NULL AND pl.fecha_entrega > %s)", dueCase, dueCase)
 	}
 	pdt621OnTime, pdt621Late := "1=1", "1=0"
-	if due := pdt621PeriodDueDate(periodYM); due != nil {
-		lit := dateTimeLit(*due)
-		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR r.primera_entrega_fecha <= %s)", lit)
-		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND r.primera_entrega_fecha > %s)", lit)
+	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)", dueCase, dueCase)
+		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s)", dueCase, dueCase)
 	}
 	// Fecha de hoy como literal (no CURDATE()/NOW() del motor): permite testear esta consulta contra
 	// sqlite en tests, además de MySQL en producción — CURDATE() no existe en sqlite y hacía que esta
@@ -1159,9 +1121,6 @@ func (s *SupervisorService) DeleteControl(id uint) error {
 		if err := tx.Where("monthly_control_id = ?", id).Delete(&models.SupervisorTaxLiquidation{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("monthly_control_id = ?", id).Delete(&models.SupervisorNPS{}).Error; err != nil {
-			return err
-		}
 		return tx.Delete(&models.SupervisorMonthlyControl{}, id).Error
 	})
 }
@@ -1508,114 +1467,6 @@ func (s *SupervisorService) ObserveLiquidation(controlID uint, approverID uint, 
 	return liq, nil
 }
 
-// ---- NPS ----
-
-func (s *SupervisorService) ListNPS(controlID uint) ([]models.SupervisorNPS, error) {
-	var rows []models.SupervisorNPS
-	err := database.DB.Where("monthly_control_id = ?", controlID).Order("id DESC").Find(&rows).Error
-	return rows, err
-}
-
-type SupervisorNPSInput struct {
-	MonthlyControlID uint
-	Tributo          string
-	Importe          float64
-	CodigoNPS        string
-	PaymentDueDate   *time.Time
-	PaymentStatus    string
-	Notes            string
-}
-
-func (s *SupervisorService) CreateNPS(in SupervisorNPSInput) (*models.SupervisorNPS, error) {
-	if in.MonthlyControlID == 0 {
-		return nil, errors.New("control requerido")
-	}
-	if strings.TrimSpace(in.Tributo) == "" {
-		return nil, errors.New("tributo requerido")
-	}
-	st := in.PaymentStatus
-	if st == "" {
-		st = models.SupervisorNPSPendienteGenerar
-	}
-	nps := models.SupervisorNPS{
-		MonthlyControlID: in.MonthlyControlID,
-		Tributo:          strings.TrimSpace(in.Tributo),
-		Importe:          in.Importe,
-		CodigoNPS:        strings.TrimSpace(in.CodigoNPS),
-		PaymentDueDate:   in.PaymentDueDate,
-		PaymentStatus:    st,
-		Notes:            strings.TrimSpace(in.Notes),
-	}
-	if err := database.DB.Create(&nps).Error; err != nil {
-		return nil, err
-	}
-	return &nps, nil
-}
-
-func (s *SupervisorService) UpdateNPS(id uint, in SupervisorNPSInput) (*models.SupervisorNPS, error) {
-	var nps models.SupervisorNPS
-	if err := database.DB.First(&nps, id).Error; err != nil {
-		return nil, err
-	}
-	nps.Tributo = strings.TrimSpace(in.Tributo)
-	nps.Importe = in.Importe
-	nps.CodigoNPS = strings.TrimSpace(in.CodigoNPS)
-	nps.PaymentDueDate = in.PaymentDueDate
-	if in.PaymentStatus != "" {
-		nps.PaymentStatus = in.PaymentStatus
-	}
-	nps.Notes = strings.TrimSpace(in.Notes)
-	if err := database.DB.Save(&nps).Error; err != nil {
-		return nil, err
-	}
-	return &nps, nil
-}
-
-func (s *SupervisorService) GenerateNPS(id uint) (*models.SupervisorNPS, error) {
-	var nps models.SupervisorNPS
-	if err := database.DB.First(&nps, id).Error; err != nil {
-		return nil, err
-	}
-	now := time.Now()
-	if nps.CodigoNPS == "" {
-		nps.CodigoNPS = fmt.Sprintf("NPS-%d-%s", nps.MonthlyControlID, now.Format("20060102150405"))
-	}
-	nps.GeneratedAt = &now
-	nps.PaymentStatus = models.SupervisorNPSGenerado
-	if err := database.DB.Save(&nps).Error; err != nil {
-		return nil, err
-	}
-	var ctrl models.SupervisorMonthlyControl
-	if err := database.DB.First(&ctrl, nps.MonthlyControlID).Error; err == nil {
-		uid := notifyUserIDForControl(&ctrl)
-		cid := ctrl.ID
-		s.notifyIfNew(uid, "nps_ready", "NPS generado",
-			fmt.Sprintf("Código %s (%s) listo para gestión de pago", nps.CodigoNPS, strings.TrimSpace(nps.Tributo)),
-			ctrl.PeriodYM, &cid)
-	}
-	return &nps, nil
-}
-
-// SyncOverdueNPS marca como vencidos los NPS con fecha límite pasada y aún no pagados.
-func (s *SupervisorService) SyncOverdueNPS(periodYM string) (int64, error) {
-	if !validPeriodYM(periodYM) {
-		return 0, nil
-	}
-	today := time.Now()
-	controlIDs := database.DB.Model(&models.SupervisorMonthlyControl{}).
-		Select("id").Where("period_ym = ?", periodYM)
-	res := database.DB.Model(&models.SupervisorNPS{}).
-		Where("monthly_control_id IN (?)", controlIDs).
-		Where("payment_due_date IS NOT NULL AND payment_due_date < ?", today).
-		Where("payment_status IN ?", []string{
-			models.SupervisorNPSPendientePago,
-			models.SupervisorNPSEnviadoCliente,
-			models.SupervisorNPSGenerado,
-		}).
-		Update("payment_status", models.SupervisorNPSVencido)
-	return res.RowsAffected, res.Error
-}
-
 // EnsureMonthlyPeriodOpen crea el período del mes si no existe (automatización).
 func (s *SupervisorService) EnsureMonthlyPeriodOpen(periodYM string) (*models.SupervisorPeriod, error) {
 	periodYM = strings.TrimSpace(periodYM)
@@ -1648,7 +1499,6 @@ func (s *SupervisorService) RunMonthlyAutomations(periodYM string) error {
 		}
 	}
 	_, _ = s.SyncOverdueControls(periodYM, nil)
-	_, _ = s.SyncOverdueNPS(periodYM)
 	return s.RunAutomations(periodYM)
 }
 
@@ -1665,10 +1515,6 @@ func notifyUserIDForControl(ctrl *models.SupervisorMonthlyControl) uint {
 	return 0
 }
 
-func (s *SupervisorService) DeleteNPS(id uint) error {
-	return database.DB.Delete(&models.SupervisorNPS{}, id).Error
-}
-
 // ---- Reports ----
 
 type SupervisorReportRow struct {
@@ -1679,8 +1525,6 @@ type SupervisorReportRow struct {
 	RiskLevel       string  `json:"risk_level"`
 	CompliancePct   float64 `json:"compliance_pct"`
 	TotalPagar      float64 `json:"total_pagar"`
-	NPSPending      int64   `json:"nps_pending"`
-	PaymentsPending int64   `json:"payments_pending"`
 	ControlID       uint    `json:"control_id,omitempty"`
 }
 
@@ -1693,8 +1537,6 @@ type SupervisorReportListParams struct {
 }
 
 func (s *SupervisorService) reportMonthlyQuery(p SupervisorReportListParams) *gorm.DB {
-	npsPendingSQL := `(SELECT COUNT(*) FROM supervisor_nps sn WHERE sn.monthly_control_id = supervisor_monthly_controls.id AND sn.deleted_at IS NULL AND sn.payment_status IN ('pendiente_generar','generado','enviado_cliente'))`
-	paymentsPendingSQL := `(SELECT COUNT(*) FROM supervisor_nps sn WHERE sn.monthly_control_id = supervisor_monthly_controls.id AND sn.deleted_at IS NULL AND sn.payment_status IN ('pendiente_pago','vencido'))`
 	declAvgSQL := `(SELECT COALESCE(AVG(sd.progress_pct), 0) FROM supervisor_declarations sd WHERE sd.monthly_control_id = supervisor_monthly_controls.id AND sd.deleted_at IS NULL)`
 	q := database.DB.Table("supervisor_monthly_controls").
 		Select(`companies.business_name AS company_name, companies.ruc AS company_ruc,
@@ -1702,9 +1544,7 @@ func (s *SupervisorService) reportMonthlyQuery(p SupervisorReportListParams) *go
 			supervisor_monthly_controls.risk_level,
 			supervisor_monthly_controls.id AS control_id,
 			`+declAvgSQL+` AS compliance_pct,
-			COALESCE(supervisor_tax_liquidations.total_pagar, 0) AS total_pagar,
-			`+npsPendingSQL+` AS nps_pending,
-			`+paymentsPendingSQL+` AS payments_pending`).
+			COALESCE(supervisor_tax_liquidations.total_pagar, 0) AS total_pagar`).
 		Joins("JOIN companies ON companies.id = supervisor_monthly_controls.company_id").
 		Joins("LEFT JOIN supervisor_tax_liquidations ON supervisor_tax_liquidations.monthly_control_id = supervisor_monthly_controls.id").
 		Where("supervisor_monthly_controls.period_ym = ?", p.PeriodYM)
@@ -1795,22 +1635,6 @@ func (s *SupervisorService) ReportList(kind string, p SupervisorReportListParams
 			AND sd.deleted_at IS NULL
 			AND sd.status IN ?)`, []string{
 			models.SupervisorDeclPendiente, models.SupervisorDeclEnElaboracion, models.SupervisorDeclEnRevision,
-		})
-	case "nps_pending":
-		base = base.Where(`EXISTS (
-			SELECT 1 FROM supervisor_nps sn
-			WHERE sn.monthly_control_id = supervisor_monthly_controls.id
-			AND sn.deleted_at IS NULL
-			AND sn.payment_status IN ?)`, []string{
-			models.SupervisorNPSPendienteGenerar, models.SupervisorNPSGenerado, models.SupervisorNPSEnviadoCliente,
-		})
-	case "payments_pending":
-		base = base.Where(`EXISTS (
-			SELECT 1 FROM supervisor_nps sn
-			WHERE sn.monthly_control_id = supervisor_monthly_controls.id
-			AND sn.deleted_at IS NULL
-			AND sn.payment_status IN ?)`, []string{
-			models.SupervisorNPSPendientePago, models.SupervisorNPSVencido,
 		})
 	default:
 		return nil, 0, errors.New("tipo de reporte inválido")

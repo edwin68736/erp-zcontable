@@ -281,7 +281,7 @@ const SupervisorControls = ({
       <ConfirmDialog
         open={deleteId != null}
         title="Eliminar control"
-        message="Se eliminarán declaraciones, liquidación y NPS asociados."
+        message="Se eliminarán declaraciones y liquidación asociadas."
         confirmLabel="Eliminar"
         danger
         onConfirm={() => void handleDelete()}

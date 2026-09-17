@@ -2,7 +2,6 @@ package services
 
 import (
 	"testing"
-	"time"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -23,7 +22,6 @@ func setupSupervisorTestDB(t *testing.T) *gorm.DB {
 		&models.SupervisorMonthlyControl{},
 		&models.SupervisorDeclaration{},
 		&models.SupervisorTaxLiquidation{},
-		&models.SupervisorNPS{},
 		&models.SupervisorNotification{},
 		&models.SupervisorChangeLog{},
 		&models.SupervisorObservation{},
@@ -177,41 +175,6 @@ func TestNotifyIfNewDedup(t *testing.T) {
 		Where("user_id = ? AND kind = ? AND read_at IS NULL", 1, "overdue").Count(&n).Error
 	if n != 1 {
 		t.Fatalf("notifications=%d want 1 (dedup)", n)
-	}
-}
-
-func TestSyncOverdueNPS(t *testing.T) {
-	db := setupSupervisorTestDB(t)
-	svc := NewSupervisorService()
-
-	co := seedActiveCompany(t, db, "D001")
-	past := time.Now().AddDate(0, 0, -2)
-	ctrl := models.SupervisorMonthlyControl{CompanyID: co.ID, PeriodYM: "2026-06", GeneralStatus: models.SupervisorControlPendiente, RiskLevel: models.SupervisorRiskBajo}
-	if err := db.Create(&ctrl).Error; err != nil {
-		t.Fatal(err)
-	}
-	nps := models.SupervisorNPS{
-		MonthlyControlID: ctrl.ID,
-		Tributo:          "IGV",
-		Importe:          100,
-		PaymentDueDate:   &past,
-		PaymentStatus:    models.SupervisorNPSPendientePago,
-	}
-	if err := db.Create(&nps).Error; err != nil {
-		t.Fatal(err)
-	}
-
-	n, err := svc.SyncOverdueNPS("2026-06")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatalf("synced=%d want 1", n)
-	}
-	var updated models.SupervisorNPS
-	_ = db.First(&updated, nps.ID)
-	if updated.PaymentStatus != models.SupervisorNPSVencido {
-		t.Fatalf("status=%s", updated.PaymentStatus)
 	}
 }
 

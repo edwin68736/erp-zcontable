@@ -85,8 +85,8 @@ func TestCreate_AssignsSequentialCodes(t *testing.T) {
 	svc := NewActivityTemplateService()
 
 	t1, err := svc.Create(ActivityTemplateInput{
-		Name:         "NPS",
-		ActivityType: models.CalendarActivityNPS,
+		Name:         "Feriado",
+		ActivityType: models.CalendarActivityOther,
 	})
 	if err != nil {
 		t.Fatalf("create 1: %v", err)
@@ -184,7 +184,7 @@ func TestCreate_ValidationErrors(t *testing.T) {
 	setupActivityTemplateTestDB(t)
 	svc := NewActivityTemplateService()
 
-	_, err := svc.Create(ActivityTemplateInput{Name: "", ActivityType: models.CalendarActivityNPS})
+	_, err := svc.Create(ActivityTemplateInput{Name: "", ActivityType: models.CalendarActivityOther})
 	if err == nil {
 		t.Fatal("expected error for empty name")
 	}
@@ -196,7 +196,7 @@ func TestCreate_ValidationErrors(t *testing.T) {
 
 	_, err = svc.Create(ActivityTemplateInput{
 		Name:         "X",
-		ActivityType: models.CalendarActivityNPS,
+		ActivityType: models.CalendarActivityOther,
 		Priority:     "invalid",
 	})
 	if err == nil {

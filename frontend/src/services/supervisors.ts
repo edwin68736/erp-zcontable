@@ -81,18 +81,6 @@ export interface SupervisorTaxLiquidation {
   approver?: SupervisorUserRef;
 }
 
-export interface SupervisorNPS {
-  id: number;
-  monthly_control_id: number;
-  tributo: string;
-  importe: number;
-  codigo_nps?: string;
-  generated_at?: string;
-  payment_due_date?: string;
-  payment_status: string;
-  notes?: string;
-}
-
 export interface SupervisorAlert {
   kind: string;
   message: string;
@@ -113,8 +101,6 @@ export interface SupervisorDashboardData {
   controls_observado: number;
   controls_cerrado: number;
   declarations_observed: number;
-  nps_pending: number;
-  payments_pending: number;
   monthly_compliance_pct: number;
   by_status: Record<string, number>;
   alerts?: SupervisorAlert[];
@@ -134,8 +120,6 @@ export interface SupervisorReportRow {
   risk_level: string;
   compliance_pct: number;
   total_pagar: number;
-  nps_pending: number;
-  payments_pending: number;
 }
 
 function unwrap<T>(res: { data: { data: T } }): T {
@@ -151,8 +135,6 @@ export type SupervisorReportKind =
   | 'monthly'
   | 'overdue'
   | 'pending_declarations'
-  | 'nps_pending'
-  | 'payments_pending'
   | 'productivity'
   | 'observations';
 
@@ -323,30 +305,6 @@ export const supervisorsService = {
     return unwrap(res);
   },
 
-  async listNPS(controlId: number): Promise<SupervisorNPS[]> {
-    const res = await client.get<{ data: SupervisorNPS[] }>(`/supervisors/controls/${controlId}/nps`);
-    return res.data.data;
-  },
-
-  async createNPS(body: Record<string, unknown>): Promise<SupervisorNPS> {
-    const res = await client.post<{ data: SupervisorNPS }>('/supervisors/nps', body);
-    return unwrap(res);
-  },
-
-  async updateNPS(id: number, body: Record<string, unknown>): Promise<SupervisorNPS> {
-    const res = await client.put<{ data: SupervisorNPS }>(`/supervisors/nps/${id}`, body);
-    return unwrap(res);
-  },
-
-  async generateNPS(id: number): Promise<SupervisorNPS> {
-    const res = await client.post<{ data: SupervisorNPS }>(`/supervisors/nps/${id}/generate`);
-    return unwrap(res);
-  },
-
-  async deleteNPS(id: number): Promise<void> {
-    await client.delete(`/supervisors/nps/${id}`);
-  },
-
   async reportMonthly(params: {
     period_ym: string;
     kind?: SupervisorReportKind;
@@ -422,11 +380,6 @@ export const supervisorsService = {
 
   async markNotificationRead(id: number) {
     await client.post(`/supervisors/notifications/${id}/read`);
-  },
-
-  async registerNPSPayment(id: number) {
-    const res = await client.post<{ data: SupervisorNPS }>(`/supervisors/nps/${id}/register-payment`);
-    return res.data.data;
   },
 
   async dashboard(params: {

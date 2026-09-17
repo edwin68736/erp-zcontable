@@ -24,6 +24,13 @@ type ActivityTemplate struct {
 	Active        bool           `gorm:"not null;default:true;index:idx_activity_templates_active_deleted,priority:1" json:"active"`
 	ActivityRuleID *uint         `gorm:"index" json:"activity_rule_id,omitempty"`
 	ActivityRule   *ActivityRule  `gorm:"foreignKey:ActivityRuleID;constraint:OnUpdate:RESTRICT,OnDelete:SET NULL" json:"-"`
+	// RucDigitStart/RucDigitEnd: grupo de dígitos de RUC (0-9) al que aplica esta actividad — p. ej.
+	// "DECLARACION DE PLANILLAS RUC 0 AL 4" → start=0, end=4. `nil` en cualquiera de los dos significa
+	// "aplica a todas las empresas, sin distinción de dígito" (docs/diseno-limpieza-control-detail-
+	// 2026-09-16.md §2.7b) — antes de esto no existía ningún dato estructurado para esta agrupación,
+	// solo texto libre en el nombre.
+	RucDigitStart *int           `json:"ruc_digit_start,omitempty"`
+	RucDigitEnd   *int           `json:"ruc_digit_end,omitempty"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index:idx_activity_templates_active_deleted,priority:2" json:"-"`

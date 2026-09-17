@@ -67,17 +67,6 @@ export function liquidationValidationLabel(s: string): string {
   return m[s] ?? s;
 }
 
-export function npsStatusLabel(s: string): string {
-  const m: Record<string, string> = {
-    pendiente_generar: 'Pendiente generar',
-    generado: 'Generado',
-    enviado_cliente: 'Enviado a cliente',
-    pendiente_pago: 'Pendiente pago',
-    pagado: 'Pagado',
-    vencido: 'Vencido',
-  };
-  return m[s] ?? s;
-}
 
 export function currentPeriodYM(): string {
   const d = new Date();

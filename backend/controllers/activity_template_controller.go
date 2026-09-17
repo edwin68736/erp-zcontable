@@ -62,6 +62,8 @@ func (ctrl *ActivityTemplateController) CreateAPI(c fiber.Ctx) error {
 		SortOrder     int    `json:"sort_order"`
 		IsValidatable *bool  `json:"is_validatable"`
 		Active        *bool  `json:"active"`
+		RucDigitStart *int   `json:"ruc_digit_start"`
+		RucDigitEnd   *int   `json:"ruc_digit_end"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
@@ -76,6 +78,8 @@ func (ctrl *ActivityTemplateController) CreateAPI(c fiber.Ctx) error {
 		SortOrder:     body.SortOrder,
 		IsValidatable: body.IsValidatable,
 		Active:        body.Active,
+		RucDigitStart: body.RucDigitStart,
+		RucDigitEnd:   body.RucDigitEnd,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -98,6 +102,8 @@ func (ctrl *ActivityTemplateController) UpdateAPI(c fiber.Ctx) error {
 		SortOrder     int    `json:"sort_order"`
 		IsValidatable *bool  `json:"is_validatable"`
 		Active        *bool  `json:"active"`
+		RucDigitStart *int   `json:"ruc_digit_start"`
+		RucDigitEnd   *int   `json:"ruc_digit_end"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
@@ -112,6 +118,8 @@ func (ctrl *ActivityTemplateController) UpdateAPI(c fiber.Ctx) error {
 		SortOrder:     body.SortOrder,
 		IsValidatable: body.IsValidatable,
 		Active:        body.Active,
+		RucDigitStart: body.RucDigitStart,
+		RucDigitEnd:   body.RucDigitEnd,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

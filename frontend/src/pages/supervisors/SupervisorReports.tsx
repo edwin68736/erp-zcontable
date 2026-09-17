@@ -19,8 +19,6 @@ const REPORT_TABS: { kind: SupervisorReportKind; label: string }[] = [
   { kind: 'monthly', label: 'Mensual' },
   { kind: 'overdue', label: 'Vencidas' },
   { kind: 'pending_declarations', label: 'Decl. pendientes' },
-  { kind: 'nps_pending', label: 'NPS pendientes' },
-  { kind: 'payments_pending', label: 'Pagos pendientes' },
   { kind: 'productivity', label: 'Productividad' },
   { kind: 'observations', label: 'Observaciones' },
 ];
@@ -29,8 +27,6 @@ const REPORT_KIND_HINTS: Record<SupervisorReportKind, string> = {
   monthly: 'Cuadro general del período: estado, riesgo y total a pagar por empresa.',
   overdue: 'Empresas con control en estado vencido.',
   pending_declarations: 'Empresas con declaraciones 601, 621 o SIRE aún sin cerrar.',
-  nps_pending: 'Empresas con NPS por generar o enviar al cliente (aún no en cobro).',
-  payments_pending: 'Empresas con NPS generados pendientes de pago o vencidos.',
   productivity: 'Cumplimiento por analista responsable en el período.',
   observations: 'Historial de observaciones registradas en controles del período.',
 };
@@ -85,8 +81,6 @@ const SupervisorReports = () => {
   const [error, setError] = useState('');
 
   const showSearch = kind !== 'productivity';
-  const showNpsCountCol = kind === 'nps_pending' || kind === 'monthly';
-  const showPaymentsCountCol = kind === 'payments_pending' || kind === 'monthly';
   const showComplianceCol = kind !== 'productivity' && kind !== 'observations';
 
   useEffect(() => {
@@ -247,8 +241,6 @@ const SupervisorReports = () => {
           { header: 'Estado', key: 'estado', width: 14 },
           { header: 'Riesgo', key: 'riesgo', width: 12 },
           { header: 'Cumplimiento %', key: 'cumplimiento', width: 14 },
-          { header: 'NPS pend.', key: 'nps', width: 10 },
-          { header: 'Pagos pend.', key: 'pagos', width: 10 },
           { header: 'Total a pagar', key: 'total', width: 14 },
         ];
         sheet.getRow(3).font = { bold: true };
@@ -259,8 +251,6 @@ const SupervisorReports = () => {
             estado: controlStatusLabel(r.general_status),
             riesgo: riskLevelLabel(r.risk_level),
             cumplimiento: r.compliance_pct ?? 0,
-            nps: r.nps_pending ?? 0,
-            pagos: r.payments_pending ?? 0,
             total: r.total_pagar,
           });
           row.getCell('total').numFmt = '"S/" #,##0.00';
@@ -518,12 +508,6 @@ const SupervisorReports = () => {
                     {showComplianceCol ? (
                       <th className="text-right px-4 py-3">Cumplimiento %</th>
                     ) : null}
-                    {showNpsCountCol ? (
-                      <th className="text-right px-4 py-3">NPS pend.</th>
-                    ) : null}
-                    {showPaymentsCountCol ? (
-                      <th className="text-right px-4 py-3">Pagos pend.</th>
-                    ) : null}
                     <th className="text-right px-4 py-3">Total a pagar</th>
                   </tr>
                 </thead>
@@ -531,12 +515,7 @@ const SupervisorReports = () => {
                   {rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={
-                          5 +
-                          (showComplianceCol ? 1 : 0) +
-                          (showNpsCountCol ? 1 : 0) +
-                          (showPaymentsCountCol ? 1 : 0)
-                        }
+                        colSpan={5 + (showComplianceCol ? 1 : 0)}
                         className="px-4 py-8 text-center text-slate-500"
                       >
                         No hay registros para este período o búsqueda.
@@ -551,12 +530,6 @@ const SupervisorReports = () => {
                         <td className="px-4 py-3">{riskLevelLabel(r.risk_level)}</td>
                         {showComplianceCol ? (
                           <td className="px-4 py-3 text-right">{r.compliance_pct ?? 0}%</td>
-                        ) : null}
-                        {showNpsCountCol ? (
-                          <td className="px-4 py-3 text-right text-amber-700">{r.nps_pending ?? 0}</td>
-                        ) : null}
-                        {showPaymentsCountCol ? (
-                          <td className="px-4 py-3 text-right text-red-700">{r.payments_pending ?? 0}</td>
                         ) : null}
                         <td className="px-4 py-3 text-right">S/ {r.total_pagar.toFixed(2)}</td>
                       </tr>
