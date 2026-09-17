@@ -363,6 +363,7 @@ const SupervisorLiquidacionCreatePage = () => {
       const current = await pdt601Service.getDetail(targetCompanyId, periodYm);
       const base = current.planilla;
       await pdt601Service.savePlanilla(targetCompanyId, periodYm, {
+        regimen_laboral: base?.regimen_laboral ?? '',
         sin_planilla: false,
         // Se preserva lo que ya hubiera (nunca se fuerza a false acá): si la empresa está
         // suspendida, el backend igual va a ignorar estos importes y no hay que deshacer la

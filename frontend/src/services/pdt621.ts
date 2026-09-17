@@ -84,6 +84,9 @@ export interface Pdt621Detail {
   control_due_date?: string;
   declaration: SupervisorDeclaration;
   record?: Pdt621Record | null;
+  /** Mismo criterio que Pdt621ListRow.assistant_timeliness (calendario interno, no SUNAT) — permite
+   * mostrar "Entregado fuera de fecha" en el detalle sin recalcular nada en el frontend. */
+  assistant_timeliness: Pdt621Timeliness;
 }
 
 export interface Pdt621ListResponse {

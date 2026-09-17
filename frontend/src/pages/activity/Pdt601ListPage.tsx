@@ -5,10 +5,11 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import {
-  pdt601StatusBadgeClass,
   pdt601StatusLabel,
+  pdt601DisplayStatus,
   pdt601RowBgClass,
-  PDT601_APPROVED_STATUSES,
+  pdt601RegimenLaboralLabel,
+  PDT601_TERMINAL_STATUSES,
   PDT601_STATUS_FILTER,
 } from '../../components/activity/pdt601Config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
@@ -27,7 +28,28 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPdt601ReportExcel } from '../../utils/pdt601ExcelExport';
 import { timelinessBadgeClass, timelinessLabel } from '../../components/activity/timelinessConfig';
 import { useElementHeight } from '../../hooks/useElementHeight';
-import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
+import {
+  Z_HEAD_ROW,
+  Z_HEAD_ROW1,
+  buildFrozenLefts,
+  frozenBodyCellStyle,
+  frozenHeadCellStyle,
+} from '../../components/activity/stickyTable';
+
+/**
+ * Columnas congeladas de ESTA tabla únicamente: se agrega "Régimen" entre RUC y Asistente. No se
+ * reutiliza FROZEN_ID_COL_W/frozenIdHeadCellStyle de stickyTable.ts (compartido con Detracciones,
+ * Buzón SOL y Empresas asignadas) porque insertar una clave ahí correría "Asistente" en TODAS esas
+ * tablas, que no tienen columna Régimen.
+ */
+const PDT601_FROZEN_COL_W = { code: 84, dig: 60, name: 208, ruc: 124, regimen: 96, assistant: 116 } as const;
+const PDT601_FROZEN_LEFT = buildFrozenLefts(PDT601_FROZEN_COL_W);
+function frozenIdHeadCellStyle(col: keyof typeof PDT601_FROZEN_COL_W) {
+  return frozenHeadCellStyle(PDT601_FROZEN_LEFT[col], PDT601_FROZEN_COL_W[col]);
+}
+function frozenIdBodyCellStyle(col: keyof typeof PDT601_FROZEN_COL_W) {
+  return frozenBodyCellStyle(PDT601_FROZEN_LEFT[col], PDT601_FROZEN_COL_W[col]);
+}
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -50,7 +72,7 @@ const TDM = `${TD} tabular-nums text-right whitespace-nowrap`;
 /** Separador vertical entre grupos de columnas (N° trabajadores / PDT 601). */
 const GROUP_BORDER = 'border-l border-slate-200';
 /** Total de columnas hoja (para el colSpan de filas vacías). */
-const COL_COUNT = 25;
+const COL_COUNT = 26;
 
 // ───────────────────── Encabezado y columnas fijas (sticky) ─────────────────────
 // Encabezado: `position: sticky` respecto al contenedor con scroll vertical real (el propio
@@ -324,6 +346,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('dig')}>Dígito</th>
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('name')}>Razón social</th>
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
+                <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('regimen')}>Régimen</th>
                 <th className={`${TH} bg-slate-50`} rowSpan={2} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH} rowSpan={2}>Estado</th>
                 <th className={TH} rowSpan={2} />
@@ -375,7 +398,12 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                   // "Suspendida" tiene prioridad sobre "sin planilla" (mutuamente excluyentes, ver
                   // Pdt601DetailPage.tsx) — bloquea CUALQUIER otro dato, no solo lo numérico.
                   const blocked = !!pl?.suspendida || !!pl?.sin_planilla;
-                  const statusValue = pl?.suspendida ? 'suspendida' : pl?.sin_planilla ? 'sin_planilla' : row.status;
+                  const displayStatus = pdt601DisplayStatus({
+                    status: row.status,
+                    sinPlanilla: pl?.sin_planilla,
+                    suspendida: pl?.suspendida,
+                    timeliness: row.timeliness,
+                  });
                   return (
                     <tr key={row.company_id} className={`group ${pdt601RowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}>
                       <td
@@ -405,6 +433,12 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       </td>
                       <td
                         className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
+                        style={frozenIdBodyCellStyle('regimen')}
+                      >
+                        {pdt601RegimenLaboralLabel(pl?.regimen_laboral)}
+                      </td>
+                      <td
+                        className={`${TD} ${frozenRowBgClass(pl?.sin_planilla, row.timeliness, pl?.suspendida)}`}
                         style={frozenIdBodyCellStyle('assistant')}
                         title={row.assistant_username}
                       >
@@ -412,21 +446,22 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                       </td>
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
-                          {/* Igual que en el detalle (combinedStatusValue): "sin_planilla"/
+                          {/* Igual que en el detalle (pdt601DisplayStatus): "sin_planilla"/
                               "suspendida" no son estados reales de la declaración, pero se
                               muestran acá en vez del estado de revisión para no decir "Pendiente"
                               en una empresa sin planilla o suspendida. */}
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(statusValue)}`}
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
                           >
-                            {pdt601StatusLabel(statusValue)}
+                            {displayStatus.label}
                           </span>
                           {/* Cumplimiento del plazo del calendario de actividades (tipo "pdt_601")
                               para la entrega del asistente (fecha_entrega) — antes solo coloreaba
                               el fondo de la fila (pdt601RowBgClass), sin texto explícito acá.
-                              Sin planilla/suspendida no tienen plazo de entrega que cumplir: se
-                              omite. */}
-                          {!blocked ? (
+                              Sin planilla/suspendida no tienen plazo de entrega que cumplir, y
+                              "Entregado" ya incluye la puntualidad en el badge de arriba: en
+                              ninguno de los dos casos hace falta repetirlo acá. */}
+                          {!blocked && row.status !== 'entregado' ? (
                             <span
                               title="Cumplimiento del plazo de entrega según el calendario de actividades"
                               className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.timeliness)}`}
@@ -440,7 +475,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                         {/* El asistente ya no puede editar (ni entrar al detalle) una vez que el
                             supervisor aprobó — a diferencia del resto de las tablas, acá el check
                             verde NO es un link: es solo la señal de "ya no hay nada que hacer". */}
-                        {workspace === 'assistant' && PDT601_APPROVED_STATUSES.has(row.status) ? (
+                        {workspace === 'assistant' && PDT601_TERMINAL_STATUSES.has(row.status) ? (
                           <span
                             title={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
                             aria-label={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}

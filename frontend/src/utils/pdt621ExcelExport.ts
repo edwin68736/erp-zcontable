@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { Pdt621ListRow } from '../services/pdt621';
-import { pdt621StatusLabel } from '../components/activity/pdt621Config';
+import { pdt621DisplayStatus } from '../components/activity/pdt621Config';
 import { buildExcelLetterhead, type ExcelLetterheadWorkspace } from './excelLetterhead';
 
 // Fuente única para TODO el Excel (título, encabezado y datos) — a pedido: "Aptos Narrow" 10pt en
@@ -153,7 +153,10 @@ export async function exportPdt621ReportExcel(options: {
     setText(row.ruc || '—', 'center');
     setText(row.tax_regime || '', 'center');
     setText(row.assistant_username || '—');
-    setText(pdt621StatusLabel(suspendida ? 'suspendida' : row.status), 'center');
+    setText(
+      pdt621DisplayStatus({ status: row.status, suspendida, assistantTimeliness: row.assistant_timeliness }).label,
+      'center',
+    );
     // Suspendida no hay seguimiento que registrar (ver Pdt621DetailPage.tsx): estas columnas
     // quedan en blanco. Observación NO se blanquea: el backend fuerza ahí la nota fija "Empresa
     // suspendida", que sí debe verse acá.

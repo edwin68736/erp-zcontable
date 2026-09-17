@@ -6,6 +6,7 @@ import {
   type ComplianceTrendPoint,
   type SupervisorDashboardData,
   type SupervisorPdtTypeSummary,
+  type SupervisorPdtAssistantSummary,
 } from '../../services/supervisors';
 import { companiesService } from '../../services/companies';
 import { usersService } from '../../services/users';
@@ -45,10 +46,13 @@ const SupervisorDashboard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [data, setData] = useState<SupervisorDashboardData | null>(null);
   const [pdtData, setPdtData] = useState<Record<'pdt_601' | 'pdt_621', SupervisorPdtTypeSummary> | null>(null);
+  const [pdtAssistantData, setPdtAssistantData] = useState<SupervisorPdtAssistantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [pdtLoading, setPdtLoading] = useState(false);
+  const [pdtAssistantLoading, setPdtAssistantLoading] = useState(false);
   const [error, setError] = useState('');
   const [pdtError, setPdtError] = useState('');
+  const [pdtAssistantError, setPdtAssistantError] = useState('');
   const [complianceTrend, setComplianceTrend] = useState<ComplianceTrendPoint[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState('');
@@ -162,6 +166,38 @@ const SupervisorDashboard = () => {
       })
       .finally(() => {
         if (!cancelled) setPdtLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId]);
+
+  // Desempeño por asistente (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.3) — mismos
+  // filtros que el resumen de arriba, solo tiene sentido en este dashboard (el del supervisor).
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    setPdtAssistantLoading(true);
+    setPdtAssistantError('');
+    void supervisorsService
+      .pdtAssistantPerformance({
+        period_ym: periodYm,
+        general_status: generalStatus || undefined,
+        risk_level: riskLevel || undefined,
+        company_id: companyId ? Number(companyId) : undefined,
+        responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
+        supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
+      })
+      .then((res) => {
+        if (!cancelled) setPdtAssistantData(res);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPdtAssistantData([]);
+        setPdtAssistantError(extractApiErrorMessage(err, 'No se pudo cargar el desempeño por asistente.'));
+      })
+      .finally(() => {
+        if (!cancelled) setPdtAssistantLoading(false);
       });
     return () => {
       cancelled = true;
@@ -384,6 +420,9 @@ const SupervisorDashboard = () => {
             summary601={pdtData?.pdt_601}
             summary621={pdtData?.pdt_621}
             workspace="supervisor"
+            assistantPerformance={pdtAssistantData}
+            assistantPerformanceLoading={pdtAssistantLoading}
+            assistantPerformanceError={pdtAssistantError}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -466,18 +505,26 @@ const SupervisorDashboard = () => {
   );
 };
 
-function PdtSummarySection({
+export function PdtSummarySection({
   loading,
   error,
   summary601,
   summary621,
   workspace,
+  assistantPerformance,
+  assistantPerformanceLoading,
+  assistantPerformanceError,
 }: {
   loading: boolean;
   error?: string;
   summary601?: SupervisorPdtTypeSummary;
   summary621?: SupervisorPdtTypeSummary;
   workspace: 'supervisor' | 'assistant';
+  /** Solo se pasa desde el dashboard del supervisor (docs/diseno-estados-pdt601-pdt621-2026-09-
+   * 16.md §12.3) — el del asistente no la necesita, ahí solo hay una persona. */
+  assistantPerformance?: SupervisorPdtAssistantSummary[];
+  assistantPerformanceLoading?: boolean;
+  assistantPerformanceError?: string;
 }) {
   const base = workspace === 'assistant' ? '/assistant/activities' : '/supervisors/activities';
 
@@ -502,12 +549,91 @@ function PdtSummarySection({
           <PdtTypeCard title="PDT 621" summary={summary621 ?? emptyPdtSummary()} linkTo={`${base}/pdt-621`} />
         </div>
       )}
+      {workspace === 'supervisor' ? (
+        <PdtAssistantPerformanceTable
+          loading={!!assistantPerformanceLoading}
+          error={assistantPerformanceError}
+          rows={assistantPerformance ?? []}
+        />
+      ) : null}
     </div>
   );
 }
 
 function emptyPdtSummary(): SupervisorPdtTypeSummary {
-  return { pendiente: 0, observado: 0, vencido: 0, completado: 0, sin_planilla: 0, suspendida: 0, total: 0 };
+  return {
+    pendiente: 0,
+    observado: 0,
+    vencido: 0,
+    completado: 0,
+    sin_planilla: 0,
+    suspendida: 0,
+    total: 0,
+    entregado_a_tiempo: 0,
+    entregado_fuera_de_fecha: 0,
+  };
+}
+
+const PDT_DECLARATION_TYPE_LABEL: Record<string, string> = { pdt_601: 'PDT 601', pdt_621: 'PDT 621' };
+
+/** "¿Cómo viene cada uno de mis asistentes?" — no solo el total del portafolio (§12.3). Una fila
+ * por (asistente, tipo), agrupadas visualmente por asistente ya que la API las devuelve ordenadas
+ * por username. */
+function PdtAssistantPerformanceTable({
+  loading,
+  error,
+  rows,
+}: {
+  loading: boolean;
+  error?: string;
+  rows: SupervisorPdtAssistantSummary[];
+}) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-slate-800">Desempeño por asistente</h3>
+      {loading ? (
+        <p className="text-sm text-slate-500">Cargando desempeño por asistente…</p>
+      ) : error ? (
+        <p className="text-sm text-red-600 flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-xs" aria-hidden />
+          {error}
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-500">Sin empresas con asistente asignado en este período/alcance.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left">Asistente</th>
+                <th className="px-3 py-2 text-left">Módulo</th>
+                <th className="px-3 py-2 text-right">Pendiente</th>
+                <th className="px-3 py-2 text-right">Observado</th>
+                <th className="px-3 py-2 text-right">Vencido</th>
+                <th className="px-3 py-2 text-right">Entregado a tiempo</th>
+                <th className="px-3 py-2 text-right">Entregado fuera de fecha</th>
+                <th className="px-3 py-2 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((r) => (
+                <tr key={`${r.assistant_user_id}-${r.declaration_type}`} className="hover:bg-slate-50/80">
+                  <td className="px-3 py-2 text-slate-800 font-medium">{r.assistant_username || `Usuario #${r.assistant_user_id}`}</td>
+                  <td className="px-3 py-2 text-slate-600">{PDT_DECLARATION_TYPE_LABEL[r.declaration_type] ?? r.declaration_type}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.pendiente}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.observado}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-red-700">{r.vencido}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{r.entregado_a_tiempo}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-orange-700">{r.entregado_fuera_de_fecha}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-semibold">{r.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PdtTypeCard({
@@ -532,6 +658,15 @@ function PdtTypeCard({
         <PdtMiniStat label="Observadas" value={summary.observado} tone="orange" />
         <PdtMiniStat label="Vencidas" value={summary.vencido} tone="red" />
         <PdtMiniStat label="Completadas" value={summary.completado} tone="emerald" />
+        {/* Apertura de "Completadas" por puntualidad (docs/diseno-estados-pdt601-pdt621-2026-09-
+            16.md §12.1) — suman exactamente el total de arriba, calculado contra el calendario
+            interno del estudio. Solo se muestran si hay algo que desglosar. */}
+        {summary.entregado_a_tiempo > 0 ? (
+          <PdtMiniStat label="Entregado a tiempo" value={summary.entregado_a_tiempo} tone="emerald" />
+        ) : null}
+        {summary.entregado_fuera_de_fecha > 0 ? (
+          <PdtMiniStat label="Entregado fuera de fecha" value={summary.entregado_fuera_de_fecha} tone="orange" />
+        ) : null}
         {/* Solo PDT 601 tiene el concepto "sin planilla" (PDT 621 siempre trae 0 acá) — no se
             cuenta como pendiente: la empresa no tiene nada que declarar en el período. */}
         {summary.sin_planilla > 0 ? (

@@ -142,6 +142,7 @@ var registryDefs = []PermDef{
 	{SupervisorsDeclarationsDelete, ModSupervisores, "Declaraciones", "Eliminar declaración"},
 	{SupervisorsDeclarationsApprove, ModSupervisores, "Declaraciones", "Aprobar declaración"},
 	{SupervisorsDeclarationsObserve, ModSupervisores, "Declaraciones", "Observar declaración"},
+	{SupervisorsDeclarationsReopen, ModSupervisores, "Declaraciones", "Reabrir declaración entregada (PDT 601/621)"},
 
 	{SupervisorsLiquidationsView, ModSupervisores, "Liquidaciones", "Ver liquidación tributaria"},
 	{SupervisorsLiquidationsCreate, ModSupervisores, "Liquidaciones", "Crear liquidación tributaria"},
@@ -225,6 +226,7 @@ var supervisorDeny = []string{
 	SettingsFirmView, SettingsFirmUpdate, SettingsFirmUploadLogo, SettingsFirmUploadBankLogo, SettingsFirmUploadPaymentQR,
 	CompaniesDelete, SubscriptionPlansDelete, PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided,
 	FinanceCalendarManage, CompanyCredentialsManage, CompanyCredentialsImport,
+	SupervisorsDeclarationsReopen,
 }
 
 // contadorDeny lo que NO tiene Contador (además de todo el módulo supervisores, ver contadorCodes).

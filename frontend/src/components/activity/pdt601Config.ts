@@ -5,34 +5,56 @@ import {
   formatStoredAt,
 } from './activityModuleShared';
 
+// Enum reducido de 4 estados (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) — reemplaza al viejo
+// de 7 valores. "Por revisar" es un único estado tanto para la primera entrega del asistente como
+// para una reentrega tras una observación. "Entregado" es terminal (salvo Reabrir); su variante
+// "fuera de fecha" NO es un valor de estado — es un label calculado en lectura, ver
+// pdt601DisplayStatus más abajo.
 export const PDT601_STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_elaboracion', label: 'En elaboración' },
-  { value: 'en_revision', label: 'En revisión' },
+  { value: 'por_revisar', label: 'Por revisar' },
   { value: 'observado', label: 'Observado' },
-  { value: 'aprobado', label: 'Aprobado' },
-  { value: 'presentado', label: 'Presentado' },
-  { value: 'cerrado', label: 'Cerrado' },
+  { value: 'entregado', label: 'Entregado' },
 ] as const;
+
+/** Régimen laboral de la empresa para el período — obligatorio, sin valor por defecto (fuerza a
+ * elegir). Fuente única de labels/valores, compartida entre el detalle, el listado y el export
+ * Excel de PDT 601 (ver Pdt601DetailPage.tsx, Pdt601ListPage.tsx, pdt601ExcelExport.ts). */
+export const PDT601_REGIMEN_LABORAL_OPTIONS = [
+  { value: '', label: 'Seleccione' },
+  { value: 'general', label: 'General' },
+  { value: 'remype', label: 'Remype' },
+] as const;
+
+export const REGIMEN_LABORAL_LABELS: Record<string, string> = {
+  general: 'General',
+  remype: 'Remype',
+};
+
+export function pdt601RegimenLaboralLabel(value?: string | null): string {
+  return (value && REGIMEN_LABORAL_LABELS[value]) || '—';
+}
 
 export const PDT601_STATUS_FILTER = [
   ...buildStatusFilter(PDT601_STATUSES),
+  { value: 'entregado_a_tiempo', label: 'Entregado a tiempo' },
+  { value: 'entregado_fuera_de_fecha', label: 'Entregado fuera de fecha' },
   { value: 'sin_planilla', label: 'Sin planilla' },
   { value: 'suspendida', label: 'Suspendida' },
 ];
 
-/** Estados en los que el supervisor ya cerró su revisión — a partir de acá el asistente ya no
- * puede seguir editando (ver Pdt601DetailPage/Pdt601ListPage). Fuente única: no duplicar este set. */
-export const PDT601_APPROVED_STATUSES = new Set(['aprobado', 'presentado', 'cerrado']);
+/** Único estado terminal — a partir de acá el formulario queda bloqueado para los dos roles (ver
+ * declarationLocked en Pdt601DetailPage). Fuente única: no duplicar este set. */
+export const PDT601_TERMINAL_STATUSES = new Set(['entregado']);
 
 const PDT601_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
-  en_elaboracion: 'bg-blue-100 text-blue-800',
-  en_revision: 'bg-indigo-100 text-indigo-800',
+  por_revisar: 'bg-indigo-100 text-indigo-800',
   observado: 'bg-amber-100 text-amber-900',
-  aprobado: 'bg-emerald-100 text-emerald-800',
-  presentado: 'bg-teal-100 text-teal-800',
-  cerrado: 'bg-slate-200 text-slate-800',
+  entregado: 'bg-emerald-100 text-emerald-800',
+  // Mismo estado guardado que "entregado" — se distingue únicamente por el label/badge calculado
+  // (pdt601DisplayStatus), nunca es un valor de Status real.
+  entregado_fuera_de_fecha: 'bg-orange-100 text-orange-900',
   sin_registro: 'bg-slate-100 text-slate-500',
   // "sin_planilla"/"suspendida" no son estados de la declaración (son planilla.sin_planilla /
   // planilla.suspendida) — se muestran acá como si lo fueran para que el badge/select del detalle
@@ -46,11 +68,33 @@ const PDT601_BADGE: Record<string, string> = {
 export function pdt601StatusLabel(status: string): string {
   if (status === 'sin_planilla') return 'Sin planilla';
   if (status === 'suspendida') return 'Suspendida';
+  if (status === 'entregado_fuera_de_fecha') return 'Entregado fuera de fecha';
   return activityStatusLabel(status, PDT601_STATUSES);
 }
 
 export function pdt601StatusBadgeClass(status: string): string {
   return activityStatusBadgeClass(status, PDT601_BADGE);
+}
+
+/**
+ * Fuente única para decidir qué mostrar como "Estado" en cualquier pantalla de PDT601 — prioridad
+ * Suspendida > Sin planilla > Entregado±puntualidad > estado real (docs/diseno-estados-pdt601-pdt621-
+ * 2026-09-16.md §6/§12.1). Reemplaza el patrón repetido
+ * `suspendida ? 'suspendida' : sinPlanilla ? 'sin_planilla' : status` que antes vivía duplicado en el
+ * detalle, el listado, el Excel y el dashboard.
+ */
+export function pdt601DisplayStatus(opts: {
+  status: string;
+  sinPlanilla?: boolean;
+  suspendida?: boolean;
+  timeliness?: string;
+}): { value: string; label: string; className: string } {
+  const { status, sinPlanilla, suspendida, timeliness } = opts;
+  let value = status;
+  if (suspendida) value = 'suspendida';
+  else if (sinPlanilla) value = 'sin_planilla';
+  else if (status === 'entregado' && timeliness === 'late') value = 'entregado_fuera_de_fecha';
+  return { value, label: pdt601StatusLabel(value), className: pdt601StatusBadgeClass(value) };
 }
 
 export function resolvePdt601DueDate(declDue?: string, controlDue?: string): string | undefined {
@@ -64,7 +108,7 @@ export function computePdt601DueMeta(
   sinPlanilla?: boolean,
   suspendida?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || sinPlanilla || suspendida || PDT601_APPROVED_STATUSES.has(status) || status === 'observado') {
+  if (!dueDate || sinPlanilla || suspendida || PDT601_TERMINAL_STATUSES.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();

@@ -56,6 +56,7 @@ import ActivityTemplateForm from './pages/finance/ActivityTemplateForm';
 import CompanyAccessCredentials from './pages/finance/CompanyAccessCredentials';
 import SunatDueDatesCalendar from './pages/finance/SunatDueDatesCalendar';
 import AssistantWorkspace from './pages/assistant/AssistantWorkspace';
+import AssistantDashboard from './pages/assistant/AssistantDashboard';
 import AssistantCompaniesPage from './pages/assistant/AssistantCompaniesPage';
 import AssistantSunatInboxListPage from './pages/assistant/activities/AssistantSunatInboxListPage';
 import AssistantSunatInboxDetailPage from './pages/assistant/activities/AssistantSunatInboxDetailPage';
@@ -171,6 +172,7 @@ function App() {
             <Route path="finance/claves-sol" element={guard(P.companyCredentialsView, <CompanyAccessCredentials />)} />
             <Route path="finance/sunat-due-dates" element={guard(P.financeSunatDueDatesView, <SunatDueDatesCalendar />)} />
             <Route path="assistant" element={guard(P.supervisorsControlsView, <AssistantWorkspace />)} />
+            <Route path="assistant/dashboard" element={guard(P.supervisorsDashboardView, <AssistantDashboard />)} />
             <Route path="assistant/companies" element={guard(P.supervisorsControlsView, <AssistantCompaniesPage />)} />
             <Route path="assistant/activities" element={<Navigate to="/assistant" replace />} />
             <Route path="assistant/activities/pdt-601" element={guard(P.supervisorsControlsView, <AssistantPdt601ListPage />)} />

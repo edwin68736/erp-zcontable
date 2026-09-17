@@ -59,6 +59,10 @@ type Pdt601Detail struct {
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
 	Planilla          *Pdt601PlanillaDTO           `json:"planilla,omitempty"`
+	// Timeliness mismo criterio que Pdt601ListRow.Timeliness — presente acá también para que el
+	// detalle pueda mostrar "Entregado" vs "Entregado fuera de fecha" sin recalcular nada en el
+	// frontend (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§12).
+	Timeliness string `json:"timeliness"`
 }
 
 // pdt601StatusFilterSinPlanilla filtro sintético del listado: empresas marcadas sin planilla.
@@ -67,16 +71,46 @@ const pdt601StatusFilterSinPlanilla = "sin_planilla"
 // pdt601StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
 const pdt601StatusFilterSuspendida = "suspendida"
 
+// Filtros sintéticos de puntualidad (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §11) — no son
+// valores de Status guardados, se resuelven en la consulta comparando fecha_entrega contra la fecha
+// límite única del período (pdt601PeriodDueDate). "entregado" solo, sin distinguir puntualidad, ya
+// cubre el caso "quiero ver los entregados" sin filtrar por fecha.
+const (
+	pdt601StatusFilterEntregado             = "entregado"
+	pdt601StatusFilterEntregadoATiempo      = "entregado_a_tiempo"
+	pdt601StatusFilterEntregadoFueraDeFecha = "entregado_fuera_de_fecha"
+)
+
 // supervisorSuspendidaNote nota fija que se fuerza en el campo de observación (PDT 601 y PDT 621)
 // cuando la empresa está marcada "suspendida" — así queda visible en el listado y en el reporte
 // Excel sin depender de que alguien la escriba a mano. Compartida por ambos módulos (mismo
 // package), definida acá una sola vez.
 const supervisorSuspendidaNote = "Empresa suspendida"
 
+// isPdt601Pdt621DeclarationType true para el enum reducido de estados
+// (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) — compartido por ambos módulos, definido acá una
+// sola vez (mismo criterio que supervisorSuspendidaNote arriba).
+func isPdt601Pdt621DeclarationType(t string) bool {
+	return t == models.SupervisorDeclPDT601 || t == models.SupervisorDeclPDT621
+}
+
+// validatePdt601Pdt621StatusTransition bloquea cambios de estado vía el PUT genérico de declaraciones
+// para pdt_601/pdt_621 — mismo patrón que validateDetraccionesStatusTransition
+// (supervisor_detracciones_states.go): el estado de estos dos tipos ya no es un campo libre, cada
+// cambio pasa por una acción dedicada (Entregar vía SavePdt601Planilla/SavePdt621Record, Aprobar,
+// Observar, Reabrir), cada una con su propia validación y efectos secundarios.
+func validatePdt601Pdt621StatusTransition(from, to string) error {
+	if from == to {
+		return nil
+	}
+	return errors.New("use las acciones dedicadas (Entregar, Aprobar, Observar, Reabrir) para cambiar el estado de PDT 601/621")
+}
+
 // Pdt601PlanillaDTO datos de planilla PDT 601 del período (salida a UI).
 type Pdt601PlanillaDTO struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
 	Suspendida                  bool    `json:"suspendida"`
+	RegimenLaboral              string  `json:"regimen_laboral"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
 	TrabajadoresTotal           int     `json:"trabajadores_total"`
@@ -103,6 +137,7 @@ type Pdt601PlanillaDTO struct {
 type Pdt601PlanillaInput struct {
 	SinPlanilla                 bool    `json:"sin_planilla"`
 	Suspendida                  bool    `json:"suspendida"`
+	RegimenLaboral              string  `json:"regimen_laboral"`
 	TrabajadoresONP             int     `json:"trabajadores_onp"`
 	TrabajadoresAFP             int     `json:"trabajadores_afp"`
 	Essalud                     float64 `json:"essalud"`
@@ -155,6 +190,30 @@ func findPdt601CalendarActivity(periodYM string) *models.FinanceCalendarActivity
 	return act
 }
 
+// pdt601PeriodDueDate fecha límite ÚNICA del período para PDT 601, según el calendario interno de
+// actividades (/settings/activity-configuration) — igual para todas las empresas, nunca por empresa
+// (a diferencia del cronograma SUNAT de PDT 621, que sí varía por dígito de RUC — ese no participa acá,
+// ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§11). Nil si el período no tiene esta
+// actividad configurada en el calendario, o no tiene regla activa asignada — en ese caso no hay nada
+// contra qué comparar, y tanto el filtro como el label tratan la entrega como "a tiempo" (no se
+// castiga por falta de configuración).
+func pdt601PeriodDueDate(periodYM string) *time.Time {
+	act := findPdt601CalendarActivity(periodYM)
+	if act == nil {
+		return nil
+	}
+	dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+	if err != nil {
+		return nil
+	}
+	rule, err := LoadActiveActivityRule(act.ActivityRuleID)
+	if err != nil || rule == nil {
+		return &dueDate
+	}
+	deadline := BuildUploadDeadline(dueDate, rule)
+	return &deadline
+}
+
 func maxInt0(n int) int {
 	if n < 0 {
 		return 0
@@ -168,19 +227,20 @@ func pdt601PlanillaToDTO(p *models.SupervisorPdt601Planilla) *Pdt601PlanillaDTO 
 		return nil
 	}
 	return &Pdt601PlanillaDTO{
-		SinPlanilla:                 p.SinPlanilla,
-		Suspendida:                  p.Suspendida,
-		TrabajadoresONP:             p.TrabajadoresONP,
-		TrabajadoresAFP:             p.TrabajadoresAFP,
-		TrabajadoresTotal:           p.TrabajadoresONP + p.TrabajadoresAFP,
-		Essalud:                     p.Essalud,
-		Onp:                         p.Onp,
-		Afp:                         p.Afp,
-		Sis:                         p.Sis,
-		Rta4ta:                      p.Rta4ta,
-		Rta5ta:                      p.Rta5ta,
-		Sctr:                        p.Sctr,
-		Rh:                          p.Rh,
+		SinPlanilla:       p.SinPlanilla,
+		Suspendida:        p.Suspendida,
+		RegimenLaboral:    p.RegimenLaboral,
+		TrabajadoresONP:   p.TrabajadoresONP,
+		TrabajadoresAFP:   p.TrabajadoresAFP,
+		TrabajadoresTotal: p.TrabajadoresONP + p.TrabajadoresAFP,
+		Essalud:           p.Essalud,
+		Onp:               p.Onp,
+		Afp:               p.Afp,
+		Sis:               p.Sis,
+		Rta4ta:            p.Rta4ta,
+		Rta5ta:            p.Rta5ta,
+		Sctr:              p.Sctr,
+		Rh:                p.Rh,
 		// RH queda fuera de TotalAportes a pedido — no se suma junto con Essalud/Onp/Afp/Sis/Rta4ta/Rta5ta/Sctr.
 		TotalAportes:                p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta + p.Sctr,
 		FechaEntrega:                pdt601DateString(p.FechaEntrega),
@@ -323,6 +383,14 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		return nil, err
 	}
 
+	// Mismo cálculo que pdt601BuildRows (lista/export) — ver comentario en Pdt601Detail.Timeliness.
+	exempt := planillaDTO != nil && (planillaDTO.SinPlanilla || planillaDTO.Suspendida)
+	var deliveredAt *time.Time
+	if planillaDTO != nil && planillaDTO.FechaEntrega != nil {
+		deliveredAt = pdt601ParseDate(*planillaDTO.FechaEntrega)
+	}
+	timeliness := ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM), deliveredAt, exempt).Timeliness
+
 	return &Pdt601Detail{
 		PeriodYM:          periodYM,
 		CompanyID:         company.ID,
@@ -335,15 +403,29 @@ func (s *SupervisorService) EnsurePdt601(companyID uint, periodYM string) (*Pdt6
 		ControlDueDate:    ctrl.DueDate,
 		Declaration:       decl,
 		Planilla:          planillaDTO,
+		Timeliness:        timeliness,
 	}, nil
 }
 
 // SavePdt601Planilla crea o actualiza la planilla PDT 601 del período (empresa+periodo).
 // Reutiliza EnsurePdt601 para garantizar que exista el control mensual y validar acceso/periodo.
 func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, in Pdt601PlanillaInput) (*Pdt601Detail, error) {
+	// RegimenLaboral: obligatorio en la UI (Pdt601DetailPage.tsx exige elegirlo antes de habilitar
+	// "Guardar planilla", mismo patrón que NPS/TicketAFP). Acá solo se rechaza un valor inválido —
+	// NO se exige no-vacío, para no romper syncPdt601Planilla (SupervisorLiquidacionCreatePage.tsx),
+	// que sincroniza importes en segundo plano y puede correr antes de que alguien haya fijado el
+	// régimen para esa empresa/período.
+	regimen := strings.TrimSpace(in.RegimenLaboral)
+	if regimen != "" && regimen != models.Pdt601RegimenGeneral && regimen != models.Pdt601RegimenRemype {
+		return nil, errors.New("régimen laboral inválido")
+	}
+
 	detail, err := s.EnsurePdt601(companyID, periodYM)
 	if err != nil {
 		return nil, err
+	}
+	if detail.Declaration.Status == models.SupervisorDeclEntregado {
+		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
 
 	var pl models.SupervisorPdt601Planilla
@@ -354,6 +436,8 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 		}
 		pl = models.SupervisorPdt601Planilla{MonthlyControlID: detail.ControlID}
 	}
+
+	pl.RegimenLaboral = regimen
 
 	// "Suspendida" es más restrictivo que "sin planilla" y mutuamente excluyente con ella: mientras
 	// esté marcada, no se permite registrar NADA más (ver Pdt601DetailPage.tsx, SUSPENDIDA_RESET) —
@@ -402,10 +486,43 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 		pl.FechaEnvioNpsTicketsBoletas = pdt601ParseDate(in.FechaEnvioNpsTicketsBoletas)
 	}
 
-	if err := database.DB.Save(&pl).Error; err != nil {
+	declStatus := detail.Declaration.Status
+	declID := detail.Declaration.ID
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&pl).Error; err != nil {
+			return err
+		}
+		// Entregar automático (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): guardar con
+		// fecha de entrega cargada es en sí mismo la acción de "entregar" — no hay selector de
+		// estado manual. Solo aplica desde Pendiente/Observado, nunca desde Por revisar (ya está
+		// ahí) ni Entregado (bloqueado más arriba, antes de llegar acá).
+		if pl.FechaEntrega != nil &&
+			(declStatus == models.SupervisorDeclPendiente || declStatus == models.SupervisorDeclObservado) {
+			return tx.Model(&models.SupervisorDeclaration{}).
+				Where("id = ?", declID).
+				Updates(map[string]interface{}{
+					"status":       models.SupervisorDeclPorRevisar,
+					"progress_pct": declarationProgressFromStatus(models.SupervisorDeclPorRevisar),
+				}).Error
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
+	if pl.FechaEntrega != nil &&
+		(declStatus == models.SupervisorDeclPendiente || declStatus == models.SupervisorDeclObservado) {
+		// Refleja en memoria lo que ya se guardó en la transacción de arriba — SavePdt601Planilla no
+		// vuelve a recargar detail desde la base (a diferencia de SavePdt621Record, que sí re-consulta
+		// al final vía EnsurePdt621), así que sin esto la respuesta devolvería el estado viejo.
+		detail.Declaration.Status = models.SupervisorDeclPorRevisar
+		detail.Declaration.ProgressPct = declarationProgressFromStatus(models.SupervisorDeclPorRevisar)
+	}
 	detail.Planilla = pdt601PlanillaToDTO(&pl)
+	// Recalcula con los datos recién guardados — el valor de EnsurePdt601 al principio de esta función
+	// quedó desactualizado (se calculó antes de este guardado).
+	exempt := pl.SinPlanilla || pl.Suspendida
+	detail.Timeliness = ComputeCalendarActivityTimeliness(periodYM, findPdt601CalendarActivity(periodYM), pl.FechaEntrega, exempt).Timeliness
 	return detail, nil
 }
 
@@ -465,6 +582,39 @@ func pdt601FilteredCompaniesQuery(p Pdt601ListParams) *gorm.DB {
 			INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND pl.suspendida = ?
 		)`, p.PeriodYM, true)
+	} else if statusFilter == pdt601StatusFilterEntregadoATiempo {
+		// Sin fecha límite configurada, cualquier "entregado" cuenta como a tiempo — no se castiga por
+		// falta de configuración (mismo criterio que el label calculado, ver §5/§11 del diseño).
+		due := pdt601PeriodDueDate(p.PeriodYM)
+		if due == nil {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM)
+		} else {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+				AND (pl.fecha_entrega IS NULL OR pl.fecha_entrega <= ?)
+			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+		}
+	} else if statusFilter == pdt601StatusFilterEntregadoFueraDeFecha {
+		due := pdt601PeriodDueDate(p.PeriodYM)
+		if due == nil {
+			// Sin fecha límite configurada no hay "fuera de fecha" posible.
+			q = q.Where("1 = 0")
+		} else {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				INNER JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+				AND pl.fecha_entrega IS NOT NULL AND pl.fecha_entrega > ?
+			)`, models.SupervisorDeclPDT601, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+		}
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c

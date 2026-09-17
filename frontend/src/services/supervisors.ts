@@ -58,6 +58,11 @@ export interface SupervisorDeclaration {
   notes?: string;
   responsible?: SupervisorUserRef;
   approver?: SupervisorUserRef;
+  /** Reapertura (solo pdt_601/pdt_621, permiso dedicado) — ver supervisorsService.reopenDeclaration. */
+  reopened_at?: string;
+  reopened_by?: number;
+  reopen_reason?: string;
+  reopened_by_user?: SupervisorUserRef;
 }
 
 export interface SupervisorTaxLiquidation {
@@ -268,6 +273,15 @@ export const supervisorsService = {
     return unwrap(res);
   },
 
+  /** Solo pdt_601/pdt_621, permiso dedicado supervisors.declarations_reopen — revierte "Entregado" a
+   * "Por revisar" con motivo obligatorio (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7). */
+  async reopenDeclaration(id: number, reason: string): Promise<SupervisorDeclaration> {
+    const res = await client.post<{ data: SupervisorDeclaration }>(`/supervisors/declarations/${id}/reopen`, {
+      reason,
+    });
+    return unwrap(res);
+  },
+
   async getLiquidation(controlId: number): Promise<SupervisorTaxLiquidation> {
     const res = await client.get<{ data: SupervisorTaxLiquidation }>(
       `/supervisors/controls/${controlId}/liquidation`,
@@ -445,6 +459,24 @@ export const supervisorsService = {
     return res.data.data;
   },
 
+  /** Desglosa pdtDashboardSummary por asistente — mismos filtros (docs/diseno-estados-pdt601-pdt621-
+   * 2026-09-16.md §12.3). Solo tiene sentido en el workspace supervisor (ve el desempeño de SUS
+   * asistentes); no se usa en el dashboard del asistente. */
+  async pdtAssistantPerformance(params: {
+    period_ym?: string;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<SupervisorPdtAssistantSummary[]> {
+    const res = await client.get<{ data: SupervisorPdtAssistantSummary[] }>(
+      '/supervisors/dashboard/pdt-assistant-performance',
+      { params },
+    );
+    return res.data.data ?? [];
+  },
+
   /** Cumplimiento mensual de los últimos `months` (default 6) meses terminando en period_ym —
    * mismos filtros que `dashboard`, en orden cronológico ascendente. */
   async complianceTrend(params: {
@@ -475,6 +507,18 @@ export interface SupervisorPdtTypeSummary {
   // "vencido": mientras esté suspendida no se registra ningún otro dato.
   suspendida: number;
   total: number;
+  /** Apertura de "completado" por puntualidad (docs/diseno-estados-pdt601-pdt621-2026-09-16.md
+   * §12.1) — suman exactamente completado, calculados contra el calendario interno del estudio. */
+  entregado_a_tiempo: number;
+  entregado_fuera_de_fecha: number;
+}
+
+/** Una fila por (asistente, tipo de declaración) — mismos buckets que SupervisorPdtTypeSummary,
+ * desglosados por asistente para el dashboard del supervisor (§12.3). */
+export interface SupervisorPdtAssistantSummary extends SupervisorPdtTypeSummary {
+  assistant_user_id: number;
+  assistant_username: string;
+  declaration_type: string;
 }
 
 export interface ComplianceTrendPoint {

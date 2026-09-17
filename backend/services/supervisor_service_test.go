@@ -25,6 +25,8 @@ func setupSupervisorTestDB(t *testing.T) *gorm.DB {
 		&models.SupervisorTaxLiquidation{},
 		&models.SupervisorNPS{},
 		&models.SupervisorNotification{},
+		&models.SupervisorChangeLog{},
+		&models.SupervisorObservation{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

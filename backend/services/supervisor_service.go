@@ -22,16 +22,16 @@ func NewSupervisorService() *SupervisorService {
 }
 
 type SupervisorListParams struct {
-	PeriodYM           string
-	CompanyID          uint
-	GeneralStatus      string
-	RiskLevel          string
-	ResponsibleUserID  uint
-	SupervisorUserID   uint
-	AllowedCompanyIDs  []uint
-	Q                  string
-	Page               int
-	PerPage            int
+	PeriodYM          string
+	CompanyID         uint
+	GeneralStatus     string
+	RiskLevel         string
+	ResponsibleUserID uint
+	SupervisorUserID  uint
+	AllowedCompanyIDs []uint
+	Q                 string
+	Page              int
+	PerPage           int
 }
 
 type SupervisorAlert struct {
@@ -43,23 +43,23 @@ type SupervisorAlert struct {
 }
 
 type SupervisorDashboard struct {
-	TotalActiveCompanies   int64                       `json:"total_active_companies"`
-	CompaniesAlDia         int64                       `json:"companies_al_dia"`
-	CompaniesPendiente     int64                       `json:"companies_pendiente"`
-	CompaniesVencido       int64                       `json:"companies_vencido"`
-	CompaniesWithoutControl int64                      `json:"companies_without_control"`
-	ControlsAlDia          int64                       `json:"controls_al_dia"`
-	ControlsPendiente      int64                       `json:"controls_pendiente"`
-	ControlsVencido        int64                       `json:"controls_vencido"`
-	ControlsObservado      int64                       `json:"controls_observado"`
-	ControlsCerrado        int64                       `json:"controls_cerrado"`
-	DeclarationsObserved   int64                       `json:"declarations_observed"`
-	NPSPending             int64                       `json:"nps_pending"`
-	PaymentsPending        int64                       `json:"payments_pending"`
-	MonthlyCompliancePct   float64                     `json:"monthly_compliance_pct"`
-	ByStatus               map[string]int64            `json:"by_status"`
-	Alerts                 []SupervisorAlert           `json:"alerts"`
-	Productivity           []SupervisorProductivityRow `json:"productivity"`
+	TotalActiveCompanies    int64                       `json:"total_active_companies"`
+	CompaniesAlDia          int64                       `json:"companies_al_dia"`
+	CompaniesPendiente      int64                       `json:"companies_pendiente"`
+	CompaniesVencido        int64                       `json:"companies_vencido"`
+	CompaniesWithoutControl int64                       `json:"companies_without_control"`
+	ControlsAlDia           int64                       `json:"controls_al_dia"`
+	ControlsPendiente       int64                       `json:"controls_pendiente"`
+	ControlsVencido         int64                       `json:"controls_vencido"`
+	ControlsObservado       int64                       `json:"controls_observado"`
+	ControlsCerrado         int64                       `json:"controls_cerrado"`
+	DeclarationsObserved    int64                       `json:"declarations_observed"`
+	NPSPending              int64                       `json:"nps_pending"`
+	PaymentsPending         int64                       `json:"payments_pending"`
+	MonthlyCompliancePct    float64                     `json:"monthly_compliance_pct"`
+	ByStatus                map[string]int64            `json:"by_status"`
+	Alerts                  []SupervisorAlert           `json:"alerts"`
+	Productivity            []SupervisorProductivityRow `json:"productivity"`
 }
 
 type SupervisorBootstrapResult struct {
@@ -166,7 +166,7 @@ func (s *SupervisorService) bootstrapControlChildren(tx *gorm.DB, controlID uint
 	liq := models.SupervisorTaxLiquidation{
 		MonthlyControlID: controlID,
 		ValidationStatus: models.SupervisorLiqPendiente,
-		CalculatedAt:   &now,
+		CalculatedAt:     &now,
 	}
 	return tx.Create(&liq).Error
 }
@@ -456,11 +456,21 @@ type PdtTypeSummary struct {
 	SinPlanilla int64 `json:"sin_planilla"`
 	Suspendida  int64 `json:"suspendida"`
 	Total       int64 `json:"total"`
+	// EntregadoATiempo/EntregadoFueraDeFecha (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.1):
+	// apertura de "Completado" por puntualidad — solo aplica a pdt_601/pdt_621 (el único tipo que
+	// entra a esta consulta con el estado "entregado" nuevo). Suman exactamente Completado para estos
+	// dos tipos; no reemplazan el campo, se muestran como desglose adicional.
+	EntregadoATiempo      int64 `json:"entregado_a_tiempo"`
+	EntregadoFueraDeFecha int64 `json:"entregado_fuera_de_fecha"`
 }
 
-// PdtDashboardSummary calcula el resumen PDT 601/621 en el servidor con una sola consulta
-// agrupada — reemplaza la agregación 1+N que hacía el navegador. Acepta los mismos filtros que
-// el resto del dashboard (empresa, estado general, riesgo, responsable, supervisor, alcance).
+// pdtBucketsSelectSQL arma las columnas de conteo por bucket (sin_planilla, suspendida, observado,
+// completado, vencido, pendiente, ent_a_tiempo, ent_fuera_de_fecha, total) — reutilizada tanto por
+// PdtDashboardSummary (total del portafolio) como por PdtAssistantPerformance (desglose por
+// asistente, docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.3). El caller debe traer los alias
+// `d` (supervisor_declarations), `c` (supervisor_monthly_controls), `pl` (LEFT JOIN
+// supervisor_pdt601_planillas) y `r` (LEFT JOIN supervisor_pdt621_records) — mismos JOINs en los dos
+// casos, esta función no los agrega.
 //
 // "Sin planilla" (planilla PDT 601 marcada por el supervisor/asistente, ver Pdt601DetailPage) es
 // un bucket propio, NO "pendiente": una empresa sin planilla no tiene nada que declarar en PDT
@@ -469,6 +479,97 @@ type PdtTypeSummary struct {
 // no es un status de la declaración, ver combinedStatusValue en el frontend). Se prioriza el flag
 // de planilla sobre d.status para autocorregir registros previos a este fix que hayan quedado con
 // un status desalineado (p. ej. "observado" antes de marcarse sin planilla).
+//
+// La fecha límite de cada declaración es la suya propia si la tiene, si no la de su control
+// (mismo criterio que resolvePdt601DueDate en el frontend). "Vencido" solo aplica a
+// declaraciones que siguen abiertas (ni observadas ni ya completadas) y cuya fecha límite
+// resuelta ya pasó. pl.sin_planilla/pl.suspendida son datos del CONTROL vía PDT 601 (una
+// planilla por control, no por declaración) y r.suspendida el equivalente vía PDT 621 (un
+// registro por control) — ambos LEFT JOIN traen la misma fila para pdt_601 Y pdt_621 de ese
+// control, así que hay que exigir el declaration_type correspondiente en cada condición: si no,
+// una empresa marcada sin planilla/suspendida en un módulo aparecía también así en el otro.
+//
+// Los nombres de tipo/estado de declaración (SupervisorDeclXxx) son constantes Go del propio
+// código — nunca vienen del request — así que se insertan directo en el SQL (fmt.Sprintf) en
+// vez de como parámetros `?`: evita tener que contar y ordenar a mano una veintena de
+// placeholders posicionales repetidos, sin ningún riesgo de inyección (no hay input externo acá).
+func pdtBucketsSelectSQL(periodYM string) string {
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
+	isSuspendida := fmt.Sprintf(
+		"((d.declaration_type = %s AND COALESCE(pl.suspendida, 0) = 1) OR (d.declaration_type = %s AND COALESCE(r.suspendida, 0) = 1))",
+		sq(models.SupervisorDeclPDT601), sq(models.SupervisorDeclPDT621),
+	)
+	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
+	// "entregado" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) se suma acá como terminal para
+	// pdt_601/pdt_621 — los valores viejos (aprobado/presentado/cerrado) se mantienen para no romper
+	// sire/renta_anual, que siguen usando el enum de 7 y también pasan por esta misma consulta.
+	completadoStatuses := fmt.Sprintf("(%s, %s, %s, %s)",
+		sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado), sq(models.SupervisorDeclEntregado))
+	observadoStatus := sq(models.SupervisorDeclObservado)
+
+	// Apertura de "Completado" por puntualidad, solo para pdt_601/pdt_621 en estado "entregado" —
+	// compara la fecha de entrega de cada tipo (columnas distintas: pl.fecha_entrega vs.
+	// r.primera_entrega_fecha) contra la fecha límite ÚNICA del período de CADA módulo (calendario
+	// interno, nunca el cronograma SUNAT — ver pdt601PeriodDueDate/pdt621PeriodDueDate). Sin
+	// calendario configurado para un módulo, todo lo "entregado" de ese módulo cuenta como a tiempo
+	// (mismo criterio que el filtro del listado, §11).
+	dateTimeLit := func(t time.Time) string { return "'" + t.Format("2006-01-02 15:04:05") + "'" }
+	pdt601OnTime, pdt601Late := "1=1", "1=0"
+	if due := pdt601PeriodDueDate(periodYM); due != nil {
+		lit := dateTimeLit(*due)
+		pdt601OnTime = fmt.Sprintf("(pl.fecha_entrega IS NULL OR pl.fecha_entrega <= %s)", lit)
+		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND pl.fecha_entrega > %s)", lit)
+	}
+	pdt621OnTime, pdt621Late := "1=1", "1=0"
+	if due := pdt621PeriodDueDate(periodYM); due != nil {
+		lit := dateTimeLit(*due)
+		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR r.primera_entrega_fecha <= %s)", lit)
+		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND r.primera_entrega_fecha > %s)", lit)
+	}
+	// Fecha de hoy como literal (no CURDATE()/NOW() del motor): permite testear esta consulta contra
+	// sqlite en tests, además de MySQL en producción — CURDATE() no existe en sqlite y hacía que esta
+	// función nunca se pudiera probar (confirmado: no había ningún test para PdtDashboardSummary).
+	todayLit := sq(time.Now().Format("2006-01-02"))
+	entregadoStatus := sq(models.SupervisorDeclEntregado)
+	isEntregadoATiempo := fmt.Sprintf(
+		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
+		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601OnTime, sq(models.SupervisorDeclPDT621), pdt621OnTime,
+	)
+	isEntregadoFueraDeFecha := fmt.Sprintf(
+		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
+		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601Late, sq(models.SupervisorDeclPDT621), pdt621Late,
+	)
+
+	return fmt.Sprintf(`
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
+		SUM(CASE WHEN NOT %s AND d.status = %s THEN 1 ELSE 0 END) AS observado,
+		SUM(CASE WHEN NOT %s AND d.status IN %s THEN 1 ELSE 0 END) AS completado,
+		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
+			AND COALESCE(d.due_date, c.due_date) IS NOT NULL
+			AND COALESCE(d.due_date, c.due_date) < %s
+			THEN 1 ELSE 0 END) AS vencido,
+		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
+			AND NOT (COALESCE(d.due_date, c.due_date) IS NOT NULL AND COALESCE(d.due_date, c.due_date) < %s)
+			THEN 1 ELSE 0 END) AS pendiente,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_a_tiempo,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_fuera_de_fecha,
+		COUNT(*) AS total`,
+		isSinPlanilla, isSuspendida,
+		isExempt, observadoStatus,
+		isExempt, completadoStatuses,
+		isExempt, completadoStatuses, observadoStatus, todayLit,
+		isExempt, completadoStatuses, observadoStatus, todayLit,
+		isEntregadoATiempo,
+		isEntregadoFueraDeFecha,
+	)
+}
+
+// PdtDashboardSummary calcula el resumen PDT 601/621 en el servidor con una sola consulta
+// agrupada — reemplaza la agregación 1+N que hacía el navegador. Acepta los mismos filtros que
+// el resto del dashboard (empresa, estado general, riesgo, responsable, supervisor, alcance).
+// Ver pdtBucketsSelectSQL arriba para el detalle de cómo se clasifica cada bucket.
 func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (map[string]PdtTypeSummary, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido (use YYYY-MM)")
@@ -483,51 +584,12 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		SinPlanilla     int64
 		Suspendida      int64
 		Total           int64
+		EntATiempo      int64
+		EntFueraDeFecha int64
 	}
 
-	// La fecha límite de cada declaración es la suya propia si la tiene, si no la de su control
-	// (mismo criterio que resolvePdt601DueDate en el frontend). "Vencido" solo aplica a
-	// declaraciones que siguen abiertas (ni observadas ni ya completadas) y cuya fecha límite
-	// resuelta ya pasó. pl.sin_planilla/pl.suspendida son datos del CONTROL vía PDT 601 (una
-	// planilla por control, no por declaración) y r.suspendida el equivalente vía PDT 621 (un
-	// registro por control) — ambos LEFT JOIN traen la misma fila para pdt_601 Y pdt_621 de ese
-	// control, así que hay que exigir el declaration_type correspondiente en cada condición: si no,
-	// una empresa marcada sin planilla/suspendida en un módulo aparecía también así en el otro.
-	//
-	// Los nombres de tipo/estado de declaración (SupervisorDeclXxx) son constantes Go del propio
-	// código — nunca vienen del request — así que se insertan directo en el SQL (fmt.Sprintf) en
-	// vez de como parámetros `?`: evita tener que contar y ordenar a mano una veintena de
-	// placeholders posicionales repetidos, sin ningún riesgo de inyección (no hay input externo acá).
-	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
-	isSuspendida := fmt.Sprintf(
-		"((d.declaration_type = %s AND COALESCE(pl.suspendida, 0) = 1) OR (d.declaration_type = %s AND COALESCE(r.suspendida, 0) = 1))",
-		sq(models.SupervisorDeclPDT601), sq(models.SupervisorDeclPDT621),
-	)
-	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
-	completadoStatuses := fmt.Sprintf("(%s, %s, %s)", sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado))
-	observadoStatus := sq(models.SupervisorDeclObservado)
-
 	q := database.DB.Table("supervisor_declarations AS d").
-		Select(fmt.Sprintf(`d.declaration_type AS declaration_type,
-			SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
-			SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
-			SUM(CASE WHEN NOT %s AND d.status = %s THEN 1 ELSE 0 END) AS observado,
-			SUM(CASE WHEN NOT %s AND d.status IN %s THEN 1 ELSE 0 END) AS completado,
-			SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
-				AND COALESCE(d.due_date, c.due_date) IS NOT NULL
-				AND COALESCE(d.due_date, c.due_date) < CURDATE()
-				THEN 1 ELSE 0 END) AS vencido,
-			SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND d.status <> %s
-				AND NOT (COALESCE(d.due_date, c.due_date) IS NOT NULL AND COALESCE(d.due_date, c.due_date) < CURDATE())
-				THEN 1 ELSE 0 END) AS pendiente,
-			COUNT(*) AS total`,
-			isSinPlanilla, isSuspendida,
-			isExempt, observadoStatus,
-			isExempt, completadoStatuses,
-			isExempt, completadoStatuses, observadoStatus,
-			isExempt, completadoStatuses, observadoStatus,
-		)).
+		Select("d.declaration_type AS declaration_type, "+pdtBucketsSelectSQL(p.PeriodYM)).
 		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
 		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
@@ -565,7 +627,97 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		out[r.DeclarationType] = PdtTypeSummary{
 			Pendiente: r.Pendiente, Observado: r.Observado, Vencido: r.Vencido,
 			Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, Total: r.Total,
+			EntregadoATiempo: r.EntATiempo, EntregadoFueraDeFecha: r.EntFueraDeFecha,
 		}
+	}
+	return out, nil
+}
+
+// PdtAssistantSummary desempeño de un asistente en un tipo de declaración (PDT 601 o PDT 621) del
+// período — misma clasificación por bucket que PdtTypeSummary, una fila por (asistente, tipo).
+type PdtAssistantSummary struct {
+	AssistantUserID   uint   `json:"assistant_user_id"`
+	AssistantUsername string `json:"assistant_username"`
+	DeclarationType   string `json:"declaration_type"`
+	PdtTypeSummary
+}
+
+// PdtAssistantPerformance desglosa PdtDashboardSummary por asistente — "¿cómo viene cada uno de mis
+// asistentes?" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.3), no solo el total del
+// portafolio. Mismos filtros/alcance que PdtDashboardSummary — en particular, `p.AllowedCompanyIDs`
+// acota a las empresas del supervisor que llama, igual que en el resto del dashboard; este método no
+// agrega ninguna restricción propia de scope, confía en que el controlador ya la resuelve
+// (ver PdtSummaryAPI/ctrl.allowedCompanyIDs).
+func (s *SupervisorService) PdtAssistantPerformance(p SupervisorDashboardParams) ([]PdtAssistantSummary, error) {
+	if !validPeriodYM(p.PeriodYM) {
+		return nil, errors.New("período inválido (use YYYY-MM)")
+	}
+
+	type row struct {
+		AssistantUserID   uint
+		AssistantUsername string
+		DeclarationType   string
+		Pendiente         int64
+		Observado         int64
+		Vencido           int64
+		Completado        int64
+		SinPlanilla       int64
+		Suspendida        int64
+		Total             int64
+		EntATiempo        int64
+		EntFueraDeFecha   int64
+	}
+
+	q := database.DB.Table("supervisor_declarations AS d").
+		Select("co.assistant_user_id AS assistant_user_id, COALESCE(u.username, '') AS assistant_username, "+
+			"d.declaration_type AS declaration_type, "+pdtBucketsSelectSQL(p.PeriodYM)).
+		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
+		Joins("JOIN companies co ON co.id = c.company_id").
+		Joins("LEFT JOIN users u ON u.id = co.assistant_user_id").
+		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
+		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
+		Where("c.period_ym = ? AND d.declaration_type IN ?", p.PeriodYM, []string{models.SupervisorDeclPDT601, models.SupervisorDeclPDT621}).
+		// Empresas sin asistente asignado no aportan a ningún desempeño individual.
+		Where("co.assistant_user_id IS NOT NULL")
+
+	if p.CompanyID > 0 {
+		q = q.Where("c.company_id = ?", p.CompanyID)
+	}
+	if p.GeneralStatus != "" {
+		q = q.Where("c.general_status = ?", p.GeneralStatus)
+	}
+	if p.RiskLevel != "" {
+		q = q.Where("c.risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		q = q.Where("c.responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		q = q.Where("c.supervisor_user_id = ?", p.SupervisorUserID)
+	}
+	if p.AllowedCompanyIDs != nil {
+		q = q.Where("c.company_id IN ?", p.AllowedCompanyIDs)
+	}
+
+	var rows []row
+	if err := q.Group("co.assistant_user_id, u.username, d.declaration_type").
+		Order("u.username ASC, d.declaration_type ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]PdtAssistantSummary, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, PdtAssistantSummary{
+			AssistantUserID:   r.AssistantUserID,
+			AssistantUsername: r.AssistantUsername,
+			DeclarationType:   r.DeclarationType,
+			PdtTypeSummary: PdtTypeSummary{
+				Pendiente: r.Pendiente, Observado: r.Observado, Vencido: r.Vencido,
+				Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, Total: r.Total,
+				EntregadoATiempo: r.EntATiempo, EntregadoFueraDeFecha: r.EntFueraDeFecha,
+			},
+		})
 	}
 	return out, nil
 }
@@ -1038,15 +1190,13 @@ func declarationProgressFromStatus(status string) int {
 	switch status {
 	case models.SupervisorDeclPendiente:
 		return 0
-	case models.SupervisorDeclEnElaboracion:
-		return 35
-	case models.SupervisorDeclEnRevision:
+	case models.SupervisorDeclEnElaboracion, models.SupervisorDeclEnRevision, models.SupervisorDeclPorRevisar:
 		return 65
 	case models.SupervisorDeclObservado:
 		return 40
 	case models.SupervisorDeclAprobado:
 		return 85
-	case models.SupervisorDeclPresentado, models.SupervisorDeclCerrado:
+	case models.SupervisorDeclPresentado, models.SupervisorDeclCerrado, models.SupervisorDeclEntregado:
 		return 100
 	default:
 		return 0
@@ -1067,6 +1217,14 @@ func (s *SupervisorService) UpdateDeclaration(id uint, in SupervisorDeclarationI
 			d.Status = in.Status
 			if in.ProgressPct == nil {
 				d.ProgressPct = detraccionesProgressFromStatus(in.Status)
+			}
+		} else if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+			if err := validatePdt601Pdt621StatusTransition(oldStatus, in.Status); err != nil {
+				return nil, err
+			}
+			d.Status = in.Status
+			if in.ProgressPct == nil {
+				d.ProgressPct = declarationProgressFromStatus(in.Status)
 			}
 		} else {
 			d.Status = in.Status
@@ -1123,6 +1281,13 @@ func (s *SupervisorService) UpdateDeclaration(id uint, in SupervisorDeclarationI
 }
 
 func (s *SupervisorService) ApproveDeclaration(id uint, approverID uint) (*models.SupervisorDeclaration, error) {
+	var d models.SupervisorDeclaration
+	if err := database.DB.Select("declaration_type").First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+		return s.approvePdt601Pdt621Declaration(id, approverID)
+	}
 	pct := 85
 	return s.UpdateDeclaration(id, SupervisorDeclarationInput{
 		Status: models.SupervisorDeclAprobado, ApproverUserID: &approverID, ProgressPct: &pct,
@@ -1136,6 +1301,9 @@ func (s *SupervisorService) ObserveDeclaration(id uint, approverID uint, notes s
 	}
 	if isDetraccionesDeclarationType(d.DeclarationType) {
 		return s.observeDetraccionesDeclaration(id, approverID, notes)
+	}
+	if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+		return s.observePdt601Pdt621Declaration(id, approverID, notes)
 	}
 	pct := 40
 	updated, err := s.UpdateDeclaration(id, SupervisorDeclarationInput{
@@ -1152,6 +1320,92 @@ func (s *SupervisorService) ObserveDeclaration(id uint, approverID uint, notes s
 		_, _ = s.CreateObservation(updated.MonthlyControlID, did, approverID, notes)
 	}
 	return updated, nil
+}
+
+// approvePdt601Pdt621Declaration (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): solo se puede
+// aprobar desde "por_revisar". No calcula puntualidad acá — "Entregado" vs "Entregado fuera de fecha"
+// es un label calculado en lectura (FechaEntrega/PrimeraEntregaFecha ya guardada vs. calendario
+// interno del período), nunca un valor de estado distinto, así que no hace falta nada más al aprobar.
+func (s *SupervisorService) approvePdt601Pdt621Declaration(id uint, approverID uint) (*models.SupervisorDeclaration, error) {
+	var d models.SupervisorDeclaration
+	if err := database.DB.First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	if d.Status != models.SupervisorDeclPorRevisar {
+		return nil, errors.New("solo se puede aprobar una declaración en estado \"Por revisar\"")
+	}
+	d.Status = models.SupervisorDeclEntregado
+	d.ApproverUserID = &approverID
+	d.ProgressPct = declarationProgressFromStatus(models.SupervisorDeclEntregado)
+	if err := database.DB.Save(&d).Error; err != nil {
+		return nil, err
+	}
+	s.LogChange("declaration", id, "status", models.SupervisorDeclPorRevisar, models.SupervisorDeclEntregado, approverID)
+	return &d, nil
+}
+
+// observePdt601Pdt621Declaration (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): solo se puede
+// observar desde "por_revisar" (para reabrir algo ya "entregado" primero hay que usar Reabrir, que
+// vuelve a "por_revisar" — no se observa directo desde "entregado"). Motivo obligatorio, a diferencia
+// del camino genérico de arriba que hoy lo deja opcional.
+func (s *SupervisorService) observePdt601Pdt621Declaration(id uint, approverID uint, notes string) (*models.SupervisorDeclaration, error) {
+	notes = strings.TrimSpace(notes)
+	if notes == "" {
+		return nil, errors.New("el motivo de la observación es obligatorio")
+	}
+	var d models.SupervisorDeclaration
+	if err := database.DB.First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	if d.Status != models.SupervisorDeclPorRevisar {
+		return nil, errors.New("solo se puede observar una declaración en estado \"Por revisar\"")
+	}
+	d.Status = models.SupervisorDeclObservado
+	d.ApproverUserID = &approverID
+	d.Notes = notes
+	d.ProgressPct = declarationProgressFromStatus(models.SupervisorDeclObservado)
+	if err := database.DB.Save(&d).Error; err != nil {
+		return nil, err
+	}
+	s.LogChange("declaration", id, "status", models.SupervisorDeclPorRevisar, models.SupervisorDeclObservado, approverID)
+	_ = database.DB.Model(&models.SupervisorMonthlyControl{}).
+		Where("id = ?", d.MonthlyControlID).
+		Update("general_status", models.SupervisorControlObservado).Error
+	_, _ = s.CreateObservation(d.MonthlyControlID, id, approverID, notes)
+	return &d, nil
+}
+
+// ReopenDeclaration (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7): revierte una declaración
+// pdt_601/pdt_621 "entregada" de vuelta a "por_revisar", con motivo obligatorio y auditoría
+// (ReopenedAt/ReopenedBy/ReopenReason) — mismo patrón que Payment.VoidedAt/VoidedBy/VoidReason y
+// Document.WriteoffAt/WriteoffBy/WriteoffReason. El permiso dedicado (supervisors.declarations_reopen)
+// se valida en el controlador, no acá.
+func (s *SupervisorService) ReopenDeclaration(id uint, userID uint, reason string) (*models.SupervisorDeclaration, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, errors.New("el motivo de la reapertura es obligatorio")
+	}
+	var d models.SupervisorDeclaration
+	if err := database.DB.First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	if !isPdt601Pdt621DeclarationType(d.DeclarationType) {
+		return nil, errors.New("reabrir solo aplica a declaraciones de PDT 601/621")
+	}
+	if d.Status != models.SupervisorDeclEntregado {
+		return nil, errors.New("solo se puede reabrir una declaración en estado \"Entregado\"")
+	}
+	now := time.Now()
+	d.Status = models.SupervisorDeclPorRevisar
+	d.ReopenedAt = &now
+	d.ReopenedBy = &userID
+	d.ReopenReason = reason
+	d.ProgressPct = declarationProgressFromStatus(models.SupervisorDeclPorRevisar)
+	if err := database.DB.Save(&d).Error; err != nil {
+		return nil, err
+	}
+	s.LogChange("declaration", id, "status", models.SupervisorDeclEntregado, models.SupervisorDeclPorRevisar, userID)
+	return &d, nil
 }
 
 func (s *SupervisorService) DeleteDeclaration(id uint) error {
@@ -1418,16 +1672,16 @@ func (s *SupervisorService) DeleteNPS(id uint) error {
 // ---- Reports ----
 
 type SupervisorReportRow struct {
-	CompanyName      string  `json:"company_name"`
-	CompanyRUC       string  `json:"company_ruc"`
-	PeriodYM         string  `json:"period_ym"`
-	GeneralStatus    string  `json:"general_status"`
-	RiskLevel        string  `json:"risk_level"`
-	CompliancePct    float64 `json:"compliance_pct"`
-	TotalPagar       float64 `json:"total_pagar"`
-	NPSPending       int64   `json:"nps_pending"`
-	PaymentsPending  int64   `json:"payments_pending"`
-	ControlID        uint    `json:"control_id,omitempty"`
+	CompanyName     string  `json:"company_name"`
+	CompanyRUC      string  `json:"company_ruc"`
+	PeriodYM        string  `json:"period_ym"`
+	GeneralStatus   string  `json:"general_status"`
+	RiskLevel       string  `json:"risk_level"`
+	CompliancePct   float64 `json:"compliance_pct"`
+	TotalPagar      float64 `json:"total_pagar"`
+	NPSPending      int64   `json:"nps_pending"`
+	PaymentsPending int64   `json:"payments_pending"`
+	ControlID       uint    `json:"control_id,omitempty"`
 }
 
 type SupervisorReportListParams struct {

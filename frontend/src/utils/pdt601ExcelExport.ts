@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { Pdt601ListRow } from '../services/pdt601';
-import { pdt601StatusLabel } from '../components/activity/pdt601Config';
+import { pdt601DisplayStatus, pdt601RegimenLaboralLabel } from '../components/activity/pdt601Config';
 import { buildExcelLetterhead, type ExcelLetterheadWorkspace } from './excelLetterhead';
 
 // Fuente única para TODO el Excel (título, encabezado y datos) — a pedido: "Aptos Narrow" 10pt en
@@ -31,6 +31,7 @@ const HEADERS = [
   'DÍGITO',
   'RAZÓN SOCIAL',
   'RUC',
+  'RÉGIMEN LABORAL',
   'ASISTENTE',
   'ESTADO',
   'N° TRAB. ONP',
@@ -55,7 +56,7 @@ const HEADERS = [
   'FECHA ENVÍO NPS/TICKETS/BOLETAS',
 ];
 
-const COLUMN_WIDTHS = [8, 8, 32, 13, 16, 15, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 13, 13, 13, 26, 15, 12, 13, 18, 20];
+const COLUMN_WIDTHS = [8, 8, 32, 13, 15, 16, 15, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 13, 13, 13, 26, 15, 12, 13, 18, 20];
 
 function formatDateCell(iso?: string | null): string {
   if (!iso) return '';
@@ -161,11 +162,14 @@ export async function exportPdt601ReportExcel(options: {
     setText(row.dig || '—', 'center');
     setText(row.business_name || '—');
     setText(row.ruc || '—', 'center');
+    setText(pdt601RegimenLaboralLabel(pl?.regimen_laboral), 'center');
     setText(row.assistant_username || '—');
-    // Igual que la tabla en pantalla: "sin_planilla"/"suspendida" no son estados reales de la
-    // declaración, pero se muestran en su lugar para no decir "Pendiente"/"Aprobado" en una
-    // empresa sin planilla o suspendida.
-    setText(pdt601StatusLabel(suspendida ? 'suspendida' : sinPlanilla ? 'sin_planilla' : row.status), 'center');
+    // Igual que la tabla en pantalla: prioridad Suspendida > Sin planilla > Entregado±puntualidad >
+    // estado real (pdt601DisplayStatus, fuente única — ver pdt601Config.ts).
+    setText(
+      pdt601DisplayStatus({ status: row.status, sinPlanilla, suspendida, timeliness: row.timeliness }).label,
+      'center',
+    );
     setInt(pl?.trabajadores_onp);
     setInt(pl?.trabajadores_afp);
     setInt(pl?.trabajadores_total);

@@ -9,8 +9,11 @@ import { declarationStatusLabel, declarationTypeLabel } from './supervisorLabels
 export const PDT_TYPES = ['pdt_601', 'pdt_621'] as const;
 export type PdtDeclarationType = (typeof PDT_TYPES)[number];
 
-const PENDING_DECL_STATUSES = new Set(['pendiente', 'en_elaboracion', 'en_revision']);
-const COMPLETE_DECL_STATUSES = new Set(['aprobado', 'presentado', 'cerrado']);
+// "por_revisar"/"entregado" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) son los valores que
+// ahora usan pdt_601/pdt_621 — se agregan a estos sets sin quitar los viejos, que ya no los produce
+// ningún tipo de declaración PDT pero SÍ pueden aparecer en sire/renta_anual, todavía en el enum de 7.
+const PENDING_DECL_STATUSES = new Set(['pendiente', 'en_elaboracion', 'en_revision', 'por_revisar']);
+const COMPLETE_DECL_STATUSES = new Set(['aprobado', 'presentado', 'cerrado', 'entregado']);
 
 export type PdtTypeSummary = {
   pendiente: number;

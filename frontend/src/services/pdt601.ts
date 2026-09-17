@@ -5,6 +5,8 @@ import type { SupervisorDeclaration } from './supervisors';
 export interface Pdt601Planilla {
   sin_planilla: boolean;
   suspendida: boolean;
+  /** Régimen laboral de la empresa en el período: 'general' | 'remype' (obligatorio, sin default). */
+  regimen_laboral: string;
   trabajadores_onp: number;
   trabajadores_afp: number;
   trabajadores_total: number;
@@ -32,6 +34,7 @@ export interface Pdt601Planilla {
 export interface Pdt601PlanillaInput {
   sin_planilla: boolean;
   suspendida: boolean;
+  regimen_laboral: string;
   trabajadores_onp: number;
   trabajadores_afp: number;
   essalud: number;
@@ -90,6 +93,9 @@ export interface Pdt601Detail {
   control_due_date?: string;
   declaration: SupervisorDeclaration;
   planilla?: Pdt601Planilla | null;
+  /** Mismo criterio que Pdt601ListRow.timeliness — permite mostrar "Entregado fuera de fecha" en el
+   * detalle sin recalcular nada en el frontend. */
+  timeliness: Pdt601Timeliness;
 }
 
 export interface Pdt601ListResponse {

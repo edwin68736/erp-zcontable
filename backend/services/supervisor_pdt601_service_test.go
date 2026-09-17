@@ -51,6 +51,39 @@ func seedEstudioCompany(t *testing.T, db *gorm.DB, code string) models.Company {
 	return co
 }
 
+// TestSavePdt601Planilla_RejectsInvalidRegimen: un valor de régimen laboral que no sea
+// "general"/"remype" se rechaza — pero vacío SÍ se permite (ver comentario en
+// SavePdt601Planilla), para no romper syncPdt601Planilla (SupervisorLiquidacionCreatePage.tsx),
+// que puede sincronizar importes antes de que alguien haya fijado el régimen de esa empresa.
+func TestSavePdt601Planilla_RejectsInvalidRegimen(t *testing.T) {
+	db := setupPdt601TestDB(t)
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "P900")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+
+	if _, err := svc.SavePdt601Planilla(co.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: "rus"}); err == nil {
+		t.Fatal("un régimen laboral fuera de general/remype debía rechazarse")
+	}
+
+	saved, err := svc.SavePdt601Planilla(co.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: ""})
+	if err != nil {
+		t.Fatalf("régimen laboral vacío debía permitirse (compat. sync en segundo plano): %v", err)
+	}
+	if saved.Planilla.RegimenLaboral != "" {
+		t.Fatalf("RegimenLaboral=%q, want vacío", saved.Planilla.RegimenLaboral)
+	}
+
+	saved2, err := svc.SavePdt601Planilla(co.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenRemype})
+	if err != nil {
+		t.Fatalf("SavePdt601Planilla remype: %v", err)
+	}
+	if saved2.Planilla.RegimenLaboral != models.Pdt601RegimenRemype {
+		t.Fatalf("RegimenLaboral=%q, want %q", saved2.Planilla.RegimenLaboral, models.Pdt601RegimenRemype)
+	}
+}
+
 // TestSavePdt601PlanillaRoundTrip cubre guardar → leer → listar, aislamiento por período y upsert.
 func TestSavePdt601PlanillaRoundTrip(t *testing.T) {
 	db := setupPdt601TestDB(t)
@@ -65,6 +98,7 @@ func TestSavePdt601PlanillaRoundTrip(t *testing.T) {
 	}
 
 	in := Pdt601PlanillaInput{
+		RegimenLaboral:              models.Pdt601RegimenGeneral,
 		TrabajadoresONP:             4,
 		TrabajadoresAFP:             6,
 		Essalud:                     100,
@@ -224,7 +258,7 @@ func TestGetPdt601PlanillaOnlyNoLazyCreate(t *testing.T) {
 	}
 
 	// Tras guardar la planilla (vía el flujo normal, que sí crea control), la lectura pura la trae.
-	if _, err := svc.SavePdt601Planilla(co.ID, "2026-07", Pdt601PlanillaInput{Afp: 250}); err != nil {
+	if _, err := svc.SavePdt601Planilla(co.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Afp: 250}); err != nil {
 		t.Fatalf("SavePdt601Planilla: %v", err)
 	}
 	got2, err := svc.GetPdt601PlanillaOnly(co.ID, "2026-07")
@@ -249,7 +283,7 @@ func TestSavePdt601PlanillaSinPlanilla(t *testing.T) {
 	}
 
 	// Empresa A: sin planilla (marcada, sin importes).
-	savedA, err := svc.SavePdt601Planilla(coA.ID, "2026-07", Pdt601PlanillaInput{SinPlanilla: true})
+	savedA, err := svc.SavePdt601Planilla(coA.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, SinPlanilla: true})
 	if err != nil {
 		t.Fatalf("SavePdt601Planilla A: %v", err)
 	}
@@ -261,7 +295,7 @@ func TestSavePdt601PlanillaSinPlanilla(t *testing.T) {
 	}
 
 	// Empresa B: planilla normal con importes.
-	if _, err := svc.SavePdt601Planilla(coB.ID, "2026-07", Pdt601PlanillaInput{Essalud: 100}); err != nil {
+	if _, err := svc.SavePdt601Planilla(coB.ID, "2026-07", Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100}); err != nil {
 		t.Fatalf("SavePdt601Planilla B: %v", err)
 	}
 
@@ -339,10 +373,10 @@ func TestListPdt601TimelinessOnTimeAndLate(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	if _, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{Essalud: 100, FechaEntrega: "2026-07-15"}); err != nil {
+	if _, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-07-15"}); err != nil {
 		t.Fatalf("SavePdt601Planilla on_time: %v", err)
 	}
-	if _, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{Essalud: 100, FechaEntrega: "2026-07-20"}); err != nil {
+	if _, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-07-20"}); err != nil {
 		t.Fatalf("SavePdt601Planilla late: %v", err)
 	}
 
@@ -405,7 +439,7 @@ func TestListPdt601TimelinessExemptWhenSinPlanilla(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	if _, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{SinPlanilla: true}); err != nil {
+	if _, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, SinPlanilla: true}); err != nil {
 		t.Fatalf("SavePdt601Planilla: %v", err)
 	}
 
@@ -439,7 +473,7 @@ func TestSavePdt601PlanillaSuspendidaBlocksOtherFields(t *testing.T) {
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
 	detail, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{
-		SinPlanilla: true, Suspendida: true, Essalud: 500, Observaciones: "nota manual",
+		RegimenLaboral: models.Pdt601RegimenGeneral, SinPlanilla: true, Suspendida: true, Essalud: 500, Observaciones: "nota manual",
 	})
 	if err != nil {
 		t.Fatalf("SavePdt601Planilla: %v", err)

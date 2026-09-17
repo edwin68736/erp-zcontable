@@ -5,9 +5,8 @@ import {
   formatStoredAt,
   computePdt621DueMeta,
   formatPdt621DueDetail,
-  pdt621StatusBadgeClass,
-  pdt621StatusLabel,
-  PDT621_STATUSES,
+  pdt621DisplayStatus,
+  PDT621_TERMINAL_STATUSES,
   resolvePdt621DueDate,
   SIRE_ENVIO_OPTIONS,
 } from '../../components/activity/pdt621Config';
@@ -26,8 +25,6 @@ import { pdt621Service, type Pdt621Detail, type Pdt621Record, type Pdt621RecordI
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
-
-const PDT621_APPROVED_STATUSES = new Set(['aprobado', 'presentado', 'cerrado']);
 
 const EMPTY_RECORD: Pdt621RecordInput = {
   suspendida: false,
@@ -119,6 +116,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const canUpload = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
+  const canReopen = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsReopen), []);
   const canCreateObservation = useMemo(() => auth.hasPermission(P.supervisorsObservationsCreate), []);
 
   const [detail, setDetail] = useState<Pdt621Detail | null>(null);
@@ -127,12 +125,13 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
-  const [statusSaving, setStatusSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [obsText, setObsText] = useState('');
   const [obsSaving, setObsSaving] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [record, setRecord] = useState<Pdt621RecordInput>({ ...EMPTY_RECORD });
   const [recordSaving, setRecordSaving] = useState(false);
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
@@ -140,9 +139,18 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const declaration = detail?.declaration;
-  // "Suspendida" no es un estado real de la declaración (es record.suspendida) — se muestra en el
-  // badge de Estado en su lugar, mismo criterio que combinedStatusValue en Pdt601DetailPage.tsx.
-  const combinedStatusValue = record.suspendida ? 'suspendida' : declaration?.status ?? '';
+  // Terminal: una vez "Entregado", nadie edita nada (ni el asistente ni el supervisor) salvo que se
+  // reabra con el permiso dedicado — mismo criterio que Pdt601DetailPage.tsx.
+  const declarationLocked = !!declaration && PDT621_TERMINAL_STATUSES.has(declaration.status);
+  const displayStatus = useMemo(
+    () =>
+      pdt621DisplayStatus({
+        status: declaration?.status ?? '',
+        suspendida: record.suspendida,
+        assistantTimeliness: detail?.assistant_timeliness,
+      }),
+    [declaration?.status, record.suspendida, detail?.assistant_timeliness],
+  );
 
   // Estos 4 campos se llenan por sincronización desde la liquidación (ver syncPdt621Record en
   // SupervisorLiquidacionCreatePage.tsx) — si ya tienen algún valor, dejarlos editables a mano
@@ -205,18 +213,25 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     setDetail((d) => (d ? { ...d, declaration: decl } : d));
   };
 
-  const handleStatusChange = async (status: string) => {
-    if (!declaration || !canUpdate) return;
+  const handleReopen = async () => {
+    if (!declaration || !canReopen) return;
+    const reason = reopenReason.trim();
+    if (!reason) {
+      setMsg('Ingrese el motivo de la reapertura.');
+      return;
+    }
     try {
-      setStatusSaving(true);
+      setActionLoading(true);
       setMsg('');
-      const updated = await supervisorsService.updateDeclaration(declaration.id, { status });
+      const updated = await supervisorsService.reopenDeclaration(declaration.id, reason);
       refreshDeclaration(updated);
-      setMsg('Estado actualizado.');
+      setReopenReason('');
+      setReopenOpen(false);
+      setMsg('Declaración reabierta — volvió a "Por revisar".');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo actualizar el estado.'));
+      setMsg(extractApiErrorMessage(err, 'No se pudo reabrir.'));
     } finally {
-      setStatusSaving(false);
+      setActionLoading(false);
     }
   };
 
@@ -313,7 +328,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   };
 
   const handleSaveRecord = async () => {
-    if (!canUpdate) return;
+    if (!canUpdate || declarationLocked) return;
     if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) {
       setMsg('Ingrese el motivo por el que no se envió SIRE.');
       return;
@@ -322,7 +337,12 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       setRecordSaving(true);
       setMsg('');
       const updated = await pdt621Service.saveRecord(companyId, periodYm, record);
-      setDetail((d) => (d ? { ...d, record: updated.record } : d));
+      // El guardado puede haber disparado la entrega automática (Pendiente/Observado → Por revisar,
+      // docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — se refleja acá también el estado y la
+      // puntualidad recalculada, no solo el registro.
+      setDetail((d) =>
+        d ? { ...d, record: updated.record, declaration: updated.declaration, assistant_timeliness: updated.assistant_timeliness } : d,
+      );
       setRecord(recordToInput(updated.record));
       setMsg('Registro guardado.');
     } catch (err) {
@@ -382,10 +402,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <dd className="text-slate-800">{detail.assistant_username || '—'}</dd>
             <dt className="text-slate-500">Estado</dt>
             <dd>
-              <span
-                className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(combinedStatusValue)}`}
-              >
-                {pdt621StatusLabel(combinedStatusValue)}
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}>
+                {displayStatus.label}
               </span>
             </dd>
             <dt className="text-slate-500">Vencimiento</dt>
@@ -394,30 +412,14 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             </dd>
           </dl>
           {canUpdate ? (
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Cambiar estado</label>
-              <select
-                value={declaration.status}
-                disabled={statusSaving || record.suspendida}
-                onChange={(e) => void handleStatusChange(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500"
-              >
-                {PDT621_STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          {canUpdate ? (
             <label
               className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
                 record.suspendida ? 'border-purple-300 bg-purple-50 text-purple-900' : 'border-slate-200 bg-slate-50 text-slate-700'
-              } cursor-pointer`}
+              } ${declarationLocked ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
             >
               <input
                 type="checkbox"
+                disabled={declarationLocked}
                 checked={record.suspendida}
                 onChange={(e) => handleToggleSuspendida(e.target.checked)}
                 className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
@@ -447,6 +449,66 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 Esta empresa está marcada "Suspendida" en este período — no aplica observar ni
                 aprobar.
               </p>
+            ) : declarationLocked ? (
+              // Terminal: ya no aplica observar/aprobar — la única salida es Reabrir, si se tiene
+              // el permiso dedicado (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7).
+              <div className="space-y-3">
+                <p className="flex items-start gap-2 text-sm text-slate-500">
+                  <i className="fas fa-check-circle mt-0.5 text-emerald-600" aria-hidden />
+                  Esta declaración ya fue entregada — no aplica observar ni aprobar de nuevo.
+                </p>
+                {canReopen ? (
+                  reopenOpen ? (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Motivo de la reapertura</label>
+                      <textarea
+                        value={reopenReason}
+                        onChange={(e) => setReopenReason(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="Indique por qué se reabre…"
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => void handleReopen()}
+                          className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Confirmar reapertura
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => {
+                            setReopenOpen(false);
+                            setReopenReason('');
+                          }}
+                          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setReopenOpen(true)}
+                      className="px-4 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-medium hover:bg-red-100"
+                    >
+                      Reabrir
+                    </button>
+                  )
+                ) : null}
+              </div>
+            ) : declaration.status !== 'por_revisar' ? (
+              // Todavía no hay nada que revisar (Pendiente) u observado esperando corrección.
+              <p className="flex items-start gap-2 text-sm text-slate-500">
+                <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
+                {declaration.status === 'observado'
+                  ? 'Esperando que el asistente corrija la observación y vuelva a entregar.'
+                  : 'Esperando que el asistente entregue su registro.'}
+              </p>
             ) : (
               <>
                 {canObserve ? (
@@ -472,7 +534,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 {canApprove ? (
                   <button
                     type="button"
-                    disabled={actionLoading || PDT621_APPROVED_STATUSES.has(declaration.status)}
+                    disabled={actionLoading}
                     onClick={() => void handleApprove()}
                     className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
                   >
@@ -487,6 +549,20 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
         <h2 className="text-sm font-semibold text-slate-800">Revisión de archivadores</h2>
+
+        {declarationLocked ? (
+          <div className="flex items-start gap-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
+            <i className="fas fa-lock mt-0.5" aria-hidden />
+            <span>
+              Esta declaración ya fue entregada ({displayStatus.label}) — no se puede editar. Si hace
+              falta corregir algo, pida que la reabran.
+            </span>
+          </div>
+        ) : null}
+
+        {/* Una sola puerta para todo lo que no aplica con Suspendida (antes eran 4 condicionales
+            sueltas: entregas, importes/comprobantes/SIRE, más el select de estado ya eliminado) —
+            mismo criterio de "una sola puerta" que Pdt601DetailPage.tsx. */}
         {record.suspendida ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
@@ -498,64 +574,50 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             </span>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">1ra entrega — Fecha</label>
-              <input
-                type="date"
-                disabled={!canUpdate}
-                value={record.primera_entrega_fecha}
-                onChange={(e) => patchRecord({ primera_entrega_fecha: e.target.value })}
-                className={FIELD_INPUT}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">1ra entrega — Hora</label>
-              <input
-                type="time"
-                disabled={!canUpdate}
-                value={record.primera_entrega_hora}
-                onChange={(e) => patchRecord({ primera_entrega_hora: e.target.value })}
-                className={FIELD_INPUT}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">2da entrega — Fecha</label>
-              <input
-                type="date"
-                disabled={!canUpdate}
-                value={record.segunda_entrega_fecha}
-                onChange={(e) => patchRecord({ segunda_entrega_fecha: e.target.value })}
-                className={FIELD_INPUT}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">2da entrega — Hora</label>
-              <input
-                type="time"
-                disabled={!canUpdate}
-                value={record.segunda_entrega_hora}
-                onChange={(e) => patchRecord({ segunda_entrega_hora: e.target.value })}
-                className={FIELD_INPUT}
-              />
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Observación</label>
-          <textarea
-            disabled={!canUpdate || record.suspendida}
-            value={record.observacion}
-            onChange={(e) => patchRecord({ observacion: e.target.value })}
-            rows={2}
-            className={FIELD_INPUT}
-            placeholder="Observación sobre la revisión del archivador…"
-          />
-        </div>
-
-        {!record.suspendida ? (
           <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">1ra entrega — Fecha</label>
+                <input
+                  type="date"
+                  disabled={!canUpdate || declarationLocked}
+                  value={record.primera_entrega_fecha}
+                  onChange={(e) => patchRecord({ primera_entrega_fecha: e.target.value })}
+                  className={FIELD_INPUT}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">1ra entrega — Hora</label>
+                <input
+                  type="time"
+                  disabled={!canUpdate || declarationLocked}
+                  value={record.primera_entrega_hora}
+                  onChange={(e) => patchRecord({ primera_entrega_hora: e.target.value })}
+                  className={FIELD_INPUT}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">2da entrega — Fecha</label>
+                <input
+                  type="date"
+                  disabled={!canUpdate || declarationLocked}
+                  value={record.segunda_entrega_fecha}
+                  onChange={(e) => patchRecord({ segunda_entrega_fecha: e.target.value })}
+                  className={FIELD_INPUT}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">2da entrega — Hora</label>
+                <input
+                  type="time"
+                  disabled={!canUpdate || declarationLocked}
+                  value={record.segunda_entrega_hora}
+                  onChange={(e) => patchRecord({ segunda_entrega_hora: e.target.value })}
+                  className={FIELD_INPUT}
+                />
+              </div>
+            </div>
+
             <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">
               Fecha de declaración e importes PDT 621
             </h2>
@@ -570,7 +632,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <label className="block text-xs text-slate-500 mb-1">Fecha de declaración</label>
                 <input
                   type="date"
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || declarationLocked}
                   value={record.fecha_declaracion}
                   onChange={(e) => patchRecord({ fecha_declaracion: e.target.value })}
                   className={FIELD_INPUT}
@@ -581,7 +643,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked}
                   value={record.total_ventas}
                   onChange={(e) => patchRecord({ total_ventas: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -592,7 +654,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked}
                   value={record.total_compras}
                   onChange={(e) => patchRecord({ total_compras: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -603,7 +665,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked}
                   value={record.igv}
                   onChange={(e) => patchRecord({ igv: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -614,7 +676,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked}
                   value={record.rta}
                   onChange={(e) => patchRecord({ rta: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -631,7 +693,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                   type="number"
                   step="1"
                   min="0"
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || declarationLocked}
                   value={record.cantidad_comprobantes_venta || ''}
                   onChange={(e) => patchRecord({ cantidad_comprobantes_venta: Number(e.target.value) || 0 })}
                   placeholder="0"
@@ -644,7 +706,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                   type="number"
                   step="1"
                   min="0"
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || declarationLocked}
                   value={record.cantidad_comprobantes_compra || ''}
                   onChange={(e) => patchRecord({ cantidad_comprobantes_compra: Number(e.target.value) || 0 })}
                   placeholder="0"
@@ -658,7 +720,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               <div>
                 <label className="block text-xs text-slate-500 mb-1">¿Se envió SIRE?</label>
                 <select
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || declarationLocked}
                   value={record.envio_sire}
                   onChange={(e) => {
                     const envio_sire = e.target.value;
@@ -677,7 +739,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <label className="block text-xs text-slate-500 mb-1">Fecha de envío</label>
                 <input
                   type="date"
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || declarationLocked}
                   value={record.fecha_envio_sire}
                   onChange={(e) => patchRecord({ fecha_envio_sire: e.target.value })}
                   className={FIELD_INPUT}
@@ -689,7 +751,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 </label>
                 <input
                   type="text"
-                  disabled={!canUpdate || record.envio_sire !== 'no'}
+                  disabled={!canUpdate || declarationLocked || record.envio_sire !== 'no'}
                   value={record.motivo_no_envio}
                   onChange={(e) => patchRecord({ motivo_no_envio: e.target.value })}
                   placeholder={record.envio_sire === 'no' ? 'Indique el motivo…' : '—'}
@@ -698,13 +760,25 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               </div>
             </div>
           </>
-        ) : null}
+        )}
+
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Observación</label>
+          <textarea
+            disabled={!canUpdate || declarationLocked || record.suspendida}
+            value={record.observacion}
+            onChange={(e) => patchRecord({ observacion: e.target.value })}
+            rows={2}
+            className={FIELD_INPUT}
+            placeholder="Observación sobre la revisión del archivador…"
+          />
+        </div>
 
         {canUpdate ? (
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={recordSaving}
+              disabled={recordSaving || declarationLocked}
               onClick={() => void handleSaveRecord()}
               className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
             >

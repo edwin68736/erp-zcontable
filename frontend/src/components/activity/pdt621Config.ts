@@ -5,31 +5,33 @@ import {
   formatStoredAt,
 } from './activityModuleShared';
 
+// Enum reducido de 4 estados, mismo criterio que PDT601 (docs/diseno-estados-pdt601-pdt621-2026-09-
+// 16.md) — reemplaza al viejo de 7 valores. PDT621 no tiene equivalente de "Sin planilla": la única
+// excepción es Suspendida.
 export const PDT621_STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_elaboracion', label: 'En elaboración' },
-  { value: 'en_revision', label: 'En revisión' },
+  { value: 'por_revisar', label: 'Por revisar' },
   { value: 'observado', label: 'Observado' },
-  { value: 'aprobado', label: 'Aprobado' },
-  { value: 'presentado', label: 'Presentado' },
-  { value: 'cerrado', label: 'Cerrado' },
+  { value: 'entregado', label: 'Entregado' },
 ] as const;
 
 export const PDT621_STATUS_FILTER = [
   ...buildStatusFilter(PDT621_STATUSES),
+  { value: 'entregado_a_tiempo', label: 'Entregado a tiempo' },
+  { value: 'entregado_fuera_de_fecha', label: 'Entregado fuera de fecha' },
   { value: 'suspendida', label: 'Suspendida' },
 ];
 
-const PDT621_COMPLETE = new Set(['aprobado', 'presentado', 'cerrado']);
+/** Único estado terminal — fuente única, no duplicar (antes existía también una copia local en
+ * Pdt621DetailPage.tsx bajo el mismo nombre viejo, con otro conjunto de valores). */
+export const PDT621_TERMINAL_STATUSES = new Set(['entregado']);
 
 const PDT621_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
-  en_elaboracion: 'bg-blue-100 text-blue-800',
-  en_revision: 'bg-indigo-100 text-indigo-800',
+  por_revisar: 'bg-indigo-100 text-indigo-800',
   observado: 'bg-amber-100 text-amber-900',
-  aprobado: 'bg-emerald-100 text-emerald-800',
-  presentado: 'bg-teal-100 text-teal-800',
-  cerrado: 'bg-slate-200 text-slate-800',
+  entregado: 'bg-emerald-100 text-emerald-800',
+  entregado_fuera_de_fecha: 'bg-orange-100 text-orange-900',
   sin_registro: 'bg-slate-100 text-slate-500',
   // "suspendida" no es un estado real de la declaración (es record.suspendida) — se muestra acá
   // como si lo fuera para que el badge/select del detalle lo reflejen de forma consistente (mismo
@@ -39,11 +41,30 @@ const PDT621_BADGE: Record<string, string> = {
 
 export function pdt621StatusLabel(status: string): string {
   if (status === 'suspendida') return 'Suspendida';
+  if (status === 'entregado_fuera_de_fecha') return 'Entregado fuera de fecha';
   return activityStatusLabel(status, PDT621_STATUSES);
 }
 
 export function pdt621StatusBadgeClass(status: string): string {
   return activityStatusBadgeClass(status, PDT621_BADGE);
+}
+
+/**
+ * Fuente única para "Estado" en cualquier pantalla de PDT621 — prioridad Suspendida >
+ * Entregado±puntualidad > estado real. La puntualidad usa SIEMPRE el calendario interno
+ * (assistantTimeliness), nunca el cronograma SUNAT (declarationTimeliness es un dato aparte, ver
+ * docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5).
+ */
+export function pdt621DisplayStatus(opts: {
+  status: string;
+  suspendida?: boolean;
+  assistantTimeliness?: string;
+}): { value: string; label: string; className: string } {
+  const { status, suspendida, assistantTimeliness } = opts;
+  let value = status;
+  if (suspendida) value = 'suspendida';
+  else if (status === 'entregado' && assistantTimeliness === 'late') value = 'entregado_fuera_de_fecha';
+  return { value, label: pdt621StatusLabel(value), className: pdt621StatusBadgeClass(value) };
 }
 
 export function resolvePdt621DueDate(declDue?: string, controlDue?: string): string | undefined {
@@ -56,7 +77,7 @@ export function computePdt621DueMeta(
   dueDate?: string,
   suspendida?: boolean,
 ): { isOverdue: boolean; daysRemaining: number | null } {
-  if (!dueDate || suspendida || PDT621_COMPLETE.has(status) || status === 'observado') {
+  if (!dueDate || suspendida || PDT621_TERMINAL_STATUSES.has(status) || status === 'observado') {
     return { isOverdue: false, daysRemaining: null };
   }
   const today = new Date();

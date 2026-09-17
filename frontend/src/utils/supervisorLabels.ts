@@ -30,6 +30,10 @@ export function declarationStatusLabel(s: string): string {
     aprobado: 'Aprobado',
     presentado: 'Presentado',
     cerrado: 'Cerrado',
+    // Enum reducido de pdt_601/pdt_621 (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) — valores
+    // nuevos, no alias de los de arriba (que siguen usando otros tipos de declaración).
+    por_revisar: 'Por revisar',
+    entregado: 'Entregado',
   };
   return m[s] ?? s;
 }

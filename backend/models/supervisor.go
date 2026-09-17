@@ -83,6 +83,31 @@ const (
 	SupervisorDeclCerrado       = "cerrado"
 )
 
+// Enum reducido de estados, exclusivo de declaration_type pdt_601/pdt_621
+// (docs/diseno-estados-pdt601-pdt621-2026-09-16.md). Los 7 valores de arriba NO se tocan ni se borran —
+// siguen usándose tal cual para sire/renta_anual/sunat_inbox/detracciones, que quedan fuera de este
+// rediseño. Son valores de columna nuevos y distintos (no alias de los de arriba) para no sobrecargar
+// el mismo string con dos significados distintos según el tipo de declaración — las filas existentes de
+// pdt_601/pdt_621 se migran una sola vez (ver cmd/pdt-status-backfill) de los 7 valores viejos a estos 4:
+// pendiente→pendiente, en_elaboracion→pendiente, en_revision→por_revisar, observado→observado,
+// aprobado→entregado, presentado→entregado, cerrado→entregado.
+const (
+	SupervisorDeclPorRevisar = "por_revisar"
+	// SupervisorDeclEntregado terminal (salvo Reabrir). El label mostrado ("Entregado" / "Entregado
+	// fuera de fecha") se calcula aparte según la fecha de entrega vs. el calendario interno — nunca se
+	// guarda como un valor de estado distinto.
+	SupervisorDeclEntregado = "entregado"
+)
+
+// PDT601PDT621ValidStatuses valores de Status permitidos para declaration_type pdt_601/pdt_621 — usado
+// por la validación de transiciones en UpdateDeclaration (Blueprint de estados, §1 y §9 del diseño).
+var PDT601PDT621ValidStatuses = map[string]bool{
+	SupervisorDeclPendiente:  true,
+	SupervisorDeclPorRevisar: true,
+	SupervisorDeclObservado:  true,
+	SupervisorDeclEntregado:  true,
+}
+
 const (
 	SupervisorLiqPendiente = "pendiente"
 	SupervisorLiqAprobada  = "aprobada"
@@ -141,23 +166,31 @@ func (SupervisorMonthlyControl) TableName() string { return "supervisor_monthly_
 
 // SupervisorDeclaration declaración tributaria ligada a un control mensual.
 type SupervisorDeclaration struct {
-	ID                uint           `gorm:"primaryKey" json:"id"`
-	MonthlyControlID  uint           `gorm:"not null;index:idx_sup_decl_ctrl_type,unique" json:"monthly_control_id"`
-	DeclarationType   string         `gorm:"size:30;not null;index:idx_sup_decl_ctrl_type,unique" json:"declaration_type"`
-	Status            string         `gorm:"size:30;not null;default:'pendiente'" json:"status"`
-	ProgressPct       int            `gorm:"not null;default:0" json:"progress_pct"`
-	Priority          string         `gorm:"size:20;not null;default:'media'" json:"priority"`
-	DueDate           *time.Time     `gorm:"type:date" json:"due_date,omitempty"`
-	ResponsibleUserID *uint          `gorm:"index" json:"responsible_user_id,omitempty"`
-	ApproverUserID    *uint          `gorm:"index" json:"approver_user_id,omitempty"`
-	Notes             string         `gorm:"type:text" json:"notes,omitempty"`
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                uint       `gorm:"primaryKey" json:"id"`
+	MonthlyControlID  uint       `gorm:"not null;index:idx_sup_decl_ctrl_type,unique" json:"monthly_control_id"`
+	DeclarationType   string     `gorm:"size:30;not null;index:idx_sup_decl_ctrl_type,unique" json:"declaration_type"`
+	Status            string     `gorm:"size:30;not null;default:'pendiente'" json:"status"`
+	ProgressPct       int        `gorm:"not null;default:0" json:"progress_pct"`
+	Priority          string     `gorm:"size:20;not null;default:'media'" json:"priority"`
+	DueDate           *time.Time `gorm:"type:date" json:"due_date,omitempty"`
+	ResponsibleUserID *uint      `gorm:"index" json:"responsible_user_id,omitempty"`
+	ApproverUserID    *uint      `gorm:"index" json:"approver_user_id,omitempty"`
+	Notes             string     `gorm:"type:text" json:"notes,omitempty"`
+	// Reapertura (solo pdt_601/pdt_621, ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7): revertir
+	// una declaración "entregada" de vuelta a "por_revisar", con motivo obligatorio y permiso dedicado
+	// (supervisors.declarations_reopen) — mismo patrón que Payment.VoidedAt/VoidedBy/VoidReason y
+	// Document.WriteoffAt/WriteoffBy/WriteoffReason: nunca se sobrescribe, solo se acumula evidencia.
+	ReopenedAt   *time.Time     `json:"reopened_at,omitempty"`
+	ReopenedBy   *uint          `gorm:"index" json:"reopened_by,omitempty"`
+	ReopenReason string         `gorm:"type:text" json:"reopen_reason,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
 	MonthlyControl *SupervisorMonthlyControl `gorm:"foreignKey:MonthlyControlID" json:"monthly_control,omitempty"`
 	Responsible    *User                     `gorm:"foreignKey:ResponsibleUserID" json:"responsible,omitempty"`
 	Approver       *User                     `gorm:"foreignKey:ApproverUserID" json:"approver,omitempty"`
+	ReopenedByUser *User                     `gorm:"foreignKey:ReopenedBy" json:"reopened_by_user,omitempty"`
 }
 
 func (SupervisorDeclaration) TableName() string { return "supervisor_declarations" }
@@ -198,6 +231,10 @@ type SupervisorPdt601Planilla struct {
 	// más restrictivo que SinPlanilla, mutuamente excluyente con ella (ver
 	// services/supervisor_pdt601_service.go, SavePdt601Planilla).
 	Suspendida bool `gorm:"not null;default:false" json:"suspendida"`
+	// RegimenLaboral: "general" o "remype" (ver Pdt601RegimenGeneral/Pdt601RegimenRemype).
+	// Obligatorio — sin valor por defecto a propósito, para forzar a elegir (ver
+	// services/supervisor_pdt601_service.go, SavePdt601Planilla).
+	RegimenLaboral string `gorm:"size:20" json:"regimen_laboral"`
 	// Nro. de trabajadores (el TOTAL se deriva: ONP + AFP).
 	TrabajadoresONP int `gorm:"not null;default:0" json:"trabajadores_onp"`
 	TrabajadoresAFP int `gorm:"not null;default:0" json:"trabajadores_afp"`
@@ -231,6 +268,12 @@ type SupervisorPdt601Planilla struct {
 }
 
 func (SupervisorPdt601Planilla) TableName() string { return "supervisor_pdt601_planillas" }
+
+// Valores válidos de SupervisorPdt601Planilla.RegimenLaboral.
+const (
+	Pdt601RegimenGeneral = "general"
+	Pdt601RegimenRemype  = "remype"
+)
 
 // SupervisorPdt621Record seguimiento manual de PDT 621 del control (una por empresa+período).
 // No está ligado a ninguna liquidación (tax_settlements): es solo control interno del supervisor.

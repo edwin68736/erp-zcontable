@@ -5,9 +5,9 @@ import {
   computePdt601DueMeta,
   formatPdt601DueDetail,
   formatStoredAt,
-  pdt601StatusBadgeClass,
-  pdt601StatusLabel,
-  PDT601_APPROVED_STATUSES,
+  pdt601DisplayStatus,
+  PDT601_TERMINAL_STATUSES,
+  PDT601_REGIMEN_LABORAL_OPTIONS,
   resolvePdt601DueDate,
 } from '../../components/activity/pdt601Config';
 import FilePreviewModal from '../../components/FilePreviewModal';
@@ -33,6 +33,7 @@ import { downloadRemoteFile } from '../../utils/downloadFile';
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
   suspendida: false,
+  regimen_laboral: '',
   trabajadores_onp: 0,
   trabajadores_afp: 0,
   essalud: 0,
@@ -109,6 +110,7 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
     : {
         sin_planilla: p.sin_planilla ?? false,
         suspendida: p.suspendida ?? false,
+        regimen_laboral: p.regimen_laboral ?? '',
         trabajadores_onp: p.trabajadores_onp ?? 0,
         trabajadores_afp: p.trabajadores_afp ?? 0,
         essalud: p.essalud ?? 0,
@@ -146,34 +148,6 @@ function planillaToInput(p: Pdt601Planilla | null | undefined): Pdt601PlanillaIn
     hora_entrega: base.hora_entrega || nowTimeStr(),
   };
 }
-
-/** Estados que ve el asistente en "Cambiar estado": el flujo de revisión (En revisión, Observado,
- * Aprobado, ...) lo maneja el supervisor después de que el asistente entrega sus datos. */
-const ASSISTANT_STATUS_OPTIONS = [
-  { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_elaboracion', label: 'En elaboración' },
-  { value: 'sin_planilla', label: 'Sin planilla' },
-  { value: 'suspendida', label: 'Empresa suspendida' },
-];
-
-/** Estados que ve el supervisor al revisar lo que entregó el asistente — "Pendiente"/"En
- * elaboración" son etapas del asistente, no algo que el supervisor deba fijar. "Observado" y
- * "Aprobado" TAMPOCO están acá a propósito: ya tienen sus propios botones dedicados más abajo
- * ("Observar"/"Aprobar", panel "Revisión supervisor"), que además de cambiar el estado hacen cosas
- * que este select genérico no hace — Observar exige y guarda la nota, crea el registro de
- * observación y actualiza el estado del control mensual; Aprobar registra quién aprobó y el
- * avance. Dejarlos acá permitiría "aprobar"/"observar" sin nada de eso, así que solo se ofrece
- * "En revisión" (sin acción dedicada propia) y "Sin planilla" (compartido con el asistente). */
-const SUPERVISOR_STATUS_OPTIONS = [
-  { value: 'en_revision', label: 'En revisión' },
-  { value: 'sin_planilla', label: 'Sin planilla' },
-  { value: 'suspendida', label: 'Empresa suspendida' },
-];
-
-const STATUS_OPTIONS_BY_WORKSPACE: Record<ActivityWorkspace, { value: string; label: string }[]> = {
-  assistant: ASSISTANT_STATUS_OPTIONS,
-  supervisor: SUPERVISOR_STATUS_OPTIONS,
-};
 
 const ESTADO_BOLETAS_OPTIONS = ['', 'Pendiente', 'Enviado', 'No corresponde'];
 const NPS_OPTIONS = ['', 'OK', 'Detracciones', 'Parcial Detracc', 'No corresponde'];
@@ -215,6 +189,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
+  const canReopen = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsReopen), []);
   const canUpload = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
 
   const [detail, setDetail] = useState<Pdt601Detail | null>(null);
@@ -223,9 +198,10 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [msgTone, setMsgTone] = useState<'success' | 'error' | 'info'>('info');
-  const [statusSaving, setStatusSaving] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [planilla, setPlanilla] = useState<Pdt601PlanillaInput>({ ...EMPTY_PLANILLA });
   const [planillaSaving, setPlanillaSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -241,9 +217,20 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   // se muestra, la tarjeta "Empresa" pasa a ocupar todo el ancho en vez de quedar en una grilla de
   // 2 columnas con la mitad derecha vacía.
   const showRevisionSupervisor = workspace === 'supervisor' && (canApprove || canObserve);
-  // Una vez que el supervisor aprobó (o pasó a presentado/cerrado), el asistente ya no puede seguir
-  // editando su registro — el supervisor sí conserva edición para corregir/reabrir si hace falta.
-  const assistantLocked = workspace === 'assistant' && !!declaration && PDT601_APPROVED_STATUSES.has(declaration.status);
+  // Terminal: una vez "Entregado", nadie edita nada (ni el asistente ni el supervisor) salvo que se
+  // reabra con el permiso dedicado — docs/diseno-estados-pdt601-pdt621-2026-09-16.md §8. Antes esto
+  // solo bloqueaba al asistente (assistantLocked); ahora aplica a los dos roles por igual.
+  const declarationLocked = !!declaration && PDT601_TERMINAL_STATUSES.has(declaration.status);
+  const displayStatus = useMemo(
+    () =>
+      pdt601DisplayStatus({
+        status: declaration?.status ?? '',
+        sinPlanilla: planilla.sin_planilla,
+        suspendida: planilla.suspendida,
+        timeliness: detail?.timeliness,
+      }),
+    [declaration?.status, planilla.sin_planilla, planilla.suspendida, detail?.timeliness],
+  );
   const trabajadoresTotal = (planilla.trabajadores_onp || 0) + (planilla.trabajadores_afp || 0);
   // RH queda fuera de "Total aportes" a pedido — no se suma junto con ESSALUD/ONP/AFP/SIS/4TA/5TA/SCTR.
   const totalAportes =
@@ -298,46 +285,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     );
   };
 
-  // "Cambiar estado" une el estado de la declaración con planilla.sin_planilla/suspendida en un
-  // solo select, acotado a lo que le corresponde fijar a cada workspace (ver
-  // STATUS_OPTIONS_BY_WORKSPACE) — el asistente entrega (Pendiente/En elaboración/Sin planilla/
-  // Suspendida), el supervisor revisa (En revisión/Observado/Aprobado/Sin planilla/Suspendida).
-  // Ninguna de las dos es un estado real de la declaración — son planilla.sin_planilla/suspendida —
-  // así que se muestran/editan acá pero no disparan handleStatusChange. Suspendida tiene prioridad:
-  // no pueden estar ambas a la vez (ver handleToggleSinPlanilla/handleToggleSuspendida).
-  const combinedStatusValue = planilla.suspendida
-    ? 'suspendida'
-    : planilla.sin_planilla
-      ? 'sin_planilla'
-      : declaration?.status ?? '';
-  const statusSelectOptions = useMemo(() => {
-    const base = STATUS_OPTIONS_BY_WORKSPACE[workspace];
-    if (base.some((o) => o.value === combinedStatusValue)) {
-      return base;
-    }
-    // El estado real quedó fuera del set reducido (p. ej. una etapa de la que ya no es dueño este
-    // workspace): se antepone para que el select siga reflejando la realidad en vez de mostrar un
-    // valor que no corresponde.
-    return [{ value: combinedStatusValue, label: pdt601StatusLabel(combinedStatusValue) }, ...base];
-  }, [workspace, combinedStatusValue]);
-
-  const handleCombinedStatusChange = async (value: string) => {
-    if (assistantLocked) return;
-    if (value === 'suspendida') {
-      if (!planilla.suspendida) handleToggleSuspendida(true);
-      return;
-    }
-    if (value === 'sin_planilla') {
-      if (!planilla.sin_planilla) handleToggleSinPlanilla(true);
-      return;
-    }
-    if (planilla.suspendida) handleToggleSuspendida(false);
-    if (planilla.sin_planilla) handleToggleSinPlanilla(false);
-    if (value !== declaration?.status) {
-      await handleStatusChange(value);
-    }
-  };
-
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
     const dueDate = resolvePdt601DueDate(declaration.due_date, detail.control_due_date);
@@ -380,18 +327,25 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     setDetail((d) => (d ? { ...d, declaration: decl } : d));
   };
 
-  const handleStatusChange = async (status: string) => {
-    if (!declaration || !canUpdate) return;
+  const handleReopen = async () => {
+    if (!declaration || !canReopen) return;
+    const reason = reopenReason.trim();
+    if (!reason) {
+      showMsg('Ingrese el motivo de la reapertura.', 'error');
+      return;
+    }
     try {
-      setStatusSaving(true);
+      setActionLoading(true);
       showMsg('');
-      const updated = await supervisorsService.updateDeclaration(declaration.id, { status });
+      const updated = await supervisorsService.reopenDeclaration(declaration.id, reason);
       refreshDeclaration(updated);
-      showMsg('Estado actualizado.', 'success');
+      setReopenReason('');
+      setReopenOpen(false);
+      showMsg('Declaración reabierta — volvió a "Por revisar".', 'success');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo actualizar el estado.'), 'error');
+      showMsg(extractApiErrorMessage(err, 'No se pudo reabrir.'), 'error');
     } finally {
-      setStatusSaving(false);
+      setActionLoading(false);
     }
   };
 
@@ -414,7 +368,14 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   };
 
   const handleSavePlanilla = async () => {
-    if (!canUpdate || assistantLocked) return;
+    if (!canUpdate || declarationLocked) return;
+    // Régimen laboral es obligatorio siempre (a diferencia de NPS/Ticket AFP, que solo aplican al
+    // seguimiento del supervisor): se muestra y edita en la tarjeta "Empresa", visible para ambos
+    // workspaces, independientemente de sin_planilla/suspendida.
+    if (!planilla.regimen_laboral) {
+      showMsg('Seleccione el régimen laboral.', 'error');
+      return;
+    }
     // NPS/Ticket AFP los completa el supervisor en el seguimiento posterior — el asistente no
     // puede editarlos (quedan readonly), así que exigirlos acá lo dejaría sin poder guardar nunca.
     if (!planilla.sin_planilla && !planilla.suspendida && workspace !== 'assistant') {
@@ -431,7 +392,10 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
       setPlanillaSaving(true);
       showMsg('');
       const updated = await pdt601Service.savePlanilla(companyId, periodYm, planilla);
-      setDetail((d) => (d ? { ...d, planilla: updated.planilla } : d));
+      // El guardado puede haber disparado la entrega automática (Pendiente/Observado → Por revisar,
+      // docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — se refleja acá también el estado y la
+      // puntualidad recalculada, no solo la planilla.
+      setDetail((d) => (d ? { ...d, planilla: updated.planilla, declaration: updated.declaration, timeliness: updated.timeliness } : d));
       setPlanilla(planillaToInput(updated.planilla));
       showMsg('Planilla guardada correctamente.', 'success');
     } catch (err) {
@@ -539,10 +503,8 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
             <div>
               <p className="text-slate-500">Estado</p>
               <p>
-                <span
-                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt601StatusBadgeClass(combinedStatusValue)}`}
-                >
-                  {pdt601StatusLabel(combinedStatusValue)}
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}>
+                  {displayStatus.label}
                 </span>
               </p>
             </div>
@@ -552,21 +514,19 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                 {formatPdt601DueDetail(dueResolved.dueDate, dueResolved.isOverdue, dueResolved.daysRemaining)}
               </p>
             </div>
-            {/* Ancho completo (asistente, o supervisor sin panel de revisión): "Cambiar estado"
-                entra en la misma fila horizontal que Asistente/Estado/Vencimiento en vez de quedar
-                debajo, en su propio bloque. */}
             {!showRevisionSupervisor && canUpdate ? (
               <div>
-                <p className="text-slate-500 mb-1">Cambiar estado</p>
+                <p className="text-slate-500 mb-1">Régimen laboral</p>
                 <select
-                  value={combinedStatusValue}
-                  disabled={statusSaving || assistantLocked}
-                  onChange={(e) => void handleCombinedStatusChange(e.target.value)}
+                  required
+                  value={planilla.regimen_laboral}
+                  disabled={declarationLocked}
+                  onChange={(e) => patchPlanilla({ regimen_laboral: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500"
                 >
-                  {statusSelectOptions.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
+                  {PDT601_REGIMEN_LABORAL_OPTIONS.map((opt) => (
+                    <option key={opt.value || 'none'} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
@@ -575,16 +535,17 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           </div>
           {showRevisionSupervisor && canUpdate ? (
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Cambiar estado</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Régimen laboral</label>
               <select
-                value={combinedStatusValue}
-                disabled={statusSaving}
-                onChange={(e) => void handleCombinedStatusChange(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                required
+                value={planilla.regimen_laboral}
+                disabled={declarationLocked}
+                onChange={(e) => patchPlanilla({ regimen_laboral: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500"
               >
-                {statusSelectOptions.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
+                {PDT601_REGIMEN_LABORAL_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'none'} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -596,20 +557,79 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
             <h2 className="text-sm font-semibold text-slate-800">Revisión supervisor</h2>
             {planilla.suspendida ? (
-              // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar (ver nota
-              // en combinedStatusValue más arriba).
+              // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
                 Esta empresa está marcada "Suspendida" en este período — no aplica observar ni
                 aprobar.
               </p>
             ) : planilla.sin_planilla ? (
-              // Sin planilla no hay nada que revisar/aprobar: no aplica el flujo de
-              // observar/aprobar (ver nota en combinedStatusValue más arriba).
+              // Sin planilla no hay nada que revisar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-amber-600" aria-hidden />
                 Esta empresa está marcada "Sin planilla" en este período — no aplica observar ni
                 aprobar.
+              </p>
+            ) : declarationLocked ? (
+              // Terminal: ya no aplica observar/aprobar — la única salida es Reabrir, si se tiene
+              // el permiso dedicado (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7).
+              <div className="space-y-3">
+                <p className="flex items-start gap-2 text-sm text-slate-500">
+                  <i className="fas fa-check-circle mt-0.5 text-emerald-600" aria-hidden />
+                  Esta declaración ya fue entregada — no aplica observar ni aprobar de nuevo.
+                </p>
+                {canReopen ? (
+                  reopenOpen ? (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Motivo de la reapertura</label>
+                      <textarea
+                        value={reopenReason}
+                        onChange={(e) => setReopenReason(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="Indique por qué se reabre…"
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => void handleReopen()}
+                          className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Confirmar reapertura
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => {
+                            setReopenOpen(false);
+                            setReopenReason('');
+                          }}
+                          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setReopenOpen(true)}
+                      className="px-4 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-medium hover:bg-red-100"
+                    >
+                      Reabrir
+                    </button>
+                  )
+                ) : null}
+              </div>
+            ) : declaration.status !== 'por_revisar' ? (
+              // Todavía no hay nada que revisar (Pendiente) u observado esperando corrección — los
+              // botones de Observar/Aprobar solo aplican desde "Por revisar".
+              <p className="flex items-start gap-2 text-sm text-slate-500">
+                <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
+                {declaration.status === 'observado'
+                  ? 'Esperando que el asistente corrija la observación y vuelva a entregar.'
+                  : 'Esperando que el asistente entregue su registro.'}
               </p>
             ) : (
               <>
@@ -636,7 +656,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                 {canApprove ? (
                   <button
                     type="button"
-                    disabled={actionLoading || PDT601_APPROVED_STATUSES.has(declaration.status)}
+                    disabled={actionLoading}
                     onClick={() => void handleApprove()}
                     className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
                   >
@@ -657,89 +677,64 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           </p>
         </div>
 
-        {assistantLocked ? (
+        {declarationLocked ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
             <i className="fas fa-lock mt-0.5" aria-hidden />
             <span>
-              El supervisor ya revisó esta planilla ({pdt601StatusLabel(combinedStatusValue)}) — ya no se puede
-              editar. Si hace falta corregir algo, coordine con el supervisor.
+              Esta declaración ya fue entregada ({displayStatus.label}) — no se puede editar. Si hace
+              falta corregir algo, pida que la reabran.
             </span>
           </div>
         ) : null}
 
-        {workspace === 'assistant' ? (
-          // La vista asistente no repite los toggles acá: "Sin planilla"/"Suspendida" se eligen
-          // arriba, en el select "Cambiar estado" (unificado con Pendiente/En elaboración) — esto
-          // solo confirma visualmente la elección cuando corresponde.
-          planilla.suspendida ? (
-            <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
-              <i className="fas fa-ban mt-0.5" aria-hidden />
-              <span>
-                <span className="block font-medium">Esta empresa está suspendida en este período</span>
-                <span className="block text-xs mt-0.5 opacity-80">
-                  No se registra ningún otro dato mientras esté suspendida.
-                </span>
+        {/* Mismo checkbox real para los dos workspaces — antes el asistente solo veía una confirmación
+            visual y elegía esto desde el select "Cambiar estado" (ya eliminado, ver
+            docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9: "Marcar Suspendida/Sin planilla" es
+            una acción de Asistente o Supervisor por igual). */}
+        <label
+          className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+            planilla.suspendida
+              ? 'border-purple-300 bg-purple-50 text-purple-900'
+              : 'border-slate-200 bg-slate-50 text-slate-700'
+          } ${canUpdate && !declarationLocked ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+        >
+          <input
+            type="checkbox"
+            disabled={!canUpdate || declarationLocked}
+            checked={planilla.suspendida}
+            onChange={(e) => handleToggleSuspendida(e.target.checked)}
+            className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span>
+            <span className="block font-medium">Esta empresa está suspendida en este período</span>
+            <span className="block text-xs mt-0.5 opacity-80">
+              No se registra ningún otro dato (ni Observaciones) mientras esté suspendida.
+            </span>
+          </span>
+        </label>
+        {!planilla.suspendida ? (
+          <label
+            className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+              planilla.sin_planilla
+                ? 'border-amber-300 bg-amber-50 text-amber-900'
+                : 'border-slate-200 bg-slate-50 text-slate-700'
+            } ${canUpdate && !declarationLocked ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+          >
+            <input
+              type="checkbox"
+              disabled={!canUpdate || declarationLocked}
+              checked={planilla.sin_planilla}
+              onChange={(e) => handleToggleSinPlanilla(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span>
+              <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
+              <span className="block text-xs mt-0.5 opacity-80">
+                No es necesario registrar N° de trabajadores, importes ni seguimiento.
               </span>
-            </div>
-          ) : planilla.sin_planilla ? (
-            <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-              <i className="fas fa-ban mt-0.5" aria-hidden />
-              <span>
-                <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
-                <span className="block text-xs mt-0.5 opacity-80">
-                  No es necesario registrar N° de trabajadores, importes ni seguimiento.
-                </span>
-              </span>
-            </div>
-          ) : null
-        ) : (
-          <>
-            <label
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
-                planilla.suspendida
-                  ? 'border-purple-300 bg-purple-50 text-purple-900'
-                  : 'border-slate-200 bg-slate-50 text-slate-700'
-              } ${canUpdate ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-            >
-              <input
-                type="checkbox"
-                disabled={!canUpdate}
-                checked={planilla.suspendida}
-                onChange={(e) => handleToggleSuspendida(e.target.checked)}
-                className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-              />
-              <span>
-                <span className="block font-medium">Esta empresa está suspendida en este período</span>
-                <span className="block text-xs mt-0.5 opacity-80">
-                  No se registra ningún otro dato (ni Observaciones) mientras esté suspendida.
-                </span>
-              </span>
-            </label>
-            {!planilla.suspendida ? (
-              <label
-                className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
-                  planilla.sin_planilla
-                    ? 'border-amber-300 bg-amber-50 text-amber-900'
-                    : 'border-slate-200 bg-slate-50 text-slate-700'
-                } ${canUpdate ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-              >
-                <input
-                  type="checkbox"
-                  disabled={!canUpdate}
-                  checked={planilla.sin_planilla}
-                  onChange={(e) => handleToggleSinPlanilla(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span>
-                  <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
-                  <span className="block text-xs mt-0.5 opacity-80">
-                    No es necesario registrar N° de trabajadores, importes ni seguimiento.
-                  </span>
-                </span>
-              </label>
-            ) : null}
-          </>
-        )}
+            </span>
+          </label>
+        ) : null}
 
         {!planilla.sin_planilla && !planilla.suspendida ? (
           <>
@@ -754,7 +749,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                     type="number"
                     min={0}
                     step={1}
-                    disabled={!canUpdate || assistantLocked}
+                    disabled={!canUpdate || declarationLocked}
                     value={planilla.trabajadores_onp || ''}
                     onChange={(e) => patchPlanillaNumber('trabajadores_onp', e.target.value)}
                     placeholder="0"
@@ -767,7 +762,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                     type="number"
                     min={0}
                     step={1}
-                    disabled={!canUpdate || assistantLocked}
+                    disabled={!canUpdate || declarationLocked}
                     value={planilla.trabajadores_afp || ''}
                     onChange={(e) => patchPlanillaNumber('trabajadores_afp', e.target.value)}
                     placeholder="0"
@@ -807,7 +802,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                       type="number"
                       min={0}
                       step="0.01"
-                      disabled={!canUpdate || assistantLocked}
+                      disabled={!canUpdate || declarationLocked}
                       value={(planilla[key] as number) || ''}
                       onChange={(e) => patchPlanillaNumber(key, e.target.value)}
                       placeholder="0.00"
@@ -841,7 +836,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">Fecha de entrega</label>
                   <input
                     type="date"
-                    disabled={!canUpdate || assistantLocked}
+                    disabled={!canUpdate || declarationLocked}
                     value={planilla.fecha_entrega}
                     onChange={(e) => patchPlanilla({ fecha_entrega: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -851,7 +846,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">Hora de entrega</label>
                   <input
                     type="time"
-                    disabled={!canUpdate || assistantLocked}
+                    disabled={!canUpdate || declarationLocked}
                     value={planilla.hora_entrega}
                     onChange={(e) => patchPlanilla({ hora_entrega: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -935,7 +930,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           </label>
           <textarea
             rows={2}
-            disabled={!canUpdate || assistantLocked || planilla.suspendida}
+            disabled={!canUpdate || declarationLocked || planilla.suspendida}
             value={planilla.observaciones}
             onChange={(e) => patchPlanilla({ observaciones: e.target.value })}
             placeholder="Observaciones de la planilla…"
@@ -956,7 +951,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
             ) : null}
             <button
               type="button"
-              disabled={planillaSaving || assistantLocked}
+              disabled={planillaSaving || declarationLocked}
               onClick={() => void handleSavePlanilla()}
               className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
             >

@@ -5,8 +5,7 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import {
-  pdt621StatusBadgeClass,
-  pdt621StatusLabel,
+  pdt621DisplayStatus,
   pdt621RowBgClass,
   PDT621_STATUS_FILTER,
 } from '../../components/activity/pdt621Config';
@@ -382,7 +381,11 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                 rows.map((row, idx) => {
                   const rec = row.record;
                   const suspendida = !!rec?.suspendida;
-                  const statusValue = suspendida ? 'suspendida' : row.status;
+                  const displayStatus = pdt621DisplayStatus({
+                    status: row.status,
+                    suspendida,
+                    assistantTimeliness: row.assistant_timeliness,
+                  });
                   return (
                     <tr key={row.company_id} className={`group ${pdt621RowBgClass(row.declaration_timeliness, suspendida)}`}>
                       <td
@@ -416,13 +419,13 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
                           <div className="flex items-center gap-2">
-                            {/* Igual que en el detalle (combinedStatusValue): "suspendida" no es un
+                            {/* Igual que en el detalle (pdt621DisplayStatus): "suspendida" no es un
                                 estado real de la declaración, pero se muestra acá en vez del
                                 estado de revisión. */}
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pdt621StatusBadgeClass(statusValue)}`}
+                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
                             >
-                              {pdt621StatusLabel(statusValue)}
+                              {displayStatus.label}
                             </span>
                             {/* Botón de acción (registrar/ver) movido acá desde la última columna,
                                 junto al estado en vez de al fondo de la fila. */}
@@ -431,13 +434,16 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver
                               pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness).
-                              Suspendida sale "Exento" acá (ver exempt en pdt621BuildRows). */}
-                          <span
-                            title="Cumplimiento del plazo interno de entrega del asistente (calendario de actividades)"
-                            className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.assistant_timeliness)}`}
-                          >
-                            {timelinessLabel(row.assistant_timeliness)}
-                          </span>
+                              Suspendida sale "Exento" acá (ver exempt en pdt621BuildRows). "Entregado"
+                              ya incluye la puntualidad en el badge de arriba: no hace falta repetirlo. */}
+                          {row.status !== 'entregado' ? (
+                            <span
+                              title="Cumplimiento del plazo interno de entrega del asistente (calendario de actividades)"
+                              className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.assistant_timeliness)}`}
+                            >
+                              {timelinessLabel(row.assistant_timeliness)}
+                            </span>
+                          ) : null}
                         </div>
                       </td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>{suspendida ? '' : formatDateCell(rec?.primera_entrega_fecha)}</td>

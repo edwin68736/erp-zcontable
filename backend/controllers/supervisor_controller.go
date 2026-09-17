@@ -192,6 +192,23 @@ func (ctrl *SupervisorController) PdtSummaryAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": data})
 }
 
+// PdtAssistantPerformanceAPI GET /api/supervisors/dashboard/pdt-assistant-performance — desglosa
+// PdtSummaryAPI por asistente (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.3), mismos filtros.
+func (ctrl *SupervisorController) PdtAssistantPerformanceAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	data, err := ctrl.svc.PdtAssistantPerformance(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
 // ComplianceTrendAPI GET /api/supervisors/dashboard/compliance-trend — cumplimiento mensual de
 // los últimos `months` (default 6) meses terminando en period_ym, mismos filtros que DashboardAPI.
 func (ctrl *SupervisorController) ComplianceTrendAPI(c fiber.Ctx) error {
@@ -603,6 +620,34 @@ func (ctrl *SupervisorController) ObserveDeclarationAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
 	row, err := ctrl.svc.ObserveDeclaration(uint(id), uid, body.Notes)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// ReopenDeclarationAPI POST /api/supervisors/declarations/:id/reopen — revierte una declaración
+// pdt_601/pdt_621 "entregada" de vuelta a "por_revisar" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md
+// §7). Permiso dedicado (supervisors.declarations_reopen), separado de Approve/Observe/Update.
+func (ctrl *SupervisorController) ReopenDeclarationAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	if err := ctrl.ensureDeclarationCompany(c, uint(id)); err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.Bind().Body(&body)
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	row, err := ctrl.svc.ReopenDeclaration(uint(id), uid, body.Reason)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

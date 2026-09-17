@@ -94,6 +94,13 @@ const AssistantWorkspace = () => {
         <Link to="/assistant/activities/pdt-621" className="text-primary-700 font-medium">
           → PDT 621
         </Link>
+        {/* Resumen correcto (Suspendida/Sin planilla, calculado en el servidor) — ver
+            docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.2. Reemplaza al resumen por tipo que
+            se calculaba acá mismo con pdtClientAggregation.ts (nunca se llegó a mostrar en pantalla,
+            y no entendía Suspendida/Sin planilla). */}
+        <Link to="/assistant/dashboard" className="text-primary-700 font-medium">
+          → Mi resumen PDT 601/621
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

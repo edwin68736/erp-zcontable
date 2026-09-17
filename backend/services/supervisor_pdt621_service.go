@@ -69,10 +69,22 @@ type Pdt621Detail struct {
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
 	Record            *Pdt621RecordDTO             `json:"record,omitempty"`
+	// AssistantTimeliness mismo criterio que Pdt621ListRow.AssistantTimeliness — plazo interno del
+	// estudio (no el cronograma SUNAT), presente acá para que el detalle pueda mostrar "Entregado" vs
+	// "Entregado fuera de fecha" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§12).
+	AssistantTimeliness string `json:"assistant_timeliness"`
 }
 
 // pdt621StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
 const pdt621StatusFilterSuspendida = "suspendida"
+
+// Filtros sintéticos de puntualidad — mismo criterio que pdt601StatusFilterEntregadoATiempo/
+// FueraDeFecha, ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §11. Comparan contra
+// pdt621PeriodDueDate (calendario interno), nunca contra el cronograma SUNAT.
+const (
+	pdt621StatusFilterEntregadoATiempo      = "entregado_a_tiempo"
+	pdt621StatusFilterEntregadoFueraDeFecha = "entregado_fuera_de_fecha"
+)
 
 // Pdt621RecordDTO seguimiento manual PDT 621 del período (salida a UI).
 type Pdt621RecordDTO struct {
@@ -182,6 +194,26 @@ func findPdt621CalendarActivity(periodYM string) *models.FinanceCalendarActivity
 	return act
 }
 
+// pdt621PeriodDueDate fecha límite ÚNICA del período para PDT 621, según el calendario INTERNO de
+// actividades — nunca el cronograma SUNAT (que varía por dígito de RUC, ver findPdt621CalendarActivity
+// arriba). Mismo criterio que pdt601PeriodDueDate; ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§11.
+func pdt621PeriodDueDate(periodYM string) *time.Time {
+	act := findPdt621CalendarActivity(periodYM)
+	if act == nil {
+		return nil
+	}
+	dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+	if err != nil {
+		return nil
+	}
+	rule, err := LoadActiveActivityRule(act.ActivityRuleID)
+	if err != nil || rule == nil {
+		return &dueDate
+	}
+	deadline := BuildUploadDeadline(dueDate, rule)
+	return &deadline
+}
+
 type pdt621ListResult struct {
 	Rows       []Pdt621ListRow
 	Total      int64
@@ -250,19 +282,32 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 	}
 
 	return &Pdt621Detail{
-		PeriodYM:          periodYM,
-		CompanyID:         company.ID,
-		Code:              strings.TrimSpace(company.InternalCode),
-		Dig:               s.companyDig(company.ID),
-		BusinessName:      strings.TrimSpace(company.BusinessName),
-		RUC:               strings.TrimSpace(company.RUC),
-		TaxRegime:         strings.TrimSpace(company.TaxRegime),
-		AssistantUsername: assistantUsername(company.Assistant),
-		ControlID:         ctrl.ID,
-		ControlDueDate:    ctrl.DueDate,
-		Declaration:       decl,
-		Record:            recordDTO,
+		PeriodYM:            periodYM,
+		CompanyID:           company.ID,
+		Code:                strings.TrimSpace(company.InternalCode),
+		Dig:                 s.companyDig(company.ID),
+		BusinessName:        strings.TrimSpace(company.BusinessName),
+		RUC:                 strings.TrimSpace(company.RUC),
+		TaxRegime:           strings.TrimSpace(company.TaxRegime),
+		AssistantUsername:   assistantUsername(company.Assistant),
+		ControlID:           ctrl.ID,
+		ControlDueDate:      ctrl.DueDate,
+		Declaration:         decl,
+		Record:              recordDTO,
+		AssistantTimeliness: pdt621AssistantTimeliness(periodYM, recordDTO),
 	}, nil
+}
+
+// pdt621AssistantTimeliness plazo interno del estudio (calendario de actividades, no el cronograma
+// SUNAT) — extraído para reutilizarse tanto en EnsurePdt621 (detalle) como en SavePdt621Record
+// (recalcular tras guardar) sin duplicar la lógica de exempt/deliveredAt.
+func pdt621AssistantTimeliness(periodYM string, recordDTO *Pdt621RecordDTO) string {
+	exempt := recordDTO != nil && recordDTO.Suspendida
+	var primeraEntregaAt *time.Time
+	if recordDTO != nil && recordDTO.PrimeraEntregaFecha != nil {
+		primeraEntregaAt = pdt601ParseDate(*recordDTO.PrimeraEntregaFecha)
+	}
+	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM), primeraEntregaAt, exempt).Timeliness
 }
 
 // GetPdt621Record lectura pura del seguimiento PDT 621 del período (sin crear control/declaración).
@@ -291,8 +336,12 @@ func (s *SupervisorService) GetPdt621Record(companyID uint, periodYM string) (*P
 // SavePdt621Record crea/actualiza (upsert) el seguimiento PDT 621 del período; asegura
 // control+declaración primero (mismo lazy-create que EnsurePdt621).
 func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in Pdt621RecordInput) (*Pdt621Detail, error) {
-	if _, err := s.EnsurePdt621(companyID, periodYM); err != nil {
+	detail, err := s.EnsurePdt621(companyID, periodYM)
+	if err != nil {
 		return nil, err
+	}
+	if detail.Declaration.Status == models.SupervisorDeclEntregado {
+		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
@@ -300,7 +349,7 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	}
 
 	var record models.SupervisorPdt621Record
-	err := database.DB.Where("monthly_control_id = ?", ctrl.ID).First(&record).Error
+	err = database.DB.Where("monthly_control_id = ?", ctrl.ID).First(&record).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
@@ -343,14 +392,35 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 		record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
 	}
 
-	if record.ID == 0 {
-		if err := database.DB.Create(&record).Error; err != nil {
-			return nil, err
+	declStatus := detail.Declaration.Status
+	declID := detail.Declaration.ID
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		if record.ID == 0 {
+			if err := tx.Create(&record).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
-	} else {
-		if err := database.DB.Save(&record).Error; err != nil {
-			return nil, err
+		// Entregar automático (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): guardar con
+		// fecha de entrega cargada es en sí mismo la acción de "entregar" — no hay selector de
+		// estado manual. Solo aplica desde Pendiente/Observado, nunca desde Por revisar (ya está
+		// ahí) ni Entregado (bloqueado más arriba, antes de llegar acá).
+		if record.PrimeraEntregaFecha != nil &&
+			(declStatus == models.SupervisorDeclPendiente || declStatus == models.SupervisorDeclObservado) {
+			return tx.Model(&models.SupervisorDeclaration{}).
+				Where("id = ?", declID).
+				Updates(map[string]interface{}{
+					"status":       models.SupervisorDeclPorRevisar,
+					"progress_pct": declarationProgressFromStatus(models.SupervisorDeclPorRevisar),
+				}).Error
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return s.EnsurePdt621(companyID, periodYM)
@@ -404,6 +474,36 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 			INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND r.suspendida = ?
 		)`, p.PeriodYM, true)
+	} else if statusFilter == pdt621StatusFilterEntregadoATiempo {
+		due := pdt621PeriodDueDate(p.PeriodYM)
+		if due == nil {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
+		} else {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+				AND (r.primera_entrega_fecha IS NULL OR r.primera_entrega_fecha <= ?)
+			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+		}
+	} else if statusFilter == pdt621StatusFilterEntregadoFueraDeFecha {
+		due := pdt621PeriodDueDate(p.PeriodYM)
+		if due == nil {
+			q = q.Where("1 = 0")
+		} else {
+			q = q.Where(`EXISTS (
+				SELECT 1 FROM supervisor_monthly_controls c
+				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
+				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
+				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
+				AND r.primera_entrega_fecha IS NOT NULL AND r.primera_entrega_fecha > ?
+			)`, models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM, *due)
+		}
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
