@@ -38,6 +38,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
+      TZ: America/Lima
 
     volumes:
       - mysql_data:/var/lib/mysql
@@ -63,6 +64,12 @@ services:
       PORT: ${PORT}
 
       STORAGE_PATH: ${STORAGE_PATH}
+
+      # Sin esto el contenedor corre en UTC — cualquier plazo con hora (p. ej. el corte de las
+      # 10:30am de Buzón SOL, compare_mode=datetime) sale calculado 5 horas desfasado porque el
+      # backend usa time.Local en Go, que hereda la zona horaria del sistema operativo del
+      # contenedor (2026-09-17, encontrado en producción al habilitar ese corte para Buzón SOL).
+      TZ: America/Lima
 
     volumes:
       - backend_storage:/app/storage
