@@ -411,7 +411,7 @@ const SupervisorDashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatCard label="Declaraciones observadas" value={data.declarations_observed} icon="fas fa-exclamation-triangle" />
             <StatCard label="NPS pendientes" value={data.nps_pending} icon="fas fa-receipt" />
-            <StatCard label="Pagos pendientes" value={data.payments_pending} icon="fas fa-wallet" />
+            <StatCard label="Pagos SUNAT" value={data.payments_pending} icon="fas fa-wallet" />
           </div>
 
           <PdtSummarySection
@@ -612,6 +612,12 @@ function PdtAssistantPerformanceTable({
                 <th className="px-3 py-2 text-right">Vencido</th>
                 <th className="px-3 py-2 text-right">Entregado a tiempo</th>
                 <th className="px-3 py-2 text-right">Entregado fuera de fecha</th>
+                {/* Sin planilla/Suspendida son buckets propios (docs/diseno-estados-pdt601-pdt621-
+                    2026-09-16.md §6/§12.1), no "pendiente" — sin estas dos columnas, Pendiente +
+                    Observado + Vencido + Entregado (a tiempo/fuera de fecha) no sumaba el Total de la
+                    fila cuando el asistente tenía alguna empresa sin planilla o suspendida. */}
+                <th className="px-3 py-2 text-right">Sin planilla</th>
+                <th className="px-3 py-2 text-right">Suspendida</th>
                 <th className="px-3 py-2 text-right">Total</th>
               </tr>
             </thead>
@@ -625,6 +631,8 @@ function PdtAssistantPerformanceTable({
                   <td className="px-3 py-2 text-right tabular-nums text-red-700">{r.vencido}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{r.entregado_a_tiempo}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-orange-700">{r.entregado_fuera_de_fecha}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{r.sin_planilla}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-purple-700">{r.suspendida}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold">{r.total}</td>
                 </tr>
               ))}

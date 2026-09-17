@@ -274,7 +274,8 @@ func pdt601DueMeta(status string, due *time.Time) (isOverdue bool, daysRemaining
 		return false, nil
 	}
 	switch status {
-	case models.SupervisorDeclAprobado, models.SupervisorDeclPresentado, models.SupervisorDeclCerrado, models.SupervisorDeclObservado:
+	case models.SupervisorDeclEntregado, models.SupervisorDeclObservado,
+		models.SupervisorDeclAprobado, models.SupervisorDeclPresentado, models.SupervisorDeclCerrado:
 		return false, nil
 	}
 	now := time.Now()

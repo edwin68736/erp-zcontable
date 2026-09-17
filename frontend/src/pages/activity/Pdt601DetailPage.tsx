@@ -856,7 +856,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">Fecha de declaración PDT</label>
                   <input
                     type="date"
-                    disabled={!canUpdate || seguimientoReadOnlyForAssistant}
+                    disabled={!canUpdate || declarationLocked || seguimientoReadOnlyForAssistant}
                     value={planilla.fecha_declaracion_pdt}
                     onChange={(e) => patchPlanilla({ fecha_declaracion_pdt: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -866,7 +866,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">NPS</label>
                   <select
                     required={!seguimientoReadOnlyForAssistant}
-                    disabled={!canUpdate || seguimientoReadOnlyForAssistant}
+                    disabled={!canUpdate || declarationLocked || seguimientoReadOnlyForAssistant}
                     value={planilla.nps}
                     onChange={(e) => patchPlanilla({ nps: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -882,7 +882,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">Ticket AFP</label>
                   <select
                     required={!seguimientoReadOnlyForAssistant}
-                    disabled={!canUpdate || seguimientoReadOnlyForAssistant}
+                    disabled={!canUpdate || declarationLocked || seguimientoReadOnlyForAssistant}
                     value={planilla.ticket_afp}
                     onChange={(e) => patchPlanilla({ ticket_afp: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -897,7 +897,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">Estado de envío boletas de trabajadores</label>
                   <select
-                    disabled={!canUpdate || seguimientoReadOnlyForAssistant}
+                    disabled={!canUpdate || declarationLocked || seguimientoReadOnlyForAssistant}
                     value={planilla.estado_envio_boletas}
                     onChange={(e) => patchPlanilla({ estado_envio_boletas: e.target.value })}
                     className={PLANILLA_INPUT}
@@ -913,7 +913,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                   <label className="block text-xs text-slate-500 mb-1">Fecha de envío de NPS, tickets y boletas</label>
                   <input
                     type="date"
-                    disabled={!canUpdate || seguimientoReadOnlyForAssistant}
+                    disabled={!canUpdate || declarationLocked || seguimientoReadOnlyForAssistant}
                     value={planilla.fecha_envio_nps_tickets_boletas}
                     onChange={(e) => patchPlanilla({ fecha_envio_nps_tickets_boletas: e.target.value })}
                     className={PLANILLA_INPUT}
