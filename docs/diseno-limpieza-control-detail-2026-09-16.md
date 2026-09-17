@@ -1113,6 +1113,30 @@ propio. Dejo la pregunta original tachada, no borrada, como registro de por qué
       dashboard en la práctica (`net::ERR_FAILED`, confirmado en el navegador) — se corrigió
       precargando la regla una sola vez por id distinto (normalmente 1) en vez de una consulta por
       unidad evaluada; verificado de nuevo en el navegador tras el fix, responde 200 OK.
+- [x] **Bug real #2, encontrado en la misma pasada de verificación en navegador**: comparando
+      agosto 2026 (sin calendario Buzón SOL retipeado) contra setiembre, el total de "Exento o no
+      aplica" de agosto salía inflado en 510 unidades (255 empresas × 2 buzones) que no debían existir.
+      Causa: `sunatInboxRealSlotsForPeriod` llamaba a `sunatInboxCalendarActivitiesForPeriod`, que
+      incluye los 2 mecanismos de fallback de `FindSunatInboxCalendarActivity` pensados para la GRILLA
+      en pantalla (mostrar una fecha aproximada es mejor que no mostrar nada) — uno de esos fallbacks
+      busca por el tipo ACTUAL de la plantilla (`activity_templates.activity_type`), no por el
+      snapshot propio de la instancia de calendario; como la plantilla AC11 ya es `sunat_inbox` pero
+      agosto tenía una instancia vieja (snapshot `nps`, sin regla propia, nunca retipeada para ese
+      mes), el fallback la enganchaba igual. Corregido: `sunatInboxRealSlotsForPeriod` ahora llama
+      directo a `CalendarActivitiesForType` (filtra por `activity_type_snapshot = 'sunat_inbox'`
+      exacto), sin ningún fallback — un período sin actividades correctamente tipadas aporta 0, no una
+      aproximación. Test de regresión: `TestSunatInboxRealSlotsForPeriod_IgnoresStaleActivitySnapshot`.
+      Verificado en navegador: agosto pasó de 1275 a 765 (510+255 PDT+Detracciones, matemática exacta),
+      setiembre se mantuvo en 4845 (no dependía del fallback).
+- [x] **Verificación completa en navegador (2026-09-17)**: dashboard del supervisor (agosto y
+      setiembre, tarjeta/donut/tendencia/productividad con los números cuadrando exactamente contra lo
+      esperado), modal de arrastre de suspensión (§5.9.9 — apareció automáticamente al entrar a
+      Detracciones de setiembre con las 2 empresas suspendidas de agosto, se probó manteniendo una y
+      reactivando la otra, confirmado que no reaparece tras resolverse), checkbox de suspendida en
+      Detracciones (toggle on/off, mensajes "Empresa marcada como suspendida"/"Empresa reactivada"),
+      banner de solo lectura en PDT 601 y PDT 621 para una empresa suspendida, badge morado en el
+      listado de Buzón SOL. Todo el §5.9 queda verificado de punta a punta con datos reales, no solo
+      con tests unitarios.
 
 ## 5.9.7 "Suspendida" pasa a ser global por período (2026-09-17)
 

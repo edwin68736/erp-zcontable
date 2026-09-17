@@ -212,3 +212,46 @@ func TestSunatInboxDashboardSummary_ExemptWhenSuspendida(t *testing.T) {
 		t.Fatalf("summary=%+v, want 2 exempt de 2 total", got)
 	}
 }
+
+// TestSunatInboxRealSlotsForPeriod_IgnoresStaleActivitySnapshot regresión de un bug real encontrado
+// verificando en el navegador contra datos de dev (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.6.5): una actividad de calendario vieja, de un período donde la plantilla NUNCA se retipeó
+// para ESE mes (su activity_type_snapshot propio se quedó en "nps", nunca se re-sincronizó — mismo
+// problema documentado para PDT601/621 en §2.4), no debe contar para el agregado aunque la plantilla
+// a la que apunta HOY sea sunat_inbox. Antes de este fix, sunatInboxRealSlotsForPeriod usaba
+// sunatInboxCalendarActivitiesForPeriod (con sus 2 fallbacks legacy pensados para la grilla en
+// pantalla, no para el agregado) y enganchaba esta actividad vieja sin regla propia, inflando
+// "Exento o no aplica" en cientos de unidades que no correspondían a ninguna obligación real.
+func TestSunatInboxRealSlotsForPeriod_IgnoresStaleActivitySnapshot(t *testing.T) {
+	db := setupSunatInboxSummaryTestDB(t)
+	periodYM := "2026-08"
+
+	// Plantilla YA retipeada a sunat_inbox (como quedaría tras el retipeo de §5.9.6.5)...
+	tmpl := models.ActivityTemplate{
+		Code: "AC-TEST-STALE", Name: "REVISION DE BUZON ELECTRONICO SUNAT Y SUNAFIL",
+		ActivityType: models.CalendarActivitySunatInbox, Active: true,
+	}
+	if err := db.Create(&tmpl).Error; err != nil {
+		t.Fatalf("seed template: %v", err)
+	}
+	cal := models.FinanceCalendar{PeriodYM: periodYM}
+	if err := db.Create(&cal).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
+	// ...pero la instancia de ESTE período se creó ANTES del retipeo: su propio snapshot quedó en
+	// "nps" y nunca tuvo regla asignada — exactamente el estado real encontrado en agosto 2026 en la
+	// BD de dev.
+	act := models.FinanceCalendarActivity{
+		CalendarID: cal.ID, ActivityTemplateID: tmpl.ID, NameSnapshot: tmpl.Name,
+		ActivityTypeSnapshot: "nps", PrioritySnapshot: "media", TextColorSnapshot: "#b45309",
+		StartDay: 20, EndDay: 20, DueDay: 20,
+	}
+	if err := db.Create(&act).Error; err != nil {
+		t.Fatalf("seed stale activity: %v", err)
+	}
+
+	slots := sunatInboxRealSlotsForPeriod(periodYM)
+	if len(slots) != 0 {
+		t.Fatalf("slots=%+v, want 0 — la actividad vieja (snapshot nps) no debe contarse solo porque su plantilla hoy es sunat_inbox", slots)
+	}
+}

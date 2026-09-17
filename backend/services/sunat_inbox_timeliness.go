@@ -200,8 +200,22 @@ type sunatInboxRealSlot struct {
 // acá para TODO el período de una sola vez (usado por el agregado de cumplimiento, no por la grilla
 // en pantalla). Sin ninguna actividad real configurada, devuelve una lista vacía — un período sin
 // calendario no aporta nada al agregado (ni a favor ni en contra), no hay reparto matemático acá.
+//
+// A propósito usa CalendarActivitiesForType directo (activity_type_snapshot = 'sunat_inbox'), NO
+// sunatInboxCalendarActivitiesForPeriod/FindSunatInboxCalendarActivity — esas funciones existen para
+// la GRILLA en pantalla, donde mostrar una fecha aproximada (vía sus 2 mecanismos de fallback legacy)
+// es mejor que no mostrar nada. Para el AGREGADO de cumplimiento eso es activamente incorrecto:
+// confirmado con datos reales que el fallback "por plantilla" de FindSunatInboxCalendarActivity
+// puede enganchar una actividad de OTRO mes que nunca se retipeó (su activity_type_snapshot sigue en
+// nps, pero su activity_template_id apunta a una plantilla que HOY es sunat_inbox) y sin regla
+// propia — eso inflaba "Exento o no aplica" en cientos de unidades que no correspondían a ninguna
+// obligación real. Un período sin actividades sunat_inbox correctamente tipadas debe aportar 0, no
+// una aproximación.
 func sunatInboxRealSlotsForPeriod(periodYM string) []sunatInboxRealSlot {
-	acts := sunatInboxCalendarActivitiesForPeriod(periodYM)
+	acts, err := CalendarActivitiesForType(periodYM, models.CalendarActivitySunatInbox)
+	if err != nil {
+		acts = nil
+	}
 	type dated struct {
 		date time.Time
 		act  models.FinanceCalendarActivity
