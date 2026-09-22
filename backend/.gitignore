@@ -2,6 +2,7 @@
 *.exe
 *.exe~
 miweb
+zcontable
 
 # Environment
 .env
