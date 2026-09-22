@@ -84,7 +84,7 @@ const CalendarHeader = ({
           <div
             id="finance-calendar-header-menu"
             role="menu"
-            className="fixed w-52 rounded-xl border border-slate-200 bg-white shadow-xl py-1 z-[10050]"
+            className="fixed w-52 rounded-xl border border-slate-200 bg-white shadow-xl py-1 z-dialog"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
             {canEdit ? (
@@ -138,7 +138,7 @@ const CalendarHeader = ({
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-sm font-semibold text-slate-800 shrink-0">Calendario de actividades</h2>
           {hasCalendar && isClosed ? (
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+            <span className="text-2xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
               Cerrado
             </span>
           ) : null}
@@ -175,9 +175,9 @@ const CalendarHeader = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
             >
               {pdfLoading ? (
-                <i className="fas fa-spinner fa-spin text-[10px]" aria-hidden />
+                <i className="fas fa-spinner fa-spin text-2xs" aria-hidden />
               ) : (
-                <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
+                <i className="fas fa-file-pdf text-2xs text-red-600" aria-hidden />
               )}
               PDF
             </button>
@@ -187,10 +187,10 @@ const CalendarHeader = ({
             <button
               type="button"
               onClick={onAddActivity}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-medium shadow-sm hover:bg-emerald-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
               title="Crear actividad (también puede hacer doble clic en un día)"
             >
-              <i className="fas fa-plus text-[10px]" aria-hidden />
+              <i className="fas fa-plus text-2xs" aria-hidden />
               Nueva actividad
             </button>
           ) : null}
@@ -203,7 +203,7 @@ const CalendarHeader = ({
                   onClick={onNewCalendar}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
                 >
-                  <i className="fas fa-plus text-[10px]" aria-hidden />
+                  <i className="fas fa-plus text-2xs" aria-hidden />
                   Nuevo calendario
                 </button>
               ) : null}
@@ -214,7 +214,7 @@ const CalendarHeader = ({
                   onClick={onCloseCalendar}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50 text-amber-900 text-xs font-medium hover:bg-amber-100"
                 >
-                  <i className="fas fa-lock text-[10px]" aria-hidden />
+                  <i className="fas fa-lock text-2xs" aria-hidden />
                   Cerrar calendario
                 </button>
               ) : null}
@@ -225,7 +225,7 @@ const CalendarHeader = ({
                   onClick={onReopenCalendar}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary-300 bg-primary-50 text-primary-800 text-xs font-medium hover:bg-primary-100"
                 >
-                  <i className="fas fa-lock-open text-[10px]" aria-hidden />
+                  <i className="fas fa-lock-open text-2xs" aria-hidden />
                   Abrir calendario
                 </button>
               ) : null}

@@ -25,6 +25,7 @@ import { pdt621Service, type Pdt621Detail, type Pdt621Record, type Pdt621RecordI
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
+import Button from '../../components/ui/Button';
 
 const EMPTY_RECORD: Pdt621RecordInput = {
   primera_entrega_fecha: '',
@@ -406,7 +407,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               // el permiso dedicado (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7).
               <div className="space-y-3">
                 <p className="flex items-start gap-2 text-sm text-slate-500">
-                  <i className="fas fa-check-circle mt-0.5 text-emerald-600" aria-hidden />
+                  <i className="fas fa-check-circle mt-0.5 text-primary-600" aria-hidden />
                   Esta declaración ya fue entregada — no aplica observar ni aprobar de nuevo.
                 </p>
                 {canReopen ? (
@@ -488,7 +489,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                     type="button"
                     disabled={actionLoading}
                     onClick={() => void handleApprove()}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                   >
                     Aprobar
                   </button>
@@ -728,14 +729,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
 
         {canUpdate ? (
           <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              disabled={recordSaving || formLocked}
-              onClick={() => void handleSaveRecord()}
-              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-            >
+            <Button disabled={recordSaving || formLocked} onClick={() => void handleSaveRecord()}>
               {recordSaving ? 'Guardando…' : 'Guardar registro'}
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>

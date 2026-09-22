@@ -5,6 +5,8 @@ import { usersService, type UserUpsertInput } from '../services/users';
 import { rolesService, type RoleRow } from '../services/roles';
 import SearchableSelect from '../components/SearchableSelect';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
+import Input from '../components/ui/Input';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el usuario';
@@ -224,7 +226,7 @@ const UserForm = () => {
     <div className="max-w-5xl mx-auto w-full space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+          <PageHeading>{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</PageHeading>
           <p className="text-sm text-slate-500">Define los datos de acceso y el rol del usuario.</p>
         </div>
         <Link
@@ -242,33 +244,27 @@ const UserForm = () => {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-1">
-              Usuario
-            </label>
-            <input
+            <Input
               type="text"
               id="username"
               name="username"
+              label="Usuario"
               required
               autoComplete="username"
               value={username}
               onChange={(ev) => handleUsernameChange(ev.target.value)}
               placeholder="3-32 caracteres: letras, números, . _ -"
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
-              Nombre completo
-            </label>
-            <input
+            <Input
               type="text"
               id="name"
               name="name"
+              label="Nombre completo"
               required
               value={name}
               onChange={(ev) => setName(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
         </div>
@@ -333,45 +329,36 @@ const UserForm = () => {
           </div>
 
           <div>
-            <label htmlFor="dni" className="block text-sm font-medium text-slate-700 mb-1">
-              DNI
-            </label>
-            <input
+            <Input
               type="text"
               id="dni"
               name="dni"
+              label="DNI"
               value={dni}
               onChange={(ev) => setDni(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1">
-              Teléfono
-            </label>
-            <input
+            <Input
               type="text"
               id="phone"
               name="phone"
+              label="Teléfono"
               value={phone}
               onChange={(ev) => setPhone(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="address" className="block text-sm font-medium text-slate-700 mb-1">
-            Dirección
-          </label>
-          <input
+          <Input
             type="text"
             id="address"
             name="address"
+            label="Dirección"
             value={address}
             onChange={(ev) => setAddress(ev.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
           />
         </div>
 

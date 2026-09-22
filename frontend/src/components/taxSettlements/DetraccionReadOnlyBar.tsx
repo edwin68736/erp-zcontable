@@ -41,12 +41,12 @@ export function DetraccionReadOnlyBar({
         : null;
 
   return (
-    <div className="mt-3 pt-3 border-t border-emerald-100 bg-emerald-50/40 rounded-lg px-3 py-2.5 flex flex-wrap items-center justify-between gap-3">
+    <div className="mt-3 pt-3 border-t border-primary-100 bg-primary-50/40 rounded-lg px-3 py-2.5 flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0 space-y-0.5">
         <p className="text-xs font-semibold text-slate-800">Pago con detracción/efectivo</p>
-        <p className="text-[11px] text-slate-600">{statusLine}</p>
-        {pendingLine ? <p className="text-[11px] text-emerald-900">{pendingLine}</p> : null}
-        {extraNote ? <p className="text-[11px] text-slate-500">{extraNote}</p> : null}
+        <p className="text-2xs text-slate-600">{statusLine}</p>
+        {pendingLine ? <p className="text-2xs text-primary-900">{pendingLine}</p> : null}
+        {extraNote ? <p className="text-2xs text-slate-500">{extraNote}</p> : null}
       </div>
       <div className="text-right shrink-0">
         <p className="text-xs text-slate-500">{totalLabel}</p>

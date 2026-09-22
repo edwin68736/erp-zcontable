@@ -166,7 +166,7 @@ const PosPaymentSplit = ({ rows, saleTotal, onChange, onUploadProof }: Props) =>
       <div
         className={`rounded-lg px-3 py-2 text-sm ${
           paymentsMatch
-            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            ? 'bg-primary-50 text-primary-800 border border-primary-200'
             : 'bg-amber-50 text-amber-900 border border-amber-200'
         }`}
       >

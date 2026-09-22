@@ -30,7 +30,7 @@ const DuplicateMonthModal = ({ open, fromPeriodYm, saving, onClose, onConfirm }:
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !saving && onClose()} aria-label="Cerrar" />
       <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200">
         <div className="px-5 py-4 border-b border-slate-100">

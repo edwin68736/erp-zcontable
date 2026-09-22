@@ -1,5 +1,6 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { isComingSoonSlug, PLACEHOLDER_PAGE_COPY } from '../navigation/sidebarConfig';
+import PageHeading from '../components/ui/PageHeading';
 
 /**
  * Vista temporal para módulos operativos reservados (rutas `/m/:slug`).
@@ -18,8 +19,8 @@ const ModuleComingSoon = () => {
     <div className="space-y-6 pt-2">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700/90">Módulo en preparación</p>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight mt-1">{copy.title}</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Módulo en preparación</p>
+          <PageHeading className="mt-1">{copy.title}</PageHeading>
           <p className="text-slate-500 mt-1 text-sm font-medium">{copy.subtitle}</p>
         </div>
       </div>

@@ -29,8 +29,8 @@ const DETRACCIONES_BADGE: Record<string, string> = {
   pendiente: 'bg-amber-100 text-amber-900',
   sin_registro: 'bg-amber-100 text-amber-900',
   cargado: 'bg-blue-100 text-blue-800',
-  verificado: 'bg-emerald-100 text-emerald-800',
-  validado: 'bg-emerald-100 text-emerald-800',
+  verificado: 'bg-primary-100 text-primary-800',
+  validado: 'bg-primary-100 text-primary-800',
   sin_clave: 'bg-red-100 text-red-800',
   no_corresponde: 'bg-red-100 text-red-800',
   // Legacy (hasta migración completa en BD)

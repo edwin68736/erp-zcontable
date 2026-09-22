@@ -11,6 +11,8 @@ import Pagination from '../components/Pagination';
 import FiscalReceiptPdfActions from '../components/FiscalReceiptPdfActions';
 import FiscalReceiptPaymentModal from '../components/FiscalReceiptPaymentModal';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
+import PageHeading from '../components/ui/PageHeading';
+import Button from '../components/ui/Button';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -36,7 +38,7 @@ function formatEmissionDate(r: TukifacFiscalReceipt): string {
 function settlementBadgeClass(status: string | undefined): string {
   switch (status) {
     case 'vinculado':
-      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      return 'bg-primary-50 text-primary-800 border-primary-200';
     case 'pendiente':
       return 'bg-amber-50 text-amber-900 border-amber-200';
     case 'descartado':
@@ -353,7 +355,7 @@ const Comprobantes = () => {
       <header className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Comprobantes</h2>
+            <PageHeading>Comprobantes</PageHeading>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed max-w-3xl">
               Facturas, boletas y notas de venta emitidas en ZContable (POS, pagos y liquidaciones). Use la vista{' '}
               <strong className="font-medium text-slate-600">Pendientes de pago</strong> para registrar el cobro e imputar a
@@ -541,7 +543,7 @@ const Comprobantes = () => {
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:bg-slate-100"
                                 title="Enlace externo ticket"
                               >
-                                <i className="fas fa-receipt text-[10px]" aria-hidden />
+                                <i className="fas fa-receipt text-2xs" aria-hidden />
                                 Ticket
                               </a>
                             ) : null}
@@ -553,7 +555,7 @@ const Comprobantes = () => {
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50"
                                 title="Enlace externo PDF"
                               >
-                                <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
+                                <i className="fas fa-file-pdf text-2xs text-red-600" aria-hidden />
                                 A4
                               </a>
                             ) : null}
@@ -625,12 +627,12 @@ const Comprobantes = () => {
 
       {linkModal ? (
         <div
-          className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/50"
+          className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-slate-900/50"
           role="presentation"
           onClick={() => !linkSaving && setLinkModal(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4"
+            className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4"
             role="dialog"
             onClick={(ev) => ev.stopPropagation()}
           >
@@ -671,14 +673,9 @@ const Comprobantes = () => {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                disabled={linkSaving || settlementsLoading}
-                onClick={() => void submitLink()}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-              >
+              <Button disabled={linkSaving || settlementsLoading} onClick={() => void submitLink()}>
                 {linkSaving ? 'Guardando…' : 'Guardar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

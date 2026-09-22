@@ -8,6 +8,7 @@ import {
   type SunatDueDateUpdateInput,
 } from '../../services/sunatDueDates';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import Button from '../../components/ui/Button';
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -114,7 +115,7 @@ const SunatDueDatesCalendar = () => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Vencimientos SUNAT</h1>
           <p className="text-slate-500 mt-1 text-sm max-w-2xl">
@@ -125,7 +126,7 @@ const SunatDueDatesCalendar = () => {
         </div>
         {canManage ? (
           editing ? (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto sm:shrink-0">
               <button
                 type="button"
                 onClick={cancelEditing}
@@ -134,15 +135,10 @@ const SunatDueDatesCalendar = () => {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-              >
+              <Button onClick={() => void handleSave()} disabled={saving}>
                 <i className={`fas ${saving ? 'fa-spinner fa-spin' : 'fa-save'} mr-2`} aria-hidden />
                 {saving ? 'Guardando…' : 'Guardar cambios'}
-              </button>
+              </Button>
             </div>
           ) : (
             <button

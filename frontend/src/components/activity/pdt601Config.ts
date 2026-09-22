@@ -51,7 +51,7 @@ const PDT601_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
   por_revisar: 'bg-indigo-100 text-indigo-800',
   observado: 'bg-amber-100 text-amber-900',
-  entregado: 'bg-emerald-100 text-emerald-800',
+  entregado: 'bg-primary-100 text-primary-800',
   // Mismo estado guardado que "entregado" — se distingue únicamente por el label/badge calculado
   // (pdt601DisplayStatus), nunca es un valor de Status real.
   entregado_fuera_de_fecha: 'bg-orange-100 text-orange-900',
@@ -171,7 +171,7 @@ export function pdt601RowBgClass(
 ): string {
   if (suspendida) return 'bg-purple-50 hover:bg-purple-100/70';
   if (sinPlanilla) return 'bg-slate-100 hover:bg-slate-200/70';
-  if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
+  if (timeliness === 'on_time') return 'bg-primary-50 hover:bg-primary-100/70';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';
   return 'hover:bg-slate-50/80';
 }

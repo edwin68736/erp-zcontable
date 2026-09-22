@@ -7,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import CompanySearchInput from '../../components/CompanySearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ActivityHubNav from '../../components/activity/ActivityHubNav';
+import PageHeading from '../../components/ui/PageHeading';
 import {
   controlsDetailBasePath,
   type ActivityWorkspace,
@@ -115,9 +116,9 @@ const SupervisorControls = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">{pageTitle}</h2>
+          <PageHeading>{pageTitle}</PageHeading>
           <p className="text-sm text-slate-500">{pageSubtitle}</p>
         </div>
         {canCreate ? (

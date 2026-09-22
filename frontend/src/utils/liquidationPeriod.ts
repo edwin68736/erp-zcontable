@@ -52,7 +52,7 @@ export function settlementStatusBadgeClass(status: string): string {
     case 'borrador':
       return 'bg-amber-50 text-amber-900 border-amber-200';
     case 'emitida':
-      return 'bg-emerald-50 text-emerald-900 border-emerald-200';
+      return 'bg-primary-50 text-primary-900 border-primary-200';
     case 'cerrada':
       return 'bg-slate-100 text-slate-800 border-slate-200';
     case 'anulada':

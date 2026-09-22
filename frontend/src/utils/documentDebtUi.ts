@@ -109,7 +109,7 @@ export function debtCollectionBadge(doc: Document): DebtBadgeInfo {
     return { label: 'Exonerado', className: 'bg-purple-50 text-purple-800 border-purple-200' };
   }
   if (st === 'pagado' || balance <= 0.005) {
-    return { label: 'Pagado', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    return { label: 'Pagado', className: 'bg-primary-50 text-primary-800 border-primary-200' };
   }
   if (overdue) {
     const sub = st === 'parcial' ? 'Pago parcial' : undefined;

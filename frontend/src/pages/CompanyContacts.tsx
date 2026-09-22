@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { companiesService } from '../services/companies';
 import { contactsService } from '../services/contacts';
 import type { Company, Contact } from '../types/dashboard';
+import PageHeading from '../components/ui/PageHeading';
 
 const CompanyContacts = () => {
   const params = useParams();
@@ -85,22 +86,22 @@ const CompanyContacts = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <h2 className="text-xl font-semibold text-slate-800">{company.business_name}</h2>
+          <PageHeading>{company.business_name}</PageHeading>
           <p className="text-sm text-slate-500">Contactos responsables para la comunicación con el estudio.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Link
             to="/companies"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             <i className="fas fa-arrow-left text-xs"></i> Volver a empresas
           </Link>
           <Link
             to={`/companies/${company.id}/contacts/new`}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
           >
             <i className="fas fa-plus text-xs"></i>
             <span>Nuevo contacto</span>

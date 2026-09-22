@@ -5,6 +5,7 @@ import { usersService } from '../services/users';
 import type { User } from '../types/dashboard';
 import { P } from '../rbac/codes';
 import { formatUserRolesDisplay } from '../rbac/userRoles';
+import PageHeading from '../components/ui/PageHeading';
 
 const Users = () => {
   const canView = useMemo(() => auth.hasPermission(P.usersView), []);
@@ -60,14 +61,14 @@ const Users = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Usuarios</h2>
+          <PageHeading>Usuarios</PageHeading>
           <p className="text-sm text-slate-500">Gestión de usuarios y roles del sistema.</p>
         </div>
         <Link
           to="/users/new"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition disabled:opacity-60"
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition disabled:opacity-60"
           aria-disabled={!canCreate}
           onClick={(e) => {
             if (!canCreate) e.preventDefault();
@@ -136,7 +137,7 @@ const Users = () => {
                           Inactivo
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700 border border-primary-200">
                           Activo
                         </span>
                       )}

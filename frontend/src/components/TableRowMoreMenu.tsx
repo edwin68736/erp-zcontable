@@ -84,7 +84,7 @@ const TableRowMoreMenu = ({
             <div
               id={menuId}
               role="menu"
-              className="fixed z-[10050] min-w-[9.5rem] rounded-xl border border-slate-200 bg-white shadow-lg py-1"
+              className="fixed z-dialog min-w-[9.5rem] rounded-xl border border-slate-200 bg-white shadow-lg py-1"
               style={{ top: coords.top, left: coords.left, transform: 'translateX(-100%)' }}
             >
               {items.map((item) =>

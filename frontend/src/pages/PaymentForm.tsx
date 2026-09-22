@@ -18,6 +18,8 @@ import type { Company, Document } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import TukifacIssueLinksDialog from '../components/TukifacIssueLinksDialog';
 import PosReceiptModal from '../components/pos/PosReceiptModal';
+import PageHeading from '../components/ui/PageHeading';
+import Input from '../components/ui/Input';
 import { configService } from '../services/config';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import type { PosSaleDetail } from '../services/posSales';
@@ -788,7 +790,7 @@ const PaymentForm = () => {
       />
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 pr-1">
-          <h2 className="text-lg sm:text-xl font-semibold text-slate-800">{isEdit ? 'Editar pago' : 'Nuevo pago'}</h2>
+          <PageHeading>{isEdit ? 'Editar pago' : 'Nuevo pago'}</PageHeading>
           {hideCompanyField ? (
             <p className="text-sm font-medium text-slate-800 mt-2">{settlementCompanyDisplay}</p>
           ) : null}
@@ -1035,7 +1037,7 @@ const PaymentForm = () => {
                         </div>
                         {discountNumForSummary > 0 ? (
                           Math.abs(manualImputationSum - discountNumForSummary - amountNumForSummary) <= 0.02 ? (
-                            <p className="text-xs text-emerald-800">Importes alineados (deudas saldadas con descuento).</p>
+                            <p className="text-xs text-primary-800">Importes alineados (deudas saldadas con descuento).</p>
                           ) : (
                             <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
                               Ajuste el descuento o el monto pagado para que cuadren con la suma de líneas.
@@ -1046,7 +1048,7 @@ const PaymentForm = () => {
                             Ajuste las líneas o el monto del pago para que ambos importes coincidan antes de guardar.
                           </p>
                         ) : manualImputationSum > 0 ? (
-                          <p className="text-xs text-emerald-800">Importes alineados.</p>
+                          <p className="text-xs text-primary-800">Importes alineados.</p>
                         ) : null}
                       </>
                     ) : null}
@@ -1113,7 +1115,7 @@ const PaymentForm = () => {
                       className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums"
                     />
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                  <p className="text-2xs text-slate-500 mt-1.5 leading-snug">
                     {canUseDiscount || discountNumForSummary > 0
                       ? 'Con descuento, el monto cobrado es la suma de líneas menos el descuento.'
                       : 'La suma de líneas debe coincidir con este importe (o cubrir saldos completos para aplicar descuento).'}
@@ -1152,7 +1154,7 @@ const PaymentForm = () => {
                         className="w-full min-w-0 px-2 py-2.5 rounded-r-lg outline-none text-sm tabular-nums disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                    <p className="text-2xs text-slate-500 mt-1.5 leading-snug">
                       {canUseDiscount
                         ? 'Solo cuando cada ítem está imputado al saldo completo.'
                         : 'Disponible cuando las imputaciones cubren el saldo íntegro de cada deuda.'}
@@ -1160,18 +1162,15 @@ const PaymentForm = () => {
                   </div>
                 ) : null}
                 <div className="min-w-0">
-                  <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha del pago
-                  </label>
-                  <input
+                  <Input
                     type="date"
                     id="date"
                     name="date"
+                    label="Fecha del pago"
                     value={date}
                     onChange={(ev) => setDate(ev.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                  <p className="text-2xs text-slate-500 mt-1.5 leading-snug">
                     Día en que el cliente realizó el pago.
                   </p>
                 </div>
@@ -1189,16 +1188,13 @@ const PaymentForm = () => {
                   />
                 </div>
                 <div className="min-w-0">
-                  <label htmlFor="reference" className="block text-sm font-medium text-slate-700 mb-1">
-                    Referencia
-                  </label>
-                  <input
+                  <Input
                     type="text"
                     id="reference"
                     name="reference"
+                    label="Referencia"
                     value={reference}
                     onChange={(ev) => setReference(ev.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                     placeholder="Operación, recibo…"
                   />
                 </div>

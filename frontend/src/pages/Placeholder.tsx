@@ -1,3 +1,5 @@
+import PageHeading from '../components/ui/PageHeading';
+
 interface PlaceholderProps {
   title: string;
 }
@@ -7,7 +9,7 @@ const Placeholder = ({ title }: PlaceholderProps) => {
     <div className="space-y-6 pt-2">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">{title}</h1>
+          <PageHeading>{title}</PageHeading>
           <p className="text-slate-500 mt-1 text-sm font-medium">
             Esta vista está en construcción.
           </p>

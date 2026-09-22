@@ -57,7 +57,7 @@ const Login = () => {
                   name="username"
                   required
                   autoComplete="username"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition shadow-inner"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 outline-none transition shadow-inner"
                   placeholder="Su nombre de usuario"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -73,7 +73,7 @@ const Login = () => {
                   name="password"
                   required
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition shadow-inner"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 outline-none transition shadow-inner"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -82,7 +82,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-full transition shadow-lg shadow-emerald-800/20 focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 text-sm disabled:opacity-70"
+                className="w-full py-3.5 px-4 bg-primary-700 hover:bg-primary-800 text-white font-semibold rounded-full transition shadow-lg shadow-primary-800/20 focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm disabled:opacity-70"
               >
                 {loading ? 'Iniciando sesión...' : 'Entrar al panel'}
               </button>

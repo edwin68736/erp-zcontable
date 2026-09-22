@@ -4,6 +4,7 @@ import { productsService, type Product } from '../services/products';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import Pagination from '../components/Pagination';
+import PageHeading from '../components/ui/PageHeading';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -123,7 +124,7 @@ const Products = () => {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Productos y servicios</h2>
+          <PageHeading>Productos y servicios</PageHeading>
           <p className="text-sm text-slate-500">
             Catálogo local con campos SUNAT para facturas, boletas, notas de venta y el punto de venta.
           </p>

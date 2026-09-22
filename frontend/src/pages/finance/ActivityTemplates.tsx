@@ -14,6 +14,7 @@ import { priorityLabel } from '../../utils/supervisorLabels';
 import ActivityTemplatePreview, { priorityBadgeClass } from './activityTemplates/ActivityTemplatePreview';
 import ActivityTemplatesBreadcrumb from './activityTemplates/ActivityTemplatesBreadcrumb';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import PageHeading from '../../components/ui/PageHeading';
 
 function parseActiveFilter(value: string | null): ActivityTemplateActiveFilter {
   if (value === 'active' || value === 'inactive') return value;
@@ -146,7 +147,7 @@ const ActivityTemplates = () => {
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Catálogo de actividades</h2>
+          <PageHeading>Catálogo de actividades</PageHeading>
           <p className="text-sm text-slate-500">
             Plantillas reutilizables para el calendario contable (código, tipo, prioridad y apariencia).
           </p>
@@ -284,14 +285,14 @@ const ActivityTemplates = () => {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {row.active ? (
-                        <span className="text-emerald-700 text-xs font-medium">Sí</span>
+                        <span className="text-primary-700 text-xs font-medium">Sí</span>
                       ) : (
                         <span className="text-slate-400 text-xs">No</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {row.is_validatable ? (
-                        <i className="fas fa-check text-emerald-600 text-xs" title="Validable" aria-label="Validable" />
+                        <i className="fas fa-check text-primary-600 text-xs" title="Validable" aria-label="Validable" />
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}

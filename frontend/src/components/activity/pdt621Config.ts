@@ -30,7 +30,7 @@ const PDT621_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
   por_revisar: 'bg-indigo-100 text-indigo-800',
   observado: 'bg-amber-100 text-amber-900',
-  entregado: 'bg-emerald-100 text-emerald-800',
+  entregado: 'bg-primary-100 text-primary-800',
   entregado_fuera_de_fecha: 'bg-orange-100 text-orange-900',
   sin_registro: 'bg-slate-100 text-slate-500',
   // "suspendida" no es un estado real de la declaración (es record.suspendida) — se muestra acá
@@ -142,7 +142,7 @@ export const SIRE_ENVIO_OPTIONS: Array<{ value: string; label: string }> = [
  */
 export function pdt621RowBgClass(timeliness: string | undefined, suspendida?: boolean): string {
   if (suspendida) return 'bg-purple-50 hover:bg-purple-100/70';
-  if (timeliness === 'on_time') return 'bg-emerald-50 hover:bg-emerald-100/70';
+  if (timeliness === 'on_time') return 'bg-primary-50 hover:bg-primary-100/70';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 hover:bg-red-100/70';
   return 'hover:bg-slate-50/80';
 }

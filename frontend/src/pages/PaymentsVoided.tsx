@@ -6,6 +6,7 @@ import type { PaginationMeta as ApiPaginationMeta } from '../services/payments';
 import { companiesService } from '../services/companies';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
+import PageHeading from '../components/ui/PageHeading';
 
 // Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.2): vía de auditoría de pagos anulados.
 // Pantalla de SOLO LECTURA, con ruta propia — deliberadamente NUNCA comparte tabla/estado con
@@ -103,7 +104,7 @@ const PaymentsVoided = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-slate-800">Pagos anulados</h2>
+          <PageHeading>Pagos anulados</PageHeading>
           <p className="text-sm text-slate-500">
             Vía de auditoría de solo lectura. Estos pagos NO participan en ningún cálculo financiero ni
             aparecen en el listado normal de pagos.

@@ -137,7 +137,7 @@ export default function ClipboardPasteUploadModal({
   const isPdf = preview?.file.type === 'application/pdf' || preview?.file.name.toLowerCase().endsWith('.pdf');
 
   return createPortal(
-    <div className="fixed inset-0 z-[10030] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Cerrar"

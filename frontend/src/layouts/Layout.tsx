@@ -131,13 +131,13 @@ const Layout = () => {
           : undefined
       }
     >
-      <div className="fixed top-4 right-4 z-[10050] space-y-2 pointer-events-none">
+      <div className="fixed top-4 right-4 z-toast space-y-2 pointer-events-none">
         {toasts.map((t) => {
           const icon =
             t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
           const ring =
             t.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              ? 'border-primary-200 bg-primary-50 text-primary-900'
               : t.type === 'error'
                 ? 'border-red-200 bg-red-50 text-red-900'
                 : 'border-slate-200 bg-white text-slate-900';
@@ -196,7 +196,7 @@ const Layout = () => {
       </div>
 
       {isThemeModalOpen ? (
-        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -242,7 +242,7 @@ const Layout = () => {
                       </div>
                       <div className="px-3 py-2">
                         <div className="text-xs font-semibold text-slate-800">{t.label}</div>
-                        <div className="text-[11px] text-slate-500">{selected ? 'Seleccionado' : 'Elegir'}</div>
+                        <div className="text-2xs text-slate-500">{selected ? 'Seleccionado' : 'Elegir'}</div>
                       </div>
                     </button>
                   );

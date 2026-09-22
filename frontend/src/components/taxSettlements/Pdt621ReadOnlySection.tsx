@@ -84,21 +84,21 @@ function ReadOnlyIgvTableRow({
         <p className="text-xs font-semibold text-slate-700">{title}</p>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-[11px] font-medium text-slate-500 mb-1">Base imponible</p>
+            <p className="text-2xs font-medium text-slate-500 mb-1">Base imponible</p>
             <ReadOnlyAmount value={base} />
           </div>
           {withNoGravadas ? (
             <div>
-              <p className="text-[11px] font-medium text-slate-500 mb-1">No gravadas</p>
+              <p className="text-2xs font-medium text-slate-500 mb-1">No gravadas</p>
               <ReadOnlyAmount value={noGravadas} />
             </div>
           ) : null}
           <div>
-            <p className="text-[11px] font-medium text-slate-500 mb-1">Impuesto</p>
+            <p className="text-2xs font-medium text-slate-500 mb-1">Impuesto</p>
             <ReadOnlyAmount value={impuesto} />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500 mb-1">Total</p>
+            <p className="text-2xs font-medium text-slate-500 mb-1">Total</p>
             <ReadOnlyAmount value={total} />
           </div>
         </div>

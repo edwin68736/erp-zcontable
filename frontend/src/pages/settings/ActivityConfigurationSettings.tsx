@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import PageHeading from '../../components/ui/PageHeading';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import {
@@ -210,7 +211,7 @@ const ActivityConfigurationSettings = () => {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-10">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800">Parametrización de actividades</h2>
+        <PageHeading>Parametrización de actividades</PageHeading>
         <p className="text-sm text-slate-500 mt-1">
           Reglas reutilizables de cumplimiento y su asignación a plantillas del calendario financiero.
         </p>
@@ -407,7 +408,7 @@ const ActivityConfigurationSettings = () => {
 
       {modalOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"

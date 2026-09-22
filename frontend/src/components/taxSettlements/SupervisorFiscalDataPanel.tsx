@@ -24,8 +24,8 @@ export function SupervisorFiscalDataPanel({ pdt621Json, className = '' }: Props)
             emisión.
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md border border-sky-200 bg-white text-[11px] font-semibold uppercase tracking-wide text-sky-800">
-          <i className="fas fa-lock text-[10px]" aria-hidden />
+        <span className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md border border-sky-200 bg-white text-2xs font-semibold uppercase tracking-wide text-sky-800">
+          <i className="fas fa-lock text-2xs" aria-hidden />
           Solo lectura
         </span>
       </div>

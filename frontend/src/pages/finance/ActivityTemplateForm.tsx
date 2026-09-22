@@ -15,6 +15,7 @@ import {
 } from './calendar/calendarUtils';
 import ActivityTemplatePreview from './activityTemplates/ActivityTemplatePreview';
 import ActivityTemplatesBreadcrumb from './activityTemplates/ActivityTemplatesBreadcrumb';
+import PageHeading from '../../components/ui/PageHeading';
 
 const ActivityTemplateForm = () => {
   const navigate = useNavigate();
@@ -181,7 +182,7 @@ const ActivityTemplateForm = () => {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-800">{title}</h2>
+        <PageHeading>{title}</PageHeading>
         <Link to="/finance/activity-templates" className="text-sm text-slate-600 hover:text-slate-900">
           Volver al listado
         </Link>

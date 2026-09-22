@@ -18,6 +18,7 @@ import {
   generateCompanyAccountStatementPdfBlob,
   getLogoPngBlobForAccountPdf,
 } from '../pdf/companyAccountStatementPdf';
+import PageHeading from '../components/ui/PageHeading';
 
 const DEFAULT_STATEMENT_WHATSAPP =
   'Puedes solicitar tu estado de cuenta a través del grupo de WhatsApp de tu empresa o comunicándote a los números oficiales de ZContable.';
@@ -55,7 +56,7 @@ function getDocumentLabel(status: string, dueDate?: string): { label: string; cl
       : label === 'parcial'
         ? 'bg-sky-50 text-sky-700 border border-sky-200'
         : label === 'pagado'
-          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+          ? 'bg-primary-50 text-primary-700 border border-primary-200'
           : label === 'anulado'
             ? 'bg-slate-50 text-slate-700 border border-slate-200'
             : 'bg-red-50 text-red-700 border border-red-200';
@@ -76,7 +77,7 @@ function getPaymentTypeLabel(type?: string, documentId?: number): { label: strin
 
 /** Pestaña «Perfil de empresa» (desactivada en UI de momento; se mantiene el componente). */
 export function StatementProfileTab({ data }: { data: CompanyStatementData }) {
-  const balanceClass = (data.Balance ?? 0) > 0 ? 'text-amber-700' : 'text-emerald-700';
+  const balanceClass = (data.Balance ?? 0) > 0 ? 'text-amber-700' : 'text-primary-700';
   const appliedPayments = (data.Payments ?? []).filter((p) => (p.type ?? '') !== 'on_account' && Boolean(p.document_id));
   const onAccountPayments = (data.Payments ?? []).filter((p) => (p.type ?? '') === 'on_account' || !p.document_id);
 
@@ -387,7 +388,7 @@ function BankStatementView({
               <div className="h-14 w-28 shrink-0 rounded-lg border border-dashed border-slate-200 bg-slate-50" aria-hidden />
             )}
             <div className="flex-1 text-center min-w-0 sm:pt-0.5">
-              <h3 className="text-base sm:text-lg font-bold text-emerald-800 tracking-tight">ESTADO DE CUENTA CLIENTES</h3>
+              <h3 className="text-base sm:text-lg font-bold text-primary-800 tracking-tight">ESTADO DE CUENTA CLIENTES</h3>
               <p className="text-sm text-sky-900 font-semibold mt-1">
                 {periodLineLabel}: {ledger.period_label}
               </p>
@@ -422,28 +423,28 @@ function BankStatementView({
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 border border-slate-200/90 border-t-0 bg-slate-50/30">
             <div className="p-3.5 bg-slate-50/80 border-b border-r border-slate-200/80 lg:border-b-0 text-center flex flex-col justify-center gap-1.5">
-              <p className="text-[10px] font-bold text-slate-700 uppercase leading-tight">Saldo anterior</p>
+              <p className="text-2xs font-bold text-slate-700 uppercase leading-tight">Saldo anterior</p>
               <p className="text-lg font-bold text-slate-900 tabular-nums">{formatPEN(ledger.saldo_anterior)}</p>
             </div>
             <div className="p-3.5 bg-slate-50/80 border-b border-slate-200/80 lg:border-b-0 lg:border-r text-center flex flex-col justify-center gap-0.5">
-              <p className="text-[10px] font-bold text-slate-800 uppercase">Abonos</p>
-              <p className="text-[9px] text-slate-500 leading-tight">Pagos por el cliente</p>
-              <p className="text-lg font-bold text-emerald-700 tabular-nums pt-0.5">{formatPEN(ledger.total_abonos)}</p>
+              <p className="text-2xs font-bold text-slate-800 uppercase">Abonos</p>
+              <p className="text-3xs text-slate-500 leading-tight">Pagos por el cliente</p>
+              <p className="text-lg font-bold text-primary-700 tabular-nums pt-0.5">{formatPEN(ledger.total_abonos)}</p>
             </div>
             <div className="p-3.5 bg-slate-50/80 border-b border-r border-slate-200/80 lg:border-b-0 text-center flex flex-col justify-center gap-0.5">
-              <p className="text-[10px] font-bold text-slate-800 uppercase">Cargos</p>
-              <p className="text-[9px] text-slate-500 leading-tight">Deudas al estudio</p>
+              <p className="text-2xs font-bold text-slate-800 uppercase">Cargos</p>
+              <p className="text-3xs text-slate-500 leading-tight">Deudas al estudio</p>
               <p className="text-lg font-bold text-red-700 tabular-nums pt-0.5">{formatPEN(ledger.total_cargos)}</p>
             </div>
             <div className="p-3.5 bg-slate-50/80 border-b border-slate-200/80 lg:border-b-0 text-center flex flex-col justify-center gap-1.5">
-              <p className="text-[10px] font-bold text-slate-700 uppercase leading-tight">Saldo final</p>
+              <p className="text-2xs font-bold text-slate-700 uppercase leading-tight">Saldo final</p>
               <p className="text-lg font-bold text-slate-900 tabular-nums">{formatPEN(ledger.saldo_final)}</p>
             </div>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="table-fixed min-w-[920px] w-full text-left text-[11px] leading-snug">
+          <table className="table-fixed min-w-[920px] w-full text-left text-2xs leading-snug">
             <colgroup>
               <col style={{ width: '8%' }} />
               <col style={{ width: '8%' }} />
@@ -458,25 +459,25 @@ function BankStatementView({
             </colgroup>
             <thead>
               <tr className="bg-slate-600 text-white">
-                <th className="px-1.5 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-[10px]">
+                <th className="px-1.5 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs">
                   <span className="block">Fecha de</span>
                   <span className="block">operación</span>
                 </th>
-                <th className="px-1.5 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-[10px]">
+                <th className="px-1.5 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs">
                   <span className="block">Fecha de</span>
                   <span className="block">proceso</span>
                 </th>
                 <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center">Tipo</th>
-                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-[10px]">
+                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs">
                   <span className="block">Nro.</span>
                   <span className="block">doc.</span>
                 </th>
                 <th className="px-2 py-2.5 font-bold uppercase tracking-wide align-middle text-center">Detalle</th>
-                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-[10px] whitespace-normal">
+                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs whitespace-normal">
                   <span className="block">Método</span>
                   <span className="block">de pago</span>
                 </th>
-                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-[10px]">
+                <th className="px-1 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs">
                   <span className="block">Código</span>
                   <span className="block">oper.</span>
                 </th>
@@ -501,9 +502,9 @@ function BankStatementView({
                     <td className="px-2 py-2 text-slate-700 whitespace-nowrap tabular-nums align-top">
                       {formatLedgerDateDisplay(row.process_date)}
                     </td>
-                    <td className="px-2 py-2 text-slate-800 font-mono text-[10px] align-top">{row.type_code}</td>
+                    <td className="px-2 py-2 text-slate-800 font-mono text-2xs align-top">{row.type_code}</td>
                     <td
-                      className="px-1.5 py-2 text-slate-700 font-mono text-[10px] align-top whitespace-nowrap min-w-0"
+                      className="px-1.5 py-2 text-slate-700 font-mono text-2xs align-top whitespace-nowrap min-w-0"
                       title={(row.document_number ?? '').trim() || undefined}
                     >
                       {truncateDocumentNumberDisplay(row.document_number, 28)}
@@ -515,18 +516,18 @@ function BankStatementView({
                           <button
                             type="button"
                             onClick={() => setLedgerNotesModal(row)}
-                            className="self-start text-left text-[11px] font-semibold text-primary-700 hover:text-primary-900 underline-offset-2 hover:underline"
+                            className="self-start text-left text-2xs font-semibold text-primary-700 hover:text-primary-900 underline-offset-2 hover:underline"
                           >
                             Ver notas internas
                           </button>
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-1 py-2 text-slate-600 align-top whitespace-normal break-words text-[10px] leading-tight min-w-0">
+                    <td className="px-1 py-2 text-slate-600 align-top whitespace-normal break-words text-2xs leading-tight min-w-0">
                       {row.payment_method || '—'}
                     </td>
                     <td
-                      className="px-1 py-2 text-slate-600 font-mono text-[10px] align-top whitespace-normal break-all min-w-0"
+                      className="px-1 py-2 text-slate-600 font-mono text-2xs align-top whitespace-normal break-all min-w-0"
                       title={(row.operation_code ?? '').trim() || undefined}
                     >
                       {row.operation_code || '—'}
@@ -534,7 +535,7 @@ function BankStatementView({
                     <td className="px-2 py-2 text-right text-red-800 font-semibold tabular-nums align-top">
                       {row.cargo > 0 ? formatPEN(row.cargo) : '—'}
                     </td>
-                    <td className="px-2 py-2 text-right text-emerald-800 font-semibold tabular-nums align-top">
+                    <td className="px-2 py-2 text-right text-primary-800 font-semibold tabular-nums align-top">
                       {row.abono > 0 ? formatPEN(row.abono) : '—'}
                     </td>
                     <td className="px-2 py-2 text-right text-slate-900 font-bold tabular-nums align-top">{formatPEN(row.balance)}</td>
@@ -608,7 +609,7 @@ function BankStatementView({
 
       {ledgerNotesModal
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/50"
@@ -619,7 +620,7 @@ function BankStatementView({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="ledger-payment-notes-title"
-                className="relative z-[1] w-full max-w-lg rounded-2xl bg-white shadow-xl border border-slate-200 p-5 sm:p-6 max-h-[min(90vh,520px)] overflow-y-auto"
+                className="relative w-full max-w-lg rounded-xl bg-white shadow-xl border border-slate-200 p-5 sm:p-6 max-h-[min(90vh,520px)] overflow-y-auto"
               >
                 <h3 id="ledger-payment-notes-title" className="text-lg font-semibold text-slate-900">
                   Notas internas del pago
@@ -840,7 +841,7 @@ const CompanyStatement = () => {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <h2 className="text-xl font-semibold text-slate-800">{data.Company.business_name}</h2>
+          <PageHeading>{data.Company.business_name}</PageHeading>
           <p className="text-sm text-slate-500 mt-1">
             Estado de cuenta tipo extracto bancario por periodo o mes (cargos, abonos y saldo corrido).
             {/* Perfil operativo (pestaña oculta): deudas, pagos aplicados y pagos a cuenta. */}
@@ -849,7 +850,7 @@ const CompanyStatement = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             to={`/documents/new?company_id=${data.Company.id}`}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-700 text-white text-xs font-medium shadow-sm hover:bg-emerald-800"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-700 text-white text-xs font-medium shadow-sm hover:bg-primary-800"
           >
             <i className="fas fa-file-invoice-dollar text-xs"></i> Registrar cargo
           </Link>
@@ -918,7 +919,7 @@ const CompanyStatement = () => {
       {pdfPreview
         ? createPortal(
             <div
-              className="fixed inset-0 z-[10050] flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm"
+              className="fixed inset-0 z-dialog flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm"
               role="dialog"
               aria-modal="true"
               aria-labelledby="pdf-preview-title"
@@ -939,7 +940,7 @@ const CompanyStatement = () => {
                       }}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-medium hover:bg-slate-900"
                     >
-                      <i className="fas fa-download text-[10px]" />
+                      <i className="fas fa-download text-2xs" />
                       Descargar
                     </button>
                     <button
@@ -958,7 +959,7 @@ const CompanyStatement = () => {
                     className="w-full h-[min(75vh,720px)] border-0"
                   />
                 </div>
-                <p className="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-100 bg-white">
+                <p className="px-4 py-2 text-2xs text-slate-500 border-t border-slate-100 bg-white">
                   El visor usa el mismo archivo que se descarga: si el logo o el QR no aparecen aquí, tampoco irán en el PDF
                   guardado. Compruebe en Ajustes que las imágenes carguen en la página (misma URL que para el PDF).
                 </p>

@@ -16,6 +16,7 @@ import { formatUserPickLabel } from '../utils/userLabel';
 import { Company, User } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
+import PageHeading from '../components/ui/PageHeading';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -462,7 +463,7 @@ const Companies = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-slate-800">Empresas</h2>
+          <PageHeading>Empresas</PageHeading>
           <p className="text-sm text-slate-500">Gestión de clientes del estudio contable.</p>
         </div>
         {canUpsert ? (
@@ -470,7 +471,7 @@ const Companies = () => {
             <button
               type="button"
               onClick={openImportModal}
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full border border-emerald-300 bg-white text-emerald-800 text-sm font-medium shadow-sm hover:bg-emerald-50 transition"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50 transition"
             >
               <i className="fas fa-file-excel text-xs"></i>
               <span>Importar Excel</span>
@@ -577,7 +578,7 @@ const Companies = () => {
                           }}
                           className={`max-w-[9.5rem] w-full text-xs font-medium rounded-lg border px-2 py-1.5 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer disabled:opacity-60 ${
                             company.status === 'activo'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                              ? 'border-primary-200 bg-primary-50 text-primary-800'
                               : 'border-slate-200 bg-slate-100 text-slate-700'
                           }`}
                           aria-label="Estado de la empresa"
@@ -589,7 +590,7 @@ const Companies = () => {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             company.status === 'activo'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-primary-50 text-primary-700 border border-primary-200'
                               : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}
                         >
@@ -627,7 +628,7 @@ const Companies = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link to={`/documents/new?company_id=${company.id}`}
-                           className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-200 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                           className="inline-flex items-center px-3 py-1.5 rounded-full border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50">
                           <i className="fas fa-file-invoice-dollar mr-1"></i> Cargo
                         </Link>
                         <Link to={`/companies/${company.id}/contacts`}
@@ -677,7 +678,7 @@ const Companies = () => {
 
       {importOpen ? (
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
             <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={closeImportModal} aria-label="Cerrar" />
 
             <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
@@ -689,6 +690,7 @@ const Companies = () => {
                 <button
                   type="button"
                   onClick={closeImportModal}
+                  aria-label="Cerrar"
                   className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50"
                 >
                   <i className="fas fa-times text-sm"></i>
@@ -747,7 +749,7 @@ const Companies = () => {
                 ) : null}
 
                 {importValidatedOk ? (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  <div className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-900">
                     Listo para importar: {importRowCount} fila(s). Pulse «Importar» para guardar en la base de datos.
                   </div>
                 ) : null}
@@ -765,7 +767,7 @@ const Companies = () => {
                   type="button"
                   disabled={!importFile || importValidateLoading}
                   onClick={() => void handleValidateImport()}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-emerald-400 text-sm font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-primary-400 text-sm font-medium text-primary-800 hover:bg-primary-50 disabled:opacity-50"
                 >
                   {importValidateLoading ? (
                     <>
@@ -802,7 +804,7 @@ const Companies = () => {
 
       {teamModalOpen ? (
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
             <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={closeTeamModal} aria-label="Cerrar" />
 
             <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-xl border border-slate-200 overflow-visible">
@@ -814,6 +816,7 @@ const Companies = () => {
                 <button
                   type="button"
                   onClick={closeTeamModal}
+                  aria-label="Cerrar"
                   className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50"
                 >
                   <i className="fas fa-times text-sm"></i>

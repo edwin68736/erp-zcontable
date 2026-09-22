@@ -21,7 +21,7 @@ const DocumentDebtDetailModal = ({ open, doc, onClose }: Props) => {
   const history = doc.payment_history ?? [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[10040] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-label="Cerrar" />
       <div
         role="dialog"
@@ -39,6 +39,7 @@ const DocumentDebtDetailModal = ({ open, doc, onClose }: Props) => {
           <button
             type="button"
             onClick={onClose}
+            aria-label="Cerrar"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
           >
             <i className="fas fa-times" />
@@ -55,7 +56,7 @@ const DocumentDebtDetailModal = ({ open, doc, onClose }: Props) => {
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <dt className="text-xs text-slate-500">Pagado</dt>
-              <dd className="font-semibold tabular-nums text-emerald-800">{formatMoneyPen(paid)}</dd>
+              <dd className="font-semibold tabular-nums text-primary-800">{formatMoneyPen(paid)}</dd>
             </div>
             <div className="col-span-2 rounded-lg border border-primary-100 bg-primary-50/60 p-3">
               <dt className="text-xs text-primary-700">Saldo pendiente</dt>
@@ -113,7 +114,7 @@ const DocumentDebtDetailModal = ({ open, doc, onClose }: Props) => {
                 </ul>
                 <div className="mt-3 flex justify-between text-sm border-t border-slate-100 pt-2">
                   <span className="text-slate-600">Total pagado</span>
-                  <span className="font-semibold tabular-nums text-emerald-800">{formatMoneyPen(paid)}</span>
+                  <span className="font-semibold tabular-nums text-primary-800">{formatMoneyPen(paid)}</span>
                 </div>
               </>
             )}

@@ -30,7 +30,7 @@ const MAILBOX_BADGE: Record<string, string> = {
   pendiente: 'bg-slate-100 text-slate-700',
   parcial: 'bg-amber-100 text-amber-900',
   cargado: 'bg-blue-100 text-blue-800',
-  verificado: 'bg-emerald-100 text-emerald-800',
+  verificado: 'bg-primary-100 text-primary-800',
 };
 
 const SUMMARY_LABEL: Record<string, string> = {

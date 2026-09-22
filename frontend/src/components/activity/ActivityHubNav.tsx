@@ -33,7 +33,7 @@ const ActivityHubNav = ({ workspace }: ActivityHubNavProps) => {
                 <p className="text-sm font-semibold text-slate-800">{item.label}</p>
                 <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.description}</p>
                 {!item.available && item.phaseLabel ? (
-                  <span className="inline-block mt-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                  <span className="inline-block mt-2 text-2xs font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                     {item.phaseLabel}
                   </span>
                 ) : null}

@@ -11,6 +11,7 @@ import ProductPickerModal, { productLabel, productUnitPrice } from '../component
 import type { Product } from '../services/products';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
 import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
+import PageHeading from '../components/ui/PageHeading';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -535,9 +536,9 @@ const TaxSettlementNew = () => {
         >
           ← {isEdit ? 'Volver al detalle' : 'Volver al listado'}
         </Link>
-        <h2 className="text-xl font-semibold text-slate-800 mt-2">
+        <PageHeading className="mt-2">
           {isEdit ? `Editar liquidación #${editId}` : 'Nueva liquidación'}
-        </h2>
+        </PageHeading>
         {isEdit ? (
           <p className="mt-1 text-sm text-slate-500">
             Modifique líneas y datos generales. Al guardar se mantiene en borrador; deberá emitir nuevamente.
@@ -566,7 +567,7 @@ const TaxSettlementNew = () => {
           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2">
             <h3 className="text-sm font-semibold text-slate-800">Datos generales (Finanzas)</h3>
             {isEdit && hasTaxSectionsData(supervisorPdt621Json) ? (
-              <p className="text-[11px] text-slate-500">Los montos fiscales del supervisor no se modifican aquí.</p>
+              <p className="text-2xs text-slate-500">Los montos fiscales del supervisor no se modifican aquí.</p>
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -580,10 +581,10 @@ const TaxSettlementNew = () => {
                 options={companies.map((c) => ({ value: String(c.id), label: `${c.business_name} (${c.ruc})` }))}
               />
               {isEdit ? (
-                <p className="mt-1 text-[11px] text-slate-500">La empresa no se puede cambiar al editar un borrador.</p>
+                <p className="mt-1 text-2xs text-slate-500">La empresa no se puede cambiar al editar un borrador.</p>
               ) : null}
               {companyPlanName ? (
-                <p className="mt-1 text-[11px] text-slate-500">
+                <p className="mt-1 text-2xs text-slate-500">
                   Plan: <span className="font-medium text-slate-700">{companyPlanName}</span>
                 </p>
               ) : null}
@@ -612,14 +613,14 @@ const TaxSettlementNew = () => {
               />
               {selectedCompany &&
               String(selectedCompany.billing_cycle ?? '').toLowerCase() === 'start_month' ? (
-                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                <p className="mt-1.5 text-2xs text-slate-500 leading-snug">
                   Ciclo de cobro <span className="font-medium text-slate-600">inicio de mes</span>: el periodo sugerido en
                   líneas de conceptos/catálogo será el{' '}
                   <span className="font-medium text-slate-700">mes siguiente</span> al periodo liquidado (
                   {defaultLinePeriodForLiquidation(liquidationPeriod, selectedCompany.billing_cycle)}).
                 </p>
               ) : selectedCompany ? (
-                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                <p className="mt-1.5 text-2xs text-slate-500 leading-snug">
                   Ciclo <span className="font-medium text-slate-600">fin de mes</span>: las líneas nuevas usan el mismo
                   periodo que la liquidación.
                 </p>
@@ -635,7 +636,7 @@ const TaxSettlementNew = () => {
                 <option value="rh">RH (Recibo por Honorarios)</option>
                 <option value="factura">Factura / Boleta</option>
               </select>
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 text-2xs text-slate-500">
                 Decide qué datos de pago (banco/QR) de Ajustes → Perfil del estudio se muestran en el PDF v2. Por
                 defecto RH; se puede cambiar mientras la liquidación esté en borrador.
               </p>
@@ -661,7 +662,7 @@ const TaxSettlementNew = () => {
                 onClick={() => setPickerOpen(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-primary-900 bg-primary-50 border border-primary-200 hover:bg-primary-100"
               >
-                <i className="fas fa-store text-[10px]" />
+                <i className="fas fa-store text-2xs" />
                 Catálogo
               </button>
               <button
@@ -669,7 +670,7 @@ const TaxSettlementNew = () => {
                 onClick={addManualLine}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-primary-800 bg-primary-50 border border-primary-200 hover:bg-primary-100"
               >
-                <i className="fas fa-plus text-[10px]" />
+                <i className="fas fa-plus text-2xs" />
                 Agregar línea
               </button>
             </div>
@@ -679,7 +680,7 @@ const TaxSettlementNew = () => {
             <div className="overflow-x-auto">
               <table className="min-w-full w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-100/90 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  <tr className="bg-slate-100/90 text-left text-2xs font-semibold uppercase tracking-wide text-slate-600">
                     <th className="px-3 py-3 w-10 text-center">#</th>
                     <th className="px-3 py-3 whitespace-nowrap">Tipo</th>
                     <th className="px-3 py-3 min-w-[200px]">Descripción</th>
@@ -704,7 +705,7 @@ const TaxSettlementNew = () => {
                         <td className="px-3 py-2.5 text-center text-xs text-slate-400 tabular-nums">{idx + 1}</td>
                         <td className="px-3 py-2.5">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-2xs font-semibold border ${
                               l.line_type === 'document_ref'
                                 ? 'bg-amber-50 text-amber-900 border-amber-200'
                                 : 'bg-slate-100 text-slate-800 border-slate-200'
@@ -724,7 +725,7 @@ const TaxSettlementNew = () => {
                         <td className="px-3 py-2.5 align-middle">
                           <div className="flex flex-nowrap items-center gap-2 min-w-[12rem]">
                             <label
-                              className="inline-flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-[11px] text-slate-600"
+                              className="inline-flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-2xs text-slate-600"
                               title="Permite escribir el periodo a mano (ej. año) en lugar del selector de mes"
                             >
                               <input

@@ -149,7 +149,7 @@ const SearchableSelect = ({
               />
             </div>
             {hasMore ? (
-              <div className="mt-2 text-[11px] text-slate-500 px-1">
+              <div className="mt-2 text-2xs text-slate-500 px-1">
                 Mostrando {visible.length} de {filtered.length}. Escribe para filtrar.
               </div>
             ) : null}
@@ -168,7 +168,7 @@ const SearchableSelect = ({
                     }}
                     className="inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100"
                   >
-                    <i className="fas fa-plus text-[10px]" />
+                    <i className="fas fa-plus text-2xs" />
                     {emptyStateAction.label}
                   </button>
                 ) : null}

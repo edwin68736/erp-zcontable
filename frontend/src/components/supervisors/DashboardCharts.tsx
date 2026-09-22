@@ -163,7 +163,7 @@ export function StatusDistributionDonut({ slices, total }: { slices: DonutSlice[
 export function ProductivityRanking({ rows }: { rows: SupervisorProductivityRow[] }) {
   const sorted = [...rows].sort((a, b) => b.compliance_pct - a.compliance_pct);
   const barColor = (pct: number) =>
-    pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-500';
+    pct >= 80 ? 'bg-primary-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-500';
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">

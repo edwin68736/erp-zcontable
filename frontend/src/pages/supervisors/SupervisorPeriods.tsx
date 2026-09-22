@@ -4,6 +4,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import Pagination from '../../components/Pagination';
+import PageHeading from '../../components/ui/PageHeading';
 
 const SupervisorPeriods = () => {
   const canView = useMemo(() => auth.hasPermission(P.supervisorsPeriodsView), []);
@@ -126,13 +127,13 @@ const SupervisorPeriods = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800">Períodos contables</h2>
+        <PageHeading>Períodos contables</PageHeading>
         <p className="text-sm text-slate-500">Apertura y cierre mensual del módulo supervisores.</p>
       </div>
 
       {msg ? (
         <p
-          className={`text-sm ${msg.startsWith('Período') || msg.includes('generados') || msg.includes('Notas') ? 'text-emerald-700' : 'text-red-600'}`}
+          className={`text-sm ${msg.startsWith('Período') || msg.includes('generados') || msg.includes('Notas') ? 'text-primary-700' : 'text-red-600'}`}
         >
           {msg}
         </p>
@@ -181,6 +182,7 @@ const SupervisorPeriods = () => {
         <p className="text-sm text-slate-500">Cargando…</p>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -251,6 +253,7 @@ const SupervisorPeriods = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -14,6 +14,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
 import Pagination from '../../components/Pagination';
+import PageHeading from '../../components/ui/PageHeading';
 
 const REPORT_TABS: { kind: SupervisorReportKind; label: string }[] = [
   { kind: 'monthly', label: 'Mensual' },
@@ -349,9 +350,9 @@ const SupervisorReports = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Reportes supervisores</h2>
+          <PageHeading>Reportes supervisores</PageHeading>
           <p className="text-sm text-slate-500">Vistas por tipo de cumplimiento y productividad.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -370,7 +371,7 @@ const SupervisorReports = () => {
             onClick={() => void handleExportExcel()}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs text-emerald-700`} />
+            <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs text-primary-700`} />
             Excel
           </button>
           <button

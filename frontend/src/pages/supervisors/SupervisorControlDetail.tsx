@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { resolveBackendUrl } from '../../api/client';
 import SearchableSelect from '../../components/SearchableSelect';
+import PageHeading from '../../components/ui/PageHeading';
 import {
   supervisorsService,
   type SupervisorAttachment,
@@ -255,9 +256,9 @@ const SupervisorControlDetail = () => {
         ) : isOperatorOnly ? (
           <p className="text-xs text-slate-500 mt-1">Modo operación: registre avance y documentos; el supervisor revisará.</p>
         ) : null}
-        <h2 className="text-xl font-semibold text-slate-800 mt-2">
+        <PageHeading className="mt-2">
           {control.company?.business_name ?? `Empresa #${control.company_id}`}
-        </h2>
+        </PageHeading>
         <p className="text-sm text-slate-500">
           Período {control.period_ym} · {controlStatusLabel(control.general_status)} · Riesgo{' '}
           {riskLevelLabel(control.risk_level)}
@@ -591,7 +592,7 @@ const SupervisorControlDetail = () => {
                       onClick={() => {
                         void supervisorsService.approveLiquidation(controlId).then(() => load());
                       }}
-                      className="px-4 py-2 rounded-full border border-emerald-600 text-emerald-700 text-sm"
+                      className="px-4 py-2 rounded-full border border-primary-600 text-primary-700 text-sm"
                     >
                       Aprobar liquidación
                     </button>

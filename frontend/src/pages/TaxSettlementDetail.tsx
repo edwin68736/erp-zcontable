@@ -23,6 +23,7 @@ import {
 } from '../utils/documentDebtUi';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OperationsKeyDialog from '../components/OperationsKeyDialog';
+import PageHeading from '../components/ui/PageHeading';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
 import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
 
@@ -452,7 +453,7 @@ const TaxSettlementDetail = () => {
 
   /** Pastillas compactas; ancho al contenido y salto de línea en pantallas estrechas */
   const btnBase =
-    'inline-flex w-auto max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-center text-[11px] font-medium leading-tight transition-colors sm:px-3.5 sm:py-2 sm:text-sm';
+    'inline-flex w-auto max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-center text-2xs font-medium leading-tight transition-colors sm:px-3.5 sm:py-2 sm:text-sm';
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 sm:space-y-6">
@@ -465,9 +466,9 @@ const TaxSettlementDetail = () => {
             <i className="fas fa-arrow-left text-xs opacity-80" aria-hidden />
             Listado de liquidaciones
           </Link>
-          <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-800 sm:text-2xl break-words">
+          <PageHeading className="mt-3 break-words">
             Liquidación {row.number || `#${row.id}`}
-          </h2>
+          </PageHeading>
           <p className="mt-2 text-sm text-slate-600 sm:text-base break-words leading-relaxed">
             {row.company ? (
               <>
@@ -522,7 +523,7 @@ const TaxSettlementDetail = () => {
           ) : null}
           {row.status === 'emitida' && !row.can_register_payment ? (
             <span
-              className={`${btnBase} border-emerald-200 bg-emerald-50 text-emerald-900 cursor-default max-sm:max-w-[min(100%,14rem)]`}
+              className={`${btnBase} border-primary-200 bg-primary-50 text-primary-900 cursor-default max-sm:max-w-[min(100%,14rem)]`}
               title="No queda saldo pendiente en las deudas vinculadas a esta liquidación"
             >
               <i className="fas fa-check-double text-xs shrink-0" aria-hidden />
@@ -659,7 +660,7 @@ const TaxSettlementDetail = () => {
               {(row.payment_document_type || 'rh') === 'factura' ? 'Factura / Boleta' : 'RH (Recibo por Honorarios)'}
             </p>
           )}
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-2xs text-slate-400">
             Decide qué datos de pago (banco/QR) de Ajustes → Perfil del estudio se muestran en el PDF v2.
           </p>
         </div>
@@ -737,7 +738,7 @@ const TaxSettlementDetail = () => {
                         <td className="px-3 py-2 capitalize text-slate-600">
                           {d.status}
                           {d.historical_view ? (
-                            <span className="ml-1 text-[10px] uppercase text-slate-400">(cierre)</span>
+                            <span className="ml-1 text-2xs uppercase text-slate-400">(cierre)</span>
                           ) : null}
                         </td>
                       </tr>
@@ -801,7 +802,7 @@ const TaxSettlementDetail = () => {
                             {stripLegacyMigrationNotes(d.description || '') || '—'}
                           </p>
                           {d.from_previous_settlement && d.source_settlement_number ? (
-                            <p className="text-[10px] text-amber-800 mt-0.5">
+                            <p className="text-2xs text-amber-800 mt-0.5">
                               De liquidación {d.source_settlement_number}
                               {d.source_settlement_period ? ` (${d.source_settlement_period})` : ''}
                             </p>
@@ -1027,7 +1028,7 @@ const TaxSettlementDetail = () => {
       />
 
       {writeoffTarget ? (
-        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"

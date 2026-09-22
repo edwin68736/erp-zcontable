@@ -19,7 +19,7 @@ const Home = () => {
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur-sm shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-br from-primary-700 via-primary-600 to-emerald-700 px-6 py-8 sm:px-8 text-white">
+        <div className="bg-gradient-to-br from-primary-700 via-primary-600 to-primary-700 px-6 py-8 sm:px-8 text-white">
           <p className="text-sm font-medium text-white/80">{greetingForHour()}</p>
           <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight">{displayName}</h1>
           <p className="mt-2 text-sm text-white/85 max-w-xl">

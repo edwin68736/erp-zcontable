@@ -49,7 +49,7 @@ const ActivityEventBar = ({
       title={a.name}
       onClick={(e) => onClick(a, e)}
       onPointerDown={(e) => canInteract && onPointerDownMove(e, a)}
-      className={`group relative mx-0.5 text-[10px] sm:text-xs font-medium truncate border px-1.5 shadow-sm transition-all z-10 select-none touch-none ${styles.bar} ${radius} ${
+      className={`group relative mx-0.5 text-2xs sm:text-xs font-medium truncate border px-1.5 shadow-sm transition-all z-10 select-none touch-none ${styles.bar} ${radius} ${
         isDragging ? 'opacity-60 shadow-lg scale-[1.02] ring-2 ring-primary-300/50' : 'hover:shadow-md'
       } ${canInteract ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
       style={{
@@ -84,7 +84,7 @@ const ActivityEventBar = ({
 
       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle ${styles.dot}`} />
       {previewLabel ? (
-        <span className="text-[9px] opacity-90">{previewLabel}</span>
+        <span className="text-3xs opacity-90">{previewLabel}</span>
       ) : showLabel ? (
         a.name
       ) : null}

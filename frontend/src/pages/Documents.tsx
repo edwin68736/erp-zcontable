@@ -44,6 +44,7 @@ import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import type { PosSaleDetail } from '../services/posSales';
 import { parseTukifacReceiptViewLinks, type TukifacReceiptViewLinks } from '../utils/tukifacReceiptLinks';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
+import PageHeading from '../components/ui/PageHeading';
 
 type DocumentWithPayments = Document & { payments?: Payment[] };
 
@@ -258,7 +259,7 @@ function debtTypeCell(doc: Document): ReactNode {
   if (fromLiquidacion || isLITipo) {
     return (
       <span
-        className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold font-mono tracking-tight bg-violet-100 text-violet-900 border border-violet-200"
+        className="inline-flex items-center rounded px-1.5 py-0.5 text-2xs font-bold font-mono tracking-tight bg-violet-100 text-violet-900 border border-violet-200"
         title="Deuda generada desde liquidación de impuestos emitida"
       >
         LI
@@ -938,7 +939,7 @@ const Documents = () => {
       />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-slate-800">Deudas</h2>
+          <PageHeading>Deudas</PageHeading>
           <p className="text-sm text-slate-500">
             Cargos en cuentas por cobrar (nota de venta, recibo interno, planes). Al registrar un pago puede emitir boleta, factura o nota de venta en el mismo sistema.
           </p>
@@ -1114,7 +1115,7 @@ const Documents = () => {
                     <td className="px-4 py-3 text-right text-slate-800 font-semibold whitespace-nowrap tabular-nums">
                       {formatMoneyPen(doc.total_amount)}
                     </td>
-                    <td className="px-4 py-3 text-right text-emerald-800 whitespace-nowrap tabular-nums">
+                    <td className="px-4 py-3 text-right text-primary-800 whitespace-nowrap tabular-nums">
                       {formatMoneyPen(documentPaidAmount(doc))}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-900 font-medium whitespace-nowrap tabular-nums">
@@ -1137,7 +1138,7 @@ const Documents = () => {
                           <button
                             type="button"
                             onClick={() => openPayModal(doc)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-200 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50"
                           >
                             <i className="fas fa-hand-holding-usd mr-1"></i> Pagar
                           </button>
@@ -1200,7 +1201,7 @@ const Documents = () => {
 
       {isPayModalOpen && payDoc
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1303,7 +1304,7 @@ const Documents = () => {
                   <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-white">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="text-left text-[11px] font-semibold uppercase text-slate-500 border-b border-slate-100">
+                        <tr className="text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                           <th className="py-2 pl-3 pr-2">Línea / concepto</th>
                           <th className="py-2 pr-2 whitespace-nowrap">Período</th>
                           <th className="py-2 pr-3 text-right whitespace-nowrap w-28">Monto</th>
@@ -1413,14 +1414,14 @@ const Documents = () => {
                       payUploading
                         ? 'border-slate-200 bg-slate-50 opacity-70 cursor-not-allowed'
                         : payAttachmentFile
-                          ? 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50'
+                          ? 'border-primary-200 bg-primary-50/40 hover:bg-primary-50'
                           : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div
                         className={`inline-flex items-center justify-center w-10 h-10 rounded-xl border ${
-                          payAttachmentFile ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-white'
+                          payAttachmentFile ? 'border-primary-200 bg-white' : 'border-slate-200 bg-white'
                         }`}
                       >
                         <i
@@ -1498,7 +1499,7 @@ const Documents = () => {
 
       {debtsCompanyModalOpen && debtsCompanySummary
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1591,7 +1592,7 @@ const Documents = () => {
                                       <button
                                         type="button"
                                         onClick={() => void openDebtDetailModal(doc)}
-                                        className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                                        className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 text-2xs font-medium text-slate-700 hover:bg-slate-50"
                                       >
                                         <i className="fas fa-circle-info mr-1" />
                                         Detalle
@@ -1603,7 +1604,7 @@ const Documents = () => {
                                             closeDebtsCompanyModal();
                                             void openPayModal(doc);
                                           }}
-                                          className="inline-flex items-center px-2.5 py-1 rounded-full border border-emerald-200 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+                                          className="inline-flex items-center px-2.5 py-1 rounded-full border border-primary-200 text-2xs font-medium text-primary-700 hover:bg-primary-50"
                                         >
                                           <i className="fas fa-hand-holding-usd mr-1" />
                                           Pagar
@@ -1657,7 +1658,7 @@ const Documents = () => {
 
       {itemsModalOpen && itemsModalDoc
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1708,7 +1709,7 @@ const Documents = () => {
                       </div>
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="text-left text-[11px] font-semibold uppercase text-slate-500 border-b border-slate-100">
+                          <tr className="text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                             <th className="py-2 pr-2">Descripción</th>
                             <th className="py-2 pr-2 whitespace-nowrap">Período</th>
                             <th className="py-2 text-right whitespace-nowrap w-28">Monto</th>

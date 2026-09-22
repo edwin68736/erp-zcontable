@@ -11,6 +11,8 @@ import { documentIsWrittenOff } from '../utils/documentDebtUi';
 import SearchableSelect from '../components/SearchableSelect';
 import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
 import type { Product } from '../services/products';
+import PageHeading from '../components/ui/PageHeading';
+import Input from '../components/ui/Input';
 
 const DEBT_TYPE_OPTIONS = [
   { value: 'nota_venta', label: 'Nota de venta' },
@@ -325,7 +327,7 @@ const DocumentForm = () => {
     <div className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">{isEdit ? 'Editar deuda' : 'Nueva deuda'}</h2>
+          <PageHeading>{isEdit ? 'Editar deuda' : 'Nueva deuda'}</PageHeading>
           <p className="text-sm text-slate-500">
             Cargo interno en cuentas por cobrar. Las facturas, boletas y notas de venta se emiten desde pagos, liquidaciones o el punto de venta.
           </p>
@@ -465,29 +467,23 @@ const DocumentForm = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="issue_date" className="block text-sm font-medium text-slate-700 mb-1">
-              Fecha de registro (emisión)
-            </label>
-            <input
+            <Input
               type="date"
               id="issue_date"
               name="issue_date"
+              label="Fecha de registro (emisión)"
               value={issueDate}
               onChange={(ev) => setIssueDate(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
           <div>
-            <label htmlFor="due_date" className="block text-sm font-medium text-slate-700 mb-1">
-              Fecha límite de pago
-            </label>
-            <input
+            <Input
               type="date"
               id="due_date"
               name="due_date"
+              label="Fecha límite de pago"
               value={dueDate}
               onChange={(ev) => setDueDate(ev.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
           </div>
         </div>
@@ -533,7 +529,7 @@ const DocumentForm = () => {
                     onClick={() => setPickerOpen(true)}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-primary-200 bg-primary-50 text-xs font-semibold text-primary-900 hover:bg-primary-100"
                   >
-                    <i className="fas fa-store text-[11px]" />
+                    <i className="fas fa-store text-2xs" />
                     Catálogo
                   </button>
                   <button
@@ -543,7 +539,7 @@ const DocumentForm = () => {
                     }
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    <i className="fas fa-plus text-[10px]" />
+                    <i className="fas fa-plus text-2xs" />
                     Línea en blanco
                   </button>
                 </div>
@@ -552,7 +548,7 @@ const DocumentForm = () => {
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
-                      <tr className="bg-slate-50 text-left text-[11px] font-semibold uppercase text-slate-500">
+                      <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase text-slate-500">
                         <th className="px-3 py-2.5 w-10">#</th>
                         <th className="px-3 py-2.5 min-w-[200px]">Descripción</th>
                         <th className="px-3 py-2.5 text-right w-36">Monto (S/)</th>
@@ -648,19 +644,14 @@ const DocumentForm = () => {
           )}
           <div>
             {isPlanDebt ? (
-              <>
-                <label htmlFor="service_month" className="block text-sm font-medium text-slate-700 mb-1">
-                  Mes de servicio (plan)
-                </label>
-                <input
-                  type="month"
-                  id="service_month"
-                  name="service_month"
-                  value={serviceMonth}
-                  onChange={(ev) => setServiceMonth(ev.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                />
-              </>
+              <Input
+                type="month"
+                id="service_month"
+                name="service_month"
+                label="Mes de servicio (plan)"
+                value={serviceMonth}
+                onChange={(ev) => setServiceMonth(ev.target.value)}
+              />
             ) : (
               <>
                 <label htmlFor="accounting_period" className="block text-sm font-medium text-slate-700 mb-1">

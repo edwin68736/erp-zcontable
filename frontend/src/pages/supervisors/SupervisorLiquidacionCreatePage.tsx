@@ -615,7 +615,7 @@ const SupervisorLiquidacionCreatePage = () => {
                   {' '}
                   Estado:{' '}
                   <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium align-middle ${settlementStatusBadgeClass(settlementStatus)}`}
+                    className={`inline-flex items-center px-2 py-0.5 rounded-md border text-2xs font-medium align-middle ${settlementStatusBadgeClass(settlementStatus)}`}
                   >
                     {settlementStatusLabel(settlementStatus)}
                   </span>
@@ -821,7 +821,7 @@ const SupervisorLiquidacionCreatePage = () => {
               required
             />
             {!isEdit ? (
-              <p className="mt-1.5 text-[11px] text-slate-500 leading-snug max-w-md">
+              <p className="mt-1.5 text-2xs text-slate-500 leading-snug max-w-md">
                 Al cambiar la fecha de emisión se sugiere el mes calendario anterior como periodo liquidado, salvo que
                 lo modifique manualmente.
               </p>

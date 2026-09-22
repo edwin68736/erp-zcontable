@@ -17,7 +17,7 @@ type PanelState = 'expanded' | 'minimized';
 
 function statusMeta(status: string): { label: string; className: string } {
   if (status === 'completada') {
-    return { label: 'Completada', className: 'bg-emerald-100 text-emerald-800' };
+    return { label: 'Completada', className: 'bg-primary-100 text-primary-800' };
   }
   if (status === 'en_progreso') {
     return { label: 'En progreso', className: 'bg-sky-100 text-sky-800' };
@@ -53,20 +53,20 @@ function ActivityRow({ activity, dayNum }: ActivityRowProps) {
           </p>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+          <span className="text-2xs font-medium uppercase tracking-wide text-slate-400">
             {activityTypeLabel(activity.activity_kind)}
           </span>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.className}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${status.className}`}>
             {status.label}
           </span>
           {dueToday ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-              <i className="fas fa-flag-checkered text-[9px]" aria-hidden />
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-900">
+              <i className="fas fa-flag-checkered text-3xs" aria-hidden />
               Vence hoy
             </span>
           ) : null}
           {activity.traffic_light ? (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tl.badge}`}>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${tl.badge}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${tl.dot}`} aria-hidden />
               {activity.traffic_light === 'rojo'
                 ? 'Vencida'
@@ -98,7 +98,7 @@ function MinimizedChip({ count, onExpand }: MinimizedChipProps) {
       title={`Hoy: ${count} actividad${count === 1 ? '' : 'es'}`}
     >
       <i className="fas fa-calendar-day text-sm" aria-hidden />
-      <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-0.5 text-[9px] font-bold leading-none text-primary-700 shadow ring-1 ring-primary-100">
+      <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-0.5 text-3xs font-bold leading-none text-primary-700 shadow ring-1 ring-primary-100">
         {count}
       </span>
     </button>
@@ -163,7 +163,7 @@ const TodayCalendarReminder = () => {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[10040] flex max-w-[calc(100vw-2rem)] flex-col items-end sm:bottom-6 sm:right-6"
+      className="pointer-events-none fixed bottom-4 right-4 z-toast flex max-w-[calc(100vw-2rem)] flex-col items-end sm:bottom-6 sm:right-6"
       role="region"
       aria-live="polite"
       aria-label="Recordatorio de actividades del calendario para hoy"
@@ -182,7 +182,7 @@ const TodayCalendarReminder = () => {
                 <i className="fas fa-calendar-day text-sm" aria-hidden />
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary-600">Tu agenda de hoy</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary-600">Tu agenda de hoy</p>
                 <h2 className="text-base font-semibold leading-tight text-slate-900">{formatDayLabel(today)}</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {activities.length === 1
@@ -213,7 +213,7 @@ const TodayCalendarReminder = () => {
               className="inline-flex items-center gap-2 text-xs font-semibold text-primary-700 transition hover:text-primary-800"
             >
               Ver calendario completo
-              <i className="fas fa-arrow-right text-[10px]" aria-hidden />
+              <i className="fas fa-arrow-right text-2xs" aria-hidden />
             </Link>
           </div>
         </div>

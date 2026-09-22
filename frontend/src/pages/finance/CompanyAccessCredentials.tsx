@@ -80,8 +80,8 @@ function CopyableCredentialCell({
       >
         <span className="truncate">{copied ? 'Copiado' : display}</span>
         <i
-          className={`fas shrink-0 text-[10px] ${
-            copied ? 'fa-check text-emerald-600' : 'fa-copy text-slate-400 opacity-0 group-hover/copy:opacity-100'
+          className={`fas shrink-0 text-2xs ${
+            copied ? 'fa-check text-primary-600' : 'fa-copy text-slate-400 opacity-0 group-hover/copy:opacity-100'
           }`}
           aria-hidden
         />
@@ -125,9 +125,9 @@ function rowToForm(row: CompanyAccessCredentialRow): CompanyAccessCredentialUpda
 }
 
 const TH_GROUP =
-  'px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-white bg-blue-900 border-b border-blue-800';
+  'px-2 py-2 text-center text-2xs font-bold uppercase tracking-wide text-white bg-blue-900 border-b border-blue-800';
 const TH_COL =
-  'px-2 py-2 text-center text-[10px] font-semibold uppercase whitespace-nowrap text-white bg-blue-900 border-b border-blue-800';
+  'px-2 py-2 text-center text-2xs font-semibold uppercase whitespace-nowrap text-white bg-blue-900 border-b border-blue-800';
 const TD =
   'px-2 py-2 text-xs text-slate-700 border-b border-slate-100/90 align-top max-w-[10rem] truncate';
 const TD_ACTIONS =
@@ -136,14 +136,14 @@ const TD_ACTIONS =
 const FILTER_SECTION =
   'rounded-lg border border-slate-200 bg-slate-50/50 min-w-0 flex flex-col overflow-hidden';
 
-const FILTER_SECTION_TITLE = 'text-[10px] font-medium uppercase tracking-wide text-slate-500 px-2 pt-1.5 mb-1 shrink-0';
+const FILTER_SECTION_TITLE = 'text-2xs font-medium uppercase tracking-wide text-slate-500 px-2 pt-1.5 mb-1 shrink-0';
 
 const FILTER_SECTION_BODY = 'px-2 pb-1.5';
 
 function filterChipClass(active: boolean, variant: 'default' | 'user' = 'default'): string {
   if (variant === 'user') {
     return [
-      'w-full px-1.5 py-0.5 rounded border text-[10px] font-normal leading-snug',
+      'w-full px-1.5 py-0.5 rounded border text-2xs font-normal leading-snug',
       'text-left whitespace-normal break-words',
       active
         ? 'border-primary-400 bg-primary-50 text-primary-800'
@@ -174,7 +174,7 @@ function FilterUserGrid({
     <div className={`${FILTER_SECTION} flex-1`}>
       <p className={FILTER_SECTION_TITLE}>{title}</p>
       {users.length === 0 ? (
-        <p className={`text-[10px] text-slate-400 ${FILTER_SECTION_BODY}`}>Sin asignaciones</p>
+        <p className={`text-2xs text-slate-400 ${FILTER_SECTION_BODY}`}>Sin asignaciones</p>
       ) : (
         <div className={`grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 ${FILTER_SECTION_BODY}`}>
           {users.map((u) => {
@@ -248,7 +248,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
   const importBannerClass =
     importBannerKind === 'success'
-      ? 'text-sm text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg'
+      ? 'text-sm text-primary-900 bg-primary-50 border border-primary-200 px-3 py-2 rounded-lg'
       : importBannerKind === 'error'
         ? 'text-sm text-red-900 bg-red-50 border border-red-200 px-3 py-2 rounded-lg'
         : importBannerKind === 'warning'
@@ -503,7 +503,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-emerald-300 bg-white text-emerald-800 text-sm font-medium shadow-sm hover:bg-emerald-50"
+            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50"
           >
             <i className="fas fa-file-excel text-xs" aria-hidden />
             Importar Excel
@@ -579,7 +579,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                       title={`Dígito ${key}`}
                       className={[
                         'flex items-center justify-center rounded border font-bold font-mono text-slate-800',
-                        isAssistantView ? 'h-8 min-w-0 flex-1 text-xs' : 'h-7 w-full text-[10px]',
+                        isAssistantView ? 'h-8 min-w-0 flex-1 text-xs' : 'h-7 w-full text-2xs',
                         swatch,
                         active
                           ? 'ring-2 ring-primary-500 ring-offset-1 border-primary-500'
@@ -627,7 +627,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1 shrink-0 min-w-[9.5rem]"
           aria-live="polite"
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight mt-0.5">
             {loading ? '—' : total}
           </p>
@@ -642,7 +642,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
         <div
           className={`p-4 rounded-xl text-sm flex items-start justify-between gap-3 ${
             listNotice.kind === 'success'
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+              ? 'bg-primary-50 border border-primary-200 text-primary-900'
               : 'bg-red-50 border border-red-200 text-red-900'
           }`}
           role="status"
@@ -813,7 +813,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
       {editOpen && editRow
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1022,7 +1022,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
       {importOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -1078,7 +1078,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
               </div>
             ) : null}
             {importValidatedOk && importRowCount > 0 && !importBanner ? (
-              <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
+              <p className="text-sm text-primary-800 bg-primary-50 border border-primary-100 px-3 py-2 rounded-lg">
                 {importRowCount} fila(s) en el archivo. Pulse Importar para guardar.
               </p>
             ) : null}
@@ -1094,7 +1094,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 type="button"
                 disabled={!importFile || importValidateLoading}
                 onClick={() => void handleValidateImport()}
-                className="px-4 py-2 rounded-full border border-emerald-300 text-emerald-800 text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-full border border-primary-300 text-primary-800 text-sm font-medium disabled:opacity-50"
               >
                 {importValidateLoading ? 'Validando…' : 'Validar'}
               </button>
@@ -1102,7 +1102,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 type="button"
                 disabled={!importValidatedOk || importCommitLoading}
                 onClick={() => void handleCommitImport()}
-                className="px-4 py-2 rounded-full bg-emerald-700 text-white text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-full bg-primary-700 text-white text-sm font-medium disabled:opacity-50"
               >
                 {importCommitLoading ? 'Importando…' : 'Importar'}
               </button>

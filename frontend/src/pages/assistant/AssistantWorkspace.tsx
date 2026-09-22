@@ -10,6 +10,7 @@ import {
   pdtRowTypeLabel,
   type PdtWorkspaceData,
 } from '../../utils/pdtClientAggregation';
+import PageHeading from '../../components/ui/PageHeading';
 
 /** Panel operativo del asistente: ejecuta tareas sobre empresas asignadas (vía AccessService). */
 const AssistantWorkspace = () => {
@@ -71,7 +72,7 @@ const AssistantWorkspace = () => {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Panel del asistente</h2>
+          <PageHeading>Panel del asistente</PageHeading>
           <p className="text-sm text-slate-500">
             Registre avance, suba documentos y complete tareas. El supervisor revisará y aprobará.
           </p>
@@ -111,7 +112,7 @@ const AssistantWorkspace = () => {
       </div>
 
       {pdtData?.metrics ? (
-        <p className="text-[10px] text-slate-400 font-mono" title="Métricas agregación PDT">
+        <p className="text-2xs text-slate-400 font-mono" title="Métricas agregación PDT">
           {formatPdtMetricsLine(pdtData.metrics)}
           {pdtData.metrics.isPartialSample ? ' · muestra parcial (máx. 200 controles)' : ''}
         </p>
@@ -192,7 +193,7 @@ const AssistantWorkspace = () => {
                         <td className="px-4 py-3">
                           {pdtRowStatusLabel(row.status)}
                           {row.isOverdue ? (
-                            <span className="ml-1 text-[10px] font-semibold text-red-600 uppercase">Vencida</span>
+                            <span className="ml-1 text-2xs font-semibold text-red-600 uppercase">Vencida</span>
                           ) : null}
                         </td>
                         <td className="px-4 py-3 text-right">{row.progressPct}%</td>
@@ -220,7 +221,7 @@ const AssistantWorkspace = () => {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   const cls =
     tone === 'emerald'
-      ? 'text-emerald-800 bg-emerald-50'
+      ? 'text-primary-800 bg-primary-50'
       : tone === 'amber'
         ? 'text-amber-800 bg-amber-50'
         : tone === 'orange'

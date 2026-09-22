@@ -56,7 +56,7 @@ const CalendarMetrics = ({ periodYm, metrics }: Props) => (
       label="Al día / cumplidas"
       value={metrics.completed}
       sub="actividades"
-      accent="bg-emerald-50 text-emerald-700"
+      accent="bg-primary-50 text-primary-700"
       loading={metrics.loading}
     />
     <MetricCard

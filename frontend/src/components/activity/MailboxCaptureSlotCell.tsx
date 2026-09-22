@@ -42,16 +42,16 @@ function actionBtnClass(layout: LayoutMode, tone: 'primary' | 'neutral' | 'succe
       ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50'
       : 'inline-flex items-center gap-1 text-xs font-medium hover:underline disabled:opacity-50 shrink-0';
   if (layout === 'detail') {
-    if (tone === 'success') return `${base} border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100`;
+    if (tone === 'success') return `${base} border-primary-200 bg-primary-50 text-primary-800 hover:bg-primary-100`;
     if (tone === 'neutral') return `${base} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`;
     return `${base} border-primary-200 bg-primary-50 text-primary-800 hover:bg-primary-100`;
   }
-  if (tone === 'success') return `${base} text-emerald-700`;
+  if (tone === 'success') return `${base} text-primary-700`;
   if (tone === 'neutral') return `${base} text-slate-600`;
   return `${base} text-primary-700`;
 }
 
-const badgeCompact = 'inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-medium text-[11px] leading-snug whitespace-nowrap';
+const badgeCompact = 'inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-medium text-2xs leading-snug whitespace-nowrap';
 const compactLabelCol = 'w-[4.5rem] shrink-0 text-xs font-semibold text-slate-800';
 const compactStatusCol = 'w-[5.25rem] shrink-0';
 const compactTimelinessCol = 'w-[6.75rem] shrink-0';
@@ -88,7 +88,7 @@ function CompactMailboxSideCell({
   return (
     <div className={`rounded-md border bg-white/90 px-2.5 py-2 w-full min-w-[17.5rem] border-l-4 space-y-1.5 ${borderClass}`}>
       {hasDeadline ? (
-        <p className="text-[11px] text-slate-600 tabular-nums leading-snug font-medium" title="Hora límite de carga">
+        <p className="text-2xs text-slate-600 tabular-nums leading-snug font-medium" title="Hora límite de carga">
           hasta {formatTimelinessDateCompact(side.timeliness?.due_at)}
         </p>
       ) : null}
@@ -114,7 +114,7 @@ function CompactMailboxSideCell({
         {fileUrl ? (
           <>
             <button type="button" onClick={() => onPreview(fileUrl, fileName)} className={actionBtnClass('compact', 'primary')} title="Ver">
-              <i className="fas fa-eye text-[10px]" aria-hidden />
+              <i className="fas fa-eye text-2xs" aria-hidden />
               Ver
             </button>
             <button
@@ -124,14 +124,14 @@ function CompactMailboxSideCell({
               className={actionBtnClass('compact', 'neutral')}
               title="Descargar"
             >
-              <i className="fas fa-download text-[10px]" aria-hidden />
+              <i className="fas fa-download text-2xs" aria-hidden />
               {downloading ? '…' : 'Descargar'}
             </button>
           </>
         ) : side.status === 'pendiente' ? (
-          <span className="text-[11px] text-slate-400">Sin archivo</span>
+          <span className="text-2xs text-slate-400">Sin archivo</span>
         ) : (
-          <span className="text-[11px] text-amber-700">No disp.</span>
+          <span className="text-2xs text-amber-700">No disp.</span>
         )}
         {canUpload && side.status !== 'verificado' ? (
           <>
@@ -141,7 +141,7 @@ function CompactMailboxSideCell({
               onClick={() => inputRef.current?.click()}
               className={actionBtnClass('compact', 'primary')}
             >
-              <i className="fas fa-upload text-[10px]" aria-hidden />
+              <i className="fas fa-upload text-2xs" aria-hidden />
               {uploading ? '…' : 'Subir'}
             </button>
             <input ref={inputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => void handleFile(e)} />
@@ -152,7 +152,7 @@ function CompactMailboxSideCell({
               className={actionBtnClass('compact', 'neutral')}
               title="Pegar imagen o PDF desde el portapapeles"
             >
-              <i className="fas fa-paste text-[10px]" aria-hidden />
+              <i className="fas fa-paste text-2xs" aria-hidden />
               {uploading ? '…' : 'Pegar'}
             </button>
           </>
@@ -165,12 +165,12 @@ function CompactMailboxSideCell({
             className={actionBtnClass('compact', 'success')}
             title="Verificar (supervisor)"
           >
-            <i className="fas fa-check text-[10px]" aria-hidden />
+            <i className="fas fa-check text-2xs" aria-hidden />
             {verifying ? '…' : 'Verificar'}
           </button>
         ) : null}
         {!canVerify && side.status === 'cargado' ? (
-          <span className="text-[11px] text-slate-500 shrink-0" title="Pendiente de verificación">
+          <span className="text-2xs text-slate-500 shrink-0" title="Pendiente de verificación">
             Pend. verif.
           </span>
         ) : null}
@@ -221,14 +221,14 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
         </span>
         {showTimeliness ? (
           <span
-            className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium ${timelinessBadgeClass(timelinessCode)}`}
+            className={`inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium ${timelinessBadgeClass(timelinessCode)}`}
             title={hasDeadline ? `Plazo: ${formatTimelinessDate(side.timeliness?.due_at)}` : undefined}
           >
             {timelinessLabel(timelinessCode)}
           </span>
         ) : null}
         {hasDeadline ? (
-          <span className="text-[10px] text-slate-500 tabular-nums ml-auto">≤ {formatTimelinessDate(side.timeliness?.due_at)}</span>
+          <span className="text-2xs text-slate-500 tabular-nums ml-auto">≤ {formatTimelinessDate(side.timeliness?.due_at)}</span>
         ) : null}
       </div>
 
@@ -242,7 +242,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
         {fileUrl ? (
           <>
             <button type="button" onClick={() => onPreview(fileUrl, fileName)} className={actionBtnClass('detail', 'primary')}>
-              <i className="fas fa-eye text-[10px]" aria-hidden />
+              <i className="fas fa-eye text-2xs" aria-hidden />
               Ver
             </button>
             <button
@@ -251,7 +251,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
               onClick={() => void onDownload(fileUrl, fileName)}
               className={actionBtnClass('detail', 'neutral')}
             >
-              <i className="fas fa-download text-[10px]" aria-hidden />
+              <i className="fas fa-download text-2xs" aria-hidden />
               {downloading ? '…' : 'Descargar'}
             </button>
           </>
@@ -264,7 +264,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
         {canUpload && side.status !== 'verificado' ? (
           <>
             <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} className={actionBtnClass('detail', 'primary')}>
-              <i className="fas fa-upload text-[10px]" aria-hidden />
+              <i className="fas fa-upload text-2xs" aria-hidden />
               {uploading ? 'Subiendo…' : 'Subir'}
             </button>
             <input ref={inputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => void handleFile(e)} />
@@ -275,7 +275,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
               className={actionBtnClass('detail', 'neutral')}
               title="Pegar imagen o PDF desde el portapapeles"
             >
-              <i className="fas fa-paste text-[10px]" aria-hidden />
+              <i className="fas fa-paste text-2xs" aria-hidden />
               {uploading ? 'Subiendo…' : 'Pegar'}
             </button>
           </>
@@ -283,7 +283,7 @@ function DetailMailboxSideCell(props: MailboxSideCellProps) {
 
         {canVerify && side.status === 'cargado' ? (
           <button type="button" disabled={verifying} onClick={() => void onVerify()} className={actionBtnClass('detail', 'success')}>
-            <i className="fas fa-check text-[10px]" aria-hidden />
+            <i className="fas fa-check text-2xs" aria-hidden />
             {verifying ? '…' : 'Verificar'}
           </button>
         ) : null}

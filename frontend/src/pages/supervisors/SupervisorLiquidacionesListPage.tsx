@@ -186,7 +186,7 @@ const SupervisorLiquidacionesListPage = () => {
           />
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         </div>
@@ -240,7 +240,7 @@ const SupervisorLiquidacionesListPage = () => {
                         }
                         return (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium ${settlementStatusBadgeClass(settlement.status)}`}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md border text-2xs font-medium ${settlementStatusBadgeClass(settlement.status)}`}
                           >
                             {settlementStatusLabel(settlement.status)}
                           </span>
@@ -259,7 +259,7 @@ const SupervisorLiquidacionesListPage = () => {
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200 hover:bg-amber-100"
                                   title={`Editar liquidación del periodo ${selectedPeriod}`}
                                 >
-                                  <i className="fas fa-pen text-[10px]" aria-hidden />
+                                  <i className="fas fa-pen text-2xs" aria-hidden />
                                   Editar liquidación
                                 </Link>
                               );
@@ -271,7 +271,7 @@ const SupervisorLiquidacionesListPage = () => {
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 hover:bg-slate-100"
                                   title={`Ver liquidación emitida del periodo ${selectedPeriod}`}
                                 >
-                                  <i className="fas fa-eye text-[10px]" aria-hidden />
+                                  <i className="fas fa-eye text-2xs" aria-hidden />
                                   Ver liquidación
                                 </Link>
                               );
@@ -284,7 +284,7 @@ const SupervisorLiquidacionesListPage = () => {
                                 to={`/supervisors/liquidaciones/crear/${row.company_id}?period=${encodeURIComponent(selectedPeriod)}`}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-800 bg-primary-50 border border-primary-200 hover:bg-primary-100"
                               >
-                                <i className="fas fa-plus text-[10px]" aria-hidden />
+                                <i className="fas fa-plus text-2xs" aria-hidden />
                                 Crear liquidación
                               </Link>
                             );

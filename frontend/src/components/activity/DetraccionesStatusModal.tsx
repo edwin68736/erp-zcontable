@@ -4,6 +4,7 @@ import {
   DETRACCIONES_SUPERVISOR_MANUAL_STATUSES,
   detraccionesStatusLabel,
 } from './detraccionesConfig';
+import Button from '../ui/Button';
 
 type DetraccionesStatusModalProps = {
   open: boolean;
@@ -36,7 +37,7 @@ const DetraccionesStatusModal = ({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Cerrar"
@@ -89,14 +90,9 @@ const DetraccionesStatusModal = ({
           >
             Cancelar
           </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onConfirm(selected)}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-          >
+          <Button disabled={saving} onClick={() => onConfirm(selected)}>
             {saving ? 'Guardando…' : 'Confirmar'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

@@ -4,6 +4,7 @@ import { subscriptionPlansService } from '../services/subscriptionPlans';
 import type { SubscriptionPlan } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
 
 const SubscriptionPlansList = () => {
   const canEdit = useMemo(
@@ -42,17 +43,17 @@ const SubscriptionPlansList = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Planes de suscripción</h2>
+          <PageHeading>Planes de suscripción</PageHeading>
           <p className="text-sm text-slate-500">Planes con tramos por facturación y precio mensual.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {canLiquidate ? (
             <button
               type="button"
               onClick={() => void runLiq()}
-              className="px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="w-full sm:w-auto px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               <i className="fas fa-calendar-check mr-2 text-xs"></i>
               Ejecutar liquidación mensual
@@ -61,7 +62,7 @@ const SubscriptionPlansList = () => {
           {canEdit ? (
             <Link
               to="/subscription-plans/new"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
             >
               <i className="fas fa-plus text-xs"></i> Nuevo plan
             </Link>
@@ -72,7 +73,7 @@ const SubscriptionPlansList = () => {
       {loading ? (
         <div className="text-sm text-slate-500">Cargando…</div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50">
               <tr>

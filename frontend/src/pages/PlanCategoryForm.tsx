@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { planCategoriesService } from '../services/planCategories';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
 
 const PlanCategoryForm = () => {
   const navigate = useNavigate();
@@ -72,8 +73,8 @@ const PlanCategoryForm = () => {
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">{editId ? 'Editar categoría' : 'Nueva categoría'}</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+        <PageHeading>{editId ? 'Editar categoría' : 'Nueva categoría'}</PageHeading>
         <Link to="/plan-categories" className="text-sm text-slate-600">
           Volver
         </Link>
@@ -107,7 +108,7 @@ const PlanCategoryForm = () => {
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Orden</label>
             <input

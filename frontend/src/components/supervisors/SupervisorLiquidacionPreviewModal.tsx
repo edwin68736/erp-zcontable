@@ -66,7 +66,7 @@ const SupervisorLiquidacionPreviewModal = ({
   );
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"

@@ -10,6 +10,7 @@ import OperationsKeyDialog from '../components/OperationsKeyDialog';
 import TableRowMoreMenu from '../components/TableRowMoreMenu';
 import { usePermission } from '../rbac/access';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -284,7 +285,7 @@ const TaxSettlements = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Liquidaciones de impuestos</h2>
+          <PageHeading>Liquidaciones de impuestos</PageHeading>
           <p className="text-sm text-slate-500 mt-1">
             Agrupan cargos pendientes por cliente para presentación. Los honorarios siguen en Deudas; los pagos se registran en Pagos con imputación manual o FIFO.
           </p>
@@ -370,14 +371,14 @@ const TaxSettlements = () => {
                 <tr key={row.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-xs">
                     <span className="inline-flex items-center gap-1.5">
-                      <i className="fas fa-file-invoice-dollar text-slate-400 text-[11px]" aria-hidden />
+                      <i className="fas fa-file-invoice-dollar text-slate-400 text-2xs" aria-hidden />
                       {row.number || '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-800">{row.company?.business_name ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600 tabular-nums">
                     <span className="inline-flex items-center gap-1.5">
-                      <i className="fas fa-calendar-day text-slate-400 text-[11px]" aria-hidden />
+                      <i className="fas fa-calendar-day text-slate-400 text-2xs" aria-hidden />
                       {row.liquidation_period || row.period_label || '—'}
                     </span>
                   </td>
@@ -385,7 +386,7 @@ const TaxSettlements = () => {
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                         row.status === 'emitida'
-                          ? 'bg-emerald-50 text-emerald-800'
+                          ? 'bg-primary-50 text-primary-800'
                           : row.status === 'borrador'
                             ? 'bg-amber-50 text-amber-800'
                             : row.status === 'cerrada'
@@ -394,13 +395,13 @@ const TaxSettlements = () => {
                       }`}
                     >
                       {row.status === 'emitida' ? (
-                        <i className="fas fa-check-circle text-[10px] opacity-90" aria-hidden />
+                        <i className="fas fa-check-circle text-2xs opacity-90" aria-hidden />
                       ) : row.status === 'borrador' ? (
-                        <i className="fas fa-edit text-[10px] opacity-90" aria-hidden />
+                        <i className="fas fa-edit text-2xs opacity-90" aria-hidden />
                       ) : row.status === 'cerrada' ? (
-                        <i className="fas fa-lock text-[10px] opacity-90" aria-hidden />
+                        <i className="fas fa-lock text-2xs opacity-90" aria-hidden />
                       ) : (
-                        <i className="fas fa-ban text-[10px] opacity-90" aria-hidden />
+                        <i className="fas fa-ban text-2xs opacity-90" aria-hidden />
                       )}
                       {statusLabel(row.status)}
                     </span>
@@ -408,7 +409,7 @@ const TaxSettlements = () => {
                   <td className="px-4 py-3 text-right tabular-nums">
                     {Number.isFinite(row.total_general) ? (
                       <span className="inline-flex items-center justify-end gap-1 text-slate-800 font-medium">
-                        <i className="fas fa-coins text-slate-400 text-[11px]" aria-hidden />
+                        <i className="fas fa-coins text-slate-400 text-2xs" aria-hidden />
                         S/&nbsp;{row.total_general.toLocaleString('es-PE', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -425,7 +426,7 @@ const TaxSettlements = () => {
                       className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50 hover:border-primary-200"
                       title="Ver ítems de la liquidación"
                     >
-                      <i className="fas fa-list-ul text-[11px]" aria-hidden />
+                      <i className="fas fa-list-ul text-2xs" aria-hidden />
                       Ver ítems
                     </button>
                   </td>
@@ -437,7 +438,7 @@ const TaxSettlements = () => {
                           className="inline-flex items-center gap-1 rounded-full bg-primary-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-700 shadow-sm"
                           title="Precargar imputaciones de esta liquidación"
                         >
-                          <i className="fas fa-coins text-[10px]" aria-hidden />
+                          <i className="fas fa-coins text-2xs" aria-hidden />
                           Registrar pago
                         </Link>
                       ) : null}
@@ -448,7 +449,7 @@ const TaxSettlements = () => {
                           className="inline-flex items-center gap-1 rounded-full border border-slate-500 bg-slate-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 shadow-sm"
                           title="Cerrar como registro histórico"
                         >
-                          <i className="fas fa-lock text-[10px]" aria-hidden />
+                          <i className="fas fa-lock text-2xs" aria-hidden />
                           Cerrar
                         </button>
                       ) : null}
@@ -456,7 +457,7 @@ const TaxSettlements = () => {
                         to={`/tax-settlements/${row.id}`}
                         className="inline-flex items-center gap-1 text-primary-700 hover:text-primary-800 text-xs font-medium self-center"
                       >
-                        <i className="fas fa-eye text-[10px]" aria-hidden />
+                        <i className="fas fa-eye text-2xs" aria-hidden />
                         Ver
                       </Link>
                       {canUpdate || canDelete ? (
@@ -577,7 +578,7 @@ const TaxSettlements = () => {
       {itemsModalRow
         ? createPortal(
             <div
-              className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center p-0 sm:p-4"
+              className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4"
               role="dialog"
               aria-modal="true"
               aria-labelledby="settlement-items-modal-title"

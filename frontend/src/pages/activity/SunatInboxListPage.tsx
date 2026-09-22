@@ -65,7 +65,7 @@ const EMPTY_SLOT_FALLBACK = (slotIndex: number): SunatInboxCaptureSlot => ({
 // eliminó, si algún filtro la dejaba fuera.
 const SuspendidaBadge = () => (
   <span
-    className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-900"
+    className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-100 text-purple-900"
     title="Suspendida en este período"
   >
     Suspendida
@@ -347,7 +347,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Buzón SOL SUNAT – SUNAFIL</h1>
           <p className="text-slate-500 mt-1 text-sm">
@@ -427,9 +427,9 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         </div>
         {!loading && weekProgress.total > 0 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[11rem]">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Buzones (página)</p>
+            <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Buzones (página)</p>
             <p className="text-xs text-slate-700 mt-0.5 tabular-nums leading-snug">
-              <span className="text-emerald-700">{weekProgress.verificado} verif.</span>
+              <span className="text-primary-700">{weekProgress.verificado} verif.</span>
               {' · '}
               <span className="text-blue-700">{weekProgress.cargado} por verif.</span>
               {' · '}
@@ -438,14 +438,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           </div>
         ) : null}
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         <button
           type="button"
           onClick={() => void handleExportExcel()}
           disabled={loading || exportingExcel}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100 disabled:opacity-50 shrink-0"
         >
           <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
           Excel {scope === 'month' ? '(mes completo)' : '(semana)'}

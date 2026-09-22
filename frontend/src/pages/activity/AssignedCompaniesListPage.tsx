@@ -102,7 +102,7 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
           />
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
       </div>

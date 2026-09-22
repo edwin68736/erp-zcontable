@@ -30,10 +30,10 @@ type LinkVariant = 'desktop-expanded' | 'desktop-flyout' | 'mobile';
  * aparecer completas en el código fuente para que el compilador las genere.)
  */
 const ACTIVE_NAV_CLASS =
-  'bg-white text-[#06343C] font-bold shadow-[0_6px_16px_-4px_rgba(2,20,24,0.35)] ring-1 ring-black/5';
+  'bg-white text-sidebar font-bold shadow-[0_6px_16px_-4px_rgba(2,20,24,0.35)] ring-1 ring-black/5';
 /** Icono/acento activo: mismo verde oscuro que el texto del ítem activo. */
-const ACTIVE_ICON_CLASS = 'text-[#06343C]';
-const ACTIVE_DOT_CLASS = 'bg-[#06343C]';
+const ACTIVE_ICON_CLASS = 'text-sidebar';
+const ACTIVE_DOT_CLASS = 'bg-sidebar';
 
 const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const location = useLocation();
@@ -202,7 +202,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         >
           <span
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${
-              isRouteActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+              isRouteActive ? `bg-primary-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
             }`}
           >
             <i className={mod.icon} aria-hidden />
@@ -228,7 +228,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
 
         {isCollapsed && isOpenMod ? (
           <div
-            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] max-w-[min(280px,calc(100vw-6rem))] rounded-2xl border border-white/15 bg-[#042B33] py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
+            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] max-w-[min(280px,calc(100vw-6rem))] rounded-2xl border border-white/15 bg-sidebar-dark py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
             role="region"
             aria-label={mod.label}
           >
@@ -271,7 +271,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         >
           <span
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${
-              isRouteActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+              isRouteActive ? `bg-primary-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
             }`}
           >
             <i className={STUDIO_SECTION.icon} aria-hidden />
@@ -297,7 +297,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
 
         {isCollapsed && isOpenMod ? (
           <div
-            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] rounded-2xl border border-white/15 bg-[#042B33] py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
+            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] rounded-2xl border border-white/15 bg-sidebar-dark py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
             role="region"
             aria-label={STUDIO_SECTION.label}
           >
@@ -343,7 +343,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         <>
           <span
             className={`flex shrink-0 items-center justify-center rounded-lg ${
-              isActive ? `bg-emerald-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
+              isActive ? `bg-primary-50 ${ACTIVE_ICON_CLASS}` : 'bg-white/10 text-white/90'
             } ${variant === 'mobile' ? 'h-8 w-8' : 'h-9 w-9'}`}
           >
             <i className={HOME_LINK.icon} aria-hidden />
@@ -363,7 +363,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       {renderHomeLink('desktop-expanded')}
       {visibleOperationalModules.length > 0 ? (
         <p
-          className={`px-2 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45 ${
+          className={`px-2 py-2 text-2xs font-bold uppercase tracking-[0.12em] text-white/45 ${
             isCollapsed ? 'sr-only' : ''
           }`}
         >
@@ -443,7 +443,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
     <>
       <aside
         ref={asideRef}
-        className={`relative z-[60] hidden h-full min-h-0 lg:flex flex-col text-white rounded-2xl shadow-[0_16px_40px_-22px_rgba(2,44,52,0.9)] flex-shrink-0 overflow-x-visible overflow-y-hidden bg-[url('/sidebar.png'),radial-gradient(80%_55%_at_20%_78%,rgba(16,185,129,0.30)_0%,rgba(16,185,129,0)_60%),radial-gradient(70%_60%_at_70%_92%,rgba(250,204,21,0.22)_0%,rgba(250,204,21,0)_55%),linear-gradient(180deg,#0A3C45_0%,#06343C_45%,#042B33_100%)] bg-[size:cover,auto,auto,auto] bg-[position:center,center,center,center] bg-[repeat:no-repeat,no-repeat,no-repeat,no-repeat] ${
+        className={`relative z-[60] hidden h-full min-h-0 lg:flex flex-col text-white rounded-2xl shadow-[0_16px_40px_-22px_rgba(2,44,52,0.9)] flex-shrink-0 overflow-x-visible overflow-y-hidden sidebar-gradient-bg ${
           isCollapsed ? 'w-[92px]' : 'w-[280px]'
         }`}
       >
@@ -471,7 +471,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[80] w-72 shadow-2xl transform transition-transform duration-300 lg:hidden flex flex-col h-full text-white bg-[url('/sidebar.png'),radial-gradient(80%_55%_at_20%_78%,rgba(16,185,129,0.30)_0%,rgba(16,185,129,0)_60%),radial-gradient(70%_60%_at_70%_92%,rgba(250,204,21,0.22)_0%,rgba(250,204,21,0)_55%),linear-gradient(180deg,#0A3C45_0%,#06343C_45%,#042B33_100%)] bg-[size:cover,auto,auto,auto] bg-[position:center,center,center,center] bg-[repeat:no-repeat,no-repeat,no-repeat,no-repeat] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-[80] w-72 shadow-2xl transform transition-transform duration-300 lg:hidden flex flex-col h-full text-white sidebar-gradient-bg ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="relative flex shrink-0 items-center justify-center border-b border-white/10 px-6 py-6 min-h-[4.5rem]">
           <NavLink
@@ -495,7 +495,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         <nav className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden py-4 pl-3 pr-1">
           <div className="mb-3 px-1">{renderHomeLink('mobile', onClose)}</div>
           {visibleOperationalModules.length > 0 ? (
-            <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">Módulos</p>
+            <p className="mb-2 px-1 text-2xs font-bold uppercase tracking-[0.14em] text-white/40">Módulos</p>
           ) : null}
           <div className="flex flex-col gap-2">
             {visibleOperationalModules.map((mod) => mobileModuleBlock(mod))}

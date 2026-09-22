@@ -337,7 +337,7 @@ const RolesAndPermissionsView = () => {
     return (
       <div className="pt-2 text-center text-slate-600">
         <p>No tienes permiso para ver esta sección.</p>
-        <Link to="/dashboard" className="text-emerald-700 underline text-sm mt-2 inline-block">
+        <Link to="/dashboard" className="text-primary-700 underline text-sm mt-2 inline-block">
           Volver al inicio
         </Link>
       </div>
@@ -361,7 +361,7 @@ const RolesAndPermissionsView = () => {
             Administre roles del estudio y la matriz de permisos por módulo. Los cambios en permisos aplican al instante en la API.
           </p>
         </div>
-        <Link to="/users" className="text-sm font-medium text-emerald-800 hover:underline shrink-0">
+        <Link to="/users" className="text-sm font-medium text-primary-800 hover:underline shrink-0">
           <i className="fas fa-arrow-left mr-1" /> Volver a usuarios
         </Link>
       </div>
@@ -380,9 +380,9 @@ const RolesAndPermissionsView = () => {
                 <button
                   type="button"
                   onClick={openCreate}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 hover:bg-emerald-800 shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary-700 text-white text-xs font-semibold px-3 py-1.5 hover:bg-primary-800 shadow-sm"
                 >
-                  <i className="fas fa-plus text-[10px]" /> Nuevo rol
+                  <i className="fas fa-plus text-2xs" /> Nuevo rol
                 </button>
               ) : null}
             </div>
@@ -393,7 +393,7 @@ const RolesAndPermissionsView = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nombre…"
-                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white"
               />
             </div>
           </div>
@@ -408,7 +408,7 @@ const RolesAndPermissionsView = () => {
                     key={r.id}
                     className={`rounded-xl border transition-colors ${
                       active
-                        ? 'border-emerald-500 bg-emerald-50/60 shadow-sm'
+                        ? 'border-primary-500 bg-primary-50/60 shadow-sm'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
@@ -423,22 +423,22 @@ const RolesAndPermissionsView = () => {
                         </div>
                         <span className="flex flex-col items-end gap-1 shrink-0">
                           {r.is_default ? (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            <span className="text-2xs font-semibold uppercase tracking-wide text-primary-800 bg-primary-100 px-1.5 py-0.5 rounded">
                               Predeterminado
                             </span>
                           ) : null}
                           {r.is_system ? (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            <span className="text-2xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                               Sistema
                             </span>
                           ) : null}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        <span className="text-[10px] font-medium text-slate-600 bg-white/80 border border-slate-200/80 rounded-full px-2 py-0.5">
+                        <span className="text-2xs font-medium text-slate-600 bg-white/80 border border-slate-200/80 rounded-full px-2 py-0.5">
                           {Number(r.permission_count ?? 0)} perm.
                         </span>
-                        <span className="text-[10px] font-medium text-slate-600 bg-white/80 border border-slate-200/80 rounded-full px-2 py-0.5">
+                        <span className="text-2xs font-medium text-slate-600 bg-white/80 border border-slate-200/80 rounded-full px-2 py-0.5">
                           {Number(r.user_count ?? 0)} usuarios
                         </span>
                       </div>
@@ -447,7 +447,7 @@ const RolesAndPermissionsView = () => {
                       <div className="flex items-center justify-end gap-1 px-2 pb-2">
                         <button
                           type="button"
-                          className={`p-1.5 rounded-lg ${r.is_default ? 'text-emerald-700' : 'text-slate-500 hover:bg-white hover:text-amber-600'}`}
+                          className={`p-1.5 rounded-lg ${r.is_default ? 'text-primary-700' : 'text-slate-500 hover:bg-white hover:text-amber-600'}`}
                           title={r.is_default ? 'Rol predeterminado' : 'Marcar como predeterminado'}
                           disabled={Boolean(r.is_default) || defaultSavingId === r.id}
                           onClick={() => void handleSetDefault(r)}
@@ -464,7 +464,7 @@ const RolesAndPermissionsView = () => {
                         </button>
                         <button
                           type="button"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-emerald-800"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-primary-800"
                           title="Editar rol"
                           onClick={() => openEdit(r)}
                         >
@@ -506,12 +506,12 @@ const RolesAndPermissionsView = () => {
                     <h2 className="text-lg sm:text-xl font-bold text-slate-900 min-w-0">{currentRole.name}</h2>
                     <div className="flex items-center gap-4 shrink-0 text-sm" aria-label="Resumen del rol">
                       <span className="inline-flex items-center gap-1.5 text-slate-600">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Permisos</span>
+                        <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400">Permisos</span>
                         <span className="font-bold text-slate-900 tabular-nums">{selected.size}</span>
                       </span>
                       <span className="h-4 w-px bg-slate-200" aria-hidden />
                       <span className="inline-flex items-center gap-1.5 text-slate-600">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Usuarios</span>
+                        <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400">Usuarios</span>
                         <span className="font-bold text-slate-900 tabular-nums">{Number(currentRole.user_count ?? 0)}</span>
                       </span>
                     </div>
@@ -541,7 +541,7 @@ const RolesAndPermissionsView = () => {
                         type="button"
                         disabled={savingPerms}
                         onClick={() => void handleSavePermissions()}
-                        className="px-4 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 disabled:opacity-50"
+                        className="px-4 py-1.5 rounded-lg bg-primary-700 text-white text-xs font-bold hover:bg-primary-800 disabled:opacity-50"
                       >
                         {savingPerms ? <i className="fas fa-spinner fa-spin mr-1" /> : null}
                         Guardar permisos
@@ -572,11 +572,11 @@ const RolesAndPermissionsView = () => {
                       {/* Cabecera del módulo (mismo nombre e icono que el sidebar) */}
                       <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
+                          <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary-100 text-primary-700 shrink-0">
                             <i className={mod.icon || 'fas fa-folder'} aria-hidden />
                           </span>
                           <h3 className="text-sm font-bold text-slate-800 truncate">{mod.name}</h3>
-                          <span className="shrink-0 text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-0.5 tabular-nums">
+                          <span className="shrink-0 text-2xs font-semibold text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-0.5 tabular-nums">
                             {selectedInMod}/{modIds.length}
                           </span>
                         </div>
@@ -584,7 +584,7 @@ const RolesAndPermissionsView = () => {
                           <button
                             type="button"
                             onClick={() => selectAllInModule(mod, !allOn)}
-                            className="shrink-0 text-xs font-medium text-slate-500 hover:text-emerald-800 transition-colors"
+                            className="shrink-0 text-xs font-medium text-slate-500 hover:text-primary-800 transition-colors"
                           >
                             {allOn ? 'Quitar todos' : 'Marcar todos'}
                           </button>
@@ -596,7 +596,7 @@ const RolesAndPermissionsView = () => {
                           <div key={sub.group || '_default'}>
                             {sub.group ? (
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 shrink-0">
+                                <span className="text-2xs font-semibold uppercase tracking-wide text-primary-700 shrink-0">
                                   {sub.group}
                                 </span>
                                 <span className="flex-1 h-px bg-slate-100" />
@@ -611,13 +611,13 @@ const RolesAndPermissionsView = () => {
                                     <label
                                       className={`inline-flex items-center gap-2 max-w-full py-1.5 px-2.5 rounded-lg border text-sm leading-snug transition-colors ${
                                         checked
-                                          ? 'border-emerald-200 bg-emerald-50/80 text-slate-900'
+                                          ? 'border-primary-200 bg-primary-50/80 text-slate-900'
                                           : 'border-slate-100 bg-slate-50/40 text-slate-600'
                                       } ${disabled ? 'opacity-70 cursor-default' : 'cursor-pointer hover:border-slate-200 hover:bg-slate-50'}`}
                                     >
                                       <input
                                         type="checkbox"
-                                        className="shrink-0 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500"
+                                        className="shrink-0 rounded border-slate-300 text-primary-700 focus:ring-primary-500"
                                         checked={checked}
                                         disabled={disabled}
                                         onChange={() => togglePerm(perm.id)}
@@ -656,7 +656,7 @@ const RolesAndPermissionsView = () => {
                       type="button"
                       disabled={!dirty || savingPerms}
                       onClick={() => void handleSavePermissions()}
-                      className="px-5 py-2 rounded-xl bg-emerald-700 text-white text-sm font-bold hover:bg-emerald-800 disabled:opacity-40 shadow-sm"
+                      className="px-5 py-2 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary-800 disabled:opacity-40 shadow-sm"
                     >
                       {savingPerms ? <i className="fas fa-spinner fa-spin mr-2" /> : <i className="fas fa-floppy-disk mr-2" />}
                       Guardar permisos
@@ -686,7 +686,7 @@ const RolesAndPermissionsView = () => {
       />
 
       {cloneSource && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm"
@@ -733,7 +733,7 @@ const RolesAndPermissionsView = () => {
                 type="button"
                 disabled={cloneSaving || !cloneName.trim()}
                 onClick={() => void handleConfirmClone()}
-                className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-primary-700 text-white text-sm font-semibold disabled:opacity-50"
               >
                 {cloneSaving ? <i className="fas fa-spinner fa-spin mr-2" /> : null}
                 Clonar

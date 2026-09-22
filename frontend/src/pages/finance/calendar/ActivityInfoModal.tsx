@@ -66,7 +66,7 @@ const ActivityInfoModal = ({
   const colorName = ACTIVITY_COLORS.find((c) => c.value === colorHex)?.label ?? 'Personalizado';
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar" />
       <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
         <div className="px-5 py-4 border-b border-slate-100 sticky top-0 bg-white z-10 flex items-start justify-between gap-3">
@@ -81,7 +81,7 @@ const ActivityInfoModal = ({
 
         <div className="px-5 py-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${st.badge}`}>{trafficLabel(tl)}</span>
+            <span className={`text-2xs font-medium px-2 py-0.5 rounded-full ${st.badge}`}>{trafficLabel(tl)}</span>
             <span className="text-xs text-slate-500">{kindLabel(activity.activity_kind)}</span>
           </div>
 
@@ -118,7 +118,7 @@ const ActivityInfoModal = ({
             <section className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
               <h4 className="text-sm font-semibold text-slate-800">Cumplimiento — mis empresas</h4>
               <div className="flex flex-wrap gap-3 mt-3 text-xs">
-                <span className="text-emerald-700 font-medium">{compliance.completed} completadas</span>
+                <span className="text-primary-700 font-medium">{compliance.completed} completadas</span>
                 <span className="text-amber-700 font-medium">{compliance.pending} pendientes</span>
                 <span className="text-red-700 font-medium">{compliance.overdue} vencidas</span>
               </div>

@@ -93,7 +93,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
   const downloadName = fiscalReceiptPdfFilename(receipt);
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
@@ -185,12 +185,12 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                   className={`rounded-xl border overflow-hidden ${
                     receipt.debt_payment_context.is_partial_payment
                       ? 'border-sky-200 bg-sky-50'
-                      : 'border-emerald-200 bg-emerald-50'
+                      : 'border-primary-200 bg-primary-50'
                   }`}
                 >
                   <div
                     className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-                      receipt.debt_payment_context.is_partial_payment ? 'text-sky-800' : 'text-emerald-800'
+                      receipt.debt_payment_context.is_partial_payment ? 'text-sky-800' : 'text-primary-800'
                     }`}
                   >
                     {receipt.debt_payment_context.status_label ||

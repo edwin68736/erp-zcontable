@@ -17,7 +17,7 @@ export default function TukifacIssueLinksDialog({ open, links, onContinue, conti
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50"
+      className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-slate-900/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tukifac-links-title"

@@ -7,6 +7,7 @@ import { taxSettlementsService } from '../services/taxSettlements';
 import type { Document, TaxSettlement, TukifacFiscalReceipt } from '../types/dashboard';
 import { documentBalanceAmount, documentDebtSelectLabel } from '../utils/documentDebtUi';
 import SearchableSelect from './SearchableSelect';
+import Button from './ui/Button';
 
 type Props = {
   receipt: TukifacFiscalReceipt | null;
@@ -226,12 +227,12 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-[2px]"
+      className="fixed inset-0 z-dialog flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-[2px]"
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200/80 w-full max-w-3xl max-h-[min(92vh,720px)] flex flex-col overflow-hidden"
+        className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-3xl max-h-[min(92vh,720px)] flex flex-col overflow-hidden"
         onClick={(ev) => ev.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -337,7 +338,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
                     payUploading
                       ? 'border-slate-200 bg-white opacity-70 cursor-not-allowed'
                       : payAttachmentFile
-                        ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50'
+                        ? 'border-primary-200 bg-primary-50/50 hover:bg-primary-50'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
@@ -488,15 +489,14 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
           >
             Cancelar
           </button>
-          <button
-            type="button"
+          <Button
             disabled={!canConfirmPayment}
             onClick={() => void submitCreatePayment()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center gap-2"
           >
             {payUploading || fiscalPaySaving ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : null}
             {payUploading ? 'Subiendo…' : fiscalPaySaving ? 'Guardando…' : 'Confirmar pago'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

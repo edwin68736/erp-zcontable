@@ -28,6 +28,7 @@ import type { PosSaleDetail } from '../../services/posSales';
 import SearchableSelect from '../../components/SearchableSelect';
 
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import PageHeading from '../../components/ui/PageHeading';
 
 
 
@@ -587,7 +588,7 @@ const PosSale = () => {
 
         <div>
 
-          <h1 className="text-xl font-semibold text-slate-800">Nueva venta</h1>
+          <PageHeading>Nueva venta</PageHeading>
 
           <p className="text-sm text-slate-500">Emisión rápida de comprobantes</p>
 
@@ -723,7 +724,7 @@ const PosSale = () => {
 
                       {ln.isManual ? (
 
-                        <span className="ml-1 text-[10px] text-amber-700 bg-amber-50 px-1 rounded">manual</span>
+                        <span className="ml-1 text-2xs text-amber-700 bg-amber-50 px-1 rounded">manual</span>
 
                       ) : null}
 

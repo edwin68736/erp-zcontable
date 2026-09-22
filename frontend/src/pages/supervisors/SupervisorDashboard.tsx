@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SearchableSelect from '../../components/SearchableSelect';
+import PageHeading from '../../components/ui/PageHeading';
 import {
   supervisorsService,
   type ComplianceTrendPoint,
@@ -263,7 +264,7 @@ const SupervisorDashboard = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Dashboard supervisores</h2>
+          <PageHeading>Dashboard supervisores</PageHeading>
           <p className="text-sm text-slate-500">Cumplimiento y alertas del período contable.</p>
         </div>
         <div className="flex flex-col gap-3 items-stretch sm:items-end w-full sm:w-auto">
@@ -424,7 +425,7 @@ const SupervisorDashboard = () => {
                 <StatusDistributionDonut
                   total={chartTotal}
                   slices={[
-                    { label: 'Cumplido a tiempo', value: data.compliance_breakdown.on_time, colorClass: 'stroke-emerald-500' },
+                    { label: 'Cumplido a tiempo', value: data.compliance_breakdown.on_time, colorClass: 'stroke-primary-500' },
                     { label: 'Entregado fuera de fecha', value: data.compliance_breakdown.late, colorClass: 'stroke-orange-400' },
                     { label: 'Vencido sin entregar', value: data.compliance_breakdown.missing, colorClass: 'stroke-red-500' },
                     { label: 'Pendiente (sin vencer)', value: data.compliance_breakdown.pending, colorClass: 'stroke-amber-400' },
@@ -621,7 +622,7 @@ function PdtAssistantPerformanceTable({
                   <td className="px-3 py-2 text-right tabular-nums">{r.pendiente}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{r.observado}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-red-700">{r.vencido}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{r.entregado_a_tiempo}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-primary-700">{r.entregado_a_tiempo}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-orange-700">{r.entregado_fuera_de_fecha}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-500">{r.sin_planilla}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-purple-700">{r.suspendida}</td>
@@ -678,7 +679,7 @@ function PdtTypeCard({
           <PdtMiniStat label="Suspendida" value={summary.suspendida} tone="purple" />
         ) : null}
       </div>
-      <p className="text-[10px] text-slate-400 mt-3">Total en período: {summary.total}</p>
+      <p className="text-2xs text-slate-400 mt-3">Total en período: {summary.total}</p>
     </div>
   );
 }
@@ -694,7 +695,7 @@ function PdtMiniStat({
 }) {
   const bg =
     tone === 'emerald'
-      ? 'bg-emerald-50 text-emerald-800'
+      ? 'bg-primary-50 text-primary-800'
       : tone === 'amber'
         ? 'bg-amber-50 text-amber-800'
         : tone === 'red'
@@ -729,7 +730,7 @@ function StatCard({
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" title={hint}>
       <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
         <i className={icon}></i> {label}
-        {hint ? <i className="fas fa-circle-info text-[10px] text-slate-300" aria-hidden /> : null}
+        {hint ? <i className="fas fa-circle-info text-2xs text-slate-300" aria-hidden /> : null}
       </div>
       <p className="text-2xl font-semibold text-slate-800">{value}</p>
     </div>

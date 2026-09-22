@@ -11,6 +11,8 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 import SearchableSelect from '../components/SearchableSelect';
+import PageHeading from '../components/ui/PageHeading';
+import Button from '../components/ui/Button';
 import Pagination from '../components/Pagination';
 import {
   PeriodScoreMini,
@@ -463,7 +465,7 @@ const Reports = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Reportes financieros</h2>
+          <PageHeading>Reportes financieros</PageHeading>
           <p className="text-sm text-slate-500">
             {isAdmin
               ? 'Resumen global de documentos, pagos y saldos por empresa. Las fechas filtran totales por emisión/pagos. La mora mínima y el score usan el periodo contable del cargo con saldo (periodo de servicio o mes de emisión).'
@@ -471,24 +473,19 @@ const Reports = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={handleExportExcel}
             disabled={loading || exportingExcel}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            className="inline-flex items-center gap-2"
           >
             <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`}></i>
             Excel
-          </button>
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            disabled={loading || exportingPdf}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 disabled:opacity-60"
-          >
+          </Button>
+          <Button onClick={handleExportPdf} disabled={loading || exportingPdf} className="inline-flex items-center gap-2">
             <i className={`fas ${exportingPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'} text-xs`}></i>
             PDF
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -580,7 +577,7 @@ const Reports = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
           <p className="text-xs font-medium text-slate-500 uppercase">Saldo global</p>
           <p
-            className={`mt-1 text-2xl font-bold ${summary.grandBalance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}
+            className={`mt-1 text-2xl font-bold ${summary.grandBalance > 0 ? 'text-amber-700' : 'text-primary-700'}`}
           >
             {formatMoney(summary.grandBalance)}
           </p>
@@ -593,7 +590,7 @@ const Reports = () => {
         </div>
         <div className="overflow-x-auto -mx-1 sm:mx-0 touch-pan-x">
           <table className="w-full min-w-[36rem] sm:min-w-0 text-left text-xs sm:text-sm">
-            <thead className="bg-slate-50 text-[10px] sm:text-xs font-semibold uppercase text-slate-500">
+            <thead className="bg-slate-50 text-2xs sm:text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-3 w-[11rem] sm:w-[32rem] max-w-[32rem]">Empresa</th>
                 <th className="px-2 py-2 sm:px-3 sm:py-3 w-14 sm:w-24 whitespace-nowrap">
@@ -606,7 +603,7 @@ const Reports = () => {
                     <span className="max-sm:hidden">Código</span>
                     <span className="sm:hidden">Cod.</span>
                     <i
-                      className={`fas text-[9px] sm:text-[10px] ${codeSortDir === 'asc' ? 'fa-sort-alpha-down' : 'fa-sort-alpha-up-alt'}`}
+                      className={`fas text-3xs sm:text-2xs ${codeSortDir === 'asc' ? 'fa-sort-alpha-down' : 'fa-sort-alpha-up-alt'}`}
                       aria-hidden
                     />
                   </button>
@@ -644,28 +641,28 @@ const Reports = () => {
                           {row.company.business_name}
                         </span>
                       </td>
-                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-slate-600 text-[11px] sm:text-xs font-mono whitespace-nowrap">
+                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-slate-600 text-2xs sm:text-xs font-mono whitespace-nowrap">
                         {row.company.code}
                       </td>
-                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-right text-slate-800 whitespace-nowrap tabular-nums text-[11px] sm:text-sm">
+                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-right text-slate-800 whitespace-nowrap tabular-nums text-2xs sm:text-sm">
                         {formatMoney(row.total_documents)}
                       </td>
-                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-right text-slate-800 whitespace-nowrap tabular-nums text-[11px] sm:text-sm">
+                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-right text-slate-800 whitespace-nowrap tabular-nums text-2xs sm:text-sm">
                         {formatMoney(row.total_payments)}
                       </td>
                       <td
-                        className={`px-2 py-2 sm:px-3 sm:py-3 text-right whitespace-nowrap tabular-nums text-[11px] sm:text-sm ${
-                          row.balance > 0 ? 'text-amber-700' : 'text-emerald-700'
+                        className={`px-2 py-2 sm:px-3 sm:py-3 text-right whitespace-nowrap tabular-nums text-2xs sm:text-sm ${
+                          row.balance > 0 ? 'text-amber-700' : 'text-primary-700'
                         }`}
                       >
                         {formatMoney(row.balance)}
                       </td>
-                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-center text-slate-700 text-[10px] sm:text-xs font-mono whitespace-nowrap">
+                      <td className="px-2 py-2 sm:px-3 sm:py-3 text-center text-slate-700 text-2xs sm:text-xs font-mono whitespace-nowrap">
                         {row.oldest_open_debt_period || '—'}
                       </td>
                       <td className="px-1.5 py-2 sm:px-3 sm:py-3 text-center">
                         <span
-                          className={`inline-flex max-w-full items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${mora.cls}`}
+                          className={`inline-flex max-w-full items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-2xs sm:text-2xs font-semibold whitespace-nowrap ${mora.cls}`}
                         >
                           {mora.label}
                         </span>

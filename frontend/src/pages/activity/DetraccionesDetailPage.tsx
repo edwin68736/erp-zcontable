@@ -247,7 +247,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
                   className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium hover:ring-2 hover:ring-primary-300 ${detraccionesStatusBadgeClass(status)}`}
                 >
                   {detraccionesStatusLabel(status)}
-                  <i className="fas fa-pen ml-1 text-[9px] opacity-70" aria-hidden />
+                  <i className="fas fa-pen ml-1 text-3xs opacity-70" aria-hidden />
                 </button>
               ) : (
                 <span
@@ -313,7 +313,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
                 type="button"
                 disabled={actionLoading || !fileUrl}
                 onClick={() => void handleVerify()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
               >
                 <i className="fas fa-check" aria-hidden />
                 Marcar como verificado

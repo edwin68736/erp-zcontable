@@ -4,6 +4,7 @@ import { companiesService } from '../services/companies';
 import { contactsService, type ContactUpsertInput } from '../services/contacts';
 import type { Company } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
+import PageHeading from '../components/ui/PageHeading';
 
 const CompanyContactForm = () => {
   const params = useParams();
@@ -117,7 +118,7 @@ const CompanyContactForm = () => {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <h2 className="text-xl font-semibold text-slate-800">{company.business_name}</h2>
+          <PageHeading>{company.business_name}</PageHeading>
           <p className="text-sm text-slate-500">{isEdit ? 'Editar contacto' : 'Nuevo contacto'} responsable.</p>
         </div>
         <Link

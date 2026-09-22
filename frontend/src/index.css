@@ -25,3 +25,19 @@
   background-color: #f8fafc;
   background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, #cbd5e1 5px, #cbd5e1 6px);
 }
+
+/* Fondo del sidebar (desktop + mobile): antes duplicado como cadena de clases
+   arbitrarias de ~700 caracteres en layouts/Sidebar.tsx con el degradado de
+   verde oscuro repetido en hex. Los tres tonos viven en tailwind.config.js
+   como el color `sidebar` (light/DEFAULT/dark); aquí solo se ensambla el
+   fondo compuesto (imagen + radiales decorativos + degradado). */
+.sidebar-gradient-bg {
+  background-image:
+    url('/sidebar.png'),
+    radial-gradient(80% 55% at 20% 78%, rgba(16, 185, 129, 0.30) 0%, rgba(16, 185, 129, 0) 60%),
+    radial-gradient(70% 60% at 70% 92%, rgba(250, 204, 21, 0.22) 0%, rgba(250, 204, 21, 0) 55%),
+    linear-gradient(180deg, #0A3C45 0%, #06343C 45%, #042B33 100%);
+  background-size: cover, auto, auto, auto;
+  background-position: center, center, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+}

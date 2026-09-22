@@ -57,7 +57,7 @@ const LiquidacionIgvAplicableToggle = ({ rates, companyIgvRate, onChange, showHe
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
       <p className="text-xs font-semibold text-slate-700">IGV aplicable — ventas y notas de crédito</p>
-      <p className="text-[11px] text-slate-500 leading-snug">
+      <p className="text-2xs text-slate-500 leading-snug">
         Seleccione una o ambas tasas. Por defecto se marca el IGV de la empresa (
         {formatCompanyIgvRateLabel(companyIgvRate)}). Las compras se registran aparte al 10.5 % o 18 %.
       </p>

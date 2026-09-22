@@ -42,11 +42,11 @@ export default function ActivityTemplatePreview({
           style={chipStyle}
           title={name}
         >
-          {icon ? <i className={`${iconClass} text-[10px] opacity-80`} aria-hidden /> : null}
+          {icon ? <i className={`${iconClass} text-2xs opacity-80`} aria-hidden /> : null}
           {name}
         </span>
         <span
-          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${priorityBadgeClass(priority)}`}
+          className={`inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold ring-1 ring-inset ${priorityBadgeClass(priority)}`}
         >
           {priorityLabel(priority)}
         </span>

@@ -5,6 +5,7 @@ import { DashboardData } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import { PeriodScoreMini, periodDebtMoraBadge } from '../utils/periodDebtScore';
+import PageHeading from '../components/ui/PageHeading';
 
 const Dashboard = () => {
   const canViewDashboard = auth.hasPermission(P.dashboardView);
@@ -49,7 +50,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-emerald-700 font-medium animate-pulse flex items-center gap-2">
+        <div className="text-primary-700 font-medium animate-pulse flex items-center gap-2">
           <i className="fas fa-spinner fa-spin"></i> Cargando dashboard...
         </div>
       </div>
@@ -80,9 +81,9 @@ const Dashboard = () => {
       title: 'Empresas',
       value: data.CompaniesCount,
       icon: 'fas fa-layer-group',
-      badgeDotColor: 'bg-emerald-200',
+      badgeDotColor: 'bg-primary-200',
       badgeText: 'Clientes del estudio',
-      activeBadgeDotColor: 'bg-emerald-500',
+      activeBadgeDotColor: 'bg-primary-500',
       description: 'Clientes del estudio'
     },
     {
@@ -90,9 +91,9 @@ const Dashboard = () => {
       title: 'Deudas registradas',
       value: data.DocumentsCount,
       icon: 'fas fa-file-invoice-dollar',
-      badgeDotColor: 'bg-emerald-500',
+      badgeDotColor: 'bg-primary-500',
       badgeText: 'Cargos en cuentas por cobrar',
-      activeBadgeDotColor: 'bg-emerald-200',
+      activeBadgeDotColor: 'bg-primary-200',
       description: 'Cargos en cuentas por cobrar'
     },
     {
@@ -100,9 +101,9 @@ const Dashboard = () => {
       title: 'Pagos registrados',
       value: data.PaymentsCount,
       icon: 'fas fa-wallet',
-      badgeDotColor: 'bg-emerald-500',
+      badgeDotColor: 'bg-primary-500',
       badgeText: 'Abonos realizados por clientes',
-      activeBadgeDotColor: 'bg-emerald-200',
+      activeBadgeDotColor: 'bg-primary-200',
       description: 'Abonos realizados por clientes'
     },
     {
@@ -110,16 +111,16 @@ const Dashboard = () => {
       title: 'Saldo por cobrar',
       value: `S/ ${data.GlobalBalance.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: 'fas fa-circle-dollar-to-slot',
-      badgeDotColor: 'bg-emerald-500',
+      badgeDotColor: 'bg-primary-500',
       badgeText: `Deudas S/ ${data.TotalDocs.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Pagos S/ ${data.TotalPays.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      activeBadgeDotColor: 'bg-emerald-200',
+      activeBadgeDotColor: 'bg-primary-200',
       description: `Deudas S/ ${data.TotalDocs.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Pagos S/ ${data.TotalPays.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
   ];
 
   const getCardClasses = (isActive: boolean) => {
     if (isActive) {
-      return "cursor-pointer relative overflow-hidden rounded-[1.75rem] p-6 shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-emerald-700 to-emerald-900 text-white ring-4 ring-emerald-500/20";
+      return "cursor-pointer relative overflow-hidden rounded-[1.75rem] p-6 shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-primary-700 to-primary-900 text-white ring-4 ring-primary-500/20";
     }
     return "cursor-pointer relative overflow-hidden rounded-[1.75rem] p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 bg-white text-slate-800";
   };
@@ -128,7 +129,7 @@ const Dashboard = () => {
     if (isActive) {
       return "absolute inset-0 flex items-center justify-center pointer-events-none opacity-15 text-white";
     }
-    return "absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 text-emerald-900";
+    return "absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 text-primary-900";
   };
 
   const getLabelClasses = (isActive: boolean) => {
@@ -161,9 +162,9 @@ const Dashboard = () => {
 
   const getBadgeTextClasses = (isActive: boolean) => {
     if (isActive) {
-      return "text-[10px] font-medium tracking-wide uppercase";
+      return "text-2xs font-medium tracking-wide uppercase";
     }
-    return "text-[10px] font-semibold text-slate-500 uppercase";
+    return "text-2xs font-semibold text-slate-500 uppercase";
   };
 
   return (
@@ -171,7 +172,7 @@ const Dashboard = () => {
       {/* Encabezado Dashboard financiero */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Dashboard</h1>
+          <PageHeading>Dashboard</PageHeading>
           <p className="text-slate-500 mt-1 text-sm font-medium">
             {isAdmin
               ? 'Resumen de clientes, deudas, pagos y saldo global del estudio.'
@@ -180,12 +181,12 @@ const Dashboard = () => {
         </div>
         <div className="flex gap-3">
           <Link to="/companies"
-             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-700 text-white text-sm font-semibold shadow-md shadow-emerald-800/30 hover:bg-emerald-800 transition">
+             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-700 text-white text-sm font-semibold shadow-md shadow-primary-800/30 hover:bg-primary-800 transition">
             <i className="fas fa-building text-xs"></i>
             <span>Ver empresas</span>
           </Link>
           <Link to="/reports/financial"
-             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-800 transition">
+             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-primary-800 transition">
             <i className="fas fa-chart-line text-xs"></i>
             <span>Ver reportes</span>
           </Link>
@@ -208,7 +209,7 @@ const Dashboard = () => {
                       {card.title}
                     </p>
                     <div className={getIconContainerClasses(isActive)}>
-                      <i className="fas fa-arrow-up-right-from-square text-[10px]"></i>
+                      <i className="fas fa-arrow-up-right-from-square text-2xs"></i>
                     </div>
                   </div>
                   <p className={getValueClasses(isActive)}>
@@ -216,7 +217,7 @@ const Dashboard = () => {
                   </p>
                 </div>
                 <div className={getBadgeContainerClasses(isActive)}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-200' : 'bg-emerald-500'}`}></span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-primary-200' : 'bg-primary-500'}`}></span>
                   <span className={getBadgeTextClasses(isActive)}>
                     {card.badgeText}
                   </span>
@@ -247,11 +248,11 @@ const Dashboard = () => {
                   <div className="w-full max-w-[40px] h-32 rounded-[1rem] relative overflow-hidden transition-all bg-stripes-gray">
                     {month.Level !== "zero" && (
                       <div
-                        className={`absolute inset-x-0 bottom-0 rounded-[1rem] ${month.Level === "max" ? "bg-[#065f46] shadow-xl shadow-emerald-900/30 text-white" : "bg-[#34d399] shadow-md shadow-emerald-900/10 text-emerald-900"}`}
+                        className={`absolute inset-x-0 bottom-0 rounded-[1rem] ${month.Level === "max" ? "bg-primary-800 shadow-xl shadow-primary-900/30 text-white" : "bg-primary-400 shadow-md shadow-primary-900/10 text-primary-900"}`}
                         style={{ height: `${month.Height}%` }}
                       ></div>
                     )}
-                    <div className="absolute inset-x-0 bottom-2 text-center text-[10px] font-semibold pointer-events-none">
+                    <div className="absolute inset-x-0 bottom-2 text-center text-2xs font-semibold pointer-events-none">
                       S/ {month.Amount.toFixed(0)}
                     </div>
                   </div>
@@ -273,7 +274,7 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="flex flex-col gap-1 min-w-[200px]">
-                <label htmlFor="dash-debt-mora" className="text-[11px] font-semibold text-slate-500 uppercase">
+                <label htmlFor="dash-debt-mora" className="text-2xs font-semibold text-slate-500 uppercase">
                   Atraso de periodo (mín.)
                 </label>
                 <select
@@ -281,7 +282,7 @@ const Dashboard = () => {
                   value={debtOverdueFilter}
                   onChange={(e) => setDebtOverdueFilter(e.target.value)}
                   disabled={debtListRefreshing}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-60"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-60"
                 >
                   <option value="">Todas (top 10 por saldo)</option>
                   <option value="1">≥ 1 mes de atraso (periodo)</option>
@@ -303,14 +304,14 @@ const Dashboard = () => {
                   return (
                     <div key={debtor.Company?.id ?? idx} className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 text-xs font-bold border border-emerald-100 overflow-hidden flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 text-xs font-bold border border-primary-100 overflow-hidden flex-shrink-0">
                           <span className="truncate max-w-[2.5rem]">
                             {debtor.Company.trade_name || debtor.Company.business_name}
                           </span>
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-800 truncate">{debtor.Company.business_name}</p>
-                          <p className="text-[11px] text-slate-400 font-medium">
+                          <p className="text-2xs text-slate-400 font-medium">
                             Código: {debtor.Company.code} · RUC: {debtor.Company.ruc}
                             {debtor.OldestOpenDebtPeriod ? (
                               <>
@@ -335,7 +336,7 @@ const Dashboard = () => {
                           </p>
                         </div>
                         <span
-                          className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide whitespace-nowrap ${mora.cls}`}
+                          className={`px-3 py-1 rounded-full text-2xs font-bold tracking-wide whitespace-nowrap ${mora.cls}`}
                         >
                           {mora.label}
                         </span>
@@ -366,15 +367,15 @@ const Dashboard = () => {
                 </p>
               </div>
               <Link to="/reports/financial"
-                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-700 text-white text-[11px] font-semibold hover:bg-emerald-800">
-                <i className="fas fa-chart-pie text-[10px]"></i>
+                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-700 text-white text-2xs font-semibold hover:bg-primary-800">
+                <i className="fas fa-chart-pie text-2xs"></i>
                 Reportes
               </Link>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
               <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
-                <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
+                <p className="text-2xs font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                   Docs pendientes
                 </p>
@@ -382,19 +383,19 @@ const Dashboard = () => {
               </div>
 
               <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-3">
-                <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wide flex items-center gap-1">
+                <p className="text-2xs font-semibold text-red-700 uppercase tracking-wide flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                   Docs vencidos
                 </p>
                 <p className="mt-1 text-xl font-bold text-red-800">{data.OverdueDocsCount}</p>
               </div>
 
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3">
-                <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <div className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-3">
+                <p className="text-2xs font-semibold text-primary-700 uppercase tracking-wide flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
                   Empresas con deuda
                 </p>
-                <p className="mt-1 text-xl font-bold text-emerald-800">{data.DebtCompaniesCount}</p>
+                <p className="mt-1 text-xl font-bold text-primary-800">{data.DebtCompaniesCount}</p>
               </div>
             </div>
 
@@ -403,7 +404,7 @@ const Dashboard = () => {
                 Deuda total aproximada: <span className="font-semibold text-slate-700">S/ {data.TotalDebtAmount.toFixed(2)}</span>
               </span>
               <Link to="/companies"
-                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900">
+                 className="inline-flex items-center gap-1.5 text-2xs font-semibold text-primary-700 hover:text-primary-900">
                 <i className="fas fa-building"></i> Ver empresas
               </Link>
             </div>
@@ -447,7 +448,7 @@ const Dashboard = () => {
                       <p className="text-4xl font-bold text-slate-800">
                         {yearPercentText}
                       </p>
-                      <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                      <p className="text-2xs text-slate-400 uppercase font-bold tracking-wider">
                         Cobranza anual
                       </p>
                    </div>
@@ -456,7 +457,7 @@ const Dashboard = () => {
              
              <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-500">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-700"></span>
+                  <span className="w-2 h-2 rounded-full bg-primary-700"></span>
                   <span>Pagos registrados S/ {data.YearCollectionPaysStr}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -469,7 +470,7 @@ const Dashboard = () => {
                 <p className="text-xs font-bold text-slate-400 mb-2">Avance de cobranza anual</p>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                    <div
-                     className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-emerald-700"
+                     className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-primary-700"
                      style={{ width: `${yearPercent}%`, minWidth: '4px' }}
                    ></div>
                 </div>
@@ -498,7 +499,7 @@ const Dashboard = () => {
                             doc.status !== 'pagado' &&
                             doc.status !== 'anulado',
                         );
-                        if (doc.status === 'pagado') return 'bg-emerald-50 text-emerald-700';
+                        if (doc.status === 'pagado') return 'bg-primary-50 text-primary-700';
                         if (isOverdue) return 'bg-red-50 text-red-600';
                         return 'bg-amber-50 text-amber-600';
                       })()}`}
@@ -510,7 +511,7 @@ const Dashboard = () => {
                         <p className="text-sm font-bold text-slate-800 truncate">
                           {doc.company ? doc.company.business_name : 'Sin empresa'}
                         </p>
-                        <span className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
+                        <span className="text-2xs font-mono text-slate-400 whitespace-nowrap">
                           {doc.issue_date.split('T')[0]}
                         </span>
                       </div>
@@ -533,13 +534,13 @@ const Dashboard = () => {
                           const label = isOverdue ? 'vencido' : doc.status;
                           const cls =
                             label === 'pagado'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-primary-50 text-primary-700 border border-primary-200'
                               : label === 'vencido'
                                 ? 'bg-red-50 text-red-700 border border-red-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200';
                           return (
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${cls}`}
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wide ${cls}`}
                             >
                               {label}
                             </span>

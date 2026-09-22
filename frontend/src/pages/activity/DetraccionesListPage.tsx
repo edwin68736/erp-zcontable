@@ -215,7 +215,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control de Detracciones SUNAT</h1>
           <p className="text-slate-500 mt-1 text-sm">
@@ -254,7 +254,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
           </select>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
       </div>
@@ -328,7 +328,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                           // §5.9.7: única fuente de esta marca es este módulo — sin esto, una
                           // empresa suspendida podía verse como si se hubiera eliminado del listado.
                           <span
-                            className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-900"
+                            className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-100 text-purple-900"
                             title="Suspendida en este período"
                           >
                             Suspendida

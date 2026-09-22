@@ -27,12 +27,12 @@ const CompanyDigitoFilter = ({
   return (
     <div className={`min-w-0 ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Dígitos</p>
+        <p className="text-2xs font-medium uppercase tracking-wide text-slate-500">Dígitos</p>
         {filterDig ? (
           <button
             type="button"
             onClick={() => onFilterDigChange(null)}
-            className="text-[10px] font-medium text-primary-700 hover:text-primary-900 hover:underline"
+            className="text-2xs font-medium text-primary-700 hover:text-primary-900 hover:underline"
           >
             Limpiar
           </button>

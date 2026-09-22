@@ -29,6 +29,7 @@ import {
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
+import Button from '../../components/ui/Button';
 
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
@@ -138,7 +139,7 @@ const PLANILLA_INPUT =
 /** Clase + ícono del banner de mensaje según resultado (éxito/error/info) — para que se note
  * claramente si una acción (guardar, cambiar estado, aprobar, observar) funcionó o no. */
 function msgBannerClass(tone: 'success' | 'error' | 'info'): string {
-  if (tone === 'success') return 'bg-emerald-50 border-emerald-200 text-emerald-800';
+  if (tone === 'success') return 'bg-primary-50 border-primary-200 text-primary-800';
   if (tone === 'error') return 'bg-red-50 border-red-200 text-red-700';
   return 'bg-slate-50 border-slate-200 text-slate-700';
 }
@@ -149,7 +150,7 @@ function msgBannerIcon(tone: 'success' | 'error' | 'info'): string {
 }
 /** Solo el color de texto (sin fondo/borde) — para repetir el mensaje junto al botón "Guardar". */
 function msgTextClass(tone: 'success' | 'error' | 'info'): string {
-  if (tone === 'success') return 'text-emerald-700';
+  if (tone === 'success') return 'text-primary-700';
   if (tone === 'error') return 'text-red-700';
   return 'text-slate-600';
 }
@@ -555,7 +556,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
               // el permiso dedicado (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7).
               <div className="space-y-3">
                 <p className="flex items-start gap-2 text-sm text-slate-500">
-                  <i className="fas fa-check-circle mt-0.5 text-emerald-600" aria-hidden />
+                  <i className="fas fa-check-circle mt-0.5 text-primary-600" aria-hidden />
                   Esta declaración ya fue entregada — no aplica observar ni aprobar de nuevo.
                 </p>
                 {canReopen ? (
@@ -638,7 +639,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                     type="button"
                     disabled={actionLoading}
                     onClick={() => void handleApprove()}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                   >
                     Aprobar
                   </button>
@@ -917,14 +918,9 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
                 {msg}
               </span>
             ) : null}
-            <button
-              type="button"
-              disabled={planillaSaving || formLocked}
-              onClick={() => void handleSavePlanilla()}
-              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-            >
+            <Button disabled={planillaSaving || formLocked} onClick={() => void handleSavePlanilla()}>
               {planillaSaving ? 'Guardando…' : 'Guardar planilla'}
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>

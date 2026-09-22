@@ -10,7 +10,7 @@ export function IgvJustoReadOnlyBar() {
       <i className="fas fa-calendar-check text-sky-600 text-sm" aria-hidden />
       <div className="min-w-0">
         <p className="text-xs font-semibold text-sky-900">Acogido a IGV Justo</p>
-        <p className="text-[11px] text-sky-700">
+        <p className="text-2xs text-sky-700">
           El cliente puede postergar el pago del IGV según el cronograma especial para MYPE.
         </p>
       </div>

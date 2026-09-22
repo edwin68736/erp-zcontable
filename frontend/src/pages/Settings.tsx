@@ -4,6 +4,7 @@ import { P } from '../rbac/codes';
 import { configService } from '../services/config';
 import type { FirmConfig } from '../types/dashboard';
 import { resolveBackendUrl } from '../api/client';
+import PageHeading from '../components/ui/PageHeading';
 import {
   CLAVES_SOL_PASTEL_PALETTE,
   CLAVES_SOL_DIGIT_KEYS,
@@ -229,7 +230,7 @@ const Settings = () => {
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800">Perfil del estudio</h2>
+        <PageHeading>Perfil del estudio</PageHeading>
         <p className="text-sm text-slate-500">Datos generales utilizados en reportes y encabezados.</p>
       </div>
 
@@ -252,7 +253,7 @@ const Settings = () => {
       {config ? (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-6 bg-gradient-to-r from-primary-700 to-emerald-700 text-white">
+            <div className="px-6 py-6 bg-gradient-to-r from-primary-700 to-primary-700 text-white">
               <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white/15 ring-1 ring-white/25 overflow-hidden flex items-center justify-center">
@@ -402,7 +403,7 @@ const Settings = () => {
                     <p className="text-xs text-slate-600 mt-1">
                       Se solicita al editar o eliminar liquidaciones de impuestos.{' '}
                       {config.operations_key_configured ? (
-                        <span className="font-medium text-emerald-800">Ya hay una clave configurada.</span>
+                        <span className="font-medium text-primary-800">Ya hay una clave configurada.</span>
                       ) : (
                         <span className="font-medium text-amber-800">Aún no hay clave configurada.</span>
                       )}

@@ -8,6 +8,7 @@ import type { TukifacFiscalReceipt } from '../../types/dashboard';
 import Pagination from '../../components/Pagination';
 import { configService } from '../../services/config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import PageHeading from '../../components/ui/PageHeading';
 
 const PosHistory = () => {
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);
@@ -74,7 +75,7 @@ const PosHistory = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Mis comprobantes</h1>
+          <PageHeading>Mis comprobantes</PageHeading>
           <p className="text-sm text-slate-500">Ventas emitidas desde el punto de venta</p>
         </div>
         <Link

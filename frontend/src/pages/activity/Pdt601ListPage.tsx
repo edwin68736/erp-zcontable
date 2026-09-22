@@ -65,7 +65,7 @@ type Pdt601ListPageProps = {
 };
 
 const TH = 'px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500 whitespace-nowrap';
-const SUBTH = 'px-3 py-2 text-center text-[11px] font-semibold uppercase text-slate-500 whitespace-nowrap';
+const SUBTH = 'px-3 py-2 text-center text-2xs font-semibold uppercase text-slate-500 whitespace-nowrap';
 const TD = 'px-4 py-3 text-sm text-slate-700 border-t border-slate-100';
 const TDN = `${TD} tabular-nums text-center whitespace-nowrap`;
 const TDM = `${TD} tabular-nums text-right whitespace-nowrap`;
@@ -103,7 +103,7 @@ function frozenRowBgClass(
 ): string {
   if (suspendida) return 'bg-purple-50 group-hover:bg-purple-100';
   if (sinPlanilla) return 'bg-slate-100 group-hover:bg-slate-200';
-  if (timeliness === 'on_time') return 'bg-emerald-50 group-hover:bg-emerald-100';
+  if (timeliness === 'on_time') return 'bg-primary-50 group-hover:bg-primary-100';
   if (timeliness === 'missing' || timeliness === 'late') return 'bg-red-50 group-hover:bg-red-100';
   return 'bg-white group-hover:bg-slate-50';
 }
@@ -234,7 +234,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control Planillas PDT 601</h1>
           <p className="text-slate-500 mt-1 text-sm">
@@ -295,14 +295,14 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
           </select>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
+          <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         <button
           type="button"
           onClick={() => void handleExportExcel()}
           disabled={loading || exportingExcel}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100 disabled:opacity-50 shrink-0"
         >
           <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
           Excel
@@ -311,7 +311,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
       </div>
 
       {msg ? (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-center gap-2">
+        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
           <i className="fas fa-check-circle" aria-hidden />
           {msg}
         </div>
@@ -464,7 +464,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           {!blocked && row.status !== 'entregado' ? (
                             <span
                               title="Cumplimiento del plazo de entrega según el calendario de actividades"
-                              className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${timelinessBadgeClass(row.timeliness)}`}
+                              className={`inline-block px-2 py-0.5 rounded-full text-2xs font-medium ${timelinessBadgeClass(row.timeliness)}`}
                             >
                               {timelinessLabel(row.timeliness)}
                             </span>
@@ -479,7 +479,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           <span
                             title={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
                             aria-label={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600 text-white shadow-sm cursor-default"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white shadow-sm cursor-default"
                           >
                             <i className="fas fa-check text-xs" aria-hidden />
                           </span>

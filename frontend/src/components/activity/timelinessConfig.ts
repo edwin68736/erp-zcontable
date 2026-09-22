@@ -7,7 +7,7 @@ export type TimelinessCode =
   | 'no_rule';
 
 const TIMELINESS_BADGE: Record<TimelinessCode, string> = {
-  on_time: 'bg-emerald-100 text-emerald-800',
+  on_time: 'bg-primary-100 text-primary-800',
   late: 'bg-orange-100 text-orange-900',
   pending: 'bg-amber-100 text-amber-900',
   missing: 'bg-red-100 text-red-800',
@@ -25,7 +25,7 @@ const TIMELINESS_LABEL: Record<TimelinessCode, string> = {
 };
 
 const TIMELINESS_ROW_BORDER: Record<TimelinessCode, string> = {
-  on_time: 'border-l-emerald-500',
+  on_time: 'border-l-primary-500',
   late: 'border-l-orange-500',
   pending: 'border-l-amber-400',
   missing: 'border-l-red-500',

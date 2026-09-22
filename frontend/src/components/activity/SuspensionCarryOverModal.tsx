@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { SuspensionCarryOverRow } from '../../services/detracciones';
+import Button from '../ui/Button';
 
 type SuspensionCarryOverModalProps = {
   open: boolean;
@@ -45,7 +46,7 @@ const SuspensionCarryOverModal = ({ open, companies, saving, error, onClose, onC
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Cerrar"
@@ -98,7 +99,7 @@ const SuspensionCarryOverModal = ({ open, companies, saving, error, onClose, onC
                 </span>
                 <span
                   className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-                    keep.has(c.company_id) ? 'bg-purple-100 text-purple-900' : 'bg-emerald-100 text-emerald-800'
+                    keep.has(c.company_id) ? 'bg-purple-100 text-purple-900' : 'bg-primary-100 text-primary-800'
                   }`}
                 >
                   {keep.has(c.company_id) ? 'Mantener suspendida' : 'Reactivar'}
@@ -117,14 +118,9 @@ const SuspensionCarryOverModal = ({ open, companies, saving, error, onClose, onC
           >
             Decidir después
           </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onConfirm(Array.from(keep))}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-          >
+          <Button disabled={saving} onClick={() => onConfirm(Array.from(keep))}>
             {saving ? 'Guardando…' : 'Confirmar'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

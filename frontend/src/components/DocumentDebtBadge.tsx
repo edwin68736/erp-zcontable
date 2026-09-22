@@ -13,7 +13,7 @@ const DocumentDebtBadge = ({ doc, className = '' }: Props) => {
         {badge.label}
       </span>
       {badge.subLabel ? (
-        <span className="text-[10px] text-slate-500 leading-tight">({badge.subLabel})</span>
+        <span className="text-2xs text-slate-500 leading-tight">({badge.subLabel})</span>
       ) : null}
     </div>
   );

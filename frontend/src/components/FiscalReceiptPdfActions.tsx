@@ -50,7 +50,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Ver ticket 80 mm"
         >
-          <i className="fas fa-receipt text-[10px]" />
+          <i className="fas fa-receipt text-2xs" />
           {busy === 'ticket' ? '…' : compact ? 'Ticket' : 'Ver ticket'}
         </button>
         <button
@@ -60,7 +60,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Ver PDF A5"
         >
-          <i className="fas fa-file-pdf text-[10px] text-red-600" />
+          <i className="fas fa-file-pdf text-2xs text-red-600" />
           {busy === 'a5' ? '…' : compact ? 'A5' : 'Ver A5'}
         </button>
         <button
@@ -70,7 +70,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Ver PDF A4"
         >
-          <i className="fas fa-file-pdf text-[10px] text-red-600" />
+          <i className="fas fa-file-pdf text-2xs text-red-600" />
           {busy === 'a4' ? '…' : compact ? 'A4' : 'Ver A4'}
         </button>
         <button
@@ -80,7 +80,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Descargar ticket (NV01-00000001.pdf)"
         >
-          <i className="fas fa-download text-[10px]" />
+          <i className="fas fa-download text-2xs" />
           {compact ? '' : 'Desc. ticket'}
         </button>
         <button
@@ -90,7 +90,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Descargar A5 (NV01-00000001.pdf)"
         >
-          <i className="fas fa-file-download text-[10px] text-red-600" />
+          <i className="fas fa-file-download text-2xs text-red-600" />
           {compact ? '' : 'Desc. A5'}
         </button>
         <button
@@ -100,7 +100,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
           className={btnClass}
           title="Descargar A4 (NV01-00000001.pdf)"
         >
-          <i className="fas fa-file-download text-[10px] text-red-600" />
+          <i className="fas fa-file-download text-2xs text-red-600" />
           {compact ? '' : 'Desc. A4'}
         </button>
       </div>

@@ -6,6 +6,7 @@ import { productCategoriesService, type ProductCategory } from '../services/prod
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
+import Input from '../components/ui/Input';
 import { SUNAT_PRODUCT_UNIT_LABEL, SUNAT_SERVICE_UNITS } from '../constants/sunatUnitOfMeasure';
 
 /** Contenedor: crece con el viewport en pantallas grandes; mantiene márgenes cómodos en móvil. */
@@ -261,14 +262,14 @@ const ProductForm = () => {
       </div>
 
       {fromImport ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-xs text-emerald-900 flex flex-wrap items-center gap-2">
+        <div className="rounded-xl border border-primary-200 bg-primary-50/80 px-3 py-2.5 text-xs text-primary-900 flex flex-wrap items-center gap-2">
           <span className="font-semibold">Ítem importado al catálogo</span>
-          <span className="text-emerald-800/80 font-mono">
+          <span className="text-primary-800/80 font-mono">
             {internalId.trim() !== '' ? internalId.trim() : 'sin código interno'}
           </span>
           {imageUrl ? (
             <a href={imageUrl} target="_blank" rel="noreferrer" className="ml-auto">
-              <img src={imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover border border-emerald-200" />
+              <img src={imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover border border-primary-200" />
             </a>
           ) : null}
         </div>
@@ -315,8 +316,8 @@ const ProductForm = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Código de barras</label>
-            <input
+            <Input
+              label="Código de barras"
               value={barcode}
               onChange={(e) => {
                 const next = e.target.value;
@@ -324,7 +325,7 @@ const ProductForm = () => {
                 setBarcode(next);
               }}
               placeholder="Código de barras"
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 outline-none"
+              className="placeholder:text-slate-400"
             />
           </div>
           <div>
@@ -342,7 +343,7 @@ const ProductForm = () => {
               placeholder="Ej. VARIOUS_ITEM, SKU-001, PROD2026"
               className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 outline-none"
             />
-            <p className="mt-1 text-[11px] text-slate-500 leading-snug">
+            <p className="mt-1 text-2xs text-slate-500 leading-snug">
               Alfanumérico (letras y/o números). Se usa al emitir comprobantes y en el POS. Por defecto se iguala al código de barras si lo
               edita allí primero.
             </p>
@@ -533,14 +534,14 @@ const ProductForm = () => {
 
       {catModalOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-slate-900/40"
                 aria-label="Cerrar"
                 onClick={() => setCatModalOpen(false)}
               />
-              <div className="relative w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
+              <div className="relative w-full max-w-sm bg-white rounded-xl border border-slate-200 shadow-xl p-5">
                 <h3 className="text-sm font-semibold text-slate-800 mb-3">Nueva categoría</h3>
                 {catError ? <div className="text-xs text-red-600 mb-2">{catError}</div> : null}
                 <input

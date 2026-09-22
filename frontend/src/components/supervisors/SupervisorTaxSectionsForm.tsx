@@ -121,7 +121,7 @@ function AmountField({
         className={
           hideLabel
             ? 'sr-only'
-            : `block ${compact ? 'text-xs' : 'text-[11px]'} font-medium text-slate-500 mb-1`
+            : `block ${compact ? 'text-xs' : 'text-2xs'} font-medium text-slate-500 mb-1`
         }
       >
         {label}
@@ -390,7 +390,7 @@ function IgvJustoBar({ checked, onChange }: { checked: boolean; onChange: (v: bo
         <ToggleSwitch id="igv-justo-switch" checked={checked} onChange={onChange} />
         <div className="min-w-0">
           <p className="text-xs font-semibold text-slate-800">IGV Justo</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">
+          <p className="mt-0.5 text-2xs text-slate-500">
             {checked
               ? 'Acogido: el cliente puede postergar el pago del IGV según el cronograma especial para MYPE.'
               : 'Sin acogimiento a IGV Justo.'}
@@ -425,10 +425,10 @@ function DetraccionActionBar({
           disabled={disabled}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-800 text-xs font-semibold hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <i className="fas fa-calculator text-[11px]" aria-hidden />
+          <i className="fas fa-calculator text-2xs" aria-hidden />
           {buttonLabel}
         </button>
-        <p className="mt-1.5 text-[11px] text-slate-500">{infoText}</p>
+        <p className="mt-1.5 text-2xs text-slate-500">{infoText}</p>
       </div>
       <div className="text-right">
         <p className="text-xs text-slate-500">{totalLabel}</p>
@@ -488,7 +488,7 @@ function DetraccionModal({
   const modalFieldName = `detraccion-mode-${sectionLabel.replace(/\s+/g, '-').toLowerCase()}`;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar modal de pago detracción/efectivo" />
       <div className="relative w-full max-w-xl rounded-t-2xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="px-5 py-4 border-b border-slate-100">
@@ -557,11 +557,11 @@ function DetraccionModal({
               </div>
             ) : null}
           </fieldset>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-            <p className="text-emerald-800">Aplicación estimada con detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
-            <p className="text-emerald-900 mt-0.5">Impuesto pendiente luego de detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
+          <div className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm">
+            <p className="text-primary-800">Aplicación estimada con detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxMoney(computedApplied)}</span></p>
+            <p className="text-primary-900 mt-0.5">Impuesto pendiente luego de detracción/efectivo: <span className="font-semibold tabular-nums">{formatTaxTotalMoney(pendingAfterDetraction)}</span></p>
             {additionalPayableAmount > 0 ? (
-              <p className="text-emerald-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto adicional'}: {formatTaxMoney(additionalPayableAmount)}</p>
+              <p className="text-primary-800/90 mt-1 text-xs">Incluye {additionalPayableLabel ?? 'monto adicional'}: {formatTaxMoney(additionalPayableAmount)}</p>
             ) : null}
           </div>
         </div>
@@ -1114,7 +1114,7 @@ const SupervisorTaxSectionsForm = ({
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Cuota N°</label>
+            <label className="block text-2xs font-medium text-slate-500 mb-1">Cuota N°</label>
             <input
               type="number"
               min={1}
@@ -1255,7 +1255,7 @@ const SupervisorTaxSectionsForm = ({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Periodo (año)</label>
+            <label className="block text-2xs font-medium text-slate-500 mb-1">Periodo (año)</label>
             <input
               type="number"
               min={2000}

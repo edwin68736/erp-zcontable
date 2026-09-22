@@ -16,6 +16,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import { dateInputToRFC3339MidnightPeru, todayDateInputInPeru } from '../utils/peruDates';
 import { formatUserPickLabel } from '../utils/userLabel';
 import { extractApiErrorMessage } from '../utils/apiError';
+import PageHeading from '../components/ui/PageHeading';
+import Input from '../components/ui/Input';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -469,9 +471,9 @@ const CompanyForm = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">
+          <PageHeading>
             {convertMode ? 'Convertir a cliente del estudio' : isEdit ? 'Editar empresa' : 'Nueva empresa'}
-          </h2>
+          </PageHeading>
           <p className="text-sm text-slate-500">
             {convertMode
               ? 'Complete plan, equipo y datos contables. El cliente dejará de ser solo POS.'
@@ -541,19 +543,17 @@ const CompanyForm = () => {
               <div className="space-y-5 min-w-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-1">
-                <label htmlFor="internal_code" className="block text-sm font-medium text-slate-700 mb-1">
-                  Código interno
-                </label>
-                <input
+                <Input
                   type="text"
                   id="internal_code"
+                  label="Código interno"
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value.slice(0, 50))}
                   maxLength={50}
                   autoComplete="off"
                   placeholder="001"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  className="font-mono"
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   Texto libre (p. ej. 001, 002). Se conservan ceros a la izquierda.
@@ -591,42 +591,33 @@ const CompanyForm = () => {
             </div>
 
             <div>
-              <label htmlFor="business_name" className="block text-sm font-medium text-slate-700 mb-1">
-                Razón social
-              </label>
-              <input
+              <Input
                 type="text"
                 id="business_name"
+                label="Razón social"
                 required
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="trade_name" className="block text-sm font-medium text-slate-700 mb-1">
-                  Nombre comercial
-                </label>
-                <input
+                <Input
                   type="text"
                   id="trade_name"
+                  label="Nombre comercial"
                   value={tradeName}
                   onChange={(e) => setTradeName(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
               </div>
               <div>
-                <label htmlFor="service_start_at" className="block text-sm font-medium text-slate-700 mb-1">
-                  Inicio de servicio
-                </label>
-                <input
+                <Input
                   type="date"
                   id="service_start_at"
+                  label="Inicio de servicio"
                   value={serviceStartAt}
                   onChange={(e) => setServiceStartAt(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   También se usa como fecha de inicio de la suscripción.
@@ -660,7 +651,7 @@ const CompanyForm = () => {
                   placeholder="Seleccione régimen"
                   options={[...TAX_REGIME_OPTIONS]}
                 />
-                <p className="mt-1.5 text-[11px] text-slate-500 leading-snug">
+                <p className="mt-1.5 text-2xs text-slate-500 leading-snug">
                   MYPE 1 %, RER 1.5 %, General 1.5 % mínimo (SUNAT). Se usa por defecto al crear liquidaciones.
                 </p>
               </div>
@@ -668,40 +659,31 @@ const CompanyForm = () => {
 
                 <div className="space-y-4 pt-2 border-t border-slate-100">
                   <div>
-                    <label htmlFor="address" className="block text-sm font-medium text-slate-700 mb-1">
-                      Dirección
-                    </label>
-                    <input
+                    <Input
                       type="text"
                       id="address"
+                      label="Dirección"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1">
-                        Teléfono
-                      </label>
-                      <input
+                      <Input
                         type="text"
                         id="phone"
+                        label="Teléfono"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-                        Correo electrónico
-                      </label>
-                      <input
+                      <Input
                         type="email"
                         id="email"
+                        label="Correo electrónico"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                       />
                     </div>
                   </div>
@@ -765,15 +747,12 @@ const CompanyForm = () => {
                   </p>
                 </div>
                 <div>
-                  <label htmlFor="subscription_ended_at" className="block text-sm font-medium text-slate-700 mb-1">
-                    Fin suscripción (opcional)
-                  </label>
-                  <input
+                  <Input
                     type="date"
                     id="subscription_ended_at"
+                    label="Fin suscripción (opcional)"
                     value={subscriptionEndedAt}
                     onChange={(e) => setSubscriptionEndedAt(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
                 <div>
@@ -926,54 +905,42 @@ const CompanyForm = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="contact_full_name" className="block text-sm font-medium text-slate-700 mb-1">
-                    Nombre completo
-                  </label>
-                  <input
+                  <Input
                     type="text"
                     id="contact_full_name"
+                    label="Nombre completo"
                     value={newContact.full_name}
                     onChange={(e) => setNewContact((p) => ({ ...p, full_name: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="contact_position" className="block text-sm font-medium text-slate-700 mb-1">
-                    Cargo
-                  </label>
-                  <input
+                  <Input
                     type="text"
                     id="contact_position"
+                    label="Cargo"
                     value={newContact.position}
                     onChange={(e) => setNewContact((p) => ({ ...p, position: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <div>
-                  <label htmlFor="contact_phone" className="block text-sm font-medium text-slate-700 mb-1">
-                    Teléfono / Celular
-                  </label>
-                  <input
+                  <Input
                     type="text"
                     id="contact_phone"
+                    label="Teléfono / Celular"
                     value={newContact.phone}
                     onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label htmlFor="contact_email" className="block text-sm font-medium text-slate-700 mb-1">
-                    Correo electrónico
-                  </label>
-                  <input
+                  <Input
                     type="email"
                     id="contact_email"
+                    label="Correo electrónico"
                     value={newContact.email}
                     onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
               </div>
@@ -996,15 +963,12 @@ const CompanyForm = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="contact_notes" className="block text-sm font-medium text-slate-700 mb-1">
-                    Observaciones
-                  </label>
-                  <input
+                  <Input
                     type="text"
                     id="contact_notes"
+                    label="Observaciones"
                     value={newContact.notes}
                     onChange={(e) => setNewContact((p) => ({ ...p, notes: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                   />
                 </div>
               </div>

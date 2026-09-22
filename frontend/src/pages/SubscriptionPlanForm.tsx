@@ -5,6 +5,7 @@ import { subscriptionPlansService } from '../services/subscriptionPlans';
 import type { PlanCategory, PlanTier } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
 
 type TierRow = { min_billing: string; max_billing: string; monthly_price: string; sort_order: string };
 
@@ -119,8 +120,8 @@ const SubscriptionPlanForm = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">{editId ? 'Editar plan' : 'Nuevo plan'}</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <PageHeading>{editId ? 'Editar plan' : 'Nuevo plan'}</PageHeading>
         <Link to="/subscription-plans" className="text-sm text-slate-600">
           Volver
         </Link>
@@ -180,7 +181,7 @@ const SubscriptionPlanForm = () => {
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
             <label className="text-sm font-medium">Tramos (facturación mín / máx / precio mensual)</label>
             <button
               type="button"
@@ -192,7 +193,7 @@ const SubscriptionPlanForm = () => {
           </div>
           <div className="space-y-2">
             {tiers.map((row, idx) => (
-              <div key={idx} className="grid grid-cols-4 gap-2 items-end">
+              <div key={idx} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
                 <div>
                   <span className="text-xs text-slate-500">Mín fact.</span>
                   <input

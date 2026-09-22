@@ -61,12 +61,12 @@ const DaySidePanel = ({
     <>
       <button
         type="button"
-        className="fixed inset-0 bg-slate-900/20 z-[9990] lg:hidden"
+        className="fixed inset-0 bg-slate-900/20 z-panel-backdrop lg:hidden"
         onClick={onClose}
         aria-label="Cerrar panel"
       />
       <aside
-        className={`fixed inset-y-0 right-0 z-[9995] flex h-dvh max-h-dvh w-full max-w-md flex-col bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ${
+        className={`fixed inset-y-0 right-0 z-panel flex h-dvh max-h-dvh w-full max-w-md flex-col bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -118,7 +118,7 @@ const DaySidePanel = ({
                       </p>
                       <p className="text-xs text-slate-500 mt-0.5">{kindLabel(a.activity_kind)}</p>
                     </div>
-                    <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${st.badge}`}>
+                    <span className={`shrink-0 text-2xs font-medium px-2 py-0.5 rounded-full ${st.badge}`}>
                       {tl === 'rojo' ? 'Vencida' : tl === 'amarillo' ? 'Próxima' : tl === 'verde' ? 'Al día' : 'Pendiente'}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ const DaySidePanel = ({
               <h4 className="text-sm font-semibold text-slate-800">Cumplimiento — mis empresas</h4>
               <p className="text-xs text-slate-500 mt-0.5">{compliance.activity_name}</p>
               <div className="flex flex-wrap gap-3 mt-3 text-xs">
-                <span className="text-emerald-700 font-medium">{compliance.completed} completadas</span>
+                <span className="text-primary-700 font-medium">{compliance.completed} completadas</span>
                 <span className="text-amber-700 font-medium">{compliance.pending} pendientes</span>
                 <span className="text-red-700 font-medium">{compliance.overdue} vencidas</span>
               </div>

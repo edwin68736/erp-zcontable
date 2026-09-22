@@ -137,7 +137,7 @@ const DetraccionesRowActions = ({
               title="Cambiar estado (supervisor)"
             >
               {detraccionesStatusLabel(status)}
-              <i className="fas fa-pen ml-1 text-[9px] opacity-70" aria-hidden />
+              <i className="fas fa-pen ml-1 text-3xs opacity-70" aria-hidden />
             </button>
           ) : (
             <span
@@ -154,7 +154,7 @@ const DetraccionesRowActions = ({
               <button
                 type="button"
                 onClick={() => setPreview({ url: fileUrl, fileName })}
-                className="inline-flex items-center gap-1 text-[10px] font-medium text-primary-700 hover:underline"
+                className="inline-flex items-center gap-1 text-2xs font-medium text-primary-700 hover:underline"
                 title="Ver PDF"
               >
                 <i className="fas fa-eye" aria-hidden />
@@ -164,7 +164,7 @@ const DetraccionesRowActions = ({
                 type="button"
                 disabled={downloading}
                 onClick={() => void handleDownload()}
-                className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 hover:underline disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-2xs font-medium text-slate-600 hover:underline disabled:opacity-50"
                 title="Descargar PDF"
               >
                 <i className="fas fa-download" aria-hidden />
@@ -178,7 +178,7 @@ const DetraccionesRowActions = ({
                 type="button"
                 disabled={uploading}
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-1 text-[10px] font-medium text-primary-700 hover:underline disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-2xs font-medium text-primary-700 hover:underline disabled:opacity-50"
                 title={fileUrl ? 'Reemplazar PDF' : 'Subir PDF'}
               >
                 <i className="fas fa-upload" aria-hidden />
@@ -198,7 +198,7 @@ const DetraccionesRowActions = ({
               type="button"
               disabled={verifying}
               onClick={() => void handleVerify()}
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 hover:underline disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-2xs font-medium text-primary-700 hover:underline disabled:opacity-50"
               title="Marcar como verificado"
             >
               <i className="fas fa-check" aria-hidden />

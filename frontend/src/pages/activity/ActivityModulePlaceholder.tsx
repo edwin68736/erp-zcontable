@@ -4,6 +4,7 @@ import {
   resolveActivityWorkspace,
   workspaceHomePath,
 } from '../../navigation/activityRoutes';
+import PageHeading from '../../components/ui/PageHeading';
 
 /** Placeholder temporal de navegación (F1b). Sustituido por el módulo real en fases F3–F6. */
 const ActivityModulePlaceholder = () => {
@@ -22,14 +23,14 @@ const ActivityModulePlaceholder = () => {
         <Link to={homePath} className="text-sm text-primary-700 hover:underline">
           ← Volver
         </Link>
-        <h2 className="text-xl font-semibold text-slate-800 mt-2">{title}</h2>
+        <PageHeading className="mt-2">{title}</PageHeading>
         <p className="text-sm text-slate-500 mt-1">
           {item?.description ?? 'Este módulo se implementará en una fase posterior del plan aprobado.'}
         </p>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-        <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-3 py-1 rounded-full mb-4">
+        <span className="inline-block text-2xs font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-3 py-1 rounded-full mb-4">
           {phase}
         </span>
         <i className={`${item?.icon ?? 'fas fa-drafting-compass'} text-4xl text-slate-300 block mb-3`} aria-hidden />

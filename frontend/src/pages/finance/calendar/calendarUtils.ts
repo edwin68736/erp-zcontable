@@ -278,9 +278,9 @@ export function trafficStyles(tl: string): { bar: string; dot: string; badge: st
       };
     case 'verde':
       return {
-        bar: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
-        dot: 'bg-emerald-400',
-        badge: 'bg-emerald-100 text-emerald-700',
+        bar: 'bg-primary-50 text-primary-800 border-primary-200/80',
+        dot: 'bg-primary-400',
+        badge: 'bg-primary-100 text-primary-700',
       };
     default:
       return {

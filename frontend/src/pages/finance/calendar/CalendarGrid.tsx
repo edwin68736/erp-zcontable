@@ -94,7 +94,7 @@ const CalendarGrid = ({
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="text-center text-[10px] sm:text-xs font-semibold py-2 sm:py-2.5 text-white uppercase tracking-wide"
+            className="text-center text-2xs sm:text-xs font-semibold py-2 sm:py-2.5 text-white uppercase tracking-wide"
           >
             {w}
           </div>
@@ -147,7 +147,7 @@ const CalendarGrid = ({
                   {dayMarks.slice(0, MAX_VISIBLE_MARKS).map((m) => (
                     <div
                       key={m.id}
-                      className={`shrink-0 text-[10px] rounded-md border px-1 py-0.5 mb-0.5 truncate ${markStyles(m.kind)}`}
+                      className={`shrink-0 text-2xs rounded-md border px-1 py-0.5 mb-0.5 truncate ${markStyles(m.kind)}`}
                       title={m.label}
                     >
                       {m.kind === 'feriado' ? '🏛 ' : m.kind === 'festividad' ? '🎉 ' : '📌 '}
@@ -185,7 +185,7 @@ const CalendarGrid = ({
                             e.stopPropagation();
                             startDrag(e, a, 'move');
                           }}
-                          className={`text-[10px] leading-snug rounded-md border px-1 py-0.5 mb-0.5 select-none touch-none break-words whitespace-normal font-bold ${
+                          className={`text-2xs leading-snug rounded-md border px-1 py-0.5 mb-0.5 select-none touch-none break-words whitespace-normal font-bold ${
                             isDragging ? 'opacity-60 ring-2 ring-primary-300/50 shadow-sm' : 'hover:bg-slate-50'
                           } cursor-pointer`}
                           style={chipStyle}

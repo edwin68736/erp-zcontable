@@ -50,7 +50,7 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm"
@@ -98,7 +98,7 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
                 type="text"
                 value={name}
                 onChange={(ev) => setName(ev.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 placeholder="Ej. Gerente de operaciones"
                 required
                 autoFocus
@@ -111,7 +111,7 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
                 value={description}
                 onChange={(ev) => setDescription(ev.target.value)}
                 rows={3}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y min-h-[88px]"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-y min-h-[88px]"
                 placeholder="Uso previsto del rol (opcional)"
               />
             </div>
@@ -128,7 +128,7 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
             <button
               type="submit"
               disabled={saving || !name.trim()}
-              className="px-5 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-primary-700 text-white text-sm font-semibold hover:bg-primary-800 disabled:opacity-50"
             >
               {saving ? <i className="fas fa-spinner fa-spin mr-2" /> : null}
               {mode === 'create' ? 'Crear rol' : 'Guardar'}

@@ -6,6 +6,8 @@ import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import Pagination from '../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../constants/pageLayout';
+import PageHeading from '../components/ui/PageHeading';
+import Button from '../components/ui/Button';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -81,7 +83,7 @@ const ExternalClients = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clientes externos (POS)</h1>
+          <PageHeading>Clientes externos (POS)</PageHeading>
           <p className="text-sm text-slate-600 mt-1">
             Registrados desde ventas rápidas. No llevan contabilidad hasta convertirlos en cliente del estudio.
           </p>
@@ -106,13 +108,7 @@ const ExternalClients = () => {
           placeholder="Buscar por nombre, RUC/DNI o código…"
           className="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"
         />
-        <button
-          type="button"
-          onClick={() => pushFilters({ q: query.trim(), page: '1' })}
-          className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          Buscar
-        </button>
+        <Button onClick={() => pushFilters({ q: query.trim(), page: '1' })}>Buscar</Button>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -145,7 +141,7 @@ const ExternalClients = () => {
                           to={`/companies/${c.id}/edit?convert=1`}
                           className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100"
                         >
-                          <i className="fas fa-building text-[10px]" />
+                          <i className="fas fa-building text-2xs" />
                           Convertir en cliente del estudio
                         </Link>
                       ) : null}

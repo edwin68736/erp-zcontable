@@ -39,7 +39,7 @@ export function periodDebtMoraBadge(maxPeriodLagMonths: number, hasPeriodBehind:
   if (!hasPeriodBehind || maxPeriodLagMonths <= 0) {
     return {
       label: 'Periodo al día',
-      cls: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+      cls: 'bg-primary-50 text-primary-800 border border-primary-200',
     };
   }
   if (maxPeriodLagMonths === 1) {
@@ -61,7 +61,7 @@ export function periodDebtMoraSemaforo(
   if (!hasPeriodBehind || maxPeriodLagMonths <= 0) {
     return {
       label: 'Al día',
-      cls: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+      cls: 'bg-primary-50 text-primary-800 border border-primary-200',
       pdfColor: '#047857',
     };
   }
@@ -93,7 +93,7 @@ export function PeriodScoreMini({ maxLag, compact = false }: { maxLag: number; c
       title={compact ? `Score · ${periodScoreBarTitle(maxLag)}` : periodScoreBarTitle(maxLag)}
     >
       {!compact ? (
-        <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5 text-center">Score</p>
+        <p className="text-3xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 text-center">Score</p>
       ) : null}
       <div className={`${compact ? 'h-1.5' : 'h-2'} w-full rounded-full bg-slate-200 overflow-hidden ring-1 ring-slate-100`}>
         <div className="h-full w-full rounded-full transition-all" style={periodScoreBarStyle(maxLag)} />

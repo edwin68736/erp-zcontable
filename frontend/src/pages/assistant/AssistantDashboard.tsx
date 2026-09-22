@@ -7,6 +7,7 @@ import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { PdtSummarySection } from '../supervisors/SupervisorDashboard';
+import PageHeading from '../../components/ui/PageHeading';
 
 /**
  * Resumen PDT 601/621 del propio asistente (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.2)
@@ -52,9 +53,9 @@ const AssistantDashboard = () => {
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Mi resumen PDT 601 / 621</h2>
+          <PageHeading>Mi resumen PDT 601 / 621</PageHeading>
           <p className="text-sm text-slate-500">Cómo vienen sus empresas asignadas en el período.</p>
         </div>
         <label className="text-sm text-slate-600">

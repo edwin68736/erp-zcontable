@@ -193,13 +193,13 @@ const Header = ({
 
           {canSearchCompanies ? (
           <div className="relative group flex-1" ref={searchContainerRef}>
-            <span className="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+            <span className="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-primary-600 transition-colors">
               <i className="fas fa-search"></i>
             </span>
             <input
               type="text"
               placeholder="Buscar cliente..."
-              className="w-full pl-11 pr-4 py-3.5 rounded-full bg-white/80 border border-slate-200/70 text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all shadow-inner"
+              className="w-full pl-11 pr-4 py-3.5 rounded-full bg-white/80 border border-slate-200/70 text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white transition-all shadow-inner"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => searchTerm.trim().length > 3 && searchResults.length > 0 && setShowResults(true)}
@@ -222,15 +222,15 @@ const Header = ({
                     }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 text-[11px] font-bold">
+                      <div className="w-7 h-7 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 text-2xs font-bold">
                         {(item.code || '').slice(0, 3).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-800 truncate">{item.business_name || 'Sin nombre'}</p>
-                        <p className="text-[11px] text-slate-400">{item.ruc || ''}</p>
+                        <p className="text-2xs text-slate-400">{item.ruc || ''}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full border text-slate-500 bg-slate-50">
+                    <span className="text-2xs uppercase font-semibold px-2 py-0.5 rounded-full border text-slate-500 bg-slate-50">
                       Estado de cuenta
                     </span>
                   </Link>
@@ -250,7 +250,7 @@ const Header = ({
           <div>
             <button
               type="button"
-              className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-emerald-600 transition-all flex items-center justify-center border border-transparent hover:border-slate-100 hover:shadow-sm relative"
+              className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-primary-600 transition-all flex items-center justify-center border border-transparent hover:border-slate-100 hover:shadow-sm relative"
               aria-expanded={isNotificationsOpen}
               aria-haspopup="menu"
               onClick={() => {
@@ -263,7 +263,7 @@ const Header = ({
             >
               <i className="far fa-bell"></i>
               {notificationsCount > 0 ? (
-                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
+                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-2xs font-bold flex items-center justify-center border-2 border-white">
                   {notificationsCount > 99 ? '99+' : notificationsCount}
                 </span>
               ) : null}
@@ -286,7 +286,7 @@ const Header = ({
                 </div>
                 <button
                   type="button"
-                  className="w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center"
+                  className="w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-primary-700 flex items-center justify-center"
                   onClick={fetchNotifications}
                   disabled={notificationsLoading}
                   aria-label="Actualizar"
@@ -306,12 +306,12 @@ const Header = ({
                   {canSupervisorNotif ? (
                     <div className="px-2 py-2">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <p className="text-2xs font-bold uppercase tracking-wider text-slate-400">
                           Supervisores contables
                         </p>
                         <Link
                           to={notificationsPath(activityWorkspace)}
-                          className="text-[11px] font-semibold text-primary-700 hover:text-primary-800"
+                          className="text-2xs font-semibold text-primary-700 hover:text-primary-800"
                           onClick={() => setIsNotificationsOpen(false)}
                         >
                           Ver todas
@@ -332,9 +332,9 @@ const Header = ({
                               onClick={() => setIsNotificationsOpen(false)}
                             >
                               <p className="text-xs font-semibold text-slate-800 truncate">{n.title}</p>
-                              <p className="text-[11px] text-slate-500 line-clamp-2">{n.message}</p>
+                              <p className="text-2xs text-slate-500 line-clamp-2">{n.message}</p>
                               {n.period_ym ? (
-                                <p className="text-[10px] text-slate-400 mt-0.5">Período {n.period_ym}</p>
+                                <p className="text-2xs text-slate-400 mt-0.5">Período {n.period_ym}</p>
                               ) : null}
                             </Link>
                           ))}
@@ -350,10 +350,10 @@ const Header = ({
 
                   <div className="px-2 py-2">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Empresas con deuda</p>
+                      <p className="text-2xs font-bold uppercase tracking-wider text-slate-400">Empresas con deuda</p>
                       <Link
                         to="/reports/financial"
-                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800"
+                        className="text-2xs font-semibold text-primary-700 hover:text-primary-800"
                         onClick={() => setIsNotificationsOpen(false)}
                       >
                         Ver reporte
@@ -378,19 +378,19 @@ const Header = ({
                                 <p className="text-xs font-semibold text-slate-800 truncate">
                                   {debtor.Company?.business_name || 'Sin nombre'}
                                 </p>
-                                <p className="text-[11px] text-slate-500 truncate">
+                                <p className="text-2xs text-slate-500 truncate">
                                   {debtor.Company?.ruc || ''}
                                   {debtor.OldestOpenDebtPeriod ? ` · Per. ${debtor.OldestOpenDebtPeriod}` : ''}
                                 </p>
                                 <span
-                                  className={`mt-1 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${mora.cls}`}
+                                  className={`mt-1 inline-flex px-2 py-0.5 rounded-full text-2xs font-bold ${mora.cls}`}
                                 >
                                   {mora.label}
                                 </span>
                               </div>
                               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                 <PeriodScoreMini compact maxLag={Number(debtor.MaxOverdueMonths ?? 0)} />
-                                <span className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                <span className="text-2xs font-bold text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                                   S/ {Number(debtor.Balance ?? 0).toFixed(2)}
                                 </span>
                               </div>
@@ -419,10 +419,10 @@ const Header = ({
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800">Deudas pendientes</p>
-                          <p className="text-[11px] text-slate-500">Revisar cargos por cobrar.</p>
+                          <p className="text-2xs text-slate-500">Revisar cargos por cobrar.</p>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full flex-shrink-0">
+                      <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full flex-shrink-0">
                         {dashboardData?.PendingDocsCount ?? 0}
                       </span>
                     </Link>
@@ -438,10 +438,10 @@ const Header = ({
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800">Pagos vencidos</p>
-                          <p className="text-[11px] text-slate-500">Deudas vencidas pendientes de cobro.</p>
+                          <p className="text-2xs text-slate-500">Deudas vencidas pendientes de cobro.</p>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-red-800 bg-red-50 border border-red-100 px-2.5 py-1 rounded-full flex-shrink-0">
+                      <span className="text-2xs font-bold text-red-800 bg-red-50 border border-red-100 px-2.5 py-1 rounded-full flex-shrink-0">
                         {dashboardData?.OverdueDocsCount ?? 0}
                       </span>
                     </Link>
@@ -460,18 +460,18 @@ const Header = ({
              aria-expanded={isUserMenuOpen}
            >
               <div className="text-right hidden sm:block max-w-[200px]">
-                 <p className="text-sm font-bold text-slate-800 leading-tight group-hover:text-emerald-700 transition-colors truncate" title={userName}>
+                 <p className="text-sm font-bold text-slate-800 leading-tight group-hover:text-primary-700 transition-colors truncate" title={userName}>
                    {userName}
                  </p>
               </div>
-              <div className="w-11 h-11 rounded-full bg-emerald-100 p-0.5 shadow-sm cursor-pointer group-hover:shadow-md transition-all ring-2 ring-transparent group-hover:ring-emerald-100">
+              <div className="w-11 h-11 rounded-full bg-primary-100 p-0.5 shadow-sm cursor-pointer group-hover:shadow-md transition-all ring-2 ring-transparent group-hover:ring-primary-100">
                  <img
                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'U')}&background=064e3b&color=fff`}
                    alt=""
                    className="w-full h-full rounded-full object-cover"
                  />
               </div>
-              <i className={`fas fa-chevron-down text-xs text-slate-400 group-hover:text-emerald-700 transition-colors ml-1 ${isUserMenuOpen ? 'rotate-180' : ''}`}></i>
+              <i className={`fas fa-chevron-down text-xs text-slate-400 group-hover:text-primary-700 transition-colors ml-1 ${isUserMenuOpen ? 'rotate-180' : ''}`}></i>
            </button>
 
            {/* Dropdown menu */}
@@ -484,14 +484,14 @@ const Header = ({
                <p className="text-sm font-bold text-slate-800 truncate" title={userName}>{userName}</p>
              </div>
              
-             <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-emerald-700 transition-colors" role="menuitem">
+             <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary-700 transition-colors" role="menuitem">
                <i className="far fa-user w-4 text-center"></i>
                <span>Mi Perfil</span>
              </Link>
 
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-emerald-700 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary-700 transition-colors text-left"
                 onClick={() => {
                   setIsUserMenuOpen(false);
                   onOpenThemeModal();

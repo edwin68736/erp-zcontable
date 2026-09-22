@@ -27,7 +27,7 @@ export default function FilePreviewModal({ open, url, title = 'Archivo', onClose
   if (!open || !url) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Cerrar vista previa"

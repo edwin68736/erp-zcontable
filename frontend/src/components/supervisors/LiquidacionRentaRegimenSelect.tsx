@@ -103,7 +103,7 @@ const LiquidacionRentaRegimenSelect = ({
           </div>
         ) : null}
       </div>
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-slate-500">
         Tasa aplicada: <span className="font-medium text-slate-700">{formatRentaRateLabel(appliedRate)}</span>
         {isCompanyRegime ? <span className="text-slate-400"> · empresa</span> : null}
       </p>

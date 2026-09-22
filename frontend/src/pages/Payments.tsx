@@ -15,6 +15,7 @@ import { resolveBackendUrl } from '../api/client';
 import { formatInTimeZone } from 'date-fns-tz';
 import { peruDateInputFromApiDate } from '../utils/peruDates';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
+import PageHeading from '../components/ui/PageHeading';
 
 function formatPaymentDate(iso?: string): string {
   const d = peruDateInputFromApiDate(iso);
@@ -280,7 +281,7 @@ const Payments = () => {
     <div className="space-y-4">
       {previewUrl ? (
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
             <button
               type="button"
               aria-label="Cerrar"
@@ -293,6 +294,7 @@ const Payments = () => {
                 <button
                   type="button"
                   onClick={closePreview}
+                  aria-label="Cerrar"
                   className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 text-slate-600"
                 >
                   <i className="fas fa-times"></i>
@@ -317,7 +319,7 @@ const Payments = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-slate-800">Pagos</h2>
+          <PageHeading>Pagos</PageHeading>
           <p className="text-sm text-slate-500">Registro de pagos realizados por las empresas.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -474,7 +476,7 @@ const Payments = () => {
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:bg-slate-100"
                               title="Enlace externo ticket"
                             >
-                              <i className="fas fa-receipt text-[10px]" aria-hidden />
+                              <i className="fas fa-receipt text-2xs" aria-hidden />
                               Ticket
                             </a>
                           ) : null}
@@ -486,7 +488,7 @@ const Payments = () => {
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50"
                               title="Enlace externo PDF"
                             >
-                              <i className="fas fa-file-pdf text-[10px] text-red-600" aria-hidden />
+                              <i className="fas fa-file-pdf text-2xs text-red-600" aria-hidden />
                               A4
                             </a>
                           ) : null}

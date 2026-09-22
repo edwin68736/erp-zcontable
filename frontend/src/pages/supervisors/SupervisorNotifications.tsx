@@ -7,6 +7,7 @@ import {
   controlDetailPath,
   resolveActivityWorkspace,
 } from '../../navigation/activityRoutes';
+import PageHeading from '../../components/ui/PageHeading';
 
 const SupervisorNotifications = () => {
   const location = useLocation();
@@ -45,9 +46,9 @@ const SupervisorNotifications = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Notificaciones</h2>
+          <PageHeading>Notificaciones</PageHeading>
           <p className="text-sm text-slate-500">Alertas automáticas del módulo de supervisores.</p>
         </div>
         <label className="text-sm text-slate-600 flex items-center gap-2">

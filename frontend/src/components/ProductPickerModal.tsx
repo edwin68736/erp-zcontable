@@ -90,7 +90,7 @@ const ProductPickerModal = ({ open, onClose, onPick, title = 'Catálogo de produ
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar" />
       <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[min(90vh,640px)]">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
@@ -155,7 +155,7 @@ const ProductPickerModal = ({ open, onClose, onPick, title = 'Catálogo de produ
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium text-slate-900 truncate">{productLabel(p)}</span>
-                        <span className="text-[10px] uppercase font-semibold text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
+                        <span className="text-2xs uppercase font-semibold text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
                           {kindLabel}
                         </span>
                       </div>
@@ -171,7 +171,7 @@ const ProductPickerModal = ({ open, onClose, onPick, title = 'Catálogo de produ
                       onClick={() => onPick(p)}
                       className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-primary-600 text-white hover:bg-primary-700 shadow-sm"
                     >
-                      <i className="fas fa-cart-plus text-[11px]" />
+                      <i className="fas fa-cart-plus text-2xs" />
                       Agregar
                     </button>
                   </li>

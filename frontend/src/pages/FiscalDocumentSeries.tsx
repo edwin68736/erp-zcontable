@@ -6,6 +6,8 @@ import {
 } from '../services/fiscalDocumentSeries';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import PageHeading from '../components/ui/PageHeading';
+import Button from '../components/ui/Button';
 
 const SUNAT_LABELS: Record<string, string> = {
   '00': 'Nota de venta (no SUNAT)',
@@ -143,20 +145,16 @@ const FiscalDocumentSeries = () => {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800">Series y correlativos</h2>
+          <PageHeading>Series y correlativos</PageHeading>
           <p className="text-sm text-slate-500">
             Control local de numeración. El siguiente comprobante usará el correlativo indicado como próximo.
           </p>
         </div>
         {canManage ? (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
-          >
+          <Button onClick={openCreate} className="inline-flex items-center gap-2">
             <i className="fas fa-plus text-xs" aria-hidden />
             Nueva serie
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -197,7 +195,7 @@ const FiscalDocumentSeries = () => {
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-block px-2 py-0.5 rounded-full text-xs border ${
-                        r.active ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-600'
+                        r.active ? 'bg-primary-50 text-primary-800 border-primary-200' : 'bg-slate-100 text-slate-600'
                       }`}
                     >
                       {r.active ? 'Activo' : 'Inactivo'}
