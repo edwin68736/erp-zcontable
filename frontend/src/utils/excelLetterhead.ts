@@ -95,11 +95,17 @@ export async function buildExcelLetterhead(opts: ExcelLetterheadOptions): Promis
 
   const row1 = sheet.getRow(1);
   row1.height = 40;
+  const bannerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+  // El logo (col 1..LOGO_COLS) comparte el mismo fondo que el banner del título — antes solo se
+  // pintaba la celda del título y la zona del logo quedaba blanca detrás de la imagen.
+  for (let c = 1; c <= LOGO_COLS; c += 1) {
+    sheet.getCell(1, c).fill = bannerFill;
+  }
   sheet.mergeCells(1, LOGO_COLS + 1, 1, totalCols);
   const titleCell = sheet.getCell(1, LOGO_COLS + 1);
   titleCell.value = title;
   titleCell.font = { name: fontName, size: fontSize, bold: true, color: { argb: 'FFFFFFFF' } };
-  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+  titleCell.fill = bannerFill;
   titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
   // Logo: no bloquea el export si falla (empresa sin logo configurado, red, etc.).

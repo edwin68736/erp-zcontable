@@ -18,11 +18,26 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
 };
 
-/** Mismo criterio de color que pdt621RowBgClass (tabla en pantalla): morado si está suspendida,
- * verde a tiempo, rojo atrasado/sin declarar, sin color si no aplica regla. */
-const SUSPENDIDA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE9FE' } };
-const ON_TIME_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
-const LATE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFECACA' } };
+/** Color de fila por estado mostrado (pdt621DisplayStatus — misma prioridad Suspendida >
+ * Entregado±puntualidad > estado real que usa el resto de la pantalla, mismo criterio que
+ * pdt601ExcelExport.ts): rojo si está suspendida, verde si se entregó a tiempo, celeste si se
+ * entregó fuera de fecha, naranja para todo lo que todavía no es terminal (Pendiente, Por revisar
+ * u Observado). Usa SIEMPRE el calendario interno (assistant_timeliness), nunca el cronograma
+ * SUNAT (declaration_timeliness es puramente informativo — docs/diseno-estados-pdt601-pdt621-2026-
+ * 09-16.md §5) — antes esta función coloreaba por declaration_timeliness, criterio equivocado. */
+const SUSPENDIDA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+const ENTREGADO_A_TIEMPO_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+const ENTREGADO_FUERA_DE_FECHA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+const PENDIENTE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+
+const ROW_FILL_BY_STATUS: Record<string, ExcelJS.Fill> = {
+  suspendida: SUSPENDIDA_FILL,
+  entregado: ENTREGADO_A_TIEMPO_FILL,
+  entregado_fuera_de_fecha: ENTREGADO_FUERA_DE_FECHA_FILL,
+  pendiente: PENDIENTE_FILL,
+  por_revisar: PENDIENTE_FILL,
+  observado: PENDIENTE_FILL,
+};
 
 const SIRE_LABEL: Record<string, string> = { si: 'Sí', no: 'No' };
 
@@ -49,10 +64,9 @@ const HEADERS = [
   '¿ENVIÓ SIRE?',
   'FECHA ENVÍO SIRE',
   'MOTIVO NO ENVÍO',
-  'ARCHIVOS',
 ];
 
-const COLUMN_WIDTHS = [8, 8, 32, 13, 10, 16, 15, 14, 11, 26, 14, 11, 14, 13, 13, 13, 13, 11, 11, 11, 14, 22, 10];
+const COLUMN_WIDTHS = [8, 8, 32, 13, 10, 16, 15, 14, 11, 26, 14, 11, 14, 13, 13, 13, 13, 11, 11, 11, 14, 22];
 
 function formatDateCell(iso?: string | null): string {
   if (!iso) return '';
@@ -107,13 +121,12 @@ export async function exportPdt621ReportExcel(options: {
   for (const row of rows) {
     const rec = row.record;
     const suspendida = !!row.suspendida;
-    const rowFill = suspendida
-      ? SUSPENDIDA_FILL
-      : row.declaration_timeliness === 'on_time'
-        ? ON_TIME_FILL
-        : row.declaration_timeliness === 'missing' || row.declaration_timeliness === 'late'
-          ? LATE_FILL
-          : undefined;
+    const displayStatus = pdt621DisplayStatus({
+      status: row.status,
+      suspendida,
+      assistantTimeliness: row.assistant_timeliness,
+    });
+    const rowFill: ExcelJS.Fill | undefined = ROW_FILL_BY_STATUS[displayStatus.value];
 
     const dataRow = sheet.getRow(rowIdx);
     let col = 1;
@@ -153,10 +166,7 @@ export async function exportPdt621ReportExcel(options: {
     setText(row.ruc || '—', 'center');
     setText(row.tax_regime || '', 'center');
     setText(row.assistant_username || '—');
-    setText(
-      pdt621DisplayStatus({ status: row.status, suspendida, assistantTimeliness: row.assistant_timeliness }).label,
-      'center',
-    );
+    setText(displayStatus.label, 'center');
     // Suspendida no hay seguimiento que registrar (ver Pdt621DetailPage.tsx): estas columnas
     // quedan en blanco. Observación NO se blanquea: el backend fuerza ahí la nota fija "Empresa
     // suspendida", que sí debe verse acá.
@@ -175,7 +185,6 @@ export async function exportPdt621ReportExcel(options: {
     setText(!suspendida && rec?.envio_sire ? (SIRE_LABEL[rec.envio_sire] ?? rec.envio_sire) : '', 'center');
     setText(suspendida ? '' : formatDateCell(rec?.fecha_envio_sire), 'center');
     setText(suspendida ? '' : rec?.motivo_no_envio || '');
-    setInt(row.attachment_count);
 
     rowIdx += 1;
   }

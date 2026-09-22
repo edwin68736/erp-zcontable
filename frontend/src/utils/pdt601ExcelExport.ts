@@ -18,13 +18,26 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
 };
 
-/** Mismo criterio de color que pdt601RowBgClass (tabla en pantalla): morado si está suspendida,
- * gris si no tiene planilla, verde si se entregó a tiempo, rojo si sigue pendiente o se entregó
- * tarde. */
+/** Color de fila por estado mostrado (pdt601DisplayStatus — misma prioridad Suspendida > Sin
+ * planilla > Entregado±puntualidad > estado real que usa el resto de la pantalla): rojo si está
+ * suspendida, gris si no tiene planilla, verde si se entregó a tiempo, celeste si se entregó fuera
+ * de fecha, naranja para todo lo que todavía no es terminal (Pendiente, Por revisar u Observado —
+ * las tres son "aún no entregado" de cara al estudio). */
 const SIN_PLANILLA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-const SUSPENDIDA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE9FE' } };
-const ON_TIME_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
-const LATE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFECACA' } };
+const SUSPENDIDA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+const ENTREGADO_A_TIEMPO_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+const ENTREGADO_FUERA_DE_FECHA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+const PENDIENTE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+
+const ROW_FILL_BY_STATUS: Record<string, ExcelJS.Fill> = {
+  suspendida: SUSPENDIDA_FILL,
+  sin_planilla: SIN_PLANILLA_FILL,
+  entregado: ENTREGADO_A_TIEMPO_FILL,
+  entregado_fuera_de_fecha: ENTREGADO_FUERA_DE_FECHA_FILL,
+  pendiente: PENDIENTE_FILL,
+  por_revisar: PENDIENTE_FILL,
+  observado: PENDIENTE_FILL,
+};
 
 const HEADERS = [
   'CÓDIGO',
@@ -117,15 +130,8 @@ export async function exportPdt601ReportExcel(options: {
     // "Suspendida" tiene prioridad sobre "sin planilla" (mutuamente excluyentes) y bloquea
     // CUALQUIER otro dato — ver Pdt601DetailPage.tsx.
     const blocked = suspendida || sinPlanilla;
-    const rowFill = suspendida
-      ? SUSPENDIDA_FILL
-      : sinPlanilla
-        ? SIN_PLANILLA_FILL
-        : row.timeliness === 'on_time'
-          ? ON_TIME_FILL
-          : row.timeliness === 'missing' || row.timeliness === 'late'
-            ? LATE_FILL
-            : undefined;
+    const displayStatus = pdt601DisplayStatus({ status: row.status, sinPlanilla, suspendida, timeliness: row.timeliness });
+    const rowFill: ExcelJS.Fill | undefined = ROW_FILL_BY_STATUS[displayStatus.value];
 
     const dataRow = sheet.getRow(rowIdx);
     let col = 1;
@@ -166,10 +172,7 @@ export async function exportPdt601ReportExcel(options: {
     setText(row.assistant_username || '—');
     // Igual que la tabla en pantalla: prioridad Suspendida > Sin planilla > Entregado±puntualidad >
     // estado real (pdt601DisplayStatus, fuente única — ver pdt601Config.ts).
-    setText(
-      pdt601DisplayStatus({ status: row.status, sinPlanilla, suspendida, timeliness: row.timeliness }).label,
-      'center',
-    );
+    setText(displayStatus.label, 'center');
     setInt(pl?.trabajadores_onp);
     setInt(pl?.trabajadores_afp);
     setInt(pl?.trabajadores_total);
