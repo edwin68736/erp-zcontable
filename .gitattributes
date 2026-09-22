@@ -1,0 +1,17 @@
+# Normaliza los finales de línea a LF para todo archivo de texto, sin importar el
+# core.autocrlf de cada máquina (en Windows con autocrlf=true, Git marcaba como
+# "modificado" archivos sin ningún cambio real de contenido — puro ruido de
+# CRLF/LF). Esto tiene prioridad sobre la configuración local de cada dev.
+* text=auto eol=lf
+
+# Binarios: nunca conversión de línea, ni diff de texto.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
