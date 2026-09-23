@@ -384,6 +384,10 @@ export const supervisorsService = {
     return res.data.data;
   },
 
+  async deleteAttachment(id: number) {
+    await client.delete(`/supervisors/attachments/${id}`);
+  },
+
   async listNotifications(unreadOnly = false) {
     const res = await client.get<{ data: SupervisorNotification[] }>('/supervisors/notifications', {
       params: { unread: unreadOnly ? '1' : '0' },
@@ -443,6 +447,29 @@ export const supervisorsService = {
     return res.data.data ?? [];
   },
 
+  /** Empresas detrás de un bucket puntual de una tarjeta PDT 601/621 del dashboard (p. ej.
+   * "Vencidas": 21 → clic → esta lista) — mismos filtros que pdtDashboardSummary más
+   * declaration_type/bucket, para que la lista siempre coincida con el número de la tarjeta. */
+  async pdtBucketCompanies(params: {
+    period_ym?: string;
+    declaration_type: 'pdt_601' | 'pdt_621';
+    bucket: string;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+    q?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<{ items: SupervisorPdtBucketCompany[]; pagination: PaginationMeta }> {
+    const res = await client.get<{ data: SupervisorPdtBucketCompany[]; pagination: PaginationMeta }>(
+      '/supervisors/dashboard/pdt-bucket-companies',
+      { params },
+    );
+    return { items: res.data.data ?? [], pagination: res.data.pagination };
+  },
+
   /** Cumplimiento mensual de los últimos `months` (default 6) meses terminando en period_ym —
    * mismos filtros que `dashboard`, en orden cronológico ascendente. */
   async complianceTrend(params: {
@@ -485,6 +512,13 @@ export interface SupervisorPdtAssistantSummary extends SupervisorPdtTypeSummary 
   assistant_user_id: number;
   assistant_username: string;
   declaration_type: string;
+}
+
+export interface SupervisorPdtBucketCompany {
+  company_id: number;
+  code: string;
+  business_name: string;
+  ruc: string;
 }
 
 export interface ComplianceTrendPoint {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import SearchableSelect from '../../components/SearchableSelect';
 import PageHeading from '../../components/ui/PageHeading';
@@ -8,6 +9,7 @@ import {
   type SupervisorDashboardData,
   type SupervisorPdtTypeSummary,
   type SupervisorPdtAssistantSummary,
+  type SupervisorPdtBucketCompany,
 } from '../../services/supervisors';
 import { companiesService } from '../../services/companies';
 import { usersService } from '../../services/users';
@@ -412,6 +414,14 @@ const SupervisorDashboard = () => {
             assistantPerformance={pdtAssistantData}
             assistantPerformanceLoading={pdtAssistantLoading}
             assistantPerformanceError={pdtAssistantError}
+            filters={{
+              periodYm,
+              companyId: companyId || undefined,
+              generalStatus: generalStatus || undefined,
+              riskLevel: riskLevel || undefined,
+              responsibleUserId: responsibleUserId || undefined,
+              supervisorUserId: supervisorUserId || undefined,
+            }}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -498,6 +508,19 @@ const SupervisorDashboard = () => {
   );
 };
 
+/** Filtros vigentes del dashboard — se reenvían tal cual al pedir la lista de empresas de un
+ * bucket, para que esa lista siempre calce con el número ya mostrado en la tarjeta. */
+export type PdtDashboardFilters = {
+  periodYm: string;
+  companyId?: string;
+  generalStatus?: string;
+  riskLevel?: string;
+  responsibleUserId?: string;
+  supervisorUserId?: string;
+};
+
+type OpenBucket = { declarationType: 'pdt_601' | 'pdt_621'; bucket: string; label: string };
+
 export function PdtSummarySection({
   loading,
   error,
@@ -507,6 +530,7 @@ export function PdtSummarySection({
   assistantPerformance,
   assistantPerformanceLoading,
   assistantPerformanceError,
+  filters,
 }: {
   loading: boolean;
   error?: string;
@@ -518,15 +542,18 @@ export function PdtSummarySection({
   assistantPerformance?: SupervisorPdtAssistantSummary[];
   assistantPerformanceLoading?: boolean;
   assistantPerformanceError?: string;
+  filters: PdtDashboardFilters;
 }) {
   const base = workspace === 'assistant' ? '/assistant/activities' : '/supervisors/activities';
+  const [openBucket, setOpenBucket] = useState<OpenBucket | null>(null);
 
   return (
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-slate-800">Declaraciones PDT 601/621</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Resumen por tipo a partir de controles y declaraciones del período.
+          Resumen por tipo a partir de controles y declaraciones del período. Haga clic en un estado para ver las
+          empresas.
         </p>
       </div>
       {loading ? (
@@ -538,10 +565,28 @@ export function PdtSummarySection({
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <PdtTypeCard title="PDT 601" summary={summary601 ?? emptyPdtSummary()} linkTo={`${base}/pdt-601`} />
-          <PdtTypeCard title="PDT 621" summary={summary621 ?? emptyPdtSummary()} linkTo={`${base}/pdt-621`} />
+          <PdtTypeCard
+            title="PDT 601"
+            summary={summary601 ?? emptyPdtSummary()}
+            linkTo={`${base}/pdt-601`}
+            onOpenBucket={(bucket, label) => setOpenBucket({ declarationType: 'pdt_601', bucket, label })}
+          />
+          <PdtTypeCard
+            title="PDT 621"
+            summary={summary621 ?? emptyPdtSummary()}
+            linkTo={`${base}/pdt-621`}
+            onOpenBucket={(bucket, label) => setOpenBucket({ declarationType: 'pdt_621', bucket, label })}
+          />
         </div>
       )}
+      {openBucket ? (
+        <PdtBucketCompaniesModal
+          open={openBucket}
+          filters={filters}
+          base={base}
+          onClose={() => setOpenBucket(null)}
+        />
+      ) : null}
       {workspace === 'supervisor' ? (
         <PdtAssistantPerformanceTable
           loading={!!assistantPerformanceLoading}
@@ -641,10 +686,12 @@ function PdtTypeCard({
   title,
   summary,
   linkTo,
+  onOpenBucket,
 }: {
   title: string;
   summary: SupervisorPdtTypeSummary;
   linkTo: string;
+  onOpenBucket: (bucket: string, label: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -655,28 +702,48 @@ function PdtTypeCard({
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <PdtMiniStat label="Pendientes" value={summary.pendiente} tone="amber" />
-        <PdtMiniStat label="Observadas" value={summary.observado} tone="orange" />
-        <PdtMiniStat label="Vencidas" value={summary.vencido} tone="red" />
-        <PdtMiniStat label="Completadas" value={summary.completado} tone="emerald" />
+        <PdtMiniStat label="Pendientes" value={summary.pendiente} tone="amber" onClick={() => onOpenBucket('pendiente', 'Pendientes')} />
+        <PdtMiniStat label="Observadas" value={summary.observado} tone="orange" onClick={() => onOpenBucket('observado', 'Observadas')} />
+        <PdtMiniStat label="Vencidas" value={summary.vencido} tone="red" onClick={() => onOpenBucket('vencido', 'Vencidas')} />
+        <PdtMiniStat label="Completadas" value={summary.completado} tone="emerald" onClick={() => onOpenBucket('completado', 'Completadas')} />
         {/* Apertura de "Completadas" por puntualidad (docs/diseno-estados-pdt601-pdt621-2026-09-
             16.md §12.1) — suman exactamente el total de arriba, calculado contra el calendario
             interno del estudio. Solo se muestran si hay algo que desglosar. */}
         {summary.entregado_a_tiempo > 0 ? (
-          <PdtMiniStat label="Entregado a tiempo" value={summary.entregado_a_tiempo} tone="emerald" />
+          <PdtMiniStat
+            label="Entregado a tiempo"
+            value={summary.entregado_a_tiempo}
+            tone="emerald"
+            onClick={() => onOpenBucket('entregado_a_tiempo', 'Entregado a tiempo')}
+          />
         ) : null}
         {summary.entregado_fuera_de_fecha > 0 ? (
-          <PdtMiniStat label="Entregado fuera de fecha" value={summary.entregado_fuera_de_fecha} tone="orange" />
+          <PdtMiniStat
+            label="Entregado fuera de fecha"
+            value={summary.entregado_fuera_de_fecha}
+            tone="orange"
+            onClick={() => onOpenBucket('entregado_fuera_de_fecha', 'Entregado fuera de fecha')}
+          />
         ) : null}
         {/* Solo PDT 601 tiene el concepto "sin planilla" (PDT 621 siempre trae 0 acá) — no se
             cuenta como pendiente: la empresa no tiene nada que declarar en el período. */}
         {summary.sin_planilla > 0 ? (
-          <PdtMiniStat label="Sin planilla" value={summary.sin_planilla} tone="slate" />
+          <PdtMiniStat
+            label="Sin planilla"
+            value={summary.sin_planilla}
+            tone="slate"
+            onClick={() => onOpenBucket('sin_planilla', 'Sin planilla')}
+          />
         ) : null}
         {/* "Suspendida" sí aplica a ambos módulos — tampoco cuenta como pendiente/vencido mientras
             la empresa esté suspendida (ver PdtDashboardSummary). */}
         {summary.suspendida > 0 ? (
-          <PdtMiniStat label="Suspendida" value={summary.suspendida} tone="purple" />
+          <PdtMiniStat
+            label="Suspendida"
+            value={summary.suspendida}
+            tone="purple"
+            onClick={() => onOpenBucket('suspendida', 'Suspendida')}
+          />
         ) : null}
       </div>
       <p className="text-2xs text-slate-400 mt-3">Total en período: {summary.total}</p>
@@ -688,10 +755,12 @@ function PdtMiniStat({
   label,
   value,
   tone,
+  onClick,
 }: {
   label: string;
   value: number;
   tone: 'amber' | 'orange' | 'red' | 'emerald' | 'slate' | 'purple';
+  onClick: () => void;
 }) {
   const bg =
     tone === 'emerald'
@@ -705,11 +774,222 @@ function PdtMiniStat({
             : tone === 'purple'
               ? 'bg-purple-100 text-purple-800'
               : 'bg-orange-50 text-orange-800';
+  if (value === 0) {
+    return (
+      <div className={`rounded-lg px-3 py-2 flex justify-between items-center ${bg} opacity-60`}>
+        <span>{label}</span>
+        <span className="font-bold text-sm">{value}</span>
+      </div>
+    );
+  }
   return (
-    <div className={`rounded-lg px-3 py-2 flex justify-between items-center ${bg}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-3 py-2 flex justify-between items-center ${bg} hover:ring-2 hover:ring-offset-1 hover:ring-primary-400 transition-shadow cursor-pointer text-left`}
+    >
       <span>{label}</span>
       <span className="font-bold text-sm">{value}</span>
-    </div>
+    </button>
+  );
+}
+
+function useBucketModalDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), ms);
+    return () => window.clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+const BUCKET_MODAL_PAGE_SIZE = 20;
+
+/** Lista de empresas detrás de un bucket de una tarjeta PDT (clic en "Vencidas", "Pendientes",
+ * etc.) — reusa los mismos filtros del dashboard para que la lista siempre calce con el número
+ * ya mostrado en la tarjeta (ver ListPdtBucketCompanies en el backend). Con búsqueda por
+ * razón social/RUC y paginación, igual que los listados de PDT 601/621. */
+function PdtBucketCompaniesModal({
+  open,
+  filters,
+  base,
+  onClose,
+}: {
+  open: OpenBucket;
+  filters: PdtDashboardFilters;
+  base: string;
+  onClose: () => void;
+}) {
+  const [rows, setRows] = useState<SupervisorPdtBucketCompany[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [q, setQ] = useState('');
+  const debouncedQ = useBucketModalDebouncedValue(q, 400);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, open.declarationType, open.bucket]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    supervisorsService
+      .pdtBucketCompanies({
+        period_ym: filters.periodYm,
+        declaration_type: open.declarationType,
+        bucket: open.bucket,
+        general_status: filters.generalStatus,
+        risk_level: filters.riskLevel,
+        company_id: filters.companyId ? Number(filters.companyId) : undefined,
+        responsible_user_id: filters.responsibleUserId ? Number(filters.responsibleUserId) : undefined,
+        supervisor_user_id: filters.supervisorUserId ? Number(filters.supervisorUserId) : undefined,
+        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
+        page,
+        per_page: BUCKET_MODAL_PAGE_SIZE,
+      })
+      .then(({ items, pagination }) => {
+        if (!active) return;
+        setRows(items);
+        setTotal(pagination?.total ?? items.length);
+      })
+      .catch((err) => {
+        if (active) setError(extractApiErrorMessage(err, 'No se pudo cargar la lista de empresas.'));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    open.declarationType,
+    open.bucket,
+    filters.periodYm,
+    filters.generalStatus,
+    filters.riskLevel,
+    filters.companyId,
+    filters.responsibleUserId,
+    filters.supervisorUserId,
+    debouncedQ,
+    page,
+  ]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const declarationLabel = open.declarationType === 'pdt_601' ? 'PDT 601' : 'PDT 621';
+  const detailSlug = open.declarationType === 'pdt_601' ? 'pdt-601' : 'pdt-621';
+  const totalPages = Math.max(1, Math.ceil(total / BUCKET_MODAL_PAGE_SIZE));
+
+  return createPortal(
+    <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/50 backdrop-blur-[1px]"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${declarationLabel} — ${open.label}`}
+        className="relative flex w-full max-w-3xl h-[min(85vh,820px)] flex-col rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4 border-b border-slate-200">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-slate-800">
+              {declarationLabel} — {open.label}
+            </p>
+            <p className="text-xs text-slate-500">
+              Período {filters.periodYm} · {total} {total === 1 ? 'empresa' : 'empresas'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+          >
+            <i className="fas fa-times" aria-hidden />
+          </button>
+        </div>
+        <div className="shrink-0 px-5 py-3 border-b border-slate-100">
+          <div className="relative">
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden />
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar por RUC o razón social…"
+              className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {loading ? (
+            <p className="text-sm text-slate-500">Cargando empresas…</p>
+          ) : error ? (
+            <p className="text-sm text-red-600 flex items-center gap-1.5">
+              <i className="fas fa-exclamation-circle text-xs" aria-hidden />
+              {error}
+            </p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              {q.trim().length >= 2 ? 'No hay empresas que coincidan con la búsqueda.' : 'No hay empresas en este estado.'}
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <li key={row.company_id} className="py-2.5">
+                  <Link
+                    to={`${base}/${detailSlug}/${row.company_id}?period_ym=${filters.periodYm}`}
+                    onClick={onClose}
+                    className="flex items-center justify-between gap-3 text-sm text-slate-700 hover:text-primary-700"
+                  >
+                    <span className="min-w-0 truncate">{row.business_name}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{row.ruc}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {!loading && !error && total > BUCKET_MODAL_PAGE_SIZE ? (
+          <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 border-t border-slate-200">
+            <p className="text-xs text-slate-500">
+              Página {page} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

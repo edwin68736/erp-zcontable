@@ -87,6 +87,7 @@ const AssistantDashboard = () => {
         summary601={pdtData?.pdt_601}
         summary621={pdtData?.pdt_621}
         workspace="assistant"
+        filters={{ periodYm }}
       />
     </div>
   );
