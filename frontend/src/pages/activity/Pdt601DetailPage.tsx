@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { resolveBackendUrl } from '../../api/client';
 import {
@@ -187,6 +187,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const declaration = detail?.declaration;
@@ -322,20 +323,32 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   const handleUpload = async (files: FileList | null) => {
     if (!declaration || !canUpload || !files?.length) return;
+    // Solo se carga un archivo de PDT 601 a la vez por declaración: el nuevo reemplaza al
+    // anterior (si había uno) en vez de acumularse — DeleteAttachment borra también el archivo
+    // físico, no solo el registro, para no llenar el almacenamiento del servidor.
+    const file = files[0];
     try {
       setUploading(true);
       showMsg('');
-      for (const file of Array.from(files)) {
-        await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
+      for (const existing of attachments) {
+        await supervisorsService.deleteAttachment(existing.id);
       }
+      await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
       await loadAttachments(declaration.id);
-      showMsg('Archivo(s) subido(s) correctamente.', 'success');
+      showMsg('Archivo cargado correctamente.', 'success');
     } catch (err) {
       showMsg(extractApiErrorMessage(err, 'Error al subir archivo.'), 'error');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (!canUpload || uploading) return;
+    void handleUpload(e.dataTransfer.files);
   };
 
   const handleSavePlanilla = async () => {
@@ -925,7 +938,17 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
         ) : null}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+      <div
+        className={`bg-white rounded-xl border p-4 shadow-sm space-y-3 transition-colors ${
+          dragOver ? 'border-primary-400 bg-primary-50/40' : 'border-slate-200'
+        }`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (canUpload && !uploading) setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-800">PDT 601 ({attachments.length})</h2>
           {canUpload ? (
@@ -935,7 +958,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
               <input
                 ref={fileRef}
                 type="file"
-                multiple
                 accept=".pdf,image/*"
                 className="hidden"
                 disabled={uploading}
@@ -944,6 +966,16 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
             </label>
           ) : null}
         </div>
+        {canUpload ? (
+          <p
+            className={`text-xs rounded-lg border border-dashed px-3 py-2 text-center transition-colors ${
+              dragOver ? 'border-primary-400 text-primary-700 bg-primary-50' : 'border-slate-200 text-slate-400'
+            }`}
+          >
+            Arrastra el archivo aquí para cargarlo
+            {attachments.length > 0 ? ' — reemplaza al que ya está cargado' : ''}
+          </p>
+        ) : null}
         {attachments.length === 0 ? (
           <p className="text-sm text-slate-500">Sin archivos cargados.</p>
         ) : (
