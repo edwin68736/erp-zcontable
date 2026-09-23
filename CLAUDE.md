@@ -40,6 +40,17 @@ Este proyecto tiene DOS formas de desplegar, con mecanismos distintos. No mezcla
   `sudo systemctl restart zcontable` (sudo acotado — el usuario del sitio SOLO
   puede correr ese comando exacto sin contraseña, nada más), y sube `dist/`
   completo al sitio del frontend.
+- **Trampa real ya encontrada (2026-09-22):** `frontend/.env` trae
+  `VITE_BACKEND_URL=https://api.zcontables.net` (producción) como valor por
+  defecto — Vite hornea esa variable AL COMPILAR, así que un `npm run build` sin
+  overridearla deja el frontend de pruebas hablando con el backend de
+  **producción** (mismo dominio de datos, aunque el sitio estático esté en
+  `zcontables.gestionweb.cloud`). El script ya fija
+  `VITE_BACKEND_URL=https://zcontable.gestionweb.cloud` como variable de entorno
+  real antes del build (eso sí pisa el `.env`) y aborta si no logra confirmar,
+  por `grep` sobre el bundle compilado, que la URL correcta quedó incluida. Si
+  se toca ese paso del script, no perder esa verificación — el fallo es
+  silencioso (compila y despliega bien, solo apunta a los datos equivocados).
 - Requiere en esta máquina: hosts `vps-zcontable-staging-backend` y
   `vps-zcontable-staging-frontend` en `~/.ssh/config`, con la clave dedicada
   `~/.ssh/id_ed25519_zcontable_staging` (separada de la de producción). Si una

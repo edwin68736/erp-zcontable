@@ -20,6 +20,11 @@ BACKEND_BIN_NAME="zcontable"
 
 FRONTEND_HOST="vps-zcontable-staging-frontend"
 FRONTEND_PATH="/home/gestionweb-zcontables/htdocs/zcontables.gestionweb.cloud"
+# frontend/.env trae VITE_BACKEND_URL apuntando a producción (api.zcontables.net) como default —
+# Vite hornea esa variable en el build, así que sin este override el frontend de pruebas queda
+# hablando con el backend de PRODUCCIÓN (bug real detectado 2026-09-22: el sitio de pruebas
+# mostraba datos de producción). Como variable de entorno real, esto SÍ pisa lo que diga .env.
+STAGING_BACKEND_URL="https://zcontable.gestionweb.cloud"
 
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10)
 
@@ -36,9 +41,13 @@ BUILD_OUT="$BUILD_TMP/$BACKEND_BIN_NAME"
 (cd "$BACKEND_DIR" && GOOS=linux GOARCH=amd64 go build -o "$BUILD_OUT" .)
 echo "    listo: $(du -h "$BUILD_OUT" | cut -f1)"
 
-log "[2/6] Compilando frontend (npm run build)..."
-(cd "$FRONTEND_DIR" && npm run build)
-echo "    listo: $FRONTEND_DIR/dist"
+log "[2/6] Compilando frontend (npm run build, API = $STAGING_BACKEND_URL)..."
+(cd "$FRONTEND_DIR" && VITE_BACKEND_URL="$STAGING_BACKEND_URL" npm run build)
+if ! grep -q "$STAGING_BACKEND_URL" "$FRONTEND_DIR"/dist/assets/index-*.js 2>/dev/null; then
+  echo "    ERROR: el build no quedó apuntando a $STAGING_BACKEND_URL — abortando antes de subir nada."
+  exit 1
+fi
+echo "    listo: $FRONTEND_DIR/dist (confirmado: apunta a $STAGING_BACKEND_URL)"
 
 log "[3/6] Subiendo binario nuevo al backend..."
 scp "${SSH_OPTS[@]}" -q "$BUILD_OUT" "$BACKEND_HOST:$BACKEND_PATH/${BACKEND_BIN_NAME}.new"
