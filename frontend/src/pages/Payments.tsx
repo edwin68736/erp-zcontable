@@ -16,6 +16,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { peruDateInputFromApiDate } from '../utils/peruDates';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
+import { usePdfObjectUrl } from '../hooks/usePdfObjectUrl';
 
 function formatPaymentDate(iso?: string): string {
   const d = peruDateInputFromApiDate(iso);
@@ -276,6 +277,11 @@ const Payments = () => {
 
   const closePreview = () => setPreviewUrl(null);
   const isPdf = (url: string) => url.toLowerCase().split('?')[0].endsWith('.pdf');
+  const isPreviewPdf = !!previewUrl && isPdf(previewUrl);
+  // Un <iframe src="URL del backend"> directo se bloquea cuando front y backend viven en
+  // subdominios distintos (X-Frame-Options: SAMEORIGIN puesto por el proxy delante del backend) —
+  // ver hooks/usePdfObjectUrl.ts.
+  const { blobUrl: previewPdfBlobUrl, error: previewPdfError } = usePdfObjectUrl(previewUrl, isPreviewPdf);
 
   return (
     <div className="space-y-4">
@@ -301,8 +307,19 @@ const Payments = () => {
                 </button>
               </div>
               <div className="p-3 bg-slate-50">
-                {isPdf(previewUrl) ? (
-                  <iframe title="Comprobante" src={previewUrl} className="w-full h-[70vh] rounded-lg bg-white" />
+                {isPreviewPdf ? (
+                  previewPdfError ? (
+                    <p className="py-10 text-center text-sm text-red-600">
+                      No se pudo cargar la vista previa. Prueba descargándolo.
+                    </p>
+                  ) : previewPdfBlobUrl ? (
+                    <iframe title="Comprobante" src={previewPdfBlobUrl} className="w-full h-[70vh] rounded-lg bg-white" />
+                  ) : (
+                    <p className="py-10 text-center text-sm text-slate-500">
+                      <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
+                      Cargando vista previa…
+                    </p>
+                  )
                 ) : (
                   <img
                     src={previewUrl}

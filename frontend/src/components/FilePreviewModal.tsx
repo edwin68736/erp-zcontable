@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { usePdfObjectUrl } from '../hooks/usePdfObjectUrl';
 
 function isPdfUrl(url: string): boolean {
   return url.toLowerCase().split('?')[0].endsWith('.pdf');
@@ -15,6 +16,9 @@ type Props = {
 
 /** Vista previa de PDF o imagen en modal (misma pantalla). */
 export default function FilePreviewModal({ open, url, title = 'Archivo', onClose, onDownload }: Props) {
+  const isPdf = !!url && isPdfUrl(url);
+  const { blobUrl: pdfBlobUrl, error: pdfError } = usePdfObjectUrl(url, open && isPdf);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -64,8 +68,23 @@ export default function FilePreviewModal({ open, url, title = 'Archivo', onClose
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-3 bg-slate-50">
-          {isPdfUrl(url) ? (
-            <iframe title={title} src={url} className="w-full h-[min(70vh,720px)] rounded-lg bg-white border border-slate-200" />
+          {isPdf ? (
+            pdfError ? (
+              <p className="py-10 text-center text-sm text-red-600">
+                No se pudo cargar la vista previa. Prueba descargándolo.
+              </p>
+            ) : pdfBlobUrl ? (
+              <iframe
+                title={title}
+                src={pdfBlobUrl}
+                className="w-full h-[min(70vh,720px)] rounded-lg bg-white border border-slate-200"
+              />
+            ) : (
+              <p className="py-10 text-center text-sm text-slate-500">
+                <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
+                Cargando vista previa…
+              </p>
+            )
           ) : (
             <img src={url} alt={title} className="mx-auto w-full max-h-[min(70vh,720px)] object-contain rounded-lg bg-white border border-slate-200" />
           )}
