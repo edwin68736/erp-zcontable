@@ -103,7 +103,7 @@ export async function buildExcelLetterhead(opts: ExcelLetterheadOptions): Promis
   }
   sheet.mergeCells(1, LOGO_COLS + 1, 1, totalCols);
   const titleCell = sheet.getCell(1, LOGO_COLS + 1);
-  titleCell.value = title;
+  titleCell.value = title.toUpperCase();
   titleCell.font = { name: fontName, size: fontSize, bold: true, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = bannerFill;
   titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
@@ -134,9 +134,10 @@ export async function buildExcelLetterhead(opts: ExcelLetterheadOptions): Promis
   const roleLabel = workspace === 'supervisor' ? 'SUPERVISOR' : 'ASISTENTE';
   const labelFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
   const valueFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+  // A pedido: todo el contenido del Excel va en mayúsculas, sin excepciones.
   const setInfoCell = (col: number, value: string, bold: boolean, fill: ExcelJS.Fill) => {
     const c = sheet.getCell(2, col);
-    c.value = value;
+    c.value = value.toUpperCase();
     c.font = { name: fontName, size: fontSize, bold };
     c.fill = fill;
     c.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };

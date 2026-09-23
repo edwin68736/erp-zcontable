@@ -109,7 +109,7 @@ export async function exportPdt621ReportExcel(options: {
   const headerRow = sheet.getRow(4);
   HEADERS.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = h;
+    cell.value = h.toUpperCase();
     cell.fill = HEADER_FILL;
     cell.font = HEADER_FONT;
     cell.border = THIN_BORDER;
@@ -130,9 +130,10 @@ export async function exportPdt621ReportExcel(options: {
 
     const dataRow = sheet.getRow(rowIdx);
     let col = 1;
+    // A pedido: todo el contenido del Excel va en mayúsculas, sin excepciones.
     const setText = (v: string, align: 'left' | 'center' = 'left') => {
       const c = dataRow.getCell(col++);
-      c.value = v;
+      c.value = v.toUpperCase();
       styleCell(c, rowFill);
       c.alignment = { vertical: 'middle', horizontal: align, wrapText: align === 'left' };
     };
