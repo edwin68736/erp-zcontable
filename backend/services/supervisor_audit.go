@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,7 +105,42 @@ func (s *SupervisorService) SaveAttachment(controlID, declarationID, userID uint
 	return &a, nil
 }
 
+func (s *SupervisorService) GetAttachmentByID(id uint) (*models.SupervisorAttachment, error) {
+	var a models.SupervisorAttachment
+	if err := database.DB.First(&a, id).Error; err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// DeleteAttachment borra el registro (soft-delete, igual que antes) y, además, el archivo físico en
+// disco — antes solo se borraba la fila y el archivo quedaba huérfano ocupando espacio para siempre.
+// Un archivo que ya no existe en disco no bloquea el borrado del registro. El borrado físico se
+// reintenta unas veces (en Windows, un handle recién cerrado del propio servidor de estáticos puede
+// tardar unos milisegundos en liberarse — "being used by another process"; en Linux, donde corre
+// producción, esto no pasa nunca). Si aun así falla, NO se aborta el reemplazo del archivo — el
+// registro se borra igual y solo queda un warning en el log; bloquear al usuario porque el archivo
+// viejo no se pudo limpiar del disco sería peor que el archivo huérfano ocasional.
 func (s *SupervisorService) DeleteAttachment(id uint) error {
+	a, err := s.GetAttachmentByID(id)
+	if err != nil {
+		return err
+	}
+	if rel := strings.TrimPrefix(a.FileURL, "/storage/"); rel != a.FileURL {
+		full := filepath.Join(config.AppConfig.StoragePath, filepath.FromSlash(rel))
+		var removeErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			removeErr = os.Remove(full)
+			if removeErr == nil || os.IsNotExist(removeErr) {
+				removeErr = nil
+				break
+			}
+			time.Sleep(150 * time.Millisecond)
+		}
+		if removeErr != nil {
+			log.Printf("[supervisor_attachments] no se pudo borrar el archivo físico %s (id=%d): %v", full, id, removeErr)
+		}
+	}
 	return database.DB.Delete(&models.SupervisorAttachment{}, id).Error
 }
 

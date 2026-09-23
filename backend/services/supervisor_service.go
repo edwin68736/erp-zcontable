@@ -257,7 +257,16 @@ func (s *SupervisorService) buildDashboardAlerts(p SupervisorDashboardParams, ou
 }
 
 func (s *SupervisorService) dashboardControlsQuery(p SupervisorDashboardParams) *gorm.DB {
-	q := database.DB.Model(&models.SupervisorMonthlyControl{}).Where("period_ym = ?", p.PeriodYM)
+	// Solo empresas activas: antes esta consulta (base de Al día/Pendiente/Vencido/Observado y de
+	// "Empresas vencidas") no filtraba por Company.status, a diferencia de "Empresas activas" y
+	// "Sin control en período" (líneas arriba/abajo) que sí lo hacen — una empresa desactivada podía
+	// arrastrar un control viejo sin cerrar y aparecer contada en "Vencidas" aunque ya no fuera
+	// cliente activo, inflando ese número por encima del total de activas (confirmado en producción:
+	// 286 vencidas vs 272 activas). Si se reactiva una empresa, vuelve a entrar acá sola.
+	activeCompanyIDs := database.DB.Model(&models.Company{}).Select("id").Where("status = ?", "activo")
+	q := database.DB.Model(&models.SupervisorMonthlyControl{}).
+		Where("period_ym = ?", p.PeriodYM).
+		Where("company_id IN (?)", activeCompanyIDs)
 	if p.CompanyID > 0 {
 		q = q.Where("company_id = ?", p.CompanyID)
 	}
@@ -432,6 +441,71 @@ type PdtTypeSummary struct {
 	EntregadoFueraDeFecha int64 `json:"entregado_fuera_de_fecha"`
 }
 
+// pdtBucketConditions arma, para cada bucket (sin_planilla, suspendida, observado, completado,
+// vencido, pendiente, entregado_a_tiempo, entregado_fuera_de_fecha), la MISMA expresión booleana
+// SQL que antes vivía solo inline dentro de pdtBucketsSelectSQL — ahora extraída para poder
+// reusarla también como WHERE de "lista de empresas de este bucket" (PdtBucketCompanies) sin
+// arriesgarse a que la lista y el conteo de la tarjeta del dashboard diverjan con el tiempo. El
+// caller debe traer los mismos alias que pdtBucketsSelectSQL: `d` (supervisor_declarations), `c`
+// (supervisor_monthly_controls), `pl` (LEFT JOIN supervisor_pdt601_planillas) y `r` (LEFT JOIN
+// supervisor_pdt621_records).
+func pdtBucketConditions(periodYM string) map[string]string {
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
+	isSuspendida := "COALESCE(c.suspendida, 0) = 1"
+	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
+	completadoStatuses := fmt.Sprintf("(%s, %s, %s, %s)",
+		sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado), sq(models.SupervisorDeclEntregado))
+	observadoStatus := sq(models.SupervisorDeclObservado)
+
+	pdt601OnTime, pdt601Late := "1=1", "1=0"
+	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt601OnTime = fmt.Sprintf("(pl.fecha_entrega IS NULL OR %s IS NULL OR pl.fecha_entrega <= %s)", dueCase, dueCase)
+		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND %s IS NOT NULL AND pl.fecha_entrega > %s)", dueCase, dueCase)
+	}
+	pdt621OnTime, pdt621Late := "1=1", "1=0"
+	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)", dueCase, dueCase)
+		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s)", dueCase, dueCase)
+	}
+	todayLit := sq(time.Now().Format("2006-01-02"))
+	entregadoStatus := sq(models.SupervisorDeclEntregado)
+	isEntregadoATiempo := fmt.Sprintf(
+		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
+		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601OnTime, sq(models.SupervisorDeclPDT621), pdt621OnTime,
+	)
+	isEntregadoFueraDeFecha := fmt.Sprintf(
+		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
+		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601Late, sq(models.SupervisorDeclPDT621), pdt621Late,
+	)
+
+	oldDue := "COALESCE(d.due_date, c.due_date)"
+	pdt601Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
+	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt601Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
+	}
+	pdt621Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
+	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
+		pdt621Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
+	}
+	isVencidoAbierto := fmt.Sprintf(
+		"((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s))",
+		sq(models.SupervisorDeclPDT601), pdt601Vencido, sq(models.SupervisorDeclPDT621), pdt621Vencido,
+	)
+
+	notExempt := "NOT " + isExempt
+	return map[string]string{
+		"sin_planilla":             isSinPlanilla,
+		"suspendida":               isSuspendida,
+		"observado":                notExempt + " AND d.status = " + observadoStatus,
+		"completado":               notExempt + " AND d.status IN " + completadoStatuses,
+		"vencido":                  notExempt + " AND d.status NOT IN " + completadoStatuses + " AND " + isVencidoAbierto,
+		"pendiente":                notExempt + " AND d.status NOT IN " + completadoStatuses + " AND NOT " + isVencidoAbierto,
+		"entregado_a_tiempo":       isEntregadoATiempo,
+		"entregado_fuera_de_fecha": isEntregadoFueraDeFecha,
+	}
+}
+
 // pdtBucketsSelectSQL arma las columnas de conteo por bucket (sin_planilla, suspendida, observado,
 // completado, vencido, pendiente, ent_a_tiempo, ent_fuera_de_fecha, total) — reutilizada tanto por
 // PdtDashboardSummary (total del portafolio) como por PdtAssistantPerformance (desglose por
@@ -463,100 +537,19 @@ type PdtTypeSummary struct {
 // vez de como parámetros `?`: evita tener que contar y ordenar a mano una veintena de
 // placeholders posicionales repetidos, sin ningún riesgo de inyección (no hay input externo acá).
 func pdtBucketsSelectSQL(periodYM string) string {
-	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
-	isSuspendida := "COALESCE(c.suspendida, 0) = 1"
-	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
-	// "entregado" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md) se suma acá como terminal para
-	// pdt_601/pdt_621 — los valores viejos (aprobado/presentado/cerrado) se mantienen para no romper
-	// sire/renta_anual, que siguen usando el enum de 7 y también pasan por esta misma consulta.
-	completadoStatuses := fmt.Sprintf("(%s, %s, %s, %s)",
-		sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado), sq(models.SupervisorDeclEntregado))
-	observadoStatus := sq(models.SupervisorDeclObservado)
-
-	// Apertura de "Completado" por puntualidad, solo para pdt_601/pdt_621 en estado "entregado" —
-	// compara la fecha de entrega de cada tipo (columnas distintas: pl.fecha_entrega vs.
-	// r.primera_entrega_fecha) contra la fecha límite que le corresponde a cada empresa según su
-	// grupo de RUC (calendario interno, nunca el cronograma SUNAT — ver
-	// pdt601DueDateSQLCase/pdt621DueDateSQLCase, docs/diseno-limpieza-control-detail-2026-09-16.md
-	// §2.7b). Sin ninguna actividad configurada para un módulo, todo lo "entregado" de ese módulo
-	// cuenta como a tiempo (mismo criterio que el filtro del listado, §11).
-	// La fecha límite de PDT 601 varía por grupo de RUC de cada empresa desde §2.7b — ya no es un
-	// valor único, es un CASE SQL correlacionado a `c.company_id` (aquí `c` es
-	// supervisor_monthly_controls, no `companies` — este query no la joinea directo).
-	pdt601OnTime, pdt601Late := "1=1", "1=0"
-	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
-		pdt601OnTime = fmt.Sprintf("(pl.fecha_entrega IS NULL OR %s IS NULL OR pl.fecha_entrega <= %s)", dueCase, dueCase)
-		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND %s IS NOT NULL AND pl.fecha_entrega > %s)", dueCase, dueCase)
-	}
-	pdt621OnTime, pdt621Late := "1=1", "1=0"
-	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
-		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)", dueCase, dueCase)
-		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s)", dueCase, dueCase)
-	}
-	// Fecha de hoy como literal (no CURDATE()/NOW() del motor): permite testear esta consulta contra
-	// sqlite en tests, además de MySQL en producción — CURDATE() no existe en sqlite y hacía que esta
-	// función nunca se pudiera probar (confirmado: no había ningún test para PdtDashboardSummary).
-	todayLit := sq(time.Now().Format("2006-01-02"))
-	entregadoStatus := sq(models.SupervisorDeclEntregado)
-	isEntregadoATiempo := fmt.Sprintf(
-		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
-		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601OnTime, sq(models.SupervisorDeclPDT621), pdt621OnTime,
-	)
-	isEntregadoFueraDeFecha := fmt.Sprintf(
-		"(d.status = %s AND ((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s)))",
-		entregadoStatus, sq(models.SupervisorDeclPDT601), pdt601Late, sq(models.SupervisorDeclPDT621), pdt621Late,
-	)
-
-	// "Vencido" (declaración TODAVÍA abierta, sin entregar, cuya fecha límite ya pasó) — docs/diseno-
-	// limpieza-control-detail-2026-09-16.md §5.7: antes comparaba contra COALESCE(d.due_date, c.due_date)
-	// (fecha propia de la declaración, 0% de uso real — o si no, la fecha genérica del control, ~día 20
-	// del mes siguiente), sin relación con la fecha límite por grupo de RUC del calendario interno que
-	// ya usan entregado_a_tiempo/fuera_de_fecha arriba. Ahora usa la misma fecha por grupo de RUC; si el
-	// período no tiene ninguna actividad pdt_601/pdt_621 configurada en el calendario, cae al fallback
-	// viejo para no perder cobertura. Si SÍ hay actividades pero el dígito de una empresa puntual no cae
-	// en ningún rango (sin comodín), esa fila no cuenta como vencida — mismo criterio "no castigar por
-	// falta de configuración" que pdt601OnTime/pdt601Late.
-	oldDue := "COALESCE(d.due_date, c.due_date)"
-	pdt601Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
-	if dueCase, ok := pdt601DueDateSQLCase(periodYM, "c.company_id"); ok {
-		pdt601Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
-	}
-	pdt621Vencido := fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", oldDue, oldDue, todayLit)
-	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
-		pdt621Vencido = fmt.Sprintf("(%s IS NOT NULL AND %s < %s)", dueCase, dueCase, todayLit)
-	}
-	isVencidoAbierto := fmt.Sprintf(
-		"((d.declaration_type = %s AND %s) OR (d.declaration_type = %s AND %s))",
-		sq(models.SupervisorDeclPDT601), pdt601Vencido, sq(models.SupervisorDeclPDT621), pdt621Vencido,
-	)
-
-	// Vencido/Pendiente (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.2b): "observado" ya NO
-	// se excluye de acá — antes una declaración observada nunca contaba como vencida/pendiente sin
-	// importar cuánto tiempo llevara sin resolverse; ahora se evalúa por fecha igual que "pendiente"
-	// (si ya venció el plazo del calendario y sigue observada, cuenta como vencido). El conteo de
-	// "observado" (bucket propio, `SUM(... d.status = observadoStatus)`) sigue existiendo aparte para
-	// la tarjeta "Declaraciones observadas" — es intencional que una fila observada y ya vencida
-	// aparezca en LOS DOS conteos a la vez, son métricas distintas (revisión pendiente vs. cumplimiento).
+	cond := pdtBucketConditions(periodYM)
 	return fmt.Sprintf(`
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
-		SUM(CASE WHEN NOT %s AND d.status = %s THEN 1 ELSE 0 END) AS observado,
-		SUM(CASE WHEN NOT %s AND d.status IN %s THEN 1 ELSE 0 END) AS completado,
-		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND %s
-			THEN 1 ELSE 0 END) AS vencido,
-		SUM(CASE WHEN NOT %s AND d.status NOT IN %s AND NOT %s
-			THEN 1 ELSE 0 END) AS pendiente,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS observado,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS completado,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS vencido,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS pendiente,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_a_tiempo,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_fuera_de_fecha,
 		COUNT(*) AS total`,
-		isSinPlanilla, isSuspendida,
-		isExempt, observadoStatus,
-		isExempt, completadoStatuses,
-		isExempt, completadoStatuses, isVencidoAbierto,
-		isExempt, completadoStatuses, isVencidoAbierto,
-		isEntregadoATiempo,
-		isEntregadoFueraDeFecha,
+		cond["sin_planilla"], cond["suspendida"], cond["observado"], cond["completado"],
+		cond["vencido"], cond["pendiente"], cond["entregado_a_tiempo"], cond["entregado_fuera_de_fecha"],
 	)
 }
 
@@ -587,7 +580,10 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
 		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
-		Where("c.period_ym = ? AND d.declaration_type IN ?", p.PeriodYM, []string{models.SupervisorDeclPDT601, models.SupervisorDeclPDT621})
+		Where("c.period_ym = ? AND d.declaration_type IN ?", p.PeriodYM, []string{models.SupervisorDeclPDT601, models.SupervisorDeclPDT621}).
+		// Mismo criterio que dashboardControlsQuery: sin esto, una empresa desactivada con un
+		// control viejo sin cerrar seguía sumando en Pendiente/Vencido/etc. de este resumen.
+		Where("c.company_id IN (?)", database.DB.Model(&models.Company{}).Select("id").Where("status = ?", "activo"))
 
 	if p.CompanyID > 0 {
 		q = q.Where("c.company_id = ?", p.CompanyID)
@@ -625,6 +621,87 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		}
 	}
 	return out, nil
+}
+
+// PdtBucketCompanyRow una fila de la lista de empresas detrás de un bucket de la tarjeta PDT
+// 601/621 del dashboard (p. ej. "Vencidas": 21 → clic → esta lista con esas 21 empresas).
+type PdtBucketCompanyRow struct {
+	CompanyID    uint   `json:"company_id"`
+	Code         string `json:"code"`
+	BusinessName string `json:"business_name"`
+	RUC          string `json:"ruc"`
+}
+
+// ListPdtBucketCompanies devuelve las empresas detrás de un bucket puntual de PdtDashboardSummary
+// (mismo período/tipo/filtros) — reusa pdtBucketConditions para que la lista SIEMPRE coincida con
+// el número de la tarjeta, nunca diverge por mantenerse por separado. search filtra por razón
+// social o RUC; page/perPage paginan (perPage se acota a [1, 200]).
+func (s *SupervisorService) ListPdtBucketCompanies(p SupervisorDashboardParams, declarationType, bucket, search string, page, perPage int) ([]PdtBucketCompanyRow, int64, error) {
+	if !validPeriodYM(p.PeriodYM) {
+		return nil, 0, errors.New("período inválido (use YYYY-MM)")
+	}
+	if declarationType != models.SupervisorDeclPDT601 && declarationType != models.SupervisorDeclPDT621 {
+		return nil, 0, errors.New("declaration_type inválido")
+	}
+	cond, ok := pdtBucketConditions(p.PeriodYM)[bucket]
+	if !ok {
+		return nil, 0, fmt.Errorf("bucket desconocido: %s", bucket)
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if perPage <= 0 {
+		perPage = 20
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+
+	q := database.DB.Table("supervisor_declarations AS d").
+		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
+		Joins("JOIN companies comp ON comp.id = c.company_id AND comp.status = 'activo'").
+		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
+		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
+		Where("c.period_ym = ? AND d.declaration_type = ?", p.PeriodYM, declarationType).
+		Where(cond)
+
+	if p.CompanyID > 0 {
+		q = q.Where("c.company_id = ?", p.CompanyID)
+	}
+	if p.GeneralStatus != "" {
+		q = q.Where("c.general_status = ?", p.GeneralStatus)
+	}
+	if p.RiskLevel != "" {
+		q = q.Where("c.risk_level = ?", p.RiskLevel)
+	}
+	if p.ResponsibleUserID > 0 {
+		q = q.Where("c.responsible_user_id = ?", p.ResponsibleUserID)
+	}
+	if p.SupervisorUserID > 0 {
+		q = q.Where("c.supervisor_user_id = ?", p.SupervisorUserID)
+	}
+	if p.AllowedCompanyIDs != nil {
+		q = q.Where("c.company_id IN ?", p.AllowedCompanyIDs)
+	}
+	if search = strings.TrimSpace(search); search != "" {
+		like := "%" + search + "%"
+		q = q.Where("comp.business_name LIKE ? OR comp.ruc LIKE ?", like, like)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []PdtBucketCompanyRow
+	err := q.Select("comp.id AS company_id, comp.internal_code AS code, comp.business_name, comp.ruc").
+		Order("comp.business_name ASC").
+		Limit(perPage).Offset((page - 1) * perPage).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }
 
 // PdtAssistantSummary desempeño de un asistente en un tipo de declaración (PDT 601 o PDT 621) del

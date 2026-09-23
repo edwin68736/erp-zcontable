@@ -199,6 +199,34 @@ func (ctrl *SupervisorController) PdtAssistantPerformanceAPI(c fiber.Ctx) error 
 	return c.JSON(fiber.Map{"data": data})
 }
 
+// PdtBucketCompaniesAPI GET /api/supervisors/dashboard/pdt-bucket-companies — lista de empresas
+// detrás de un bucket puntual de una tarjeta PDT 601/621 del dashboard (p. ej. "Vencidas": 21 →
+// clic → esta lista), mismos filtros que DashboardAPI/PdtSummaryAPI más declaration_type y bucket.
+func (ctrl *SupervisorController) PdtBucketCompaniesAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	declarationType := c.Query("declaration_type", "")
+	bucket := c.Query("bucket", "")
+	search := c.Query("q", "")
+	page, perPage := paginationFromQuery(c)
+	data, total, err := ctrl.svc.ListPdtBucketCompanies(p, declarationType, bucket, search, page, perPage)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{
+		"data": data,
+		"pagination": fiber.Map{
+			"page": page, "per_page": perPage, "total": total,
+			"total_pages": (total + int64(perPage) - 1) / int64(perPage),
+		},
+	})
+}
+
 // ComplianceTrendAPI GET /api/supervisors/dashboard/compliance-trend — cumplimiento mensual de
 // los últimos `months` (default 6) meses terminando en period_ym, mismos filtros que DashboardAPI.
 func (ctrl *SupervisorController) ComplianceTrendAPI(c fiber.Ctx) error {
@@ -943,6 +971,33 @@ func (ctrl *SupervisorController) UploadAttachmentAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": row})
+}
+
+func (ctrl *SupervisorController) DeleteAttachmentAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id inválido"})
+	}
+	att, err := ctrl.svc.GetAttachmentByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "adjunto no encontrado"})
+	}
+	var cid, did uint
+	if att.MonthlyControlID != nil {
+		cid = *att.MonthlyControlID
+	}
+	if att.DeclarationID != nil {
+		did = *att.DeclarationID
+	}
+	if err := ctrl.ensureObservationScope(c, cid, did); err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+	}
+	if err := ctrl.svc.DeleteAttachment(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 func (ctrl *SupervisorController) ListNotificationsAPI(c fiber.Ctx) error {
