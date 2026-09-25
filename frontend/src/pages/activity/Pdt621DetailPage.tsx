@@ -116,6 +116,10 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // escribe). formLocked bloquea el formulario igual que declarationLocked.
   const controlSuspendida = !!detail?.control_suspendida;
   const formLocked = declarationLocked || controlSuspendida;
+  // El asistente solo registra 1ra/2da entrega y carga el PDF — "Fecha de declaración e importes
+  // PDT 621" y la observación de revisión las completa el supervisor después, mismo criterio que
+  // "Seguimiento" en Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant).
+  const importesReadOnlyForAssistant = workspace === 'assistant';
   const displayStatus = useMemo(
     () =>
       pdt621DisplayStatus({
@@ -587,7 +591,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">
               Fecha de declaración e importes PDT 621
             </h2>
-            {pdt621Locked ? (
+            {importesReadOnlyForAssistant ? (
+              <p className="text-xs text-slate-500 -mt-2">
+                Estos datos los completa el supervisor luego de revisar el archivo cargado.
+              </p>
+            ) : pdt621Locked ? (
               <p className="text-xs text-slate-500 -mt-2">
                 Total ventas, Total compras, IGV y Renta se sincronizan desde la liquidación de esta empresa/período — no
                 se editan a mano acá.
@@ -598,7 +606,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <label className="block text-xs text-slate-500 mb-1">Fecha de declaración</label>
                 <input
                   type="date"
-                  disabled={!canUpdate || declarationLocked}
+                  disabled={!canUpdate || declarationLocked || importesReadOnlyForAssistant}
                   value={record.fecha_declaracion}
                   onChange={(e) => patchRecord({ fecha_declaracion: e.target.value })}
                   className={FIELD_INPUT}
@@ -609,7 +617,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || declarationLocked || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked || importesReadOnlyForAssistant}
                   value={record.total_ventas}
                   onChange={(e) => patchRecord({ total_ventas: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -620,7 +628,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || declarationLocked || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked || importesReadOnlyForAssistant}
                   value={record.total_compras}
                   onChange={(e) => patchRecord({ total_compras: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -631,7 +639,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || declarationLocked || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked || importesReadOnlyForAssistant}
                   value={record.igv}
                   onChange={(e) => patchRecord({ igv: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -642,7 +650,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 <input
                   type="number"
                   step="0.01"
-                  disabled={!canUpdate || declarationLocked || pdt621Locked}
+                  disabled={!canUpdate || declarationLocked || pdt621Locked || importesReadOnlyForAssistant}
                   value={record.rta}
                   onChange={(e) => patchRecord({ rta: Number(e.target.value) || 0 })}
                   className={FIELD_INPUT}
@@ -659,7 +667,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                   type="number"
                   step="1"
                   min="0"
-                  disabled={!canUpdate || declarationLocked}
+                  disabled={!canUpdate || declarationLocked || importesReadOnlyForAssistant}
                   value={record.cantidad_comprobantes_venta || ''}
                   onChange={(e) => patchRecord({ cantidad_comprobantes_venta: Number(e.target.value) || 0 })}
                   placeholder="0"
@@ -672,7 +680,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                   type="number"
                   step="1"
                   min="0"
-                  disabled={!canUpdate || declarationLocked}
+                  disabled={!canUpdate || declarationLocked || importesReadOnlyForAssistant}
                   value={record.cantidad_comprobantes_compra || ''}
                   onChange={(e) => patchRecord({ cantidad_comprobantes_compra: Number(e.target.value) || 0 })}
                   placeholder="0"
@@ -731,12 +739,16 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         <div>
           <label className="block text-xs text-slate-500 mb-1">Observación</label>
           <textarea
-            disabled={!canUpdate || formLocked}
+            disabled={!canUpdate || formLocked || importesReadOnlyForAssistant}
             value={record.observacion}
             onChange={(e) => patchRecord({ observacion: e.target.value })}
             rows={2}
             className={FIELD_INPUT}
-            placeholder="Observación sobre la revisión del archivador…"
+            placeholder={
+              importesReadOnlyForAssistant
+                ? 'Observación del supervisor sobre la revisión del archivador…'
+                : 'Observación sobre la revisión del archivador…'
+            }
           />
         </div>
 
@@ -829,40 +841,44 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">Observaciones</h2>
-        {canCreateObservation ? (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              value={obsText}
-              onChange={(e) => setObsText(e.target.value)}
-              placeholder="Nueva observación…"
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <button
-              type="button"
-              disabled={obsSaving || !obsText.trim()}
-              onClick={() => void handleAddObservation()}
-              className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50"
-            >
-              Agregar
-            </button>
-          </div>
-        ) : null}
-        {observations.length === 0 ? (
-          <p className="text-sm text-slate-500">Sin observaciones.</p>
-        ) : (
-          <ul className="space-y-2">
-            {observations.map((o) => (
-              <li key={o.id} className="text-sm border border-slate-100 rounded-lg px-3 py-2 bg-slate-50/50">
-                <p className="text-slate-800">{o.body}</p>
-                <p className="text-xs text-slate-500 mt-1">{formatStoredAt(o.created_at)}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* El asistente no registra observaciones acá — solo carga el PDF (ver bloque de arriba).
+          Esta sección (agregar/leer el hilo de observaciones) es exclusiva del supervisor. */}
+      {workspace === 'supervisor' ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+          <h2 className="text-sm font-semibold text-slate-800">Observaciones</h2>
+          {canCreateObservation ? (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={obsText}
+                onChange={(e) => setObsText(e.target.value)}
+                placeholder="Nueva observación…"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="button"
+                disabled={obsSaving || !obsText.trim()}
+                onClick={() => void handleAddObservation()}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50"
+              >
+                Agregar
+              </button>
+            </div>
+          ) : null}
+          {observations.length === 0 ? (
+            <p className="text-sm text-slate-500">Sin observaciones.</p>
+          ) : (
+            <ul className="space-y-2">
+              {observations.map((o) => (
+                <li key={o.id} className="text-sm border border-slate-100 rounded-lg px-3 py-2 bg-slate-50/50">
+                  <p className="text-slate-800">{o.body}</p>
+                  <p className="text-xs text-slate-500 mt-1">{formatStoredAt(o.created_at)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       {preview ? (
         <FilePreviewModal
