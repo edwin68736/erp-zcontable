@@ -1028,6 +1028,196 @@ func (ctrl *SupervisorController) MarkNotificationReadAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+// PreliminarVentasListAPI GET /api/supervisors/activity-modules/preliminar-ventas
+func (ctrl *SupervisorController) PreliminarVentasListAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	page, perPage := paginationFromQuery(c)
+	rows, total, err := ctrl.svc.ListPreliminarVentas(services.PreliminarVentasListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Q:                 c.Query("q", ""),
+		Status:            c.Query("status", ""),
+		AllowedCompanyIDs: allowed,
+		Page:              page,
+		PerPage:           perPage,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if rows == nil {
+		rows = []services.PreliminarVentasListRow{}
+	}
+	return c.JSON(fiber.Map{
+		"data": rows,
+		"pagination": fiber.Map{
+			"page": page, "per_page": perPage, "total": total,
+			"total_pages": (total + int64(perPage) - 1) / int64(perPage),
+		},
+	})
+}
+
+// PreliminarVentasDetailAPI GET /api/supervisors/activity-modules/preliminar-ventas/companies/:companyId
+func (ctrl *SupervisorController) PreliminarVentasDetailAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	row, err := ctrl.svc.EnsurePreliminarVentas(uint(companyID), periodYM)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// PreliminarVentasSaveAPI PUT /api/supervisors/activity-modules/preliminar-ventas/companies/:companyId
+func (ctrl *SupervisorController) PreliminarVentasSaveAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	if !hasStudioScope(c) {
+		uid, uerr := getUserID(c)
+		if uerr != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+		}
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	var body services.PreliminarVentasRecordInput
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	row, err := ctrl.svc.SavePreliminarVentasRecord(uint(companyID), periodYM, body)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// InformeDetraccionesListAPI GET /api/supervisors/activity-modules/informe-detracciones
+func (ctrl *SupervisorController) InformeDetraccionesListAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	page, perPage := paginationFromQuery(c)
+	out, err := ctrl.svc.ListInformeDetracciones(services.InformeDetraccionesListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+		Page:              page,
+		PerPage:           perPage,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if out.Rows == nil {
+		out.Rows = []services.InformeDetraccionesListRow{}
+	}
+	return c.JSON(fiber.Map{
+		"data": out.Rows,
+		"pagination": fiber.Map{
+			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
+		},
+	})
+}
+
+// SiscontBalancesListAPI GET /api/supervisors/activity-modules/siscont-balances
+func (ctrl *SupervisorController) SiscontBalancesListAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	page, perPage := paginationFromQuery(c)
+	out, err := ctrl.svc.ListSiscontBalances(services.SiscontBalancesListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+		Page:              page,
+		PerPage:           perPage,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if out.Rows == nil {
+		out.Rows = []services.SiscontBalancesListRow{}
+	}
+	return c.JSON(fiber.Map{
+		"data": out.Rows,
+		"pagination": fiber.Map{
+			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
+		},
+	})
+}
+
+// InformeDeudasListAPI GET /api/supervisors/activity-modules/informe-deudas
+func (ctrl *SupervisorController) InformeDeudasListAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	page, perPage := paginationFromQuery(c)
+	out, err := ctrl.svc.ListInformeDeudas(services.InformeDeudasListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+		Page:              page,
+		PerPage:           perPage,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if out.Rows == nil {
+		out.Rows = []services.InformeDeudasListRow{}
+	}
+	return c.JSON(fiber.Map{
+		"data": out.Rows,
+		"pagination": fiber.Map{
+			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
+		},
+	})
+}
+
 // DetraccionesListAPI GET /api/supervisors/activity-modules/detracciones
 func (ctrl *SupervisorController) DetraccionesListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)

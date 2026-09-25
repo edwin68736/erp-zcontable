@@ -45,6 +45,12 @@ const (
 	SupervisorDeclSunatInbox         = "sunat_inbox"
 	SupervisorDeclDetracciones       = "detracciones"
 	SupervisorDeclDistractionsLegacy = "distractions" // legacy F4; lectura/migración únicamente
+	// SupervisorDeclPreliminarVentas: resumen de ventas del mes que se envía al cliente días antes
+	// del cierre para que prevea el pago de impuestos — módulo propio, independiente de Liquidación
+	// (no se convierte en una, ni la reemplaza). Colgado del mismo SupervisorMonthlyControl que los
+	// demás módulos para poder sumarle más adelante control de fechas de entrega/estado, igual que
+	// PDT 601/621.
+	SupervisorDeclPreliminarVentas = "preliminar_ventas"
 )
 
 // Estados operativos Buzón SOL (declaration_type sunat_inbox).

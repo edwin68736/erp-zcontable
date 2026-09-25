@@ -28,6 +28,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := reconcileSystemRolePermissions(db); err != nil {
 		return err
 	}
+	if err := backfillRolePermission(db, rbac.RoleAsistente, rbac.SettingsFirmBrandingView); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
@@ -242,6 +245,42 @@ func reconcileSystemRolePermissions(db *gorm.DB) error {
 		if err := setCanonical(&role, roleCode); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// backfillRolePermission agrega UN permiso puntual a un rol de sistema que ya tenía permisos
+// configurados (por eso reconcileSystemRolePermissions no lo toca, "ya configurado; respetar al
+// administrador") — a diferencia de esa función, esto NUNCA reemplaza ni quita nada, solo agrega
+// si falta. Pensado para capacidades nuevas que un rol existente necesita a partir de ahora (p. ej.
+// el asistente generando el PDF de Preliminar de Ventas, que necesita leer el membrete del estudio).
+// Idempotente: si ya lo tiene, no hace nada.
+func backfillRolePermission(db *gorm.DB, roleCode, permCode string) error {
+	var role models.Role
+	if err := db.Where("code = ? AND is_system = ?", roleCode, true).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	var perm models.Permission
+	if err := db.Where("code = ?", permCode).First(&perm).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	var count int64
+	if err := db.Model(&models.RolePermission{}).
+		Where("role_id = ? AND permission_id = ?", role.ID, perm.ID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	if err := db.Model(&role).Association("Permissions").Append(&perm); err != nil {
+		return fmt.Errorf("backfill %s → %s: %w", roleCode, permCode, err)
 	}
 	return nil
 }

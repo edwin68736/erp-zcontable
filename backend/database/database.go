@@ -73,6 +73,7 @@ func AutoMigrate() error {
 		&models.SupervisorTaxLiquidation{},
 		&models.SupervisorPdt601Planilla{},
 		&models.SupervisorPdt621Record{},
+		&models.SupervisorPreliminarVentasRecord{},
 		&models.SupervisorChangeLog{},
 		&models.SupervisorObservation{},
 		&models.SupervisorAttachment{},

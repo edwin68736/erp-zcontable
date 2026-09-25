@@ -62,6 +62,11 @@ import AssistantSunatInboxListPage from './pages/assistant/activities/AssistantS
 import AssistantSunatInboxDetailPage from './pages/assistant/activities/AssistantSunatInboxDetailPage';
 import AssistantDetraccionesListPage from './pages/assistant/activities/AssistantDetraccionesListPage';
 import AssistantDetraccionesDetailPage from './pages/assistant/activities/AssistantDetraccionesDetailPage';
+import AssistantPreliminarVentasListPage from './pages/assistant/activities/AssistantPreliminarVentasListPage';
+import AssistantPreliminarVentasDetailPage from './pages/assistant/activities/AssistantPreliminarVentasDetailPage';
+import AssistantInformeDetraccionesListPage from './pages/assistant/activities/AssistantInformeDetraccionesListPage';
+import AssistantSiscontBalancesListPage from './pages/assistant/activities/AssistantSiscontBalancesListPage';
+import AssistantInformeDeudasListPage from './pages/assistant/activities/AssistantInformeDeudasListPage';
 import { LegacyDetraccionesRedirect } from './components/activity/LegacyDetraccionesRedirect';
 import AssistantPdt601ListPage from './pages/assistant/activities/AssistantPdt601ListPage';
 import AssistantPdt601DetailPage from './pages/assistant/activities/AssistantPdt601DetailPage';
@@ -183,6 +188,11 @@ function App() {
             <Route path="assistant/activities/sunat-inbox/:companyId" element={guard(P.supervisorsControlsView, <AssistantSunatInboxDetailPage />)} />
             <Route path="assistant/activities/detracciones" element={guard(P.supervisorsControlsView, <AssistantDetraccionesListPage />)} />
             <Route path="assistant/activities/detracciones/:companyId" element={guard(P.supervisorsControlsView, <AssistantDetraccionesDetailPage />)} />
+            <Route path="assistant/activities/preliminar-ventas" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasListPage />)} />
+            <Route path="assistant/activities/preliminar-ventas/:companyId" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasDetailPage />)} />
+            <Route path="assistant/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <AssistantInformeDetraccionesListPage />)} />
+            <Route path="assistant/activities/siscont-balances" element={guard(P.supervisorsControlsView, <AssistantSiscontBalancesListPage />)} />
+            <Route path="assistant/activities/informe-deudas" element={guard(P.supervisorsControlsView, <AssistantInformeDeudasListPage />)} />
             <Route path="assistant/activities/distractions" element={<LegacyDetraccionesRedirect workspace="assistant" />} />
             <Route path="assistant/activities/distractions/:companyId" element={<LegacyDetraccionesRedirect workspace="assistant" />} />
             <Route path="assistant/notifications" element={guard(P.supervisorsNotificationsView, <SupervisorNotifications />)} />

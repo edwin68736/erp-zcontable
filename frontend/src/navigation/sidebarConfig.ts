@@ -263,6 +263,30 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             label: 'Control Vencimientos PDT 621',
             permission: P.supervisorsControlsView,
           },
+          {
+            to: '/assistant/activities/preliminar-ventas',
+            icon: 'fas fa-chart-line',
+            label: 'Preliminar de ventas',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/assistant/activities/informe-detracciones',
+            icon: 'fas fa-file-invoice-dollar',
+            label: 'Informe detracciones',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/assistant/activities/siscont-balances',
+            icon: 'fas fa-balance-scale',
+            label: 'Siscont balances',
+            permission: P.supervisorsControlsView,
+          },
+          {
+            to: '/assistant/activities/informe-deudas',
+            icon: 'fas fa-hand-holding-usd',
+            label: 'Informe deudas',
+            permission: P.supervisorsControlsView,
+          },
         ],
       },
       {

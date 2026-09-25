@@ -253,6 +253,9 @@ var asistenteCodes = []string{
 	SupervisorsLiquidationsView, SupervisorsLiquidationsUpdate,
 	SupervisorsObservationsView, SupervisorsObservationsCreate,
 	SupervisorsHistoryView, SupervisorsAttachmentsUpload, SupervisorsNotificationsView,
+	// Membrete del estudio (sin tokens Tukifac) — necesario para generar el PDF de Preliminar de
+	// Ventas desde el módulo del asistente.
+	SettingsFirmBrandingView,
 }
 
 // analistaCodes lista cerrada del rol Analista (avance de trabajo; sin asignar).
