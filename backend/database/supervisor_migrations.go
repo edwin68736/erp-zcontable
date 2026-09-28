@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	migDeclarationTypeDetracciones = "supervisor_v1_declaration_type_detracciones"
-	migDetraccionesStatusF41a      = "supervisor_v1_detracciones_status_f41a"
+	migDeclarationTypeDetracciones  = "supervisor_v1_declaration_type_detracciones"
+	migDetraccionesStatusF41a       = "supervisor_v1_detracciones_status_f41a"
 	migDetraccionesStatusSimplified = "supervisor_v2_detracciones_status_simplified"
-	migPdt601Pdt621StatusEnum      = "supervisor_v1_pdt601_pdt621_status_enum"
-	migDropNPSTable                = "supervisor_v1_drop_nps_table"
-	migSuspendidaGlobalPorControl  = "supervisor_v1_suspendida_global_por_control"
+	migPdt601Pdt621StatusEnum       = "supervisor_v1_pdt601_pdt621_status_enum"
+	migDropNPSTable                 = "supervisor_v1_drop_nps_table"
+	migSuspendidaGlobalPorControl   = "supervisor_v1_suspendida_global_por_control"
+	migPreliminarVentasRateSplit    = "supervisor_v1_preliminar_ventas_rate_split"
 )
 
 // RunSupervisorMigrations ejecuta migraciones de datos del módulo supervisores (una sola vez).
@@ -32,6 +33,7 @@ func RunSupervisorMigrations(db *gorm.DB) error {
 		{migPdt601Pdt621StatusEnum, migratePdt601Pdt621StatusEnum},
 		{migDropNPSTable, migrateDropNPSTable},
 		{migSuspendidaGlobalPorControl, migrateSuspendidaGlobalPorControl},
+		{migPreliminarVentasRateSplit, migratePreliminarVentasRateSplit},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -314,6 +316,92 @@ func migrateSuspendidaGlobalPorControl(db *gorm.DB) error {
 		}
 		if err := db.Migrator().DropColumn(&models.SupervisorPdt621Record{}, "suspendida"); err != nil {
 			return fmt.Errorf("drop pdt621Record.suspendida: %w", err)
+		}
+	}
+	return nil
+}
+
+// PrepareSupervisorPreliminarVentasSlotSchema: supervisor_preliminar_ventas_records pasó de "una
+// fila por empresa+período" a "una fila por empresa+período+entrega" (slot_index 1/2 — el estudio
+// envía el Preliminar de Ventas dos veces al mes). El índice único viejo, de una sola columna
+// (monthly_control_id), respalda además la foreign key hacia supervisor_monthly_controls — MySQL no
+// deja soltarlo mientras esa FK exista (error 1553), así que hay que soltar la FK primero. Por eso
+// esto corre ANTES de AutoMigrate (main.go, junto a PrepareActivityTemplateSchema): si corriera
+// después (como una migración de datos normal), AutoMigrate ya habría intentado reconciliar el
+// índice por su cuenta y fallado con el mismo error 1553 antes de llegar a esta función.
+// AutoMigrate, a continuación, agrega slot_index (default 1 — todas las filas existentes quedan
+// como su entrega 1), crea el nuevo índice único compuesto (monthly_control_id, slot_index), y
+// vuelve a crear la FK (la sigue declarando el modelo) — ahora respaldada por ese índice compuesto,
+// válido porque monthly_control_id es su columna izquierda.
+func PrepareSupervisorPreliminarVentasSlotSchema(db *gorm.DB) error {
+	m := db.Migrator()
+	if !m.HasTable(&models.SupervisorPreliminarVentasRecord{}) {
+		return nil
+	}
+	if m.HasColumn(&models.SupervisorPreliminarVentasRecord{}, "slot_index") {
+		return nil
+	}
+	const oldIndex = "idx_supervisor_preliminar_ventas_records_monthly_control_id"
+	const fkName = "fk_supervisor_preliminar_ventas_records_monthly_control"
+	if m.HasConstraint(&models.SupervisorPreliminarVentasRecord{}, fkName) {
+		if err := m.DropConstraint(&models.SupervisorPreliminarVentasRecord{}, fkName); err != nil {
+			return fmt.Errorf("drop FK preliminar_ventas_records.monthly_control_id: %w", err)
+		}
+	}
+	if m.HasIndex(&models.SupervisorPreliminarVentasRecord{}, oldIndex) {
+		if err := m.DropIndex(&models.SupervisorPreliminarVentasRecord{}, oldIndex); err != nil {
+			return fmt.Errorf("drop índice viejo preliminar_ventas_records.monthly_control_id: %w", err)
+		}
+	}
+	return nil
+}
+
+// migratePreliminarVentasRateSplit traslada los datos de las columnas originales (una sola tasa de
+// IGV, la de la empresa) a las nuevas columnas separadas por tasa (_18/_105) — feature "18%/10.5%/
+// ambos" en Facturas/Boletas/Notas de crédito emitidas. Corre DESPUÉS de AutoMigrate (a diferencia
+// de PrepareSupervisorPreliminarVentasSlotSchema): acá no hay FK/índice que reconciliar, solo copiar
+// datos hacia columnas que AutoMigrate ya creó. Un registro va a la columna "_105" si la empresa
+// dueña tiene igv_rate = '10.5' en este momento, si no a "_18" (igual regla que ya usaba el cálculo
+// de IGV de este módulo antes de separarse por tasa).
+func migratePreliminarVentasRateSplit(db *gorm.DB) error {
+	m := db.Migrator()
+	if !m.HasTable(&models.SupervisorPreliminarVentasRecord{}) {
+		return nil
+	}
+	if !m.HasColumn(&models.SupervisorPreliminarVentasRecord{}, "facturas_base") {
+		// Instalación nueva (o ya migrada): nunca tuvo las columnas viejas de una sola tasa.
+		return nil
+	}
+	if err := db.Exec(`
+		UPDATE supervisor_preliminar_ventas_records r
+		INNER JOIN supervisor_monthly_controls c ON c.id = r.monthly_control_id
+		INNER JOIN companies co ON co.id = c.company_id
+		SET
+			r.facturas_base_18 = IF(co.igv_rate = '10.5', 0, r.facturas_base),
+			r.facturas_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.facturas_no_gravadas),
+			r.facturas_base_105 = IF(co.igv_rate = '10.5', r.facturas_base, 0),
+			r.facturas_no_gravadas_105 = IF(co.igv_rate = '10.5', r.facturas_no_gravadas, 0),
+			r.boletas_base_18 = IF(co.igv_rate = '10.5', 0, r.boletas_base),
+			r.boletas_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.boletas_no_gravadas),
+			r.boletas_base_105 = IF(co.igv_rate = '10.5', r.boletas_base, 0),
+			r.boletas_no_gravadas_105 = IF(co.igv_rate = '10.5', r.boletas_no_gravadas, 0),
+			r.notas_credito_base_18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_base),
+			r.notas_credito_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_no_gravadas),
+			r.notas_credito_base_105 = IF(co.igv_rate = '10.5', r.notas_credito_base, 0),
+			r.notas_credito_no_gravadas_105 = IF(co.igv_rate = '10.5', r.notas_credito_no_gravadas, 0),
+			r.igv_aplicable_18 = IF(co.igv_rate = '10.5', 0, 1),
+			r.igv_aplicable_105 = IF(co.igv_rate = '10.5', 1, 0)
+		WHERE r.deleted_at IS NULL
+	`).Error; err != nil {
+		return fmt.Errorf("migrar preliminar_ventas_records a columnas por tasa: %w", err)
+	}
+	for _, col := range []string{
+		"facturas_base", "facturas_no_gravadas",
+		"boletas_base", "boletas_no_gravadas",
+		"notas_credito_base", "notas_credito_no_gravadas",
+	} {
+		if err := m.DropColumn(&models.SupervisorPreliminarVentasRecord{}, col); err != nil {
+			return fmt.Errorf("drop columna vieja preliminar_ventas_records.%s: %w", col, err)
 		}
 	}
 	return nil

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -1061,11 +1062,24 @@ func (ctrl *SupervisorController) PreliminarVentasListAPI(c fiber.Ctx) error {
 	})
 }
 
-// PreliminarVentasDetailAPI GET /api/supervisors/activity-modules/preliminar-ventas/companies/:companyId
-func (ctrl *SupervisorController) PreliminarVentasDetailAPI(c fiber.Ctx) error {
+// preliminarVentasSlotFromParams valida :slotIndex (1 o 2) del path.
+func preliminarVentasSlotFromParams(c fiber.Ctx) (int, error) {
+	slot, err := strconv.Atoi(c.Params("slotIndex"))
+	if err != nil || (slot != 1 && slot != 2) {
+		return 0, errors.New("entrega inválida (use 1 o 2)")
+	}
+	return slot, nil
+}
+
+// PreliminarVentasSlotDetailAPI GET .../preliminar-ventas/companies/:companyId/slots/:slotIndex
+func (ctrl *SupervisorController) PreliminarVentasSlotDetailAPI(c fiber.Ctx) error {
 	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
 	if err != nil || companyID == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	slotIndex, err := preliminarVentasSlotFromParams(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
 	if periodYM == "" {
@@ -1084,18 +1098,22 @@ func (ctrl *SupervisorController) PreliminarVentasDetailAPI(c fiber.Ctx) error {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
 		}
 	}
-	row, err := ctrl.svc.EnsurePreliminarVentas(uint(companyID), periodYM)
+	row, err := ctrl.svc.EnsurePreliminarVentasSlot(uint(companyID), periodYM, slotIndex)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"data": row})
 }
 
-// PreliminarVentasSaveAPI PUT /api/supervisors/activity-modules/preliminar-ventas/companies/:companyId
-func (ctrl *SupervisorController) PreliminarVentasSaveAPI(c fiber.Ctx) error {
+// PreliminarVentasSlotSaveAPI PUT .../preliminar-ventas/companies/:companyId/slots/:slotIndex
+func (ctrl *SupervisorController) PreliminarVentasSlotSaveAPI(c fiber.Ctx) error {
 	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
 	if err != nil || companyID == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	slotIndex, err := preliminarVentasSlotFromParams(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
 	if periodYM == "" {
@@ -1118,7 +1136,41 @@ func (ctrl *SupervisorController) PreliminarVentasSaveAPI(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
-	row, err := ctrl.svc.SavePreliminarVentasRecord(uint(companyID), periodYM, body)
+	row, err := ctrl.svc.SavePreliminarVentasSlotRecord(uint(companyID), periodYM, slotIndex, body)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
+// PreliminarVentasSlotMarkSentAPI POST .../preliminar-ventas/companies/:companyId/slots/:slotIndex/sent
+func (ctrl *SupervisorController) PreliminarVentasSlotMarkSentAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	slotIndex, err := preliminarVentasSlotFromParams(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	uid, uerr := getUserID(c)
+	if uerr != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	if !hasStudioScope(c) {
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	row, err := ctrl.svc.MarkPreliminarVentasSlotSent(uint(companyID), periodYM, slotIndex, uid)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

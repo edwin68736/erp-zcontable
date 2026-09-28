@@ -25,6 +25,10 @@ func main() {
 		log.Fatalf("prepare activity templates: %v", err)
 	}
 
+	if err := database.PrepareSupervisorPreliminarVentasSlotSchema(database.DB); err != nil {
+		log.Fatalf("prepare preliminar ventas slots: %v", err)
+	}
+
 	if err := database.AutoMigrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}

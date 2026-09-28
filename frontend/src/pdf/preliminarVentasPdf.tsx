@@ -1,6 +1,6 @@
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 import type { FirmConfig } from '../types/dashboard';
-import type { PreliminarVentasDetail } from '../services/preliminarVentas';
+import type { PreliminarVentasSlotDetail } from '../services/preliminarVentas';
 
 /**
  * PDF "Preliminar de Ventas" — completamente independiente del de Liquidación
@@ -173,7 +173,7 @@ function ClientRow({ label, value, last = false }: { label: string; value: strin
 }
 
 type Props = {
-  detail: PreliminarVentasDetail;
+  detail: PreliminarVentasSlotDetail;
   firm: FirmConfig | null;
   logoPng: Blob | null;
 };
@@ -238,7 +238,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
           <Text style={[s.headText, s.colNum]}>I.G.V</Text>
           <Text style={[s.headText, s.colNum]}>Total</Text>
         </View>
-        {ventasRows.slice(0, 3).map((row) => (
+        {ventasRows.map((row) => (
           <View key={row.label} style={s.tableRow}>
             <Text style={[s.rowText, s.colConcept]}>{row.label}</Text>
             <Text style={[s.numText, s.colNum]}>{row.base ? fmtMoney(row.base) : '-'}</Text>
@@ -247,15 +247,13 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
             <Text style={[s.numText, s.colNum]}>{row.total ? fmtMoney(row.total) : '-'}</Text>
           </View>
         ))}
-        {ventasRows[3] ? (
-          <View style={s.tableRowTotal}>
-            <Text style={[s.rowTextTotal, s.colConcept]}>{ventasRows[3].label}</Text>
-            <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(ventasRows[3].base)}</Text>
-            <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(ventasRows[3].no_gravadas)}</Text>
-            <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(ventasRows[3].igv)}</Text>
-            <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(ventasRows[3].total)}</Text>
-          </View>
-        ) : null}
+        <View style={s.tableRowTotal}>
+          <Text style={[s.rowTextTotal, s.colConcept]}>{summary.total_row.label}</Text>
+          <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(summary.total_row.base)}</Text>
+          <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(summary.total_row.no_gravadas)}</Text>
+          <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(summary.total_row.igv)}</Text>
+          <Text style={[s.numTextTotal, s.colNum]}>{fmtMoney(summary.total_row.total)}</Text>
+        </View>
 
         <View style={s.summaryRow}>
           <Text style={s.summaryLabel}>I.G.V Resultante</Text>
@@ -320,7 +318,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
 }
 
 export async function generatePreliminarVentasPdfBlob(
-  detail: PreliminarVentasDetail,
+  detail: PreliminarVentasSlotDetail,
   firm: FirmConfig | null,
   logoPng: Blob | null,
 ): Promise<Blob> {
@@ -328,7 +326,7 @@ export async function generatePreliminarVentasPdfBlob(
   return pdf(el).toBlob();
 }
 
-export function preliminarVentasPdfFilename(detail: PreliminarVentasDetail): string {
+export function preliminarVentasPdfFilename(detail: PreliminarVentasSlotDetail): string {
   const business = (detail.business_name || `EMPRESA-${detail.company_id}`)
     .trim()
     .toUpperCase()
@@ -336,5 +334,5 @@ export function preliminarVentasPdfFilename(detail: PreliminarVentasDetail): str
     .replace(/\s+/g, '.')
     .replace(/\.+/g, '.')
     .replace(/^\.+|\.+$/g, '');
-  return `PRELIMINAR-VENTAS-${detail.period_ym}-${business || detail.company_id}.pdf`;
+  return `PRELIMINAR-VENTAS-${detail.period_ym}-ENTREGA${detail.slot_index}-${business || detail.company_id}.pdf`;
 }

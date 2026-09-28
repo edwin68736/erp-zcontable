@@ -25,15 +25,16 @@ var (
 )
 
 var validActivityTypes = map[string]struct{}{
-	models.CalendarActivityPDT601:       {},
-	models.CalendarActivityPDT621:       {},
-	models.CalendarActivitySIRE:         {},
-	models.CalendarActivityLiquidation:  {},
-	models.CalendarActivityReport:       {},
-	models.CalendarActivityClosing:      {},
-	models.CalendarActivityDetracciones: {},
-	models.CalendarActivitySunatInbox:   {},
-	models.CalendarActivityOther:        {},
+	models.CalendarActivityPDT601:           {},
+	models.CalendarActivityPDT621:           {},
+	models.CalendarActivitySIRE:             {},
+	models.CalendarActivityLiquidation:      {},
+	models.CalendarActivityReport:           {},
+	models.CalendarActivityClosing:          {},
+	models.CalendarActivityDetracciones:     {},
+	models.CalendarActivitySunatInbox:       {},
+	models.CalendarActivityPreliminarVentas: {},
+	models.CalendarActivityOther:            {},
 }
 
 var validActivityPriorities = map[string]struct{}{

@@ -189,7 +189,7 @@ function App() {
             <Route path="assistant/activities/detracciones" element={guard(P.supervisorsControlsView, <AssistantDetraccionesListPage />)} />
             <Route path="assistant/activities/detracciones/:companyId" element={guard(P.supervisorsControlsView, <AssistantDetraccionesDetailPage />)} />
             <Route path="assistant/activities/preliminar-ventas" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasListPage />)} />
-            <Route path="assistant/activities/preliminar-ventas/:companyId" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasDetailPage />)} />
+            <Route path="assistant/activities/preliminar-ventas/:companyId/:slotIndex" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasDetailPage />)} />
             <Route path="assistant/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <AssistantInformeDetraccionesListPage />)} />
             <Route path="assistant/activities/siscont-balances" element={guard(P.supervisorsControlsView, <AssistantSiscontBalancesListPage />)} />
             <Route path="assistant/activities/informe-deudas" element={guard(P.supervisorsControlsView, <AssistantInformeDeudasListPage />)} />

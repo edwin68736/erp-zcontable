@@ -9,6 +9,7 @@ export const ACTIVITY_KINDS = [
   { value: 'sire', label: 'SIRE' },
   { value: 'detracciones', label: 'Detracciones SUNAT' },
   { value: 'sunat_inbox', label: 'Buzón SOL SUNAT – SUNAFIL' },
+  { value: 'preliminar_ventas', label: 'Preliminar de Ventas' },
   { value: 'liquidation', label: 'Liquidación' },
   { value: 'closing', label: 'Cierre contable' },
   { value: 'report', label: 'Reporte' },

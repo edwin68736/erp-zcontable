@@ -8,9 +8,9 @@ import (
 
 // Tipos de marca en el calendario global.
 const (
-	CalendarMarkHoliday    = "feriado"
-	CalendarMarkFestivity  = "festividad"
-	CalendarMarkImportant  = "importante"
+	CalendarMarkHoliday   = "feriado"
+	CalendarMarkFestivity = "festividad"
+	CalendarMarkImportant = "importante"
 )
 
 // Tipos de actividad contable global (vinculan cumplimiento con supervisor_*).
@@ -23,7 +23,11 @@ const (
 	CalendarActivityClosing      = "closing"
 	CalendarActivityDetracciones = "detracciones"
 	CalendarActivitySunatInbox   = "sunat_inbox"
-	CalendarActivityOther        = "other"
+	// CalendarActivityPreliminarVentas: dos instancias por período (una por entrega del mes) — la
+	// más temprana es el slot 1, la otra el slot 2 (ver CalendarActivitiesForType, mismo mecanismo
+	// que ya usa Buzón SOL para sus varias cargas por semana).
+	CalendarActivityPreliminarVentas = "preliminar_ventas"
+	CalendarActivityOther            = "other"
 )
 
 // FinanceCalendar calendario mensual global de obligaciones contables (no por empresa).
@@ -37,8 +41,8 @@ type FinanceCalendar struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Marks      []FinanceCalendarMark      `gorm:"foreignKey:CalendarID" json:"marks,omitempty"`
-	Activities []FinanceCalendarActivity  `gorm:"foreignKey:CalendarID" json:"activities,omitempty"`
+	Marks      []FinanceCalendarMark     `gorm:"foreignKey:CalendarID" json:"marks,omitempty"`
+	Activities []FinanceCalendarActivity `gorm:"foreignKey:CalendarID" json:"activities,omitempty"`
 }
 
 func (FinanceCalendar) TableName() string { return "finance_calendars" }
@@ -88,7 +92,7 @@ type FinanceCalendarActivity struct {
 	DueDay   int    `gorm:"not null" json:"due_day"`
 	Status   string `gorm:"size:20;not null;default:'pendiente'" json:"status"`
 
-	ActivityRuleID *uint        `gorm:"index" json:"activity_rule_id,omitempty"`
+	ActivityRuleID *uint         `gorm:"index" json:"activity_rule_id,omitempty"`
 	ActivityRule   *ActivityRule `gorm:"foreignKey:ActivityRuleID;constraint:OnUpdate:RESTRICT,OnDelete:SET NULL" json:"-"`
 
 	CreatedAt time.Time      `json:"created_at"`

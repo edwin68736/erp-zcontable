@@ -11,9 +11,22 @@ import {
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { activitiesBasePath, workspaceHomePath, type ActivityWorkspace } from '../../navigation/activityRoutes';
-import { preliminarVentasService, type PreliminarVentasListRow } from '../../services/preliminarVentas';
+import {
+  preliminarVentasService,
+  type PreliminarVentasListRow,
+  type PreliminarVentasSlotStatus,
+} from '../../services/preliminarVentas';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+
+function formatDueDate(iso?: string): string {
+  if (!iso) return 'Sin fecha configurada';
+  // El backend manda un time.Time de Go serializado en RFC3339 completo (con hora/offset), no una
+  // fecha suelta — parsearlo directo, sin concatenarle "Txx:xx:xx" (eso lo dejaba inválido).
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Sin fecha configurada';
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -90,10 +103,15 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     setPage(1);
   }, [periodYm, debouncedQ, statusFilter]);
 
-  const detailLink = (companyId: number) => {
-    const path = `${activitiesBasePath(workspace)}/preliminar-ventas/${companyId}`;
+  const slotLink = (companyId: number, slotIndex: 1 | 2) => {
+    const path = `${activitiesBasePath(workspace)}/preliminar-ventas/${companyId}/${slotIndex}`;
     return `${path}?period_ym=${encodeURIComponent(periodYm)}`;
   };
+
+  // La fecha límite de cada entrega sale del calendario y es la misma para toda la lista en este
+  // período (no depende de la empresa) — se toma de la primera fila que la traiga.
+  const slot1DueDate = rows[0]?.slot1.due_date;
+  const slot2DueDate = rows[0]?.slot2.due_date;
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -122,7 +140,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
           />
         </div>
         <div className="min-w-[10rem]">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Estado (cualquier entrega)</label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -155,8 +173,8 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                 <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('name')}>Razón social</th>
                 <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('ruc')}>RUC</th>
                 <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
-                <th className={TH}>Estado</th>
-                <th className={TH} />
+                <th className={TH}>{formatDueDate(slot1DueDate)}</th>
+                <th className={TH}>{formatDueDate(slot2DueDate)}</th>
               </tr>
             </thead>
             <tbody>
@@ -213,14 +231,10 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                       <span className="block truncate">{row.assistant_username || '—'}</span>
                     </td>
                     <td className={TD}>
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(row.status)}`}
-                      >
-                        {preliminarVentasStatusLabel(row.status)}
-                      </span>
+                      <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} />
                     </td>
                     <td className={TD}>
-                      <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar registro" />
+                      <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} />
                     </td>
                   </tr>
                 ))
@@ -243,5 +257,18 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     </div>
   );
 };
+
+function SlotBadge({ to, slot }: { to: string; slot: PreliminarVentasSlotStatus }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(slot.status)}`}
+      >
+        {preliminarVentasStatusLabel(slot.status)}
+      </span>
+      <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
+    </div>
+  );
+}
 
 export default PreliminarVentasListPage;

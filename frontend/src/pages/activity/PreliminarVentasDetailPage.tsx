@@ -6,7 +6,9 @@ import {
   preliminarVentasStatusBadgeClass,
   preliminarVentasStatusLabel,
 } from '../../components/activity/preliminarVentasConfig';
+import LiquidacionIgvAplicableToggle from '../../components/supervisors/LiquidacionIgvAplicableToggle';
 import Button from '../../components/ui/Button';
+import MoneyField from '../../components/ui/MoneyField';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { activitiesBasePath, workspaceHomePath, type ActivityWorkspace } from '../../navigation/activityRoutes';
 import { auth } from '../../services/auth';
@@ -14,29 +16,196 @@ import { P } from '../../rbac/codes';
 import { configService } from '../../services/config';
 import {
   preliminarVentasService,
-  type PreliminarVentasDetail,
   type PreliminarVentasRecordInput,
+  type PreliminarVentasSlotDetail,
 } from '../../services/preliminarVentas';
 import { generatePreliminarVentasPdfBlob, preliminarVentasPdfFilename } from '../../pdf/preliminarVentasPdf';
 import { loadLogoPngBlobForPdf } from '../../utils/pdfLogo';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import type { CompanyIgvRate } from '../../utils/companyIgv';
 
 const EMPTY_RECORD: PreliminarVentasRecordInput = {
-  facturas_base: 0,
-  facturas_no_gravadas: 0,
-  boletas_base: 0,
-  boletas_no_gravadas: 0,
-  notas_credito_base: 0,
-  notas_credito_no_gravadas: 0,
+  igv_aplicable_18: true,
+  igv_aplicable_105: false,
+  facturas_base_18: 0,
+  facturas_no_gravadas_18: 0,
+  facturas_base_105: 0,
+  facturas_no_gravadas_105: 0,
+  boletas_base_18: 0,
+  boletas_no_gravadas_18: 0,
+  boletas_base_105: 0,
+  boletas_no_gravadas_105: 0,
+  notas_credito_base_18: 0,
+  notas_credito_no_gravadas_18: 0,
+  notas_credito_base_105: 0,
+  notas_credito_no_gravadas_105: 0,
   compras_base: 0,
+  credito_periodo_anterior_override: null,
 };
+
+/** Concepto de Ventas × tasa IGV → las 2 keys editables (base/no gravadas) de ese par en
+ * PreliminarVentasRecordInput — misma separación _18/_105 que usa Liquidación (ver
+ * frontend/src/utils/companyIgv.ts, taxSettlementSections.ts). */
+type VentasFieldPair = { baseKey: keyof PreliminarVentasRecordInput; noGravKey: keyof PreliminarVentasRecordInput };
+const VENTAS_CONCEPTS: { label: string; fields: (rate: CompanyIgvRate) => VentasFieldPair }[] = [
+  {
+    label: 'Facturas Emitidas',
+    fields: (rate) =>
+      rate === 10.5
+        ? { baseKey: 'facturas_base_105', noGravKey: 'facturas_no_gravadas_105' }
+        : { baseKey: 'facturas_base_18', noGravKey: 'facturas_no_gravadas_18' },
+  },
+  {
+    label: 'Boletas Emitidas',
+    fields: (rate) =>
+      rate === 10.5
+        ? { baseKey: 'boletas_base_105', noGravKey: 'boletas_no_gravadas_105' }
+        : { baseKey: 'boletas_base_18', noGravKey: 'boletas_no_gravadas_18' },
+  },
+  {
+    label: '(-) Notas de Crédito',
+    fields: (rate) =>
+      rate === 10.5
+        ? { baseKey: 'notas_credito_base_105', noGravKey: 'notas_credito_no_gravadas_105' }
+        : { baseKey: 'notas_credito_base_18', noGravKey: 'notas_credito_no_gravadas_18' },
+  },
+];
 
 const FIELD_INPUT =
   'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-right outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500';
 
+/** Redondeo "half away from zero" — igual criterio que math.Round en Go (el backend usa esa misma
+ * regla), a diferencia de Math.round de JS que en negativos redondea hacia +Infinito. */
+function roundHalfAwayFromZero(v: number): number {
+  return v >= 0 ? Math.round(v) : -Math.round(-v);
+}
+function round2(v: number): number {
+  return v >= 0 ? Math.round(v * 100) / 100 : -Math.round(-v * 100) / 100;
+}
+
+type LocalVentasRow = {
+  key: string;
+  label: string;
+  baseKey: keyof PreliminarVentasRecordInput;
+  noGravKey: keyof PreliminarVentasRecordInput;
+  base: number;
+  noGravadas: number;
+  igv: number;
+  total: number;
+};
+
+type LocalSummary = {
+  rows: LocalVentasRow[];
+  totalRow: { label: string; base: number; noGravadas: number; igv: number; total: number };
+  ratesAplicables: CompanyIgvRate[];
+  igvResultante: number;
+  igvAPagar: number;
+  montoAproximadoIgv?: number;
+  comprasIgv: number;
+  comprasTotal: number;
+  montoAproximadoRenta: number;
+};
+
+/** Recalcula Ventas/Compras/IGV/Renta EN VIVO en el navegador, en cada cambio del formulario — antes
+ * de este cambio, la tabla dependía del último `summary` que mandó el backend (que solo se
+ * actualiza al guardar), así que activar "ambos" en el selector de tasas no mostraba los 6 campos
+ * hasta el siguiente Guardar (reportado por el usuario). Replica exactamente las mismas fórmulas que
+ * computePreliminarVentasSummary en el backend (services/supervisor_preliminar_ventas_service.go) —
+ * el Guardar sigue siendo la fuente de verdad que persiste y recalcula "oficialmente", esto solo
+ * evita la espera para VER los campos/importes correctos mientras se edita. credito_periodo_anterior
+ * (automático o el override del usuario) y renta_rate_pct no dependen de la tasa de IGV elegida, así
+ * que se toman tal cual del último summary del backend en vez de recalcularse acá.
+ */
+function computeLocalVentasSummary(
+  record: PreliminarVentasRecordInput,
+  companyIgvRate: CompanyIgvRate,
+  rentaRatePct: number,
+  creditoEfectivo: number,
+): LocalSummary {
+  const selected: CompanyIgvRate[] = [
+    ...(record.igv_aplicable_18 ? ([18] as CompanyIgvRate[]) : []),
+    ...(record.igv_aplicable_105 ? ([10.5] as CompanyIgvRate[]) : []),
+  ];
+  const rates: CompanyIgvRate[] = selected.length ? selected : [companyIgvRate];
+  const multiRate = rates.length > 1;
+
+  const rows: LocalVentasRow[] = [];
+  let totalBase = 0;
+  let totalNoGravadas = 0;
+  let totalIgv = 0;
+  for (const rate of rates) {
+    for (const concept of VENTAS_CONCEPTS) {
+      const { baseKey, noGravKey } = concept.fields(rate);
+      const base = Number(record[baseKey] ?? 0);
+      const noGravadas = Number(record[noGravKey] ?? 0);
+      const igv = round2((base * rate) / 100);
+      const total = round2(base + noGravadas + igv);
+      const sign = concept.label.startsWith('(-)') ? -1 : 1;
+      totalBase += sign * base;
+      totalNoGravadas += sign * noGravadas;
+      totalIgv += sign * igv;
+      rows.push({
+        key: `${baseKey}`,
+        label: multiRate ? `${concept.label} (${rate === 10.5 ? '10.5%' : '18%'})` : concept.label,
+        baseKey,
+        noGravKey,
+        base,
+        noGravadas,
+        igv,
+        total,
+      });
+    }
+  }
+  totalBase = round2(totalBase);
+  totalNoGravadas = round2(totalNoGravadas);
+  totalIgv = round2(totalIgv);
+  const totalTotal = round2(totalBase + totalNoGravadas + totalIgv);
+
+  const igvResultante = roundHalfAwayFromZero(totalIgv);
+  const igvAPagar = round2(igvResultante - creditoEfectivo);
+  const montoAproximadoIgv = igvAPagar > 0 ? roundHalfAwayFromZero(igvAPagar) : undefined;
+
+  const comprasBase = Number(record.compras_base ?? 0);
+  const comprasIgv = round2((comprasBase * companyIgvRate) / 100);
+  const comprasTotal = round2(comprasBase + comprasIgv);
+
+  const rentaBaseRaw = Math.max(totalBase + totalNoGravadas, 0);
+  const rentaBase = round2(rentaBaseRaw);
+  const montoAproximadoRenta =
+    rentaRatePct > 0 && rentaBase > 0 ? roundHalfAwayFromZero(round2((rentaBase * rentaRatePct) / 100)) : 0;
+
+  return {
+    rows,
+    totalRow: { label: 'TOTAL VENTAS', base: totalBase, noGravadas: totalNoGravadas, igv: totalIgv, total: totalTotal },
+    ratesAplicables: rates,
+    igvResultante,
+    igvAPagar,
+    montoAproximadoIgv,
+    comprasIgv,
+    comprasTotal,
+    montoAproximadoRenta,
+  };
+}
+
 function formatMoney(n: number | undefined): string {
   return (n ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatDate(iso?: string): string {
+  if (!iso) return 'sin fecha configurada';
+  // El backend manda un time.Time de Go serializado en RFC3339 completo (con hora/offset), no una
+  // fecha suelta — parsearlo directo, sin concatenarle "Txx:xx:xx" (eso lo dejaba inválido).
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'sin fecha configurada';
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatDateTime(iso?: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 type PreliminarVentasDetailPageProps = {
@@ -45,10 +214,12 @@ type PreliminarVentasDetailPageProps = {
 
 // Formulario simple (a diferencia de PDT 621: acá solo hay Ventas + Compras, sin IGV/Renta
 // registrados a mano — se calculan solos, ver PreliminarVentasSummary en el backend). Módulo
-// independiente de Liquidación: no se convierte en una ni la reemplaza.
+// independiente de Liquidación: no se convierte en una ni la reemplaza. El estudio envía el
+// Preliminar de Ventas 2 veces al mes — esta página edita UNA entrega puntual (slotIndex 1 o 2).
 const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPageProps) => {
-  const { companyId: companyIdParam } = useParams();
+  const { companyId: companyIdParam, slotIndex: slotIndexParam } = useParams();
   const companyId = Number(companyIdParam);
+  const slotIndex = Number(slotIndexParam) === 2 ? 2 : 1;
   const [searchParams] = useSearchParams();
   const periodYm = searchParams.get('period_ym') || previousMonthPeriodYM();
   const listPath = `${activitiesBasePath(workspace)}/preliminar-ventas?period_ym=${encodeURIComponent(periodYm)}`;
@@ -56,12 +227,13 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
 
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
 
-  const [detail, setDetail] = useState<PreliminarVentasDetail | null>(null);
+  const [detail, setDetail] = useState<PreliminarVentasSlotDetail | null>(null);
   const [record, setRecord] = useState<PreliminarVentasRecordInput>({ ...EMPTY_RECORD });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState(false);
+  const [markingSent, setMarkingSent] = useState(false);
   const [pdfBusy, setPdfBusy] = useState<'download' | 'view' | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -70,7 +242,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     try {
       setLoading(true);
       setError('');
-      const data = await preliminarVentasService.getDetail(companyId, periodYm);
+      const data = await preliminarVentasService.getSlotDetail(companyId, periodYm, slotIndex);
       setDetail(data);
       setRecord(data.record);
     } catch (err) {
@@ -78,7 +250,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     } finally {
       setLoading(false);
     }
-  }, [companyId, periodYm]);
+  }, [companyId, periodYm, slotIndex]);
 
   useEffect(() => {
     void load();
@@ -89,6 +261,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   };
 
   const formLocked = !!detail?.control_suspendida;
+  const canMarkSent = detail?.status === 'registrado' || detail?.status === 'enviado';
 
   const handleSave = async () => {
     if (!canUpdate || formLocked) return;
@@ -96,7 +269,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       setSaving(true);
       setMsg('');
       setError('');
-      const updated = await preliminarVentasService.saveRecord(companyId, periodYm, record);
+      const updated = await preliminarVentasService.saveSlotRecord(companyId, periodYm, slotIndex, record);
       setDetail(updated);
       setRecord(updated.record);
       setMsg('Registro guardado correctamente.');
@@ -104,6 +277,22 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       setError(extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleMarkSent = async () => {
+    if (!canUpdate || formLocked || !canMarkSent) return;
+    try {
+      setMarkingSent(true);
+      setMsg('');
+      setError('');
+      const updated = await preliminarVentasService.markSlotSent(companyId, periodYm, slotIndex);
+      setDetail(updated);
+      setMsg('Entrega marcada como enviada.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'No se pudo marcar como enviada.'));
+    } finally {
+      setMarkingSent(false);
     }
   };
 
@@ -180,16 +369,27 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     );
   }
 
-  const summary = detail.summary;
+  const companyIgvRate: CompanyIgvRate = detail.company_igv_rate === 10.5 ? 10.5 : 18;
+  const rateSelection: CompanyIgvRate[] = [
+    ...(record.igv_aplicable_18 ? ([18] as CompanyIgvRate[]) : []),
+    ...(record.igv_aplicable_105 ? ([10.5] as CompanyIgvRate[]) : []),
+  ];
+  // credito_periodo_anterior_auto y renta_rate_pct no dependen de la tasa de IGV elegida — se toman
+  // tal cual del último cálculo del backend (no hace falta recalcularlos en vivo).
+  const creditoAuto = detail.summary.credito_periodo_anterior_auto;
+  const creditoEfectivo = record.credito_periodo_anterior_override ?? creditoAuto;
+  const summary = computeLocalVentasSummary(record, companyIgvRate, detail.summary.renta_rate_pct, creditoEfectivo);
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Preliminar de ventas — {detail.business_name}</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            Preliminar de ventas — {detail.business_name} · Entrega {slotIndex}
+          </h1>
           <p className="text-slate-500 mt-1 text-sm">
             Período {periodYm} · RUC {detail.ruc} · Código {detail.code} · Dígito {detail.dig} · Serie{' '}
-            {detail.document_number}
+            {detail.document_number} · Vence {formatDate(detail.due_date)}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -230,11 +430,17 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           <dt className="text-slate-500">Estado</dt>
           <dd>
             <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(detail.declaration.status)}`}
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(detail.status)}`}
             >
-              {preliminarVentasStatusLabel(detail.declaration.status)}
+              {preliminarVentasStatusLabel(detail.status)}
             </span>
           </dd>
+          {detail.status === 'enviado' ? (
+            <>
+              <dt className="text-slate-500">Enviado</dt>
+              <dd className="text-slate-800">{formatDateTime(detail.sent_at)}</dd>
+            </>
+          ) : null}
         </dl>
         {formLocked ? (
           <p className="flex items-start gap-2 text-sm text-slate-500">
@@ -246,6 +452,16 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-slate-800">Ventas</h2>
+
+        <div>
+          <p className="text-xs font-medium text-slate-500 mb-1">Tasa(s) de IGV aplicable(s)</p>
+          <LiquidacionIgvAplicableToggle
+            rates={rateSelection}
+            companyIgvRate={companyIgvRate}
+            onChange={(next) => patchRecord({ igv_aplicable_18: next.includes(18), igv_aplicable_105: next.includes(10.5) })}
+          />
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -258,111 +474,80 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              <tr>
-                <td className="py-2 pr-2 text-slate-700">Facturas Emitidas</td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.facturas_base}
-                    onChange={(e) => patchRecord({ facturas_base: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.facturas_no_gravadas}
-                    onChange={(e) => patchRecord({ facturas_no_gravadas: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[0]?.igv)}</td>
-                <td className="py-2 pl-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[0]?.total)}</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-2 text-slate-700">Boletas Emitidas</td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.boletas_base}
-                    onChange={(e) => patchRecord({ boletas_base: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.boletas_no_gravadas}
-                    onChange={(e) => patchRecord({ boletas_no_gravadas: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[1]?.igv)}</td>
-                <td className="py-2 pl-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[1]?.total)}</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-2 text-slate-700">(-) Notas de Crédito</td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.notas_credito_base}
-                    onChange={(e) => patchRecord({ notas_credito_base: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={!canUpdate || formLocked}
-                    value={record.notas_credito_no_gravadas}
-                    onChange={(e) => patchRecord({ notas_credito_no_gravadas: Number(e.target.value) || 0 })}
-                    className={FIELD_INPUT}
-                  />
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[2]?.igv)}</td>
-                <td className="py-2 pl-2 text-right tabular-nums text-slate-500">{formatMoney(summary.rows[2]?.total)}</td>
-              </tr>
+              {summary.rows.map(({ key, label, baseKey, noGravKey, igv, total }) => (
+                <tr key={key}>
+                  <td className="py-2 pr-2 text-slate-700">{label}</td>
+                  <td className="py-2 px-2">
+                    <MoneyField
+                      disabled={!canUpdate || formLocked}
+                      value={record[baseKey] as number}
+                      onChange={(v) => patchRecord({ [baseKey]: v } as Partial<PreliminarVentasRecordInput>)}
+                      className={FIELD_INPUT}
+                    />
+                  </td>
+                  <td className="py-2 px-2">
+                    <MoneyField
+                      disabled={!canUpdate || formLocked}
+                      value={record[noGravKey] as number}
+                      onChange={(v) => patchRecord({ [noGravKey]: v } as Partial<PreliminarVentasRecordInput>)}
+                      className={FIELD_INPUT}
+                    />
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums text-slate-500">{formatMoney(igv)}</td>
+                  <td className="py-2 pl-2 text-right tabular-nums text-slate-500">{formatMoney(total)}</td>
+                </tr>
+              ))}
               <tr className="font-semibold border-t border-slate-200">
-                <td className="py-2 pr-2 text-slate-800">TOTAL VENTAS</td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.rows[3]?.base)}</td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.rows[3]?.no_gravadas)}</td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.rows[3]?.igv)}</td>
-                <td className="py-2 pl-2 text-right tabular-nums text-slate-800">{formatMoney(summary.rows[3]?.total)}</td>
+                <td className="py-2 pr-2 text-slate-800">{summary.totalRow.label}</td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.totalRow.base)}</td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.totalRow.noGravadas)}</td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatMoney(summary.totalRow.igv)}</td>
+                <td className="py-2 pl-2 text-right tabular-nums text-slate-800">{formatMoney(summary.totalRow.total)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="text-2xs text-slate-400">
-          I.G.V., totales y montos aproximados se recalculan al guardar (tasa IGV vigente de la empresa: {summary.igv_rate_pct}
-          %).
+          Tasa(s) IGV aplicada(s): {summary.ratesAplicables.map((r) => (r === 10.5 ? '10.5%' : '18%')).join(' y ')}.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-3 pt-2 border-t border-slate-100">
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-slate-500">I.G.V Resultante</p>
-            <p className="text-sm font-semibold text-slate-800 tabular-nums">{formatMoney(summary.igv_resultante)}</p>
+            <p className="text-sm font-semibold text-slate-800 tabular-nums">{formatMoney(summary.igvResultante)}</p>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-            <p className="text-2xs font-semibold uppercase text-slate-500">(-) Crédito periodo anterior</p>
-            <p className="text-sm font-semibold text-slate-800 tabular-nums">{formatMoney(summary.credito_periodo_anterior)}</p>
+            <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">
+              (-) Crédito periodo anterior
+            </label>
+            <MoneyField
+              nullable
+              disabled={!canUpdate || formLocked}
+              value={record.credito_periodo_anterior_override}
+              onChange={(v) => patchRecord({ credito_periodo_anterior_override: v })}
+              onChangeNullable={(v) => patchRecord({ credito_periodo_anterior_override: v })}
+              placeholder={formatMoney(creditoAuto)}
+              className="w-full px-2 py-1 rounded-md border border-slate-300 text-sm text-right tabular-nums outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-2xs text-slate-400">Sugerido: {formatMoney(creditoAuto)}</span>
+              {record.credito_periodo_anterior_override != null && !formLocked && canUpdate ? (
+                <button
+                  type="button"
+                  onClick={() => patchRecord({ credito_periodo_anterior_override: null })}
+                  className="text-2xs text-primary-700 font-medium hover:underline"
+                >
+                  Usar sugerido
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-slate-500">I.G.V. A PAGAR</p>
             <p
-              className={`text-sm font-semibold tabular-nums ${summary.igv_a_pagar > 0 ? 'text-red-700' : 'text-primary-700'}`}
+              className={`text-sm font-semibold tabular-nums ${summary.igvAPagar > 0 ? 'text-red-700' : 'text-primary-700'}`}
             >
-              {formatMoney(summary.igv_a_pagar)}
+              {formatMoney(summary.igvAPagar)}
             </p>
           </div>
         </div>
@@ -374,22 +559,20 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
-            <input
-              type="number"
-              step="0.01"
+            <MoneyField
               disabled={!canUpdate || formLocked}
               value={record.compras_base}
-              onChange={(e) => patchRecord({ compras_base: Number(e.target.value) || 0 })}
+              onChange={(v) => patchRecord({ compras_base: v })}
               className={FIELD_INPUT}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">I.G.V.</label>
-            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.compras_igv)}</p>
+            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasIgv)}</p>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Total</label>
-            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.compras_total)}</p>
+            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasTotal)}</p>
           </div>
         </div>
       </div>
@@ -398,22 +581,33 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
           <p className="text-2xs font-semibold uppercase text-slate-500">Monto aproximado a pagar en I.G.V.</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums">
-            {summary.monto_aproximado_igv != null ? `S/ ${formatMoney(summary.monto_aproximado_igv)}` : '—'}
+            {summary.montoAproximadoIgv != null ? `S/ ${formatMoney(summary.montoAproximadoIgv)}` : '—'}
           </p>
         </div>
         <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
           <p className="text-2xs font-semibold uppercase text-slate-500">Monto aproximado a pagar en Renta</p>
-          <p className="text-lg font-semibold text-slate-800 tabular-nums">S/ {formatMoney(summary.monto_aproximado_renta)}</p>
+          <p className="text-lg font-semibold text-slate-800 tabular-nums">S/ {formatMoney(summary.montoAproximadoRenta)}</p>
         </div>
       </div>
 
-      {canUpdate ? (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        {canUpdate ? (
+          <button
+            type="button"
+            disabled={markingSent || formLocked || !canMarkSent || detail.status === 'enviado'}
+            onClick={() => void handleMarkSent()}
+            title={!canMarkSent ? 'Primero guarde el registro de esta entrega' : undefined}
+            className="px-4 py-2 rounded-lg border border-primary-300 bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {markingSent ? 'Marcando…' : detail.status === 'enviado' ? 'Ya enviado' : 'Marcar como enviado'}
+          </button>
+        ) : null}
+        {canUpdate ? (
           <Button disabled={saving || formLocked} onClick={() => void handleSave()}>
             {saving ? 'Guardando…' : 'Guardar registro'}
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {previewUrl
         ? createPortal(
