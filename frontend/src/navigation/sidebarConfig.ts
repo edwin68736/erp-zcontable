@@ -52,6 +52,18 @@ export type OperationalModuleConfig = {
   label: string;
   icon: string;
   entries: SidebarModuleEntry[];
+  /**
+   * Permiso adicional que debe tener el usuario para que el módulo entero sea visible, más allá
+   * del permiso de cada link individual. Necesario porque varios links de "Supervisores" y
+   * "Asistente" reutilizan el MISMO código de permiso (p. ej. supervisorsControlsView,
+   * supervisorsDashboardView) — ese permiso compartido es el que de verdad gatea la página en el
+   * backend (el alcance real se resuelve ahí por empresa asignada), pero sin este gate adicional
+   * cualquier usuario con permisos de Asistente ve también el bloque completo de "Supervisores"
+   * en el sidebar/home, aunque nunca apruebe ni revise nada. Se usa un permiso que tiene quien de
+   * verdad opera en Supervisores (ver reportes), no quien solo registra como
+   * asistente.
+   */
+  moduleGatePermission?: string;
 };
 
 /** Rutas bajo `/m/:slug` para módulos aún sin implementar */
@@ -135,6 +147,13 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
     id: 'supervisors',
     label: 'Supervisores',
     icon: 'fas fa-user-check',
+    // Solo quien tiene alcance real de supervisión (Supervisor y superiores, también Analista) ve
+    // este bloque — un rol Asistente con los permisos compartidos (supervisorsControlsView, etc.)
+    // que necesita para SU PROPIO módulo no debe ver también el de Supervisores. Se usa
+    // "Reportes supervisores" (no "Aprobar declaración") porque Analista tiene acceso de solo
+    // lectura a Supervisores sin poder aprobar nada — gatear por aprobación también lo hubiera
+    // excluido a él.
+    moduleGatePermission: P.supervisorsReportsView,
     entries: [
       {
         type: 'group',
@@ -390,6 +409,7 @@ export function filterSidebarEntries(entries: SidebarModuleEntry[]): SidebarModu
 }
 
 export function isOperationalModuleVisible(mod: OperationalModuleConfig): boolean {
+  if (mod.moduleGatePermission && !auth.hasPermission(mod.moduleGatePermission)) return false;
   return filterSidebarEntries(mod.entries).length > 0;
 }
 
@@ -397,8 +417,18 @@ export function getVisibleOperationalModules(): OperationalModuleConfig[] {
   return OPERATIONAL_MODULES.filter(isOperationalModuleVisible);
 }
 
+/**
+ * "Estudio" son ajustes globales del tenant — además del permiso propio de cada link, exige que el
+ * usuario tenga alcance real en Finanzas del estudio o Supervisores. Sin esto, un link como
+ * "Catálogo de actividades" (gateado por financeCalendarView, el MISMO permiso que el Calendario de
+ * Recursos) hacía aparecer todo el bloque "Estudio" para un rol Asistente que solo tiene acceso a
+ * Recursos — Asistente no debe ver "Estudio" en absoluto.
+ */
 export function isStudioSectionVisible(): boolean {
-  return STUDIO_SECTION.items.some((l) => isSidebarLinkVisible(l));
+  if (!STUDIO_SECTION.items.some((l) => isSidebarLinkVisible(l))) return false;
+  const financeMod = OPERATIONAL_MODULES.find((m) => m.id === 'finance');
+  const supervisorsMod = OPERATIONAL_MODULES.find((m) => m.id === 'supervisors');
+  return (!!financeMod && isOperationalModuleVisible(financeMod)) || (!!supervisorsMod && isOperationalModuleVisible(supervisorsMod));
 }
 
 /** Id usado en el acordeón del sidebar (5 operativos + Estudio) */
