@@ -70,6 +70,12 @@ type SupervisorPreliminarVentasRecord struct {
 	// preliminarVentasCreditoAnterior) — nil usa ese cálculo automático; si no es nil, lo reemplaza
 	// (el usuario lo puede corregir a mano).
 	CreditoPeriodoAnteriorOverride *float64 `gorm:"type:decimal(15,2)" json:"credito_periodo_anterior_override,omitempty"`
+	// RetencionMonto/PercepcionMonto: montos aproximados a mano (sin arrastre automático ni
+	// separación periodo/anterior, a diferencia del crédito de IGV — el usuario pidió explícitamente
+	// mantenerlo simple, acorde al resto de este módulo) que también restan del I.G.V. resultante
+	// para llegar al I.G.V. A PAGAR.
+	RetencionMonto  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"retencion_monto"`
+	PercepcionMonto float64 `gorm:"type:decimal(15,2);not null;default:0" json:"percepcion_monto"`
 
 	// Status: pendiente (default, sin datos) → registrado (automático al guardar Ventas/Compras) →
 	// enviado (acción explícita del asistente — "Marcar como enviado" — separada de guardar).

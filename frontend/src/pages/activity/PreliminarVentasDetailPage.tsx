@@ -42,6 +42,8 @@ const EMPTY_RECORD: PreliminarVentasRecordInput = {
   notas_credito_no_gravadas_105: 0,
   compras_base: 0,
   credito_periodo_anterior_override: null,
+  retencion_monto: 0,
+  percepcion_monto: 0,
 };
 
 /** Concepto de Ventas × tasa IGV → las 2 keys editables (base/no gravadas) de ese par en
@@ -163,7 +165,11 @@ function computeLocalVentasSummary(
   const totalTotal = round2(totalBase + totalNoGravadas + totalIgv);
 
   const igvResultante = roundHalfAwayFromZero(totalIgv);
-  const igvAPagar = round2(igvResultante - creditoEfectivo);
+  // Retención/percepción restan igual que el crédito del período anterior — si el resultado da
+  // negativo es saldo a favor (crédito fiscal), no "a pagar" (oculta la sección Compras más abajo).
+  const retencionMonto = Number(record.retencion_monto ?? 0);
+  const percepcionMonto = Number(record.percepcion_monto ?? 0);
+  const igvAPagar = round2(igvResultante - creditoEfectivo - retencionMonto - percepcionMonto);
   const montoAproximadoIgv = igvAPagar > 0 ? roundHalfAwayFromZero(igvAPagar) : undefined;
 
   const comprasBase = Number(record.compras_base ?? 0);
@@ -511,7 +517,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           Tasa(s) IGV aplicada(s): {summary.ratesAplicables.map((r) => (r === 10.5 ? '10.5%' : '18%')).join(' y ')}.
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-3 pt-2 border-t border-slate-100">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 pt-2 border-t border-slate-100">
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-slate-500">I.G.V Resultante</p>
             <p className="text-sm font-semibold text-slate-800 tabular-nums">{formatMoney(summary.igvResultante)}</p>
@@ -543,6 +549,24 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             </div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+            <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">(-) Retención</label>
+            <MoneyField
+              disabled={!canUpdate || formLocked}
+              value={record.retencion_monto}
+              onChange={(v) => patchRecord({ retencion_monto: v })}
+              className="w-full px-2 py-1 rounded-md border border-slate-300 text-sm text-right tabular-nums outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+            />
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+            <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">(-) Percepción</label>
+            <MoneyField
+              disabled={!canUpdate || formLocked}
+              value={record.percepcion_monto}
+              onChange={(v) => patchRecord({ percepcion_monto: v })}
+              className="w-full px-2 py-1 rounded-md border border-slate-300 text-sm text-right tabular-nums outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+            />
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-slate-500">I.G.V. A PAGAR</p>
             <p
               className={`text-sm font-semibold tabular-nums ${summary.igvAPagar > 0 ? 'text-red-700' : 'text-primary-700'}`}
@@ -553,29 +577,31 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">Compras</h2>
-        <p className="text-xs text-slate-500">Importe aproximado a traer en facturas de compra (opcional).</p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
-            <MoneyField
-              disabled={!canUpdate || formLocked}
-              value={record.compras_base}
-              onChange={(v) => patchRecord({ compras_base: v })}
-              className={FIELD_INPUT}
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">I.G.V.</label>
-            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasIgv)}</p>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Total</label>
-            <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasTotal)}</p>
+      {summary.igvAPagar > 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+          <h2 className="text-sm font-semibold text-slate-800">Compras</h2>
+          <p className="text-xs text-slate-500">Importe aproximado a traer en facturas de compra (opcional).</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
+              <MoneyField
+                disabled={!canUpdate || formLocked}
+                value={record.compras_base}
+                onChange={(v) => patchRecord({ compras_base: v })}
+                className={FIELD_INPUT}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">I.G.V.</label>
+              <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasIgv)}</p>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Total</label>
+              <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasTotal)}</p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">

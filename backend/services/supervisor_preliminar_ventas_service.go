@@ -77,6 +77,10 @@ type PreliminarVentasRecordInput struct {
 	// CreditoPeriodoAnteriorOverride: nil usa el arrastre automático (ver
 	// preliminarVentasAutoCredito); si no es nil, el usuario lo corrigió a mano y ese valor manda.
 	CreditoPeriodoAnteriorOverride *float64 `json:"credito_periodo_anterior_override,omitempty"`
+	// RetencionMonto/PercepcionMonto: montos aproximados simples (sin arrastre automático), que
+	// también restan del I.G.V. resultante para llegar al I.G.V. A PAGAR.
+	RetencionMonto  float64 `json:"retencion_monto"`
+	PercepcionMonto float64 `json:"percepcion_monto"`
 }
 
 // PreliminarVentasSummaryRow una fila de la tabla "Ventas" (Facturas/Boletas/Notas de crédito/Total).
@@ -217,6 +221,8 @@ func preliminarVentasRecordToInput(r *models.SupervisorPreliminarVentasRecord) P
 		NotasCreditoNoGravadas105:      r.NotasCreditoNoGravadas105,
 		ComprasBase:                    r.ComprasBase,
 		CreditoPeriodoAnteriorOverride: r.CreditoPeriodoAnteriorOverride,
+		RetencionMonto:                 r.RetencionMonto,
+		PercepcionMonto:                r.PercepcionMonto,
 	}
 }
 
@@ -354,7 +360,10 @@ func (s *SupervisorService) computePreliminarVentasSummary(
 	// I.G.V Resultante: redondeado a entero (declaración SUNAT sin decimales), igual criterio que
 	// impuesto_periodo en la Liquidación (roundTaxTotalAmount).
 	igvResultante := roundToWhole(totalIgv)
-	igvAPagar := round2(igvResultante - creditoEfectivo)
+	// Retención/percepción restan igual que el crédito del período anterior — si el resultado da
+	// negativo es saldo a favor (crédito fiscal), no "a pagar" (ver IgvAPagar en el comentario del
+	// tipo y PreliminarVentasDetailPage.tsx, que oculta Compras en ese caso).
+	igvAPagar := round2(igvResultante - creditoEfectivo - in.RetencionMonto - in.PercepcionMonto)
 	var montoAproxIgv *float64
 	if igvAPagar > 0 {
 		v := roundToWhole(igvAPagar)
@@ -598,6 +607,8 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 	record.NotasCreditoNoGravadas105 = in.NotasCreditoNoGravadas105
 	record.ComprasBase = in.ComprasBase
 	record.CreditoPeriodoAnteriorOverride = in.CreditoPeriodoAnteriorOverride
+	record.RetencionMonto = in.RetencionMonto
+	record.PercepcionMonto = in.PercepcionMonto
 	if record.Status == "" || record.Status == models.PreliminarVentasPendiente {
 		record.Status = models.PreliminarVentasRegistrado
 	}

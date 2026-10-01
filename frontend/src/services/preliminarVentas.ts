@@ -50,6 +50,9 @@ export interface PreliminarVentasRecordInput {
   notas_credito_no_gravadas_105: number;
   compras_base: number;
   credito_periodo_anterior_override?: number | null;
+  /** Montos aproximados simples (sin arrastre automático) que también restan del I.G.V. resultante. */
+  retencion_monto: number;
+  percepcion_monto: number;
 }
 
 export interface PreliminarVentasSummaryRow {

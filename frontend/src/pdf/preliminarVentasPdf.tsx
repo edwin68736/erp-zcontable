@@ -264,25 +264,39 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
           <Text style={s.summaryValue}>{fmtMoney(summary.credito_periodo_anterior)}</Text>
         </View>
         <View style={s.summaryRow}>
+          <Text style={s.summaryLabel}>(-) Retención</Text>
+          <Text style={s.summaryValue}>{fmtMoney(detail.record.retencion_monto)}</Text>
+        </View>
+        <View style={s.summaryRow}>
+          <Text style={s.summaryLabel}>(-) Percepción</Text>
+          <Text style={s.summaryValue}>{fmtMoney(detail.record.percepcion_monto)}</Text>
+        </View>
+        <View style={s.summaryRow}>
           <Text style={s.summaryLabelStrong}>I.G.V. A PAGAR</Text>
           <Text style={s.summaryValueStrong}>{fmtMoney(summary.igv_a_pagar)}</Text>
         </View>
 
-        <Text style={[s.blockTitle, { marginTop: 8 }]}>2.- Compras</Text>
-        <View style={s.tableHeadRow}>
-          <Text style={[s.headText, s.colConcept]} />
-          <Text style={[s.headText, s.colNum]}>Base imponible</Text>
-          <Text style={[s.headText, s.colNum]}>I.G.V</Text>
-          <Text style={[s.headText, s.colNum]}>Total</Text>
-        </View>
-        <View style={s.comprasHintRow}>
-          <View style={s.comprasHintLabelCell}>
-            <Text style={s.comprasHintLabelText}>Importe aproximado a traer en facturas de compra</Text>
-          </View>
-          <View style={s.comprasHintValueCell}>
-            <Text style={s.numText}>{detail.record.compras_base ? fmtMoney(detail.record.compras_base) : ''}</Text>
-          </View>
-        </View>
+        {/* Si el I.G.V. A PAGAR da negativo (saldo a favor), no corresponde mostrar la sección de
+            Compras — mismo criterio que PreliminarVentasDetailPage.tsx. */}
+        {summary.igv_a_pagar > 0 ? (
+          <>
+            <Text style={[s.blockTitle, { marginTop: 8 }]}>2.- Compras</Text>
+            <View style={s.tableHeadRow}>
+              <Text style={[s.headText, s.colConcept]} />
+              <Text style={[s.headText, s.colNum]}>Base imponible</Text>
+              <Text style={[s.headText, s.colNum]}>I.G.V</Text>
+              <Text style={[s.headText, s.colNum]}>Total</Text>
+            </View>
+            <View style={s.comprasHintRow}>
+              <View style={s.comprasHintLabelCell}>
+                <Text style={s.comprasHintLabelText}>Importe aproximado a traer en facturas de compra</Text>
+              </View>
+              <View style={s.comprasHintValueCell}>
+                <Text style={s.numText}>{detail.record.compras_base ? fmtMoney(detail.record.compras_base) : ''}</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
 
         <View style={s.summaryRow}>
           <Text style={s.summaryLabel}>Monto aproximado a pagar en I.G.V.</Text>
@@ -295,13 +309,15 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
           <Text style={s.summaryValueStrong}>S/ {fmtMoney(summary.monto_aproximado_renta)}</Text>
         </View>
 
-        <View style={s.importantBox}>
-          <Text style={s.importantText}>
-            ¡IMPORTANTE! El monto de las compras indicado es solo un valor referencial. Se recomienda que el monto de
-            las compras sea mayor al de las ventas para reducir el pago del I.G.V. En caso de que el monto de las
-            compras sea inferior al recomendado, su empresa podría estar sujeta a un mayor pago de impuestos.
-          </Text>
-        </View>
+        {summary.igv_a_pagar > 0 ? (
+          <View style={s.importantBox}>
+            <Text style={s.importantText}>
+              ¡IMPORTANTE! El monto de las compras indicado es solo un valor referencial. Se recomienda que el monto
+              de las compras sea mayor al de las ventas para reducir el pago del I.G.V. En caso de que el monto de
+              las compras sea inferior al recomendado, su empresa podría estar sujeta a un mayor pago de impuestos.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={s.recoDivider}>
           <Text style={s.recoTitle}>Recomendaciones a tener en cuenta</Text>
