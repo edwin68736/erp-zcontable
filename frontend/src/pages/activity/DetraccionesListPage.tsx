@@ -29,6 +29,7 @@ import {
 } from '../../services/detracciones';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { exportDetraccionesReportExcel } from '../../utils/detraccionesExcelExport';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
@@ -73,6 +74,8 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
   // (§5.9.9.3), así que no se acota a canVerify/canUpload.
@@ -174,6 +177,26 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     return `${path}?period_ym=${encodeURIComponent(periodYm)}`;
   };
 
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    try {
+      setExportingExcel(true);
+      setError('');
+      setMsg('');
+      const exportRows = await detraccionesService.fetchExportData({
+        period_ym: periodYm,
+        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
+        status: statusFilter || undefined,
+      });
+      await exportDetraccionesReportExcel({ periodYm, rows: exportRows, workspace });
+      setMsg('Excel generado correctamente.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   const handleUpload = async (companyId: number, file: File) => {
     setActionError('');
     try {
@@ -257,8 +280,23 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleExportExcel()}
+          disabled={loading || exportingExcel}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100 disabled:opacity-50 shrink-0"
+        >
+          <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
+          Excel
+        </button>
       </div>
 
+      {msg ? (
+        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
+          <i className="fas fa-check-circle" aria-hidden />
+          {msg}
+        </div>
+      ) : null}
       {error ? (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       ) : null}
@@ -318,23 +356,11 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                       {row.dig || '—'}
                     </td>
                     <td
-                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                      className={`${TD} font-medium bg-white group-hover:bg-slate-50 truncate`}
                       style={frozenIdBodyCellStyle('name')}
                       title={row.business_name}
                     >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span className="truncate">{row.business_name || '—'}</span>
-                        {row.suspendida ? (
-                          // §5.9.7: única fuente de esta marca es este módulo — sin esto, una
-                          // empresa suspendida podía verse como si se hubiera eliminado del listado.
-                          <span
-                            className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-100 text-purple-900"
-                            title="Suspendida en este período"
-                          >
-                            Suspendida
-                          </span>
-                        ) : null}
-                      </span>
+                      {row.business_name || '—'}
                     </td>
                     <td
                       className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}

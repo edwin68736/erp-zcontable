@@ -89,6 +89,15 @@ export const detraccionesService = {
     return res.data;
   },
 
+  // fetchExportData trae TODAS las empresas que matchean los filtros, sin paginar — para el
+  // reporte Excel (mismo patrón que pdt621Service.fetchExportData).
+  async fetchExportData(params: { period_ym: string; q?: string; status?: string }): Promise<DetraccionesListRow[]> {
+    const res = await client.get<{ data: DetraccionesListRow[] }>('/supervisors/activity-modules/detracciones/export', {
+      params,
+    });
+    return res.data.data;
+  },
+
   async getDetail(companyId: number, periodYm: string): Promise<DetraccionesDetail> {
     const res = await client.get<{ data: DetraccionesDetail }>(
       `/supervisors/activity-modules/detracciones/companies/${companyId}`,

@@ -59,19 +59,6 @@ const EMPTY_SLOT_FALLBACK = (slotIndex: number): SunatInboxCaptureSlot => ({
   sunafil: { status: 'pendiente' },
 });
 
-// SuspendidaBadge (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.8): Buzón SOL no tiene
-// botón propio para marcar suspendida (se marca desde Control de Detracciones, §5.9.7), pero sin
-// este aviso una empresa suspendida se veía igual que cualquier otra acá — o se podía pensar que se
-// eliminó, si algún filtro la dejaba fuera.
-const SuspendidaBadge = () => (
-  <span
-    className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-100 text-purple-900"
-    title="Suspendida en este período"
-  >
-    Suspendida
-  </span>
-);
-
 const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const homePath = workspaceHomePath(workspace);
   const canUpload = useMemo(
@@ -519,14 +506,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           {row.dig || '—'}
                         </td>
                         <td
-                          className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                          className={`${TD} font-medium bg-white group-hover:bg-slate-50 truncate`}
                           style={frozenIdBodyCellStyle('name')}
                           title={row.business_name}
                         >
-                          <span className="flex items-center gap-1.5 truncate">
-                            <span className="truncate">{row.business_name || '—'}</span>
-                            {row.suspendida ? <SuspendidaBadge /> : null}
-                          </span>
+                          {row.business_name || '—'}
                         </td>
                         <td
                           className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
@@ -538,10 +522,16 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           <span className="block truncate">{row.assistant_username || '—'}</span>
                         </td>
                         <td className={TD}>
+                          {/* Suspendida es un overlay global del período (§5.9.7/§5.9.8), no un
+                              estado más del buzón — pisa el label/color acá en vez de mostrarse
+                              aparte junto a la razón social (mismo criterio que Detracciones y
+                              Preliminar de Ventas). */}
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(row.summary_status)}`}
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              row.suspendida ? 'bg-purple-100 text-purple-900' : mailboxStatusBadgeClass(row.summary_status)
+                            }`}
                           >
-                            {mailboxStatusLabel(row.summary_status)}
+                            {row.suspendida ? 'Suspendida' : mailboxStatusLabel(row.summary_status)}
                           </span>
                         </td>
                         <td className={TD}>
@@ -627,14 +617,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                             {row.dig || '—'}
                           </td>
                           <td
-                            className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                            className={`${TD} font-medium bg-white group-hover:bg-slate-50 truncate`}
                             style={frozenIdBodyCellStyle('name')}
                             title={row.business_name}
                           >
-                            <span className="flex items-center gap-1.5 truncate">
-                              <span className="truncate">{row.business_name || '—'}</span>
-                              {row.suspendida ? <SuspendidaBadge /> : null}
-                            </span>
+                            {row.business_name || '—'}
                           </td>
                           <td
                             className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
@@ -647,9 +634,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           </td>
                           <td className={TD}>
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${mailboxStatusBadgeClass(monthSummary)}`}
+                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                row.suspendida ? 'bg-purple-100 text-purple-900' : mailboxStatusBadgeClass(monthSummary)
+                              }`}
                             >
-                              {mailboxStatusLabel(monthSummary)}
+                              {row.suspendida ? 'Suspendida' : mailboxStatusLabel(monthSummary)}
                             </span>
                           </td>
                           <td className={TD}>

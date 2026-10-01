@@ -257,6 +257,7 @@ func Setup(app *fiber.App) {
 	sup.Post("/activity-modules/sunat-inbox/companies/:companyId/slots/:slotIndex/upload", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.SunatInboxUploadAPI)
 	sup.Post("/activity-modules/sunat-inbox/slots/:slotId/verify", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.SunatInboxVerifySlotAPI)
 	sup.Get("/activity-modules/detracciones", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesListAPI)
+	sup.Get("/activity-modules/detracciones/export", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesExportAPI)
 	sup.Get("/activity-modules/detracciones/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesDetailAPI)
 	// Modal de arrastre de suspensión entre períodos (§5.9.9) — sin restricción de permiso más allá
 	// de poder ver/interactuar con Detracciones (confirmado con el usuario, §5.9.9.3).

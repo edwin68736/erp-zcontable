@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   PRELIMINAR_VENTAS_STATUS_FILTER,
   preliminarVentasStatusBadgeClass,
@@ -16,6 +17,12 @@ import {
   type PreliminarVentasListRow,
   type PreliminarVentasSlotStatus,
 } from '../../services/preliminarVentas';
+// El arrastre de suspensión entre períodos (§5.9.9) es genérico (vive en detraccionesService porque
+// Detracciones es el único módulo que escribe/resuelve "suspendida", no porque sea exclusivo de
+// ese módulo) — se reusa tal cual acá para que abrir Preliminar de Ventas en un período nuevo
+// también pregunte si corresponde arrastrar la suspensión del período anterior, en vez de dejar que
+// el control nuevo nazca en falso silenciosamente (antes solo Detracciones preguntaba esto).
+import { detraccionesService, type SuspensionCarryOverRow } from '../../services/detracciones';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 
@@ -61,6 +68,13 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
+  // (§5.9.9.3), así que no se acota por permiso de edición.
+  const [carryOverCompanies, setCarryOverCompanies] = useState<SuspensionCarryOverRow[]>([]);
+  const [carryOverOpen, setCarryOverOpen] = useState(false);
+  const [carryOverSaving, setCarryOverSaving] = useState(false);
+  const [carryOverError, setCarryOverError] = useState('');
+
   useEffect(() => {
     setSearchParams(
       (prev) => {
@@ -102,6 +116,51 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   useEffect(() => {
     setPage(1);
   }, [periodYm, debouncedQ, statusFilter]);
+
+  // Al entrar (o cambiar de período), se consulta si hay un arrastre de suspensión sin resolver —
+  // si el usuario cierra el modal sin decidir, no se recuerda acá: la próxima vez que se entre a
+  // este período se vuelve a preguntar, igual que en Control de Detracciones (§5.9.9.2).
+  useEffect(() => {
+    let cancelled = false;
+    detraccionesService
+      .getSuspensionCarryOverStatus(periodYm)
+      .then((status) => {
+        if (cancelled) return;
+        setCarryOverCompanies(status.companies ?? []);
+        setCarryOverOpen(status.pending);
+        setCarryOverError('');
+      })
+      .catch((err: unknown) => {
+        console.error(err);
+        // Silencioso: no bloquea el uso normal del listado si esta consulta falla.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [periodYm]);
+
+  const handleCarryOverConfirm = async (keepSuspendedCompanyIds: number[]) => {
+    try {
+      setCarryOverSaving(true);
+      setCarryOverError('');
+      await detraccionesService.applySuspensionCarryOver(periodYm, keepSuspendedCompanyIds);
+      setCarryOverOpen(false);
+      await load();
+    } catch (err) {
+      // Si ya lo resolvió otro usuario (§5.9.9.4), recargar el estado en vez de reintentar.
+      setCarryOverError(extractApiErrorMessage(err, 'No se pudo aplicar la decisión.'));
+      try {
+        const status = await detraccionesService.getSuspensionCarryOverStatus(periodYm);
+        setCarryOverCompanies(status.companies ?? []);
+        setCarryOverOpen(status.pending);
+        if (!status.pending) await load();
+      } catch (reloadErr) {
+        console.error(reloadErr);
+      }
+    } finally {
+      setCarryOverSaving(false);
+    }
+  };
 
   const slotLink = (companyId: number, slotIndex: 1 | 2) => {
     const path = `${activitiesBasePath(workspace)}/preliminar-ventas/${companyId}/${slotIndex}`;
@@ -201,21 +260,11 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                       {row.dig || '—'}
                     </td>
                     <td
-                      className={`${TD} font-medium bg-white group-hover:bg-slate-50`}
+                      className={`${TD} font-medium bg-white group-hover:bg-slate-50 truncate`}
                       style={frozenIdBodyCellStyle('name')}
                       title={row.business_name}
                     >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span className="truncate">{row.business_name || '—'}</span>
-                        {row.suspendida ? (
-                          <span
-                            className="shrink-0 inline-block px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-100 text-purple-900"
-                            title="Suspendida en este período"
-                          >
-                            Suspendida
-                          </span>
-                        ) : null}
-                      </span>
+                      {row.business_name || '—'}
                     </td>
                     <td
                       className={`${TD} font-mono whitespace-nowrap bg-white group-hover:bg-slate-50`}
@@ -231,10 +280,10 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                       <span className="block truncate">{row.assistant_username || '—'}</span>
                     </td>
                     <td className={TD}>
-                      <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} />
+                      <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} suspendida={row.suspendida} />
                     </td>
                     <td className={TD}>
-                      <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} />
+                      <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} suspendida={row.suspendida} />
                     </td>
                   </tr>
                 ))
@@ -254,18 +303,28 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
           setPage(1);
         }}
       />
+
+      <SuspensionCarryOverModal
+        open={carryOverOpen}
+        companies={carryOverCompanies}
+        saving={carryOverSaving}
+        error={carryOverError}
+        onClose={() => setCarryOverOpen(false)}
+        onConfirm={(ids) => void handleCarryOverConfirm(ids)}
+      />
     </div>
   );
 };
 
-function SlotBadge({ to, slot }: { to: string; slot: PreliminarVentasSlotStatus }) {
+// Suspendida es un overlay global del período (SupervisorMonthlyControl.Suspendida, §5.9.7) — no un
+// estado más de la entrega — así que pisa el estado real de AMBAS entregas en vez de mostrarse como
+// un chip aparte junto a la razón social (mismo criterio que pdt621DisplayStatus en PDT 601/621).
+function SlotBadge({ to, slot, suspendida }: { to: string; slot: PreliminarVentasSlotStatus; suspendida: boolean }) {
+  const label = suspendida ? 'Suspendida' : preliminarVentasStatusLabel(slot.status);
+  const badgeClass = suspendida ? 'bg-purple-100 text-purple-900' : preliminarVentasStatusBadgeClass(slot.status);
   return (
     <div className="flex items-center gap-2">
-      <span
-        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(slot.status)}`}
-      >
-        {preliminarVentasStatusLabel(slot.status)}
-      </span>
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}>{label}</span>
       <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
     </div>
   );

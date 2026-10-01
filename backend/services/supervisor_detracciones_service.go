@@ -179,24 +179,10 @@ func (s *SupervisorService) detraccionesLatestStoredAt(declarationID uint) *time
 	return &t
 }
 
-// ListDetracciones listado empresa+período; sin lazy create.
-func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detraccionesListResult, error) {
-	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
-	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
-		return nil, err
-	}
-	page := p.Page
-	if page < 1 {
-		page = 1
-	}
-	perPage := p.PerPage
-	if perPage < 1 {
-		perPage = 20
-	}
-	if perPage > 200 {
-		perPage = 200
-	}
-
+// detraccionesFilteredCompaniesQuery arma el query de empresas (sin paginar) para un conjunto de
+// filtros — compartido por ListDetracciones (pagina en SQL) y ExportDetracciones (trae todo, para
+// el reporte Excel). Mismo patrón que pdt621FilteredCompaniesQuery.
+func detraccionesFilteredCompaniesQuery(p DetraccionesListParams) *gorm.DB {
 	types := detraccionesDeclarationTypes()
 
 	q := database.DB.Model(&models.Company{}).
@@ -205,10 +191,6 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
-	} else if p.AllowedCompanyIDs != nil {
-		return &detraccionesListResult{
-			Rows: []DetraccionesListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
-		}, nil
 	}
 
 	term := strings.TrimSpace(p.Q)
@@ -244,24 +226,19 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 		)`, types, statusFilter, p.PeriodYM)
 	}
 
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, err
-	}
+	return q
+}
 
-	var companies []models.Company
-	offset := (page - 1) * perPage
-	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
-		return nil, err
-	}
-
+// detraccionesBuildRows arma las filas (empresa+control+declaración+adjunto+cumplimiento) para un
+// conjunto de empresas YA filtrado — sin volver a tocar paginación ni filtros. Compartido por
+// ListDetracciones y ExportDetracciones para no duplicar el resto del armado de fila.
+func (s *SupervisorService) detraccionesBuildRows(companies []models.Company, periodYM string) ([]DetraccionesListRow, error) {
 	rows := make([]DetraccionesListRow, 0, len(companies))
 	if len(companies) == 0 {
-		return &detraccionesListResult{
-			Rows: rows, Total: total, Page: page, PerPage: perPage,
-			TotalPages: sunatInboxTotalPages(total, perPage),
-		}, nil
+		return rows, nil
 	}
+
+	types := detraccionesDeclarationTypes()
 
 	ids := make([]uint, 0, len(companies))
 	for _, c := range companies {
@@ -278,7 +255,7 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 	_ = database.DB.Table("supervisor_monthly_controls AS c").
 		Select("c.company_id, c.id AS control_id, d.id AS declaration_id, d.status").
 		Joins("INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type IN ? AND d.deleted_at IS NULL", types).
-		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, p.PeriodYM).
+		Where("c.company_id IN ? AND c.period_ym = ? AND c.deleted_at IS NULL", ids, periodYM).
 		Scan(&decls).Error
 
 	declByCompany := make(map[uint]declRow, len(decls))
@@ -350,13 +327,13 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 	var suspRows []suspendidaRow
 	_ = database.DB.Table("supervisor_monthly_controls").
 		Select("company_id, suspendida").
-		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, p.PeriodYM).
+		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", ids, periodYM).
 		Scan(&suspRows).Error
 	for _, r := range suspRows {
 		suspendidaByCompany[r.CompanyID] = r.Suspendida
 	}
 
-	deadlineCtx := findDetraccionesCalendarActivity(p.PeriodYM)
+	deadlineCtx := findDetraccionesCalendarActivity(periodYM)
 
 	for _, co := range companies {
 		row := DetraccionesListRow{
@@ -381,14 +358,80 @@ func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detracc
 				row.FileURL = st.FileURL
 			}
 		}
-		row.Timeliness = enrichDetraccionesListRow(p.PeriodYM, row.Status, row.Suspendida, row.LastStoredAt, deadlineCtx)
+		row.Timeliness = enrichDetraccionesListRow(periodYM, row.Status, row.Suspendida, row.LastStoredAt, deadlineCtx)
 		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
+// ListDetracciones listado empresa+período; sin lazy create.
+func (s *SupervisorService) ListDetracciones(p DetraccionesListParams) (*detraccionesListResult, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage := p.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return &detraccionesListResult{
+			Rows: []DetraccionesListRow{}, Total: 0, Page: page, PerPage: perPage, TotalPages: 0,
+		}, nil
+	}
+
+	q := detraccionesFilteredCompaniesQuery(p)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var companies []models.Company
+	offset := (page - 1) * perPage
+	if err := q.Order("companies.internal_code ASC").Offset(offset).Limit(perPage).Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	rows, err := s.detraccionesBuildRows(companies, p.PeriodYM)
+	if err != nil {
+		return nil, err
 	}
 
 	return &detraccionesListResult{
 		Rows: rows, Total: total, Page: page, PerPage: perPage,
 		TotalPages: sunatInboxTotalPages(total, perPage),
 	}, nil
+}
+
+// ExportDetracciones arma el listado COMPLETO (todas las empresas que matchean los filtros, sin
+// paginar) para el reporte Excel — misma lógica de filtrado y armado de fila que ListDetracciones,
+// sin el límite de página.
+func (s *SupervisorService) ExportDetracciones(p DetraccionesListParams) ([]DetraccionesListRow, error) {
+	p.PeriodYM = strings.TrimSpace(p.PeriodYM)
+	if err := s.validateOpenPeriod(p.PeriodYM); err != nil {
+		return nil, err
+	}
+	if p.AllowedCompanyIDs != nil && len(p.AllowedCompanyIDs) == 0 {
+		return []DetraccionesListRow{}, nil
+	}
+
+	q := detraccionesFilteredCompaniesQuery(p)
+	var companies []models.Company
+	if err := q.Order("companies.internal_code ASC").Find(&companies).Error; err != nil {
+		return nil, err
+	}
+
+	return s.detraccionesBuildRows(companies, p.PeriodYM)
 }
 
 // ValidateDetracciones marca la declaración detracciones como verificada (supervisor).

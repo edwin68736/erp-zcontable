@@ -57,6 +57,11 @@ const DetraccionesRowActions = ({
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
 
   const status = normalizeDetraccionesStatus(row.status);
+  // Suspendida es un overlay global del período (§5.9.7), no un estado más de la declaración — pisa
+  // el label/color del badge en vez de mostrarse aparte junto a la razón social (mismo criterio que
+  // pdt621DisplayStatus en PDT 601/621, y que preliminarVentasConfig en Preliminar de Ventas).
+  const displayLabel = row.suspendida ? 'Suspendida' : detraccionesStatusLabel(status);
+  const displayBadgeClass = row.suspendida ? 'bg-purple-100 text-purple-900' : detraccionesStatusBadgeClass(status);
   const fileName = row.file_name?.trim() || 'Comprobante.pdf';
   const fileUrl = row.file_url ? resolveBackendUrl(row.file_url) : '';
   // Suspendida (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) bloquea CUALQUIER otro
@@ -133,17 +138,15 @@ const DetraccionesRowActions = ({
             <button
               type="button"
               onClick={() => setStatusModalOpen(true)}
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-primary-300 ${detraccionesStatusBadgeClass(status)}`}
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-primary-300 ${displayBadgeClass}`}
               title="Cambiar estado (supervisor)"
             >
-              {detraccionesStatusLabel(status)}
+              {displayLabel}
               <i className="fas fa-pen ml-1 text-3xs opacity-70" aria-hidden />
             </button>
           ) : (
-            <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${detraccionesStatusBadgeClass(status)}`}
-            >
-              {detraccionesStatusLabel(status)}
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayBadgeClass}`}>
+              {displayLabel}
             </span>
           )}
         </div>

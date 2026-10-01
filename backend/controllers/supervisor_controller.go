@@ -1302,6 +1302,32 @@ func (ctrl *SupervisorController) DetraccionesListAPI(c fiber.Ctx) error {
 	})
 }
 
+// DetraccionesExportAPI GET /api/supervisors/activity-modules/detracciones/export
+// Devuelve, en una sola respuesta, TODAS las empresas que matchean los filtros (sin paginar) —
+// usado por el reporte Excel del listado.
+func (ctrl *SupervisorController) DetraccionesExportAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	rows, err := ctrl.svc.ExportDetracciones(services.DetraccionesListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Status:            c.Query("status", ""),
+		Q:                 c.Query("q", ""),
+		AllowedCompanyIDs: allowed,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if rows == nil {
+		rows = []services.DetraccionesListRow{}
+	}
+	return c.JSON(fiber.Map{"data": rows})
+}
+
 // DetraccionesDetailAPI GET /api/supervisors/activity-modules/detracciones/companies/:companyId
 func (ctrl *SupervisorController) DetraccionesDetailAPI(c fiber.Ctx) error {
 	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
