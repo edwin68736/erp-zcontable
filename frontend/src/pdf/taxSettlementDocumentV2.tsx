@@ -51,7 +51,7 @@ import { settlementTotalsForPdf, taxSettlementPdfFilename } from './taxSettlemen
  * desde utils/taxSettlementSections para que ambos PDF nunca diverjan.
  */
 
-const V2 = {
+export const V2 = {
   navy: '#0B2E63',
   navyDeep: '#082349',
   blue: '#1D63B5',
@@ -381,7 +381,7 @@ const s = StyleSheet.create({
 /* ---------- Piezas reutilizables ---------- */
 
 /** Círculo de color con un icono centrado (patrón visual del diseño v2). */
-function IconBadge({
+export function IconBadge({
   name,
   size,
   bg,
@@ -1415,7 +1415,7 @@ function publicBaseUrl(): string {
   return '/';
 }
 
-async function fetchFallbackLogoBlob(): Promise<Blob | null> {
+export async function fetchFallbackLogoBlob(): Promise<Blob | null> {
   if (typeof fetch === 'undefined') return null;
   try {
     const res = await fetch(`${publicBaseUrl()}${PDF_V2_FALLBACK_LOGO}`, { cache: 'no-store' });
