@@ -104,6 +104,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const [recordSaving, setRecordSaving] = useState(false);
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -238,6 +239,26 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  // Quitar un archivo sin reemplazarlo: solo quien aprueba declaraciones (supervisor/administrador) —
+  // sirve para limpiar adjuntos duplicados o subidos por error. El backend borra también el archivo
+  // físico (DeleteAttachment).
+  const canRemoveAttachment = canApprove && canUpload;
+  const handleRemoveAttachment = async (attachment: SupervisorAttachment) => {
+    if (!declaration || !canRemoveAttachment) return;
+    if (!window.confirm(`¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      setRemovingId(attachment.id);
+      setMsg('');
+      await supervisorsService.deleteAttachment(attachment.id);
+      await loadAttachments(declaration.id);
+      setMsg('Archivo quitado.');
+    } catch (err) {
+      setMsg(extractApiErrorMessage(err, 'No se pudo quitar el archivo.'));
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -834,6 +855,17 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                       <i className="fas fa-download" aria-hidden />
                       {downloadingId === a.id ? 'Descargando…' : 'Descargar'}
                     </button>
+                    {canRemoveAttachment ? (
+                      <button
+                        type="button"
+                        disabled={removingId === a.id}
+                        onClick={() => void handleRemoveAttachment(a)}
+                        className="inline-flex items-center gap-1.5 text-red-700 text-xs font-medium hover:underline disabled:opacity-50"
+                      >
+                        <i className="fas fa-trash" aria-hidden />
+                        {removingId === a.id ? 'Quitando…' : 'Quitar'}
+                      </button>
+                    ) : null}
                   </span>
                 </li>
               );
