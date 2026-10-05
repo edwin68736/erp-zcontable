@@ -40,7 +40,7 @@ const EMPTY_RECORD: PreliminarVentasRecordInput = {
   notas_credito_no_gravadas_18: 0,
   notas_credito_base_105: 0,
   notas_credito_no_gravadas_105: 0,
-  compras_base: 0,
+  reduccion_igv_pct: 95,
   credito_periodo_anterior_override: null,
   retencion_monto: 0,
   percepcion_monto: 0,
@@ -104,6 +104,7 @@ type LocalSummary = {
   igvResultante: number;
   igvAPagar: number;
   montoAproximadoIgv?: number;
+  comprasBase: number;
   comprasIgv: number;
   comprasTotal: number;
   montoAproximadoRenta: number;
@@ -170,11 +171,22 @@ function computeLocalVentasSummary(
   const retencionMonto = Number(record.retencion_monto ?? 0);
   const percepcionMonto = Number(record.percepcion_monto ?? 0);
   const igvAPagar = round2(igvResultante - creditoEfectivo - retencionMonto - percepcionMonto);
-  const montoAproximadoIgv = igvAPagar > 0 ? roundHalfAwayFromZero(igvAPagar) : undefined;
 
-  const comprasBase = Number(record.compras_base ?? 0);
-  const comprasIgv = round2((comprasBase * companyIgvRate) / 100);
-  const comprasTotal = round2(comprasBase + comprasIgv);
+  // Compras a traer (calculadas, no digitadas): el I.G.V. a compensar es reduccion_igv_pct% del I.G.V.
+  // a pagar, y la base de compras que lo genera es ese monto ÷ tasa, redondeada hacia arriba al sol
+  // entero. Mismo cálculo que el backend (computePreliminarVentasSummary).
+  const reduccionPct = Math.min(Math.max(Number(record.reduccion_igv_pct ?? 0), 0), 100);
+  let comprasBase = 0;
+  let comprasIgv = 0;
+  let comprasTotal = 0;
+  let montoAproximadoIgv: number | undefined;
+  if (igvAPagar > 0) {
+    const igvACompensar = (igvAPagar * reduccionPct) / 100;
+    comprasBase = Math.ceil(Number(((igvACompensar * 100) / companyIgvRate).toFixed(6)));
+    comprasIgv = round2((comprasBase * companyIgvRate) / 100);
+    comprasTotal = round2(comprasBase + comprasIgv);
+    montoAproximadoIgv = Math.max(roundHalfAwayFromZero(igvAPagar - comprasIgv), 0);
+  }
 
   const rentaBaseRaw = Math.max(totalBase + totalNoGravadas, 0);
   const rentaBase = round2(rentaBaseRaw);
@@ -188,6 +200,7 @@ function computeLocalVentasSummary(
     igvResultante,
     igvAPagar,
     montoAproximadoIgv,
+    comprasBase,
     comprasIgv,
     comprasTotal,
     montoAproximadoRenta,
@@ -535,9 +548,8 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
               placeholder={formatMoney(creditoAuto)}
               className="w-full px-2 py-1 rounded-md border border-slate-300 text-sm text-right tabular-nums outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
             />
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-2xs text-slate-400">Sugerido: {formatMoney(creditoAuto)}</span>
-              {record.credito_periodo_anterior_override != null && !formLocked && canUpdate ? (
+            {record.credito_periodo_anterior_override != null && !formLocked && canUpdate ? (
+              <div className="flex justify-end mt-1">
                 <button
                   type="button"
                   onClick={() => patchRecord({ credito_periodo_anterior_override: null })}
@@ -545,8 +557,8 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
                 >
                   Usar sugerido
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">(-) Retención</label>
@@ -580,16 +592,23 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       {summary.igvAPagar > 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-slate-800">Compras</h2>
-          <p className="text-xs text-slate-500">Importe aproximado a traer en facturas de compra (opcional).</p>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <p className="text-xs text-slate-500">
+            Importe aproximado a traer en facturas de compra para bajar el I.G.V. a pagar. Se calcula con el porcentaje
+            indicado (máximo 100%).
+          </p>
+          <div className="grid gap-4 sm:grid-cols-4">
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
+              <label className="block text-xs text-slate-500 mb-1">% del I.G.V. a reducir</label>
               <MoneyField
                 disabled={!canUpdate || formLocked}
-                value={record.compras_base}
-                onChange={(v) => patchRecord({ compras_base: v })}
+                value={record.reduccion_igv_pct}
+                onChange={(v) => patchRecord({ reduccion_igv_pct: Math.min(v, 100) })}
                 className={FIELD_INPUT}
               />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
+              <p className="text-sm text-slate-500 tabular-nums px-3 py-2">{formatMoney(summary.comprasBase)}</p>
             </div>
             <div>
               <label className="block text-xs text-slate-500 mb-1">I.G.V.</label>

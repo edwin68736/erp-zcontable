@@ -48,7 +48,8 @@ export interface PreliminarVentasRecordInput {
   notas_credito_no_gravadas_18: number;
   notas_credito_base_105: number;
   notas_credito_no_gravadas_105: number;
-  compras_base: number;
+  /** % del I.G.V. a pagar que se busca compensar con compras (0–100, por defecto 95). */
+  reduccion_igv_pct: number;
   credito_periodo_anterior_override?: number | null;
   /** Montos aproximados simples (sin arrastre automático) que también restan del I.G.V. resultante. */
   retencion_monto: number;
@@ -77,8 +78,11 @@ export interface PreliminarVentasSummary {
   /** El efectivamente usado en el cálculo (el override del usuario si lo hay, si no el automático). */
   credito_periodo_anterior: number;
   igv_a_pagar: number;
-  /** Ausente cuando igv_a_pagar <= 0 (crédito a favor o neutral) — el PDF/la UI lo dejan en blanco. */
+  /** Lo que quedaría por pagar de I.G.V. si se traen las compras de compras_base. Ausente cuando
+   * igv_a_pagar <= 0 (saldo a favor o neutral) — el PDF/la UI lo dejan en blanco. */
   monto_aproximado_igv?: number;
+  /** Importe CALCULADO a traer en facturas de compra (0 si no hay I.G.V. a pagar). */
+  compras_base: number;
   compras_igv: number;
   compras_total: number;
   renta_base: number;

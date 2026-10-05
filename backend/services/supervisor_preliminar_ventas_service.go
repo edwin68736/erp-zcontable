@@ -73,7 +73,8 @@ type PreliminarVentasRecordInput struct {
 	NotasCreditoNoGravadas18  float64 `json:"notas_credito_no_gravadas_18"`
 	NotasCreditoBase105       float64 `json:"notas_credito_base_105"`
 	NotasCreditoNoGravadas105 float64 `json:"notas_credito_no_gravadas_105"`
-	ComprasBase               float64 `json:"compras_base"`
+	// ReduccionIgvPct: % del I.G.V. a pagar a compensar con compras (0–100, por defecto 95).
+	ReduccionIgvPct float64 `json:"reduccion_igv_pct"`
 	// CreditoPeriodoAnteriorOverride: nil usa el arrastre automático (ver
 	// preliminarVentasAutoCredito); si no es nil, el usuario lo corrigió a mano y ese valor manda.
 	CreditoPeriodoAnteriorOverride *float64 `json:"credito_periodo_anterior_override,omitempty"`
@@ -114,14 +115,18 @@ type PreliminarVentasSummary struct {
 	// si no el automático).
 	CreditoPeriodoAnterior float64 `json:"credito_periodo_anterior"`
 	IgvAPagar              float64 `json:"igv_a_pagar"`
-	// MontoAproximadoIgv nil cuando IgvAPagar <= 0 (crédito a favor o neutral) — el PDF y la UI lo
-	// dejan en blanco, igual que la plantilla real del estudio.
-	MontoAproximadoIgv   *float64 `json:"monto_aproximado_igv,omitempty"`
-	ComprasIgv           float64  `json:"compras_igv"`
-	ComprasTotal         float64  `json:"compras_total"`
-	RentaBase            float64  `json:"renta_base"`
-	RentaRatePct         float64  `json:"renta_rate_pct"`
-	MontoAproximadoRenta float64  `json:"monto_aproximado_renta"`
+	// MontoAproximadoIgv: lo que quedaría por pagar de I.G.V. si el cliente trae las compras de
+	// ComprasBase (I.G.V. a pagar − I.G.V. de esas compras). nil cuando IgvAPagar <= 0 (saldo a
+	// favor o neutral) — el PDF y la UI lo dejan en blanco.
+	MontoAproximadoIgv *float64 `json:"monto_aproximado_igv,omitempty"`
+	// Compras: importe CALCULADO a traer en facturas de compra para compensar ReduccionIgvPct% del
+	// I.G.V. a pagar. Todo en 0 cuando IgvAPagar <= 0 (no hay nada que compensar).
+	ComprasBase          float64 `json:"compras_base"`
+	ComprasIgv           float64 `json:"compras_igv"`
+	ComprasTotal         float64 `json:"compras_total"`
+	RentaBase            float64 `json:"renta_base"`
+	RentaRatePct         float64 `json:"renta_rate_pct"`
+	MontoAproximadoRenta float64 `json:"monto_aproximado_renta"`
 }
 
 // PreliminarVentasSlotDetail detalle de UNA entrega tras EnsurePreliminarVentasSlot (lazy create).
@@ -219,11 +224,26 @@ func preliminarVentasRecordToInput(r *models.SupervisorPreliminarVentasRecord) P
 		NotasCreditoNoGravadas18:       r.NotasCreditoNoGravadas18,
 		NotasCreditoBase105:            r.NotasCreditoBase105,
 		NotasCreditoNoGravadas105:      r.NotasCreditoNoGravadas105,
-		ComprasBase:                    r.ComprasBase,
+		ReduccionIgvPct:                r.ReduccionIgvPct,
 		CreditoPeriodoAnteriorOverride: r.CreditoPeriodoAnteriorOverride,
 		RetencionMonto:                 r.RetencionMonto,
 		PercepcionMonto:                r.PercepcionMonto,
 	}
+}
+
+// preliminarVentasDefaultReduccionIgvPct % de I.G.V. a compensar con compras que usa el estudio.
+const preliminarVentasDefaultReduccionIgvPct = 95
+
+// clampReduccionIgvPct acota el % al rango válido (0–100): con compras no se puede bajar más del
+// 100% del I.G.V.
+func clampReduccionIgvPct(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return round2(v)
 }
 
 // preliminarVentasCompanyDefaultRateBools tasa(s) activas por defecto para una entrega nueva (sin
@@ -364,16 +384,26 @@ func (s *SupervisorService) computePreliminarVentasSummary(
 	// negativo es saldo a favor (crédito fiscal), no "a pagar" (ver IgvAPagar en el comentario del
 	// tipo y PreliminarVentasDetailPage.tsx, que oculta Compras en ese caso).
 	igvAPagar := round2(igvResultante - creditoEfectivo - in.RetencionMonto - in.PercepcionMonto)
+
+	// Compras a traer: el I.G.V. a compensar es ReduccionIgvPct% del I.G.V. a pagar, y la base de
+	// compras que lo genera es ese monto ÷ tasa. Se redondea hacia arriba al sol entero para que la
+	// factura alcance a compensar (aproximado). Compras no se separa por tasa: usa la tasa única
+	// configurada de la empresa. Sin I.G.V. a pagar (saldo a favor) no hay nada que compensar.
+	reduccionPct := clampReduccionIgvPct(in.ReduccionIgvPct)
+	var comprasBase, comprasIgv, comprasTotal float64
 	var montoAproxIgv *float64
 	if igvAPagar > 0 {
-		v := roundToWhole(igvAPagar)
-		montoAproxIgv = &v
+		igvACompensar := igvAPagar * reduccionPct / 100
+		comprasBase = math.Ceil(math.Round(igvACompensar*100/companyRate*1e6) / 1e6)
+		comprasIgv = round2(comprasBase * companyRate / 100)
+		comprasTotal = round2(comprasBase + comprasIgv)
+		// Lo que quedaría por pagar si el cliente trae esas compras.
+		restante := roundToWhole(igvAPagar - comprasIgv)
+		if restante < 0 {
+			restante = 0
+		}
+		montoAproxIgv = &restante
 	}
-
-	// Compras no se separa por tasa (el usuario no lo pidió y es un importe aproximado/opcional) —
-	// sigue usando la tasa única configurada de la empresa.
-	comprasIgv := round2(in.ComprasBase * companyRate / 100)
-	comprasTotal := round2(in.ComprasBase + comprasIgv)
 
 	rentaBaseRaw := totalBase + totalNoGravadas
 	if rentaBaseRaw < 0 {
@@ -395,6 +425,7 @@ func (s *SupervisorService) computePreliminarVentasSummary(
 		CreditoPeriodoAnterior:     creditoEfectivo,
 		IgvAPagar:                  igvAPagar,
 		MontoAproximadoIgv:         montoAproxIgv,
+		ComprasBase:                comprasBase,
 		ComprasIgv:                 comprasIgv,
 		ComprasTotal:               comprasTotal,
 		RentaBase:                  rentaBase,
@@ -524,6 +555,7 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 		// Entrega todavía sin registro: precarga la tasa de la empresa como selección por defecto
 		// (sin persistir nada) para que el formulario abra con el checkbox correcto ya marcado.
 		record.IgvAplicable18, record.IgvAplicable105 = preliminarVentasCompanyDefaultRateBools(&company)
+		record.ReduccionIgvPct = preliminarVentasDefaultReduccionIgvPct
 	}
 
 	input := preliminarVentasRecordToInput(&record)
@@ -605,7 +637,7 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 	record.NotasCreditoNoGravadas18 = in.NotasCreditoNoGravadas18
 	record.NotasCreditoBase105 = in.NotasCreditoBase105
 	record.NotasCreditoNoGravadas105 = in.NotasCreditoNoGravadas105
-	record.ComprasBase = in.ComprasBase
+	record.ReduccionIgvPct = clampReduccionIgvPct(in.ReduccionIgvPct)
 	record.CreditoPeriodoAnteriorOverride = in.CreditoPeriodoAnteriorOverride
 	record.RetencionMonto = in.RetencionMonto
 	record.PercepcionMonto = in.PercepcionMonto

@@ -60,10 +60,11 @@ type SupervisorPreliminarVentasRecord struct {
 	NotasCreditoNoGravadas18  float64 `gorm:"type:decimal(15,2);not null;default:0" json:"notas_credito_no_gravadas_18"`
 	NotasCreditoBase105       float64 `gorm:"type:decimal(15,2);not null;default:0" json:"notas_credito_base_105"`
 	NotasCreditoNoGravadas105 float64 `gorm:"type:decimal(15,2);not null;default:0" json:"notas_credito_no_gravadas_105"`
-	// Compras — importe aproximado, opcional (el cliente muchas veces no lo tiene a esta altura del
-	// mes). En 0 el PDF lo deja en blanco, igual que la plantilla del estudio. No se separa por
-	// tasa (a diferencia de Ventas): siempre usa la tasa única de la empresa.
-	ComprasBase float64 `gorm:"type:decimal(15,2);not null;default:0" json:"compras_base"`
+	// ReduccionIgvPct: % del I.G.V. a pagar (después de crédito, retención y percepción) que se
+	// busca bajar con facturas de compra — de ahí sale el "importe aproximado a traer en facturas de
+	// compra", que ya NO se digita: se calcula (ver computePreliminarVentasSummary). El estudio
+	// trabaja normalmente al 95% (no se busca dejar el IGV en 0); es libre de cambiar, hasta 100%.
+	ReduccionIgvPct float64 `gorm:"type:decimal(5,2);not null;default:95" json:"reduccion_igv_pct"`
 
 	// CreditoPeriodoAnteriorOverride: por defecto el crédito de IGV se arrastra solo desde el I.G.V.
 	// A PAGAR de la entrega anterior si salió negativo (ver computePreliminarVentasSummary /

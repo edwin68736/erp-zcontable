@@ -13,6 +13,7 @@ import { IconBadge, V2, fetchFallbackLogoBlob } from './taxSettlementDocumentV2'
 
 const YELLOW_SOFT = '#FEF3C7';
 const GREEN_BORDER = '#C9EBD9';
+const BLUE_BORDER = '#CFDDF2';
 
 function fmtMoney(n: number | undefined | null): string {
   const v = Number(n ?? 0);
@@ -61,14 +62,14 @@ const s = StyleSheet.create({
   infoStrip: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: V2.border,
+    borderColor: GREEN_BORDER,
     borderRadius: 5,
-    backgroundColor: V2.blueSoft,
+    backgroundColor: V2.greenSoft,
     paddingVertical: 8,
     marginBottom: 7,
   },
   infoCol: { flex: 1, paddingHorizontal: 10 },
-  infoColDivider: { borderLeftWidth: 1, borderLeftColor: V2.border },
+  infoColDivider: { borderLeftWidth: 1, borderLeftColor: GREEN_BORDER },
   infoRow: { flexDirection: 'row', alignItems: 'center' },
   infoRowSpacing: { marginBottom: 8 },
   infoLabel: { fontSize: 6.2, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
@@ -138,7 +139,7 @@ const s = StyleSheet.create({
     borderBottomColor: V2.rule,
   },
   sumValue: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
-  sumRowHighlight: { backgroundColor: V2.greenSoft, borderRadius: 3, marginTop: 4 },
+  sumRowHighlight: { backgroundColor: V2.blueSoft, borderRadius: 3, marginTop: 4 },
   sumLabelGreen: { flex: 1, fontSize: 8.2, fontWeight: 700, color: V2.greenDark, textAlign: 'right', paddingRight: 10, paddingVertical: 5.5 },
   sumValueGreen: { fontSize: 9.6, fontWeight: 700, color: V2.greenDark, textAlign: 'right' },
 
@@ -146,7 +147,7 @@ const s = StyleSheet.create({
   approxBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.greenSoft,
+    backgroundColor: V2.blueSoft,
     borderRadius: 3,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -160,9 +161,9 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.greenSoft,
+    backgroundColor: V2.blueSoft,
     borderWidth: 1,
-    borderColor: GREEN_BORDER,
+    borderColor: BLUE_BORDER,
     borderRadius: 5,
     paddingVertical: 9,
     paddingHorizontal: 10,
@@ -484,7 +485,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                     <View style={[s.tCell, { width: COMPRAS_COLS[0] }]}>
                       <Text style={s.tText}>Importe aproximado a traer en facturas de compra</Text>
                     </View>
-                    {[record.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
+                    {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
                       <View key={i} style={[s.tCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1] }]}>
                         <Text style={s.tNum}>{fmtCell(v)}</Text>
                       </View>
@@ -517,11 +518,11 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                 <View style={{ marginRight: 6 }}>
                   <PdfIcon name="circleInfo" size={12} color={V2.navy} />
                 </View>
-                <Text style={s.infoCardTitle}>¿Qué es el PDT 621?</Text>
+                <Text style={s.infoCardTitle}>¿Qué es el Preliminar de Ventas?</Text>
               </View>
               <Text style={s.infoCardText} hyphenationCallback={noHyphen}>
-                Declaración mensual del IGV y Renta. Incluye información de ventas, compras y determina los impuestos a
-                pagar.
+                Es un resumen de todas las ventas que realizó durante el mes, se le envía días antes de cerrar el mes
+                para poder prever el pago de impuestos antes del cierre de mes.
               </Text>
             </View>
           </View>
