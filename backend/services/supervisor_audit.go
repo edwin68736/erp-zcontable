@@ -102,7 +102,41 @@ func (s *SupervisorService) SaveAttachment(controlID, declarationID, userID uint
 	if err := database.DB.Create(&a).Error; err != nil {
 		return nil, err
 	}
+	if declarationID > 0 {
+		s.replacePreviousSingleFileAttachments(declarationID, a.ID)
+	}
 	return &a, nil
+}
+
+// replacePreviousSingleFileAttachments aplica la regla "un solo archivo por declaración" de PDT 601
+// y PDT 621: al guardar uno nuevo, los anteriores de esa misma declaración se borran (registro y
+// archivo físico). Antes lo hacía solo el navegador (borrar y luego subir), así que un doble arrastre,
+// una lista desactualizada en pantalla o cualquier otra pantalla que subiera archivos dejaba dos PDF.
+//
+// Se borra DESPUÉS de crear el nuevo (nunca antes) para que un fallo no deje la declaración sin
+// archivo, y solo los de id MENOR al nuevo: si dos subidas llegan a la vez, cada una borra solo las
+// anteriores a la suya y siempre sobrevive la más reciente (borrar "todos menos el mío" podía
+// borrarse entre sí y dejar cero).
+func (s *SupervisorService) replacePreviousSingleFileAttachments(declarationID, newAttachmentID uint) {
+	var decl models.SupervisorDeclaration
+	if err := database.DB.Select("id", "declaration_type").First(&decl, declarationID).Error; err != nil {
+		return
+	}
+	if decl.DeclarationType != models.SupervisorDeclPDT601 && decl.DeclarationType != models.SupervisorDeclPDT621 {
+		return
+	}
+	var previous []models.SupervisorAttachment
+	if err := database.DB.Select("id").
+		Where("declaration_id = ? AND id < ?", declarationID, newAttachmentID).
+		Find(&previous).Error; err != nil {
+		log.Printf("[supervisor_attachments] no se pudieron listar adjuntos previos (declaración %d): %v", declarationID, err)
+		return
+	}
+	for _, p := range previous {
+		if err := s.DeleteAttachment(p.ID); err != nil {
+			log.Printf("[supervisor_attachments] no se pudo reemplazar adjunto previo id=%d (declaración %d): %v", p.ID, declarationID, err)
+		}
+	}
 }
 
 func (s *SupervisorService) GetAttachmentByID(id uint) (*models.SupervisorAttachment, error) {

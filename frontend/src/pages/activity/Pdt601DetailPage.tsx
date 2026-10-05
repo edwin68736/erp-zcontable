@@ -323,16 +323,18 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   const handleUpload = async (files: FileList | null) => {
     if (!declaration || !canUpload || !files?.length) return;
-    // Solo se carga un archivo de PDT 601 a la vez por declaración: el nuevo reemplaza al
-    // anterior (si había uno) en vez de acumularse — DeleteAttachment borra también el archivo
-    // físico, no solo el registro, para no llenar el almacenamiento del servidor.
+    // Solo se carga un archivo de PDT 601 por declaración: el backend borra los anteriores al
+    // guardar el nuevo (SaveAttachment), así que acá solo se sube — el reemplazo ya no depende de
+    // la lista que tenga esta pantalla ni de que no haya dos subidas a la vez.
+    if (files.length > 1) {
+      showMsg('Solo se puede cargar un archivo a la vez.', 'error');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     const file = files[0];
     try {
       setUploading(true);
       showMsg('');
-      for (const existing of attachments) {
-        await supervisorsService.deleteAttachment(existing.id);
-      }
       await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
       await loadAttachments(declaration.id);
       showMsg('Archivo cargado correctamente.', 'success');
