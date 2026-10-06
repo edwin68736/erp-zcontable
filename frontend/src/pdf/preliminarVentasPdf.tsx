@@ -13,7 +13,6 @@ import { IconBadge, V2, fetchFallbackLogoBlob } from './taxSettlementDocumentV2'
 
 const YELLOW_SOFT = '#FEF3C7';
 const GREEN_BORDER = '#C9EBD9';
-const BLUE_BORDER = '#CFDDF2';
 
 function fmtMoney(n: number | undefined | null): string {
   const v = Number(n ?? 0);
@@ -52,9 +51,9 @@ const s = StyleSheet.create({
   headerRight: { width: '46%', alignItems: 'flex-end' },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
   titleText: { fontSize: 20, fontWeight: 700, color: V2.navy, lineHeight: 1.08 },
-  docBox: { flexDirection: 'row', borderWidth: 1, borderColor: V2.border, borderRadius: 4, backgroundColor: V2.bg },
+  docBox: { flexDirection: 'row', borderWidth: 1, borderColor: GREEN_BORDER, borderRadius: 4, backgroundColor: V2.greenSoft },
   docBoxCell: { paddingVertical: 6, paddingHorizontal: 11 },
-  docBoxDivider: { borderLeftWidth: 1, borderLeftColor: V2.border },
+  docBoxDivider: { borderLeftWidth: 1, borderLeftColor: GREEN_BORDER },
   docBoxLabel: { fontSize: 6.2, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
   docBoxValue: { fontSize: 9.2, fontWeight: 700, color: V2.navy, marginTop: 2 },
 
@@ -79,7 +78,7 @@ const s = StyleSheet.create({
   intro: {
     borderLeftWidth: 3,
     borderLeftColor: V2.blue,
-    backgroundColor: V2.bg,
+    backgroundColor: V2.greenSoft,
     borderRadius: 3,
     paddingVertical: 7,
     paddingHorizontal: 10,
@@ -92,7 +91,7 @@ const s = StyleSheet.create({
   band: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.navy,
+    backgroundColor: V2.greenDark,
     borderRadius: 4,
     paddingVertical: 6.5,
     paddingHorizontal: 10,
@@ -112,8 +111,8 @@ const s = StyleSheet.create({
   stepText: { fontSize: 9, fontWeight: 700, color: V2.navy, textTransform: 'uppercase', letterSpacing: 0.3 },
 
   /* Tablas */
-  table: { borderWidth: 1, borderColor: V2.border, borderRadius: 4, overflow: 'hidden' },
-  tHead: { flexDirection: 'row', backgroundColor: V2.blueSoft, borderBottomWidth: 1, borderBottomColor: V2.border },
+  table: { borderWidth: 1, borderColor: GREEN_BORDER, borderRadius: 4, overflow: 'hidden' },
+  tHead: { flexDirection: 'row', backgroundColor: V2.greenSoft, borderBottomWidth: 1, borderBottomColor: GREEN_BORDER },
   tHeadCell: { paddingVertical: 4.5, paddingHorizontal: 5 },
   tHeadText: { fontSize: 6.1, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.1 },
   tRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: V2.rule },
@@ -122,7 +121,7 @@ const s = StyleSheet.create({
   tCellDivider: { borderLeftWidth: 0.5, borderLeftColor: V2.rule },
   tText: { fontSize: 7.6, color: V2.text },
   tNum: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
-  tRowTotal: { backgroundColor: V2.blueSoft },
+  tRowTotal: { backgroundColor: V2.greenSoft },
   tTextTotal: { fontSize: 7.9, fontWeight: 700, color: V2.navy, textTransform: 'uppercase' },
   tNumTotal: { fontSize: 7.9, fontWeight: 700, color: V2.navy, textAlign: 'right' },
   tRowYellow: { backgroundColor: YELLOW_SOFT },
@@ -139,7 +138,7 @@ const s = StyleSheet.create({
     borderBottomColor: V2.rule,
   },
   sumValue: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
-  sumRowHighlight: { backgroundColor: V2.blueSoft, borderRadius: 3, marginTop: 4 },
+  sumRowHighlight: { backgroundColor: V2.greenSoft, borderRadius: 3, marginTop: 4 },
   sumLabelGreen: { flex: 1, fontSize: 8.2, fontWeight: 700, color: V2.greenDark, textAlign: 'right', paddingRight: 10, paddingVertical: 5.5 },
   sumValueGreen: { fontSize: 9.6, fontWeight: 700, color: V2.greenDark, textAlign: 'right' },
 
@@ -147,7 +146,7 @@ const s = StyleSheet.create({
   approxBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.blueSoft,
+    backgroundColor: V2.greenSoft,
     borderRadius: 3,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -161,9 +160,9 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.blueSoft,
+    backgroundColor: V2.greenSoft,
     borderWidth: 1,
-    borderColor: BLUE_BORDER,
+    borderColor: GREEN_BORDER,
     borderRadius: 5,
     paddingVertical: 9,
     paddingHorizontal: 10,
@@ -173,7 +172,7 @@ const s = StyleSheet.create({
   cardAmount: { fontSize: 17, fontWeight: 700, color: V2.greenDark, marginTop: 2 },
   infoCard: {
     borderWidth: 1,
-    borderColor: V2.border,
+    borderColor: GREEN_BORDER,
     borderRadius: 5,
     backgroundColor: V2.white,
     paddingVertical: 8,
@@ -188,9 +187,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: V2.border,
+    borderColor: GREEN_BORDER,
     borderRadius: 5,
-    backgroundColor: V2.bg,
+    backgroundColor: V2.greenSoft,
     paddingVertical: 8,
     paddingHorizontal: 10,
     marginBottom: 8,
@@ -206,9 +205,9 @@ const s = StyleSheet.create({
   recoTitle: { fontSize: 10, fontWeight: 700, color: V2.blue, textTransform: 'uppercase', letterSpacing: 0.3 },
   recoBox: {
     borderWidth: 1,
-    borderColor: V2.border,
+    borderColor: GREEN_BORDER,
     borderRadius: 5,
-    backgroundColor: V2.bg,
+    backgroundColor: V2.greenSoft,
     paddingVertical: 8,
     paddingHorizontal: 11,
   },
@@ -224,7 +223,7 @@ const s = StyleSheet.create({
     left: 26,
     right: 26,
     borderTopWidth: 1,
-    borderTopColor: V2.border,
+    borderTopColor: GREEN_BORDER,
     paddingTop: 6,
   },
   footerText: { fontSize: 6.8, color: V2.muted, textAlign: 'center' },
