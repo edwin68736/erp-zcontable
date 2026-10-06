@@ -645,7 +645,7 @@ func (s *FinanceCalendarService) DeleteActivity(id uint) error {
 // detail-2026-09-16.md §2.1 nota) — de ahí la distinción por tipo acá, antes no hacía falta porque
 // pdt_601/pdt_621/sire compartían el mismo enum viejo.
 func declarationComplete(declarationType, status string) bool {
-	if isPdt601Pdt621DeclarationType(declarationType) {
+	if isReducedStatusDeclarationType(declarationType) {
 		return status == models.SupervisorDeclEntregado
 	}
 	return status == models.SupervisorDeclAprobado ||

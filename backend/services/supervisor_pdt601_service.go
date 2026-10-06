@@ -120,7 +120,7 @@ func validatePdt601Pdt621StatusTransition(from, to string) error {
 	if from == to {
 		return nil
 	}
-	return errors.New("use las acciones dedicadas (Entregar, Aprobar, Observar, Reabrir) para cambiar el estado de PDT 601/621")
+	return errors.New("use las acciones dedicadas (Entregar, Aprobar, Observar, Reabrir) para cambiar el estado de esta declaración")
 }
 
 // Pdt601PlanillaDTO datos de planilla PDT 601 del período (salida a UI).

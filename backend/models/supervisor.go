@@ -51,6 +51,11 @@ const (
 	// demás módulos para poder sumarle más adelante control de fechas de entrega/estado, igual que
 	// PDT 601/621.
 	SupervisorDeclPreliminarVentas = "preliminar_ventas"
+	// Módulos de "informe en PDF" (un solo archivo por empresa+período, con fecha de cumplimiento,
+	// estados y revisión del supervisor): usan el mismo enum reducido de estados que PDT 601/621
+	// (pendiente → por_revisar → entregado/observado) — ver services/supervisor_pdf_report_service.go.
+	SupervisorDeclInformeDetracciones = "informe_detracciones"
+	SupervisorDeclSiscontBalances     = "siscont_balances"
 )
 
 // Estados operativos Buzón SOL (declaration_type sunat_inbox).
@@ -184,6 +189,10 @@ type SupervisorDeclaration struct {
 	ResponsibleUserID *uint      `gorm:"index" json:"responsible_user_id,omitempty"`
 	ApproverUserID    *uint      `gorm:"index" json:"approver_user_id,omitempty"`
 	Notes             string     `gorm:"type:text" json:"notes,omitempty"`
+	// DeliveredAt fecha de cumplimiento/entrega que registra quien carga el PDF — solo la usan los
+	// módulos de informe en PDF (informe_detracciones, siscont_balances); contra el calendario de
+	// actividades se evalúa si se entregó a tiempo.
+	DeliveredAt *time.Time `gorm:"type:date" json:"delivered_at,omitempty"`
 	// Reapertura (solo pdt_601/pdt_621, ver docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7): revertir
 	// una declaración "entregada" de vuelta a "por_revisar", con motivo obligatorio y permiso dedicado
 	// (supervisors.declarations_reopen) — mismo patrón que Payment.VoidedAt/VoidedBy/VoidReason y

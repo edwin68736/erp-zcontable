@@ -1251,7 +1251,7 @@ func (s *SupervisorService) UpdateDeclaration(id uint, in SupervisorDeclarationI
 			if in.ProgressPct == nil {
 				d.ProgressPct = detraccionesProgressFromStatus(in.Status)
 			}
-		} else if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+		} else if isReducedStatusDeclarationType(d.DeclarationType) {
 			if err := validatePdt601Pdt621StatusTransition(oldStatus, in.Status); err != nil {
 				return nil, err
 			}
@@ -1318,7 +1318,7 @@ func (s *SupervisorService) ApproveDeclaration(id uint, approverID uint) (*model
 	if err := database.DB.Select("declaration_type").First(&d, id).Error; err != nil {
 		return nil, err
 	}
-	if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+	if isReducedStatusDeclarationType(d.DeclarationType) {
 		return s.approvePdt601Pdt621Declaration(id, approverID)
 	}
 	pct := 85
@@ -1335,7 +1335,7 @@ func (s *SupervisorService) ObserveDeclaration(id uint, approverID uint, notes s
 	if isDetraccionesDeclarationType(d.DeclarationType) {
 		return s.observeDetraccionesDeclaration(id, approverID, notes)
 	}
-	if isPdt601Pdt621DeclarationType(d.DeclarationType) {
+	if isReducedStatusDeclarationType(d.DeclarationType) {
 		return s.observePdt601Pdt621Declaration(id, approverID, notes)
 	}
 	pct := 40
@@ -1422,8 +1422,8 @@ func (s *SupervisorService) ReopenDeclaration(id uint, userID uint, reason strin
 	if err := database.DB.First(&d, id).Error; err != nil {
 		return nil, err
 	}
-	if !isPdt601Pdt621DeclarationType(d.DeclarationType) {
-		return nil, errors.New("reabrir solo aplica a declaraciones de PDT 601/621")
+	if !isReducedStatusDeclarationType(d.DeclarationType) {
+		return nil, errors.New("reabrir solo aplica a PDT 601/621, Informe detracciones y Siscont balances")
 	}
 	if d.Status != models.SupervisorDeclEntregado {
 		return nil, errors.New("solo se puede reabrir una declaración en estado \"Entregado\"")

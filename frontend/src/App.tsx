@@ -64,10 +64,10 @@ import AssistantDetraccionesListPage from './pages/assistant/activities/Assistan
 import AssistantDetraccionesDetailPage from './pages/assistant/activities/AssistantDetraccionesDetailPage';
 import AssistantPreliminarVentasListPage from './pages/assistant/activities/AssistantPreliminarVentasListPage';
 import AssistantPreliminarVentasDetailPage from './pages/assistant/activities/AssistantPreliminarVentasDetailPage';
-import AssistantInformeDetraccionesListPage from './pages/assistant/activities/AssistantInformeDetraccionesListPage';
-import AssistantSiscontBalancesListPage from './pages/assistant/activities/AssistantSiscontBalancesListPage';
 import AssistantInformeDeudasListPage from './pages/assistant/activities/AssistantInformeDeudasListPage';
 import { LegacyDetraccionesRedirect } from './components/activity/LegacyDetraccionesRedirect';
+import PdfReportListPage from './pages/activity/PdfReportListPage';
+import PdfReportDetailPage from './pages/activity/PdfReportDetailPage';
 import AssistantPdt601ListPage from './pages/assistant/activities/AssistantPdt601ListPage';
 import AssistantPdt601DetailPage from './pages/assistant/activities/AssistantPdt601DetailPage';
 import AssistantPdt621ListPage from './pages/assistant/activities/AssistantPdt621ListPage';
@@ -162,6 +162,10 @@ function App() {
             <Route path="supervisors/activities/sunat-inbox/:companyId" element={guard(P.supervisorsControlsView, <SupervisorSunatInboxDetailPage />)} />
             <Route path="supervisors/activities/detracciones" element={guard(P.supervisorsControlsView, <SupervisorDetraccionesListPage />)} />
             <Route path="supervisors/activities/detracciones/:companyId" element={guard(P.supervisorsControlsView, <SupervisorDetraccionesDetailPage />)} />
+            <Route path="supervisors/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="supervisor" slug="informe-detracciones" />)} />
+            <Route path="supervisors/activities/informe-detracciones/:companyId" element={guard(P.supervisorsControlsView, <PdfReportDetailPage workspace="supervisor" slug="informe-detracciones" />)} />
+            <Route path="supervisors/activities/siscont-balances" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="supervisor" slug="siscont-balances" />)} />
+            <Route path="supervisors/activities/siscont-balances/:companyId" element={guard(P.supervisorsControlsView, <PdfReportDetailPage workspace="supervisor" slug="siscont-balances" />)} />
             <Route path="supervisors/activities/distractions" element={<LegacyDetraccionesRedirect workspace="supervisor" />} />
             <Route path="supervisors/activities/distractions/:companyId" element={<LegacyDetraccionesRedirect workspace="supervisor" />} />
             <Route path="supervisors/controls" element={<Navigate to="/supervisors/dashboard" replace />} />
@@ -190,8 +194,10 @@ function App() {
             <Route path="assistant/activities/detracciones/:companyId" element={guard(P.supervisorsControlsView, <AssistantDetraccionesDetailPage />)} />
             <Route path="assistant/activities/preliminar-ventas" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasListPage />)} />
             <Route path="assistant/activities/preliminar-ventas/:companyId/:slotIndex" element={guard(P.supervisorsControlsView, <AssistantPreliminarVentasDetailPage />)} />
-            <Route path="assistant/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <AssistantInformeDetraccionesListPage />)} />
-            <Route path="assistant/activities/siscont-balances" element={guard(P.supervisorsControlsView, <AssistantSiscontBalancesListPage />)} />
+            <Route path="assistant/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="assistant" slug="informe-detracciones" />)} />
+            <Route path="assistant/activities/informe-detracciones/:companyId" element={guard(P.supervisorsControlsView, <PdfReportDetailPage workspace="assistant" slug="informe-detracciones" />)} />
+            <Route path="assistant/activities/siscont-balances" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="assistant" slug="siscont-balances" />)} />
+            <Route path="assistant/activities/siscont-balances/:companyId" element={guard(P.supervisorsControlsView, <PdfReportDetailPage workspace="assistant" slug="siscont-balances" />)} />
             <Route path="assistant/activities/informe-deudas" element={guard(P.supervisorsControlsView, <AssistantInformeDeudasListPage />)} />
             <Route path="assistant/activities/distractions" element={<LegacyDetraccionesRedirect workspace="assistant" />} />
             <Route path="assistant/activities/distractions/:companyId" element={<LegacyDetraccionesRedirect workspace="assistant" />} />

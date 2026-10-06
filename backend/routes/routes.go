@@ -4,6 +4,7 @@ import (
 	"miappfiber/controllers"
 	"miappfiber/middleware"
 	"miappfiber/rbac"
+	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -247,8 +248,15 @@ func Setup(app *fiber.App) {
 	sup.Get("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PreliminarVentasSlotDetailAPI)
 	sup.Put("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.PreliminarVentasSlotSaveAPI)
 	sup.Post("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex/sent", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.PreliminarVentasSlotMarkSentAPI)
-	sup.Get("/activity-modules/informe-detracciones", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.InformeDetraccionesListAPI)
-	sup.Get("/activity-modules/siscont-balances", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.SiscontBalancesListAPI)
+	// Módulos de informe en PDF (un archivo por empresa/período, fecha de cumplimiento, estados).
+	// Aprobar / observar / reabrir usan los endpoints genéricos /declarations/:id/*.
+	for _, pdfMod := range []services.PdfReportModule{services.PdfReportInformeDetracciones, services.PdfReportSiscontBalances} {
+		base := "/activity-modules/" + pdfMod.Slug
+		sup.Get(base, middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PdfReportListAPI(pdfMod))
+		sup.Get(base+"/export", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PdfReportExportAPI(pdfMod))
+		sup.Get(base+"/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PdfReportDetailAPI(pdfMod))
+		sup.Post(base+"/companies/:companyId/submit", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.PdfReportSubmitAPI(pdfMod))
+	}
 	sup.Get("/activity-modules/informe-deudas", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.InformeDeudasListAPI)
 	sup.Get("/activity-modules/sunat-inbox", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.SunatInboxListAPI)
 	sup.Get("/activity-modules/sunat-inbox/export", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.SunatInboxExportAPI)

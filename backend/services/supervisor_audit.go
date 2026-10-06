@@ -122,7 +122,7 @@ func (s *SupervisorService) replacePreviousSingleFileAttachments(declarationID, 
 	if err := database.DB.Select("id", "declaration_type").First(&decl, declarationID).Error; err != nil {
 		return
 	}
-	if decl.DeclarationType != models.SupervisorDeclPDT601 && decl.DeclarationType != models.SupervisorDeclPDT621 {
+	if !isSingleFileDeclarationType(decl.DeclarationType) {
 		return
 	}
 	var previous []models.SupervisorAttachment

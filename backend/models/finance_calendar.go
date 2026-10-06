@@ -27,7 +27,11 @@ const (
 	// más temprana es el slot 1, la otra el slot 2 (ver CalendarActivitiesForType, mismo mecanismo
 	// que ya usa Buzón SOL para sus varias cargas por semana).
 	CalendarActivityPreliminarVentas = "preliminar_ventas"
-	CalendarActivityOther            = "other"
+	// Informe de detracciones y Siscont balances: una fecha límite por período (y grupo de RUC si se
+	// configura), contra la que se evalúa la fecha de cumplimiento del PDF cargado.
+	CalendarActivityInformeDetracciones = "informe_detracciones"
+	CalendarActivitySiscontBalances     = "siscont_balances"
+	CalendarActivityOther               = "other"
 )
 
 // FinanceCalendar calendario mensual global de obligaciones contables (no por empresa).

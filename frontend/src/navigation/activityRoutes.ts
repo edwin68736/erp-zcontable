@@ -39,7 +39,13 @@ export function resolveActivityWorkspace(pathname: string): ActivityWorkspace {
   return pathname.includes('/assistant/') ? 'assistant' : 'supervisor';
 }
 
-export type ActivityModuleId = 'sunat-inbox' | 'detracciones' | 'pdt-601' | 'pdt-621';
+export type ActivityModuleId =
+  | 'sunat-inbox'
+  | 'detracciones'
+  | 'pdt-601'
+  | 'pdt-621'
+  | 'informe-detracciones'
+  | 'siscont-balances';
 
 /** Slug URL → declaration_type en backend. */
 export const ACTIVITY_MODULE_DECLARATION_TYPE: Record<ActivityModuleId, string> = {
@@ -47,6 +53,8 @@ export const ACTIVITY_MODULE_DECLARATION_TYPE: Record<ActivityModuleId, string> 
   detracciones: 'detracciones',
   'pdt-601': 'pdt_601',
   'pdt-621': 'pdt_621',
+  'informe-detracciones': 'informe_detracciones',
+  'siscont-balances': 'siscont_balances',
 };
 
 /** Segmento API: /api/supervisors/activity-modules/:slug */
@@ -90,6 +98,20 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     description: 'Lista de empresas y seguimiento de vencimientos PDT 621.',
     icon: 'fas fa-file-signature',
     phaseLabel: 'Fase F6',
+  },
+  {
+    id: 'informe-detracciones',
+    label: 'Informe detracciones',
+    description: 'Carga del informe de detracciones en PDF por empresa y período.',
+    icon: 'fas fa-file-invoice-dollar',
+    phaseLabel: 'Informes',
+  },
+  {
+    id: 'siscont-balances',
+    label: 'Siscont balances',
+    description: 'Carga del balance de Siscont en PDF por empresa y período.',
+    icon: 'fas fa-balance-scale',
+    phaseLabel: 'Informes',
   },
 ];
 

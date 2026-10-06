@@ -10,6 +10,8 @@ export const ACTIVITY_KINDS = [
   { value: 'detracciones', label: 'Detracciones SUNAT' },
   { value: 'sunat_inbox', label: 'Buzón SOL SUNAT – SUNAFIL' },
   { value: 'preliminar_ventas', label: 'Preliminar de Ventas' },
+  { value: 'informe_detracciones', label: 'Informe de Detracciones' },
+  { value: 'siscont_balances', label: 'Siscont Balances' },
   { value: 'liquidation', label: 'Liquidación' },
   { value: 'closing', label: 'Cierre contable' },
   { value: 'report', label: 'Reporte' },

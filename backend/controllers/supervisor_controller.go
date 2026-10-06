@@ -1177,68 +1177,6 @@ func (ctrl *SupervisorController) PreliminarVentasSlotMarkSentAPI(c fiber.Ctx) e
 	return c.JSON(fiber.Map{"data": row})
 }
 
-// InformeDetraccionesListAPI GET /api/supervisors/activity-modules/informe-detracciones
-func (ctrl *SupervisorController) InformeDetraccionesListAPI(c fiber.Ctx) error {
-	allowed, err := ctrl.allowedCompanyIDs(c)
-	if err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	page, perPage := paginationFromQuery(c)
-	out, err := ctrl.svc.ListInformeDetracciones(services.InformeDetraccionesListParams{
-		PeriodYM:          c.Query("period_ym", ""),
-		Q:                 c.Query("q", ""),
-		AllowedCompanyIDs: allowed,
-		Page:              page,
-		PerPage:           perPage,
-	})
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	if out.Rows == nil {
-		out.Rows = []services.InformeDetraccionesListRow{}
-	}
-	return c.JSON(fiber.Map{
-		"data": out.Rows,
-		"pagination": fiber.Map{
-			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
-		},
-	})
-}
-
-// SiscontBalancesListAPI GET /api/supervisors/activity-modules/siscont-balances
-func (ctrl *SupervisorController) SiscontBalancesListAPI(c fiber.Ctx) error {
-	allowed, err := ctrl.allowedCompanyIDs(c)
-	if err != nil {
-		if e, ok := err.(*fiber.Error); ok {
-			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	page, perPage := paginationFromQuery(c)
-	out, err := ctrl.svc.ListSiscontBalances(services.SiscontBalancesListParams{
-		PeriodYM:          c.Query("period_ym", ""),
-		Q:                 c.Query("q", ""),
-		AllowedCompanyIDs: allowed,
-		Page:              page,
-		PerPage:           perPage,
-	})
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	if out.Rows == nil {
-		out.Rows = []services.SiscontBalancesListRow{}
-	}
-	return c.JSON(fiber.Map{
-		"data": out.Rows,
-		"pagination": fiber.Map{
-			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
-		},
-	})
-}
-
 // InformeDeudasListAPI GET /api/supervisors/activity-modules/informe-deudas
 func (ctrl *SupervisorController) InformeDeudasListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)

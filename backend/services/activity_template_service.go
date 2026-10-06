@@ -34,6 +34,8 @@ var validActivityTypes = map[string]struct{}{
 	models.CalendarActivityDetracciones:     {},
 	models.CalendarActivitySunatInbox:       {},
 	models.CalendarActivityPreliminarVentas: {},
+	models.CalendarActivityInformeDetracciones: {},
+	models.CalendarActivitySiscontBalances:     {},
 	models.CalendarActivityOther:            {},
 }
 
