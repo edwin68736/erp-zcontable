@@ -153,8 +153,8 @@ type PreliminarVentasSlotDetail struct {
 	SentAt         *time.Time                  `json:"sent_at,omitempty"`
 	Record         PreliminarVentasRecordInput `json:"record"`
 	Summary        PreliminarVentasSummary     `json:"summary"`
-	// DocumentNumber serie del PDF: PV001-<código interno, 3 dígitos><año 4><mes 2> — determinística
-	// a partir de empresa+período (no distingue entrega 1 de 2 a propósito, confirmado con el
+	// DocumentNumber serie del PDF: PV001-<año 4><mes 2> — determinística
+	// a partir del período (no distingue entrega 1 de 2 a propósito, confirmado con el
 	// usuario: no importa que ambas entregas del mes compartan el mismo número).
 	DocumentNumber string `json:"document_number"`
 }
@@ -195,14 +195,10 @@ func preliminarVentasRentaRatePct(regime string) float64 {
 
 // preliminarVentasDocumentNumber serie del PDF — determinística, no un contador persistido: mismo
 // número si se regenera el mismo período de la misma empresa (o si se genera la entrega 1 o la 2).
-func preliminarVentasDocumentNumber(company *models.Company, periodYM string) string {
+func preliminarVentasDocumentNumber(_ *models.Company, periodYM string) string {
 	var year, month int
 	_, _ = fmt.Sscanf(periodYM, "%d-%d", &year, &month)
-	correlativo := 0
-	if n, err := strconv.Atoi(strings.TrimSpace(company.InternalCode)); err == nil {
-		correlativo = n
-	}
-	return fmt.Sprintf("PV001-%03d%04d%02d", correlativo, year, month)
+	return fmt.Sprintf("PV001-%04d%02d", year, month)
 }
 
 func preliminarVentasRecordToInput(r *models.SupervisorPreliminarVentasRecord) PreliminarVentasRecordInput {

@@ -12,6 +12,19 @@ import { IconBadge, V2, fetchFallbackLogoBlob } from './taxSettlementDocumentV2'
  */
 
 const YELLOW_SOFT = '#FEF3C7';
+const PILL_GREEN = '#0E8F47';
+
+const MONTH_NAMES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/** "2026-08" → "agosto 2026". */
+function periodLabel(periodYm: string): string {
+  const [y, m] = periodYm.split('-').map(Number);
+  const name = MONTH_NAMES[(m ?? 0) - 1];
+  return name && y ? `${name} ${y}` : periodYm;
+}
 const GREEN_BORDER = '#C9EBD9';
 
 function fmtMoney(n: number | undefined | null): string {
@@ -49,8 +62,31 @@ const s = StyleSheet.create({
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3.5 },
   contactText: { fontSize: 6.9, color: V2.muted, lineHeight: 1.35, flex: 1 },
   headerRight: { width: '46%', alignItems: 'flex-end' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  titleText: { fontSize: 20, fontWeight: 700, color: V2.navy, lineHeight: 1.08 },
+  /* Píldora verde que sangra hasta el borde derecho de la hoja (paddingHorizontal de página = 26). */
+  titlePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginRight: -26,
+    marginTop: -2,
+    marginBottom: 9,
+    paddingVertical: 9,
+    paddingLeft: 12,
+    paddingRight: 26,
+    backgroundColor: PILL_GREEN,
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 30,
+  },
+  titleCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: V2.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleDivider: { width: 1, height: 34, backgroundColor: '#FFFFFF', opacity: 0.45, marginHorizontal: 11 },
+  titleText: { fontSize: 19, fontWeight: 700, color: V2.white, lineHeight: 1.1 },
   docBox: { flexDirection: 'row', borderWidth: 1, borderColor: GREEN_BORDER, borderRadius: 4, backgroundColor: V2.greenSoft },
   docBoxCell: { paddingVertical: 6, paddingHorizontal: 11 },
   docBoxDivider: { borderLeftWidth: 1, borderLeftColor: GREEN_BORDER },
@@ -91,7 +127,7 @@ const s = StyleSheet.create({
   band: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: V2.greenDark,
+    backgroundColor: V2.navy,
     borderRadius: 4,
     paddingVertical: 6.5,
     paddingHorizontal: 10,
@@ -373,10 +409,11 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
             ))}
           </View>
           <View style={s.headerRight}>
-            <View style={s.titleRow}>
-              <View style={{ marginRight: 9 }}>
-                <IconBadge name="fileLines" size={31} bg={V2.navy} />
+            <View style={s.titlePill}>
+              <View style={s.titleCircle}>
+                <PdfIcon name="fileLines" size={17} color={PILL_GREEN} />
               </View>
+              <View style={s.titleDivider} />
               <Text style={s.titleText}>{'PRELIMINAR\nDE VENTAS'}</Text>
             </View>
             <View style={s.docBox}>
@@ -385,7 +422,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                 <Text style={s.docBoxValue}>{firmRuc || '—'}</Text>
               </View>
               <View style={[s.docBoxCell, s.docBoxDivider]}>
-                <Text style={s.docBoxLabel}>Documento N°</Text>
+                <Text style={s.docBoxLabel}>Preliminar N°</Text>
                 <Text style={s.docBoxValue}>{detail.document_number}</Text>
               </View>
             </View>
@@ -396,13 +433,13 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
         <View style={s.infoStrip}>
           <View style={s.infoCol}>
             <View style={s.infoRowSpacing}>
-              <InfoField label="Cliente" value={detail.business_name.toUpperCase()} icon="users" bg={V2.blue} />
+              <InfoField label="Cliente" value={detail.business_name.toUpperCase()} icon="users" bg={V2.green} />
             </View>
             <InfoField label="RUC" value={detail.ruc} icon="addressCard" bg={V2.green} />
           </View>
           <View style={[s.infoCol, s.infoColDivider]}>
             <View style={s.infoRowSpacing}>
-              <InfoField label="Preliminar de ventas al:" value={today} icon="calendarDays" bg={V2.navy} />
+              <InfoField label="Periodo" value={periodLabel(detail.period_ym)} icon="calendarDays" bg={V2.green} />
             </View>
             <InfoField label="Fecha de emisión" value={today} icon="calendarCheck" bg={V2.green} />
           </View>
