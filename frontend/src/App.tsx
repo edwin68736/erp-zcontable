@@ -66,6 +66,8 @@ import AssistantPreliminarVentasListPage from './pages/assistant/activities/Assi
 import AssistantPreliminarVentasDetailPage from './pages/assistant/activities/AssistantPreliminarVentasDetailPage';
 import AssistantInformeDeudasListPage from './pages/assistant/activities/AssistantInformeDeudasListPage';
 import { LegacyDetraccionesRedirect } from './components/activity/LegacyDetraccionesRedirect';
+import PreliminarVentasListPage from './pages/activity/PreliminarVentasListPage';
+import PreliminarVentasDetailPage from './pages/activity/PreliminarVentasDetailPage';
 import PdfReportListPage from './pages/activity/PdfReportListPage';
 import PdfReportDetailPage from './pages/activity/PdfReportDetailPage';
 import AssistantPdt601ListPage from './pages/assistant/activities/AssistantPdt601ListPage';
@@ -162,6 +164,8 @@ function App() {
             <Route path="supervisors/activities/sunat-inbox/:companyId" element={guard(P.supervisorsControlsView, <SupervisorSunatInboxDetailPage />)} />
             <Route path="supervisors/activities/detracciones" element={guard(P.supervisorsControlsView, <SupervisorDetraccionesListPage />)} />
             <Route path="supervisors/activities/detracciones/:companyId" element={guard(P.supervisorsControlsView, <SupervisorDetraccionesDetailPage />)} />
+            <Route path="supervisors/activities/preliminar-ventas" element={guard(P.supervisorsControlsView, <PreliminarVentasListPage workspace="supervisor" />)} />
+            <Route path="supervisors/activities/preliminar-ventas/:companyId/:slotIndex" element={guard(P.supervisorsControlsView, <PreliminarVentasDetailPage workspace="supervisor" />)} />
             <Route path="supervisors/activities/informe-detracciones" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="supervisor" slug="informe-detracciones" />)} />
             <Route path="supervisors/activities/informe-detracciones/:companyId" element={guard(P.supervisorsControlsView, <PdfReportDetailPage workspace="supervisor" slug="informe-detracciones" />)} />
             <Route path="supervisors/activities/siscont-balances" element={guard(P.supervisorsControlsView, <PdfReportListPage workspace="supervisor" slug="siscont-balances" />)} />

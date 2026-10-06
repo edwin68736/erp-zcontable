@@ -209,6 +209,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
             permission: P.supervisorsControlsView,
           },
           {
+            to: '/supervisors/activities/preliminar-ventas',
+            icon: 'fas fa-chart-line',
+            label: 'Preliminar de ventas',
+            permission: P.supervisorsControlsView,
+          },
+          {
             to: '/supervisors/activities/informe-detracciones',
             icon: 'fas fa-file-invoice-dollar',
             label: 'Informe detracciones',
