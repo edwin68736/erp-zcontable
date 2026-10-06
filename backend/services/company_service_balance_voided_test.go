@@ -124,3 +124,36 @@ func TestCompanyService_ListPaged_BalanceMatchesSaldoDocumentado(t *testing.T) {
 		t.Fatalf("CompanyListItem.Balance=%v, want 600 (SaldoDocumentado, no la fórmula ad-hoc vieja)", got.Balance)
 	}
 }
+
+// La búsqueda del listado de empresas también acepta el código interno (por prefijo), además de RUC y
+// razón social.
+func TestCompanyService_List_SearchesByInternalCode(t *testing.T) {
+	db := setupCompanyListBalanceTestDB(t)
+	svc := NewCompanyService()
+	for _, c := range []models.Company{
+		{RUC: "20111111111", BusinessName: "ALFA SAC", InternalCode: "016", Status: "activo"},
+		{RUC: "20222222222", BusinessName: "BETA SAC", InternalCode: "1016", Status: "activo"},
+		{RUC: "20333333333", BusinessName: "GAMMA SAC", InternalCode: "120", Status: "activo"},
+	} {
+		if err := db.Create(&c).Error; err != nil {
+			t.Fatalf("company: %v", err)
+		}
+	}
+
+	got, err := svc.List(CompanyListParams{Query: "016"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 || got[0].InternalCode != "016" {
+		t.Fatalf("buscar por código 016: %+v, want solo la empresa 016 (no 1016)", got)
+	}
+
+	byName, _ := svc.List(CompanyListParams{Query: "GAMMA"})
+	if len(byName) != 1 {
+		t.Fatalf("buscar por razón social debe seguir funcionando, got %d", len(byName))
+	}
+	byRUC, _ := svc.List(CompanyListParams{Query: "20222222222"})
+	if len(byRUC) != 1 {
+		t.Fatalf("buscar por RUC debe seguir funcionando, got %d", len(byRUC))
+	}
+}

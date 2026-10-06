@@ -776,11 +776,12 @@ func (s *CompanyService) companyListBaseQuery(params CompanyListParams) *gorm.DB
 		q = q.Where("client_type = ?", ct)
 	}
 	if params.Query != "" {
-		// El código interno del estudio ya NO es criterio de búsqueda: puede reasignarse a otra
-		// empresa cuando la anterior queda inactiva, así que dejó de ser un identificador
-		// confiable para filtrar. RUC (u otros filtros explícitos) es la única fuente de verdad.
+		// Busca por RUC, razón social o código interno (por prefijo: "016" encuentra 016, no 1016).
+		// El código puede reasignarse a otra empresa cuando la anterior queda inactiva, así que en
+		// una búsqueda por código pueden salir una activa y una inactiva con el mismo — para
+		// distinguirlas está el filtro de estado.
 		like := "%" + params.Query + "%"
-		q = q.Where("ruc LIKE ? OR business_name LIKE ?", like, like)
+		q = q.Where("ruc LIKE ? OR business_name LIKE ? OR internal_code LIKE ?", like, like, params.Query+"%")
 	}
 	return q
 }
