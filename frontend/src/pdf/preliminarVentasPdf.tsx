@@ -221,7 +221,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 8,
   },
-  importantText: { flex: 1, fontSize: 8.2, color: V2.text, lineHeight: 1.5 },
+  importantText: { flex: 1, fontSize: 8.2, color: V2.text, lineHeight: 1.5, fontStyle: 'italic' },
   importantStrong: { fontWeight: 700, color: V2.navy },
   importantItalic: { fontStyle: 'italic' },
 
@@ -509,7 +509,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                     </View>
                     {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
                       <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
-                        <Text style={s.comprasNum}>{fmtCell(v)}</Text>
+                        <Text style={s.comprasNum}>{fmtCell(Math.round(Number(v ?? 0)))}</Text>
                       </View>
                     ))}
                   </View>
