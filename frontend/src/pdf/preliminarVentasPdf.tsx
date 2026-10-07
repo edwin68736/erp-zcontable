@@ -1,5 +1,4 @@
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
-import type { ReactNode } from 'react';
 import type { FirmConfig } from '../types/dashboard';
 import type { PreliminarVentasSlotDetail } from '../services/preliminarVentas';
 import { PdfIcon, type PdfIconName } from './pdfIcons';
@@ -51,7 +50,7 @@ function conceptLabel(label: string): string {
 }
 
 const s = StyleSheet.create({
-  page: { paddingTop: 22, paddingBottom: 40, paddingHorizontal: 26, fontSize: 8, color: V2.text },
+  page: { paddingTop: 18, paddingBottom: 34, paddingHorizontal: 26, fontSize: 8, color: V2.text },
 
   /* Encabezado */
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
@@ -140,8 +139,8 @@ const s = StyleSheet.create({
 
   /* Bloque partido */
   splitRow: { flexDirection: 'row', marginBottom: 7 },
-  splitLeft: { width: '65%', paddingRight: 12 },
-  splitRight: { width: '35%' },
+  splitLeft: { width: '73%', paddingRight: 12 },
+  splitRight: { width: '27%' },
 
   stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   stepText: { fontSize: 9, fontWeight: 700, color: V2.navy, textTransform: 'uppercase', letterSpacing: 0.3 },
@@ -149,11 +148,11 @@ const s = StyleSheet.create({
   /* Tablas */
   table: { borderWidth: 1, borderColor: GREEN_BORDER, borderRadius: 4, overflow: 'hidden' },
   tHead: { flexDirection: 'row', backgroundColor: V2.greenSoft, borderBottomWidth: 1, borderBottomColor: GREEN_BORDER },
-  tHeadCell: { paddingVertical: 4.5, paddingHorizontal: 5 },
+  tHeadCell: { paddingVertical: 3.5, paddingHorizontal: 5 },
   tHeadText: { fontSize: 6.1, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.1 },
   tRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: V2.rule },
   tRowLast: { borderBottomWidth: 0 },
-  tCell: { paddingVertical: 4.2, paddingHorizontal: 5 },
+  tCell: { paddingVertical: 3, paddingHorizontal: 5 },
   tCellDivider: { borderLeftWidth: 0.5, borderLeftColor: V2.rule },
   tText: { fontSize: 7.6, color: V2.text },
   tNum: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
@@ -161,14 +160,19 @@ const s = StyleSheet.create({
   tTextTotal: { fontSize: 7.9, fontWeight: 700, color: V2.navy, textTransform: 'uppercase' },
   tNumTotal: { fontSize: 7.9, fontWeight: 700, color: V2.navy, textAlign: 'right' },
   tRowYellow: { backgroundColor: YELLOW_SOFT },
+  /* Compras: sección de totales, con más peso que el resto de tablas */
+  comprasTable: { borderWidth: 1.5, borderColor: V2.green, borderRadius: 4, overflow: "hidden" },
+  comprasCell: { paddingVertical: 7, paddingHorizontal: 6 },
+  comprasText: { fontSize: 9, fontWeight: 700, color: V2.navy },
+  comprasNum: { fontSize: 10.5, fontWeight: 700, color: V2.navy, textAlign: "right" },
 
   /* Resumen bajo la tabla de ventas */
   sumWrap: { marginLeft: '36%', marginTop: 5 },
   sumRow: { flexDirection: 'row', alignItems: 'center' },
-  sumLabel: { flex: 1, fontSize: 7.6, color: V2.text, textAlign: 'right', paddingRight: 10, paddingVertical: 4 },
+  sumLabel: { flex: 1, fontSize: 7.6, color: V2.text, textAlign: 'right', paddingRight: 10, paddingVertical: 3 },
   sumValueCell: {
     width: '31.25%',
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 5,
     borderBottomWidth: 0.5,
     borderBottomColor: V2.rule,
@@ -178,19 +182,6 @@ const s = StyleSheet.create({
   sumLabelGreen: { flex: 1, fontSize: 8.2, fontWeight: 700, color: V2.greenDark, textAlign: 'right', paddingRight: 10, paddingVertical: 5.5 },
   sumValueGreen: { fontSize: 9.6, fontWeight: 700, color: V2.greenDark, textAlign: 'right' },
 
-  /* Montos aproximados */
-  approxBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: V2.greenSoft,
-    borderRadius: 3,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    marginTop: 5,
-  },
-  approxLabel: { flex: 1, fontSize: 7.8, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase' },
-  approxValue: { fontSize: 8.8, fontWeight: 700, color: V2.greenDark, textAlign: 'right' },
-  approxValueZero: { fontSize: 8.8, fontWeight: 700, color: V2.navy, textAlign: 'right' },
 
   /* Tarjetas laterales */
   card: {
@@ -200,12 +191,12 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: GREEN_BORDER,
     borderRadius: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginBottom: 7,
   },
-  cardLabel: { fontSize: 7.2, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.3 },
-  cardAmount: { fontSize: 17, fontWeight: 700, color: V2.greenDark, marginTop: 2 },
+  cardLabel: { fontSize: 6.4, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.2 },
+  cardAmount: { fontSize: 12.5, fontWeight: 700, color: V2.greenDark, marginTop: 2 },
   infoCard: {
     borderWidth: 1,
     borderColor: GREEN_BORDER,
@@ -215,7 +206,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
   },
   infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  infoCardTitle: { fontSize: 8.2, fontWeight: 700, color: V2.navy },
+  infoCardTitle: { flex: 1, fontSize: 7.6, fontWeight: 700, color: V2.navy, lineHeight: 1.25 },
   infoCardText: { fontSize: 7.3, color: V2.muted, lineHeight: 1.45 },
 
   /* Aviso importante */
@@ -223,9 +214,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: GREEN_BORDER,
+    borderColor: V2.green,
     borderRadius: 5,
-    backgroundColor: V2.greenSoft,
+    backgroundColor: V2.white,
     paddingVertical: 8,
     paddingHorizontal: 10,
     marginBottom: 8,
@@ -241,9 +232,9 @@ const s = StyleSheet.create({
   recoTitle: { fontSize: 10, fontWeight: 700, color: V2.blue, textTransform: 'uppercase', letterSpacing: 0.3 },
   recoBox: {
     borderWidth: 1,
-    borderColor: GREEN_BORDER,
+    borderColor: V2.green,
     borderRadius: 5,
-    backgroundColor: V2.greenSoft,
+    backgroundColor: V2.white,
     paddingVertical: 8,
     paddingHorizontal: 11,
   },
@@ -276,11 +267,11 @@ const RECOMMENDATIONS: string[] = [
 ];
 
 /* Anchos de columna (relativos a la tabla) calcados de la plantilla. */
-const VENTAS_COLS = ['24%', '20%', '18%', '18%', '20%'];
-const COMPRAS_COLS = ['56%', '17%', '13.5%', '13.5%'];
+const VENTAS_COLS = ['30%', '19%', '15%', '16%', '20%'];
+const COMPRAS_COLS = ['49%', '17%', '17%', '17%'];
 /* Encabezado un poco más chico en Compras: con la columna de concepto más ancha (para que el
  * texto de la fila entre en una línea), "BASE IMPONIBLE" a tamaño normal se partía en dos. */
-const COMPRAS_HEAD_TEXT = { fontSize: 5.5, letterSpacing: 0 };
+const COMPRAS_HEAD_TEXT = { fontSize: 6, letterSpacing: 0 };
 
 function StepTitle({ title, icon }: { title: string; icon: PdfIconName }) {
   return (
@@ -316,8 +307,8 @@ function TableHead({
 function Card({ label, value, icon }: { label: string; value: string; icon: PdfIconName }) {
   return (
     <View style={s.card}>
-      <View style={{ marginRight: 10 }}>
-        <IconBadge name={icon} size={28} bg={V2.green} />
+      <View style={{ marginRight: 7 }}>
+        <IconBadge name={icon} size={22} bg={V2.green} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={s.cardLabel}>{label}</Text>
@@ -352,14 +343,6 @@ function SumRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ApproxBar({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <View style={s.approxBar}>
-      <Text style={s.approxLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-}
 
 type Props = {
   detail: PreliminarVentasSlotDetail;
@@ -385,6 +368,9 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
   // Con saldo a favor (I.G.V. A PAGAR <= 0) no corresponde pedir compras: se omite la sección y su
   // aviso, mismo criterio que PreliminarVentasDetailPage.tsx.
   const showCompras = igvAPagar > 0;
+  // I.G.V. que quedaría por pagar si la empresa trae las compras indicadas (I.G.V. a pagar menos el
+  // I.G.V. de las compras). Con saldo a favor no hay nada que pagar: 0.
+  const igvAproximado = igvAPagar > 0 ? Number(summary.monto_aproximado_igv ?? 0) : 0;
   // Retención/percepción no figuran en la plantilla base: se agregan al resumen solo si tienen monto.
   const retencion = Number(record.retencion_monto ?? 0);
   const percepcion = Number(record.percepcion_monto ?? 0);
@@ -511,42 +497,29 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
             {showCompras ? (
               <View style={{ marginTop: 10 }}>
                 <StepTitle title="2. Compras" icon="chartColumn" />
-                <View style={s.table}>
+                <View style={s.comprasTable}>
                   <TableHead
                     headers={['Concepto', 'Base imponible', 'I.G.V.', 'Total']}
                     widths={COMPRAS_COLS}
                     textStyle={COMPRAS_HEAD_TEXT}
                   />
                   <View style={[s.tRow, s.tRowLast, s.tRowYellow]}>
-                    <View style={[s.tCell, { width: COMPRAS_COLS[0] }]}>
-                      <Text style={s.tText}>Importe aproximado a traer en facturas de compra</Text>
+                    <View style={[s.comprasCell, { width: COMPRAS_COLS[0] }]}>
+                      <Text style={s.comprasText}>Importe aproximado a traer en facturas de compra</Text>
                     </View>
                     {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
-                      <View key={i} style={[s.tCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1] }]}>
-                        <Text style={s.tNum}>{fmtCell(v)}</Text>
+                      <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
+                        <Text style={s.comprasNum}>{fmtCell(v)}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
               </View>
             ) : null}
-
-            <View style={{ marginTop: 6 }}>
-              <ApproxBar label="Monto aproximado a pagar en I.G.V.">
-                {summary.monto_aproximado_igv != null ? (
-                  <Text style={s.approxValue}>S/ {fmtMoney(summary.monto_aproximado_igv)}</Text>
-                ) : (
-                  <Text style={s.approxValueZero}>0</Text>
-                )}
-              </ApproxBar>
-              <ApproxBar label="Monto aproximado a pagar en Renta">
-                <Text style={s.approxValue}>S/ {fmtMoney(summary.monto_aproximado_renta)}</Text>
-              </ApproxBar>
-            </View>
           </View>
 
           <View style={s.splitRight}>
-            <Card label="I.G.V. a pagar" value={`S/ ${fmtMoney(igvAPagar)}`} icon="clipboardList" />
+            <Card label="I.G.V. aproximado" value={`S/ ${fmtMoney(igvAproximado)}`} icon="clipboardList" />
             <Card label="Renta aproximada" value={`S/ ${fmtMoney(summary.monto_aproximado_renta)}`} icon="chartColumn" />
             <Card label="Preliminar al" value={today} icon="calendarDays" />
             <View style={s.infoCard}>
@@ -554,7 +527,9 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                 <View style={{ marginRight: 6 }}>
                   <PdfIcon name="circleInfo" size={12} color={V2.navy} />
                 </View>
-                <Text style={s.infoCardTitle}>¿Qué es el Preliminar de Ventas?</Text>
+                <Text style={s.infoCardTitle} hyphenationCallback={noHyphen}>
+                  ¿Qué es el Preliminar de Ventas?
+                </Text>
               </View>
               <Text style={s.infoCardText} hyphenationCallback={noHyphen}>
                 Es un resumen de todas las ventas que realizó durante el mes, se le envía días antes de cerrar el mes
