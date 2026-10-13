@@ -799,6 +799,13 @@ type ComplianceTrendPoint struct {
 	PeriodYM      string  `json:"period_ym"`
 	CompliancePct float64 `json:"compliance_pct"`
 	TotalControls int64   `json:"total_controls"`
+	// Desglose del período (mismas 5 categorías de ComplianceSummary) — alimenta las mini-tendencias del
+	// dashboard y la referencia del estudio.
+	OnTime  int64 `json:"on_time"`
+	Late    int64 `json:"late"`
+	Missing int64 `json:"missing"`
+	Pending int64 `json:"pending"`
+	Exempt  int64 `json:"exempt"`
 }
 
 // trailingPeriods devuelve los últimos `months` períodos AAAA-MM terminando en `periodYM`
@@ -839,15 +846,25 @@ func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months 
 		return nil, errors.New("período inválido (use YYYY-MM)")
 	}
 
-	out := make([]ComplianceTrendPoint, 0, len(periods))
-	for _, ym := range periods {
-		periodParams := p
-		periodParams.PeriodYM = ym
-		cs, err := s.MonthlyComplianceSummary(periodParams)
-		if err != nil {
-			return nil, err
+	// Los períodos son independientes (solo lectura): se calculan en paralelo, cada uno en su posición.
+	out := make([]ComplianceTrendPoint, len(periods))
+	tasks := make([]func() error, len(periods))
+	for i, ym := range periods {
+		i, ym := i, ym
+		tasks[i] = func() error {
+			periodParams := p
+			periodParams.PeriodYM = ym
+			cs, err := s.MonthlyComplianceSummary(periodParams)
+			if err != nil {
+				return err
+			}
+			out[i] = ComplianceTrendPoint{PeriodYM: ym, CompliancePct: cs.CompliancePct, TotalControls: cs.Total,
+				OnTime: cs.OnTime, Late: cs.Late, Missing: cs.Missing, Pending: cs.Pending, Exempt: cs.Exempt}
+			return nil
 		}
-		out = append(out, ComplianceTrendPoint{PeriodYM: ym, CompliancePct: cs.CompliancePct, TotalControls: cs.Total})
+	}
+	if err := runParallel(6, tasks); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

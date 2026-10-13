@@ -486,6 +486,19 @@ export const supervisorsService = {
     });
     return res.data.data ?? [];
   },
+
+  /** Datos agregados del dashboard rediseñado — el alcance (estudio vs. cartera propia) lo resuelve el servidor. */
+  async dashboardOverview(params: {
+    period_ym?: string;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<DashboardOverview> {
+    const res = await client.get<{ data: DashboardOverview }>('/supervisors/dashboard/overview', { params });
+    return res.data.data;
+  },
 };
 
 export interface SupervisorPdtTypeSummary {
@@ -525,6 +538,69 @@ export interface ComplianceTrendPoint {
   period_ym: string;
   compliance_pct: number;
   total_controls: number;
+  on_time?: number;
+  late?: number;
+  missing?: number;
+  pending?: number;
+  exempt?: number;
+}
+
+/** Datos del dashboard rediseñado (GET /supervisors/dashboard/overview). */
+export interface DashboardScopeInfo {
+  studio: boolean;
+  companies: number;
+  assistants: number;
+  supervisors: number;
+  without_supervisor: number;
+}
+export interface DashboardModuleRow {
+  key: string;
+  label: string;
+  pendiente: number;
+  observado: number;
+  vencido: number;
+  a_tiempo: number;
+  fuera_fecha: number;
+  total: number;
+  sin_completar: number;
+}
+export interface DashboardReviewItem {
+  declaration_id: number;
+  company_id: number;
+  company: string;
+  module_key: string;
+  module_label: string;
+  assistant: string;
+  submitted_at?: string;
+  age_days: number;
+  timeliness: string;
+}
+export interface DashboardEntityRow {
+  user_id: number;
+  name: string;
+  supervisor_name?: string;
+  companies: number;
+  assistants?: number;
+  compliance: ComplianceSummary;
+  review: number;
+}
+export interface DashboardUpcoming {
+  module_key: string;
+  label: string;
+  due_date: string;
+  days_left: number;
+  pending: number;
+  detail?: string;
+}
+export interface DashboardOverview {
+  scope: DashboardScopeInfo;
+  review: { total: number; over_3_days: number; observed: number; items: DashboardReviewItem[] };
+  modules: DashboardModuleRow[];
+  by_supervisor: DashboardEntityRow[];
+  by_assistant: DashboardEntityRow[];
+  upcoming: DashboardUpcoming[];
+  trend: ComplianceTrendPoint[];
+  studio_trend?: ComplianceTrendPoint[];
 }
 
 export interface SupervisorChangeLog {

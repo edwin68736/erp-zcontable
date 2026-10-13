@@ -2201,3 +2201,19 @@ func (ctrl *SupervisorController) UpdateTaxSettlementAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": rec})
 }
+
+// DashboardOverviewAPI GET /api/supervisors/dashboard/overview — datos del dashboard rediseñado
+// (cola por revisar, resumen por módulo, cumplimiento por supervisor/asistente, vencimientos
+// próximos). El alcance sale del propio usuario: el administrador (alcance de estudio) ve todo y
+// el supervisor solo las empresas asignadas; de los demás solo recibe el agregado del estudio.
+func (ctrl *SupervisorController) DashboardOverviewAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		return fiberErrorJSON(c, err)
+	}
+	data, err := ctrl.svc.DashboardOverview(p, hasStudioScope(c))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
