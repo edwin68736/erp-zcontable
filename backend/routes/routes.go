@@ -214,6 +214,7 @@ func Setup(app *fiber.App) {
 	sup.Get("/dashboard/pdt-bucket-companies", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.PdtBucketCompaniesAPI)
 	sup.Get("/dashboard/compliance-trend", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.ComplianceTrendAPI)
 	sup.Get("/dashboard/overview", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardOverviewAPI)
+	sup.Get("/assistant/overview", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.AssistantOverviewAPI)
 	sup.Get("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsView), supervisorCtrl.ListPeriodsAPI)
 	sup.Post("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsCreate), supervisorCtrl.CreatePeriodAPI)
 	sup.Put("/periods/:id", middleware.RequirePermission(rbac.SupervisorsPeriodsUpdate), supervisorCtrl.UpdatePeriodAPI)

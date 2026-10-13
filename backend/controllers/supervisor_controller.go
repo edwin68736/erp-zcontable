@@ -2217,3 +2217,25 @@ func (ctrl *SupervisorController) DashboardOverviewAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": data})
 }
+
+// AssistantOverviewAPI GET /api/supervisors/assistant/overview — "Mi panel" del asistente: su lista de
+// trabajo, avance por módulo, cumplimiento y vencimientos. Siempre sobre SUS empresas asignadas
+// (aunque el usuario tenga alcance de estudio, este panel es personal).
+func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+	}
+	data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{
+		PeriodYM:          c.Query("period_ym", time.Now().Format("2006-01")),
+		AllowedCompanyIDs: ids,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}

@@ -487,6 +487,12 @@ export const supervisorsService = {
     return res.data.data ?? [];
   },
 
+  /** "Mi panel" del asistente: su lista de trabajo, avance por módulo y vencimientos. */
+  async assistantOverview(params: { period_ym?: string }): Promise<AssistantOverview> {
+    const res = await client.get<{ data: AssistantOverview }>('/supervisors/assistant/overview', { params });
+    return res.data.data;
+  },
+
   /** Datos agregados del dashboard rediseñado — el alcance (estudio vs. cartera propia) lo resuelve el servidor. */
   async dashboardOverview(params: {
     period_ym?: string;
@@ -592,6 +598,36 @@ export interface DashboardUpcoming {
   pending: number;
   detail?: string;
 }
+export interface AssistantWorkItem {
+  company_id: number;
+  company: string;
+  ruc?: string;
+  module_key: string;
+  module_label: string;
+  declaration_id?: number;
+  state: 'vencida' | 'observada' | 'pendiente' | 'por_revisar';
+  due_date?: string;
+  days_left?: number;
+  note?: string;
+  note_by?: string;
+}
+export interface AssistantOverview {
+  companies: number;
+  compliance: ComplianceSummary;
+  trend: ComplianceTrendPoint[];
+  modules: DashboardModuleRow[];
+  counts: {
+    to_deliver: number;
+    overdue: number;
+    overdue_over_3_days: number;
+    observed: number;
+    in_review: number;
+    due_this_week: number;
+  };
+  work: AssistantWorkItem[];
+  upcoming: DashboardUpcoming[];
+}
+
 export interface DashboardOverview {
   scope: DashboardScopeInfo;
   review: { total: number; over_3_days: number; observed: number; items: DashboardReviewItem[] };
