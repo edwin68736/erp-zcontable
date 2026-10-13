@@ -468,12 +468,14 @@ const SupervisorDashboardView = () => {
               deltaTone={(data.companies_without_control ?? 0) > 0 ? 'warn' : 'neutral'}
               sub="en el período"
               icon="fas fa-building"
-              color="#0E8F47"
-              soft="#E3F5EA"
+              color="#0369A1"
+              soft="#FFFFFF"
+              tint="#E0F2FE"
+              tintBorder="#BAE6FD"
             />
-            <KpiTile label="Cumplidos a tiempo" value={bd?.on_time ?? 0} delta={onTimeDelta?.text} deltaTone={onTimeDelta?.tone} sub="controles entregados a tiempo" icon="fas fa-check" color="#12A150" soft="#E3F5EA" spark={series('on_time')} />
-            <KpiTile label="Controles pendientes" value={bd?.pending ?? 0} delta={pendingDelta?.text} deltaTone={pendingDelta?.tone} sub="sin vencer todavía" icon="fas fa-clock" color="#B45309" soft="#FEF3C7" spark={series('pending')} />
-            <KpiTile label="Controles vencidos" value={bd?.missing ?? 0} delta={missingDelta?.text} deltaTone={missingDelta?.tone} sub="sin entregar fuera de plazo" icon="fas fa-exclamation-triangle" color="#DC2626" soft="#FEE2E2" spark={series('missing')} />
+            <KpiTile label="Cumplidos a tiempo" value={bd?.on_time ?? 0} delta={onTimeDelta?.text} deltaTone={onTimeDelta?.tone} sub="controles entregados a tiempo" icon="fas fa-check" color="#12A150" soft="#FFFFFF" tint="#DCFCE7" tintBorder="#BBF7D0" spark={series('on_time')} />
+            <KpiTile label="Controles pendientes" value={bd?.pending ?? 0} delta={pendingDelta?.text} deltaTone={pendingDelta?.tone} sub="sin vencer todavía" icon="fas fa-clock" color="#B45309" soft="#FFFFFF" tint="#FEF3C7" tintBorder="#FDE68A" spark={series('pending')} />
+            <KpiTile label="Controles vencidos" value={bd?.missing ?? 0} delta={missingDelta?.text} deltaTone={missingDelta?.tone} sub="sin entregar fuera de plazo" icon="fas fa-exclamation-triangle" color="#DC2626" soft="#FFFFFF" tint="#FEE2E2" tintBorder="#FECACA" spark={series('missing')} />
             <KpiTile
               label={studioView ? 'Por revisar' : 'Por revisar (tu cola)'}
               value={overviewLoading ? "…" : (review?.total ?? 0)}
@@ -482,7 +484,9 @@ const SupervisorDashboardView = () => {
               sub={`${review?.observed ?? 0} observadas en total`}
               icon="fas fa-clipboard-check"
               color="#4338CA"
-              soft="#E0E7FF"
+              soft="#FFFFFF"
+              tint="#E0E7FF"
+              tintBorder="#C7D2FE"
             />
           </div>
 

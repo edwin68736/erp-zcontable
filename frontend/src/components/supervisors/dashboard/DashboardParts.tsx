@@ -268,6 +268,8 @@ export function KpiTile({
   icon,
   color,
   soft,
+  tint,
+  tintBorder,
   spark,
 }: {
   label: string;
@@ -278,11 +280,14 @@ export function KpiTile({
   icon: string;
   color: string;
   soft: string;
+  /** Fondo pastel de toda la tarjeta y su borde, según el significado del indicador. */
+  tint: string;
+  tintBorder: string;
   spark?: number[];
 }) {
   const deltaColor = deltaTone === 'good' ? '#0A5A3A' : deltaTone === 'warn' ? '#B45309' : deltaTone === 'bad' ? '#B91C1C' : '#64748B';
   return (
-    <div className="flex min-w-0 flex-col gap-[6px] rounded-2xl border border-[#DCE8E1] bg-white px-[14px] py-3" style={{ flex: '1 1 150px' }}>
+    <div className="flex min-w-0 flex-col gap-[6px] rounded-2xl border px-[14px] py-3" style={{ flex: '1 1 150px', background: tint, borderColor: tintBorder }}>
       <div className="flex items-center gap-2">
         <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg" style={{ background: soft, color }}>
           <i className={`${icon} text-[12px]`} aria-hidden />
