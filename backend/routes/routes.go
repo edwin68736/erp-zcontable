@@ -41,6 +41,7 @@ func Setup(app *fiber.App) {
 
 	api := app.Group("/api", middleware.JWTProtected())
 	api.Get("/dashboard", middleware.RequirePermission(rbac.DashboardView), dashboardCtrl.HomeAPI)
+	api.Get("/dashboard/overview", middleware.RequirePermission(rbac.DashboardView), dashboardCtrl.OverviewAPI)
 	api.Get("/logout", authCtrl.LogoutAPI)
 
 	api.Get("/me/permissions", meCtrl.PermissionsAPI)

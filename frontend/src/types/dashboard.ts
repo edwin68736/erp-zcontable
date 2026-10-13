@@ -475,3 +475,85 @@ export interface DashboardData {
   PendingDocsCount: number;
   OverdueDocsCount: number;
 }
+
+/** Panel de cobranza (GET /dashboard/overview). */
+export interface FinanceMonthStat {
+  month: number;
+  label: string;
+  billed: number;
+  collected: number;
+  studio_pct?: number;
+}
+export interface FinanceAgingBucket {
+  key: 'current' | 'lag1' | 'lag2' | 'lag3plus';
+  label: string;
+  amount: number;
+  companies: number;
+}
+export interface FinanceDebtor {
+  company_id: number;
+  code: string;
+  ruc: string;
+  business_name: string;
+  trade_name?: string;
+  balance: number;
+  max_overdue_months: number;
+  oldest_open_debt_period?: string;
+}
+export interface FinanceDueSoon {
+  document_id: number;
+  company_id: number;
+  company: string;
+  document_type: string;
+  number: string;
+  due_date: string;
+  days_left: number;
+  balance: number;
+}
+export interface FinanceMovement {
+  kind: 'pago' | 'deuda';
+  company: string;
+  what: string;
+  date: string;
+  amount: number;
+}
+export interface FinanceOwnerRow {
+  user_id: number;
+  name: string;
+  balance: number;
+  overdue: number;
+}
+export interface FinanceOverview {
+  year: number;
+  studio: boolean;
+  companies: number;
+  documents_count: number;
+  payments_count: number;
+  year_billed: number;
+  year_collected: number;
+  year_collection_pct: number;
+  prev_year_collection_pct: number;
+  studio_year_pct?: number;
+  months: FinanceMonthStat[];
+  balance: number;
+  total_docs: number;
+  total_pays: number;
+  overdue: number;
+  overdue_docs: number;
+  due_next_30: number;
+  due_next_30_docs: number;
+  companies_with_debt: number;
+  companies_lag_3_plus: number;
+  lag_3_plus_amount: number;
+  collected_this_month: number;
+  collected_prev_month_to_day: number;
+  collected_prev_month_full: number;
+  current_day: number;
+  days_in_month: number;
+  aging: FinanceAgingBucket[];
+  debtors: FinanceDebtor[];
+  due_soon: FinanceDueSoon[];
+  due_soon_total: number;
+  movements: FinanceMovement[];
+  owners: FinanceOwnerRow[];
+}

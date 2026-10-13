@@ -566,3 +566,32 @@ func (ctrl *DashboardController) HomeAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(data)
 }
+
+// OverviewAPI GET /api/dashboard/overview — panel de cobranza rediseñado. El alcance sale del propio
+// usuario: el administrador (alcance de estudio) ve todo el estudio y el resto solo las empresas
+// asignadas. Parámetros: year, min_overdue_months.
+func (ctrl *DashboardController) OverviewAPI(c fiber.Ctx) error {
+	year, _ := strconv.Atoi(c.Query("year", ""))
+	minOvd := parseMinOverdueMonthsQuery(c)
+	finSvc := services.NewFinanceService()
+	if hasStudioScope(c) {
+		data, err := finSvc.FinanceOverview(nil, true, year, minOvd)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"data": data})
+	}
+	userID, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	companyIDs, err := services.NewAccessService().GetAllowedCompanyIDs(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	data, err := finSvc.FinanceOverview(companyIDs, false, year, minOvd)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
