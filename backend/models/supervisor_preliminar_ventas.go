@@ -37,6 +37,11 @@ type SupervisorPreliminarVentasRecord struct {
 	// para el período, no un campo propio acá.
 	SlotIndex int `gorm:"not null;default:1;uniqueIndex:idx_sup_prelim_ventas_ctrl_slot,priority:2" json:"slot_index"`
 
+	// CutoffDate fecha de corte de ESTA entrega: las ventas registradas son las acumuladas hasta ese
+	// día (las dos entregas del mes reflejan cortes distintos). nil = sin definir; el detalle sugiere
+	// entonces la fecha límite de la entrega según el calendario.
+	CutoffDate *time.Time `gorm:"type:date" json:"cutoff_date,omitempty"`
+
 	// IgvAplicable18/105: qué tasa(s) de IGV aplican a esta entrega — al menos una debe quedar en
 	// true (si ambas llegan en false se cae a la tasa configurada de la empresa, nunca se guarda
 	// sin ninguna). Por defecto sigue companies.igv_rate; el usuario puede activar también la otra

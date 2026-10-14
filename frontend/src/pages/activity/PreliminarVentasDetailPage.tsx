@@ -44,6 +44,7 @@ const EMPTY_RECORD: PreliminarVentasRecordInput = {
   credito_periodo_anterior_override: null,
   retencion_monto: 0,
   percepcion_monto: 0,
+  cutoff_date: '',
 };
 
 /** Concepto de Ventas × tasa IGV → las 2 keys editables (base/no gravadas) de ese par en
@@ -282,10 +283,12 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   const handleEnterNext = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
     const target = e.target;
-    if (!(target instanceof HTMLInputElement) || target.inputMode !== 'decimal') return;
+    if (!(target instanceof HTMLInputElement) || !(target.inputMode === 'decimal' || target.dataset.enterField)) return;
     e.preventDefault();
     const fields = Array.from(
-      formRef.current?.querySelectorAll<HTMLInputElement>('input[inputmode="decimal"]:not(:disabled)') ?? [],
+      formRef.current?.querySelectorAll<HTMLInputElement>(
+        'input[inputmode="decimal"]:not(:disabled), input[data-enter-field]:not(:disabled)',
+      ) ?? [],
     );
     const next = fields[fields.indexOf(target) + 1];
     if (next) {
@@ -492,6 +495,28 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-slate-800">Ventas</h2>
+
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
+          <div>
+            <label htmlFor="pv-cutoff" className="block text-xs font-medium text-slate-500 mb-1">
+              Fecha de corte (ventas acumuladas hasta)
+            </label>
+            <input
+              id="pv-cutoff"
+              type="date"
+              data-enter-field="1"
+              disabled={!canUpdate || formLocked}
+              min={`${periodYm}-01`}
+              max={`${periodYm}-${String(new Date(Number(periodYm.slice(0, 4)), Number(periodYm.slice(5, 7)), 0).getDate()).padStart(2, '0')}`}
+              value={record.cutoff_date ?? ''}
+              onChange={(e) => patchRecord({ cutoff_date: e.target.value })}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500"
+            />
+          </div>
+          <p className="text-xs text-slate-500 pb-2">
+            Entrega {slotIndex} de 2 · sale en el PDF como "Fecha de corte". Si no la cambia, se usa la fecha límite de la entrega.
+          </p>
+        </div>
 
         <div>
           <p className="text-xs font-medium text-slate-500 mb-1">Tasa(s) de IGV aplicable(s)</p>

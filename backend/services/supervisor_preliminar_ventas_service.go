@@ -82,6 +82,9 @@ type PreliminarVentasRecordInput struct {
 	// también restan del I.G.V. resultante para llegar al I.G.V. A PAGAR.
 	RetencionMonto  float64 `json:"retencion_monto"`
 	PercepcionMonto float64 `json:"percepcion_monto"`
+	// CutoffDate fecha de corte de la entrega (YYYY-MM-DD, vacío = sin definir): las ventas son las
+	// acumuladas hasta ese día. Debe caer dentro del mes del período.
+	CutoffDate string `json:"cutoff_date,omitempty"`
 }
 
 // PreliminarVentasSummaryRow una fila de la tabla "Ventas" (Facturas/Boletas/Notas de crédito/Total).
@@ -224,7 +227,34 @@ func preliminarVentasRecordToInput(r *models.SupervisorPreliminarVentasRecord) P
 		CreditoPeriodoAnteriorOverride: r.CreditoPeriodoAnteriorOverride,
 		RetencionMonto:                 r.RetencionMonto,
 		PercepcionMonto:                r.PercepcionMonto,
+		CutoffDate:                     formatPreliminarVentasCutoff(r.CutoffDate),
 	}
+}
+
+const preliminarVentasDateLayout = "2006-01-02"
+
+func formatPreliminarVentasCutoff(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return ""
+	}
+	return t.Format(preliminarVentasDateLayout)
+}
+
+// parsePreliminarVentasCutoff valida la fecha de corte recibida: vacía = sin definir; si viene, debe
+// ser una fecha válida del mismo mes que el período (el corte nunca cae fuera del mes que se informa).
+func parsePreliminarVentasCutoff(raw, periodYM string) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	d, err := time.ParseInLocation(preliminarVentasDateLayout, raw, time.Local)
+	if err != nil {
+		return nil, errors.New("la fecha de corte no es válida")
+	}
+	if d.Format("2006-01") != periodYM {
+		return nil, errors.New("la fecha de corte debe estar dentro del mes del período")
+	}
+	return &d, nil
 }
 
 // preliminarVentasDefaultReduccionIgvPct % de I.G.V. a compensar con compras que usa el estudio.
@@ -555,6 +585,11 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 	}
 
 	input := preliminarVentasRecordToInput(&record)
+	dueDate := preliminarVentasSlotDueDate(periodYM, slotIndex)
+	if input.CutoffDate == "" && dueDate != nil && dueDate.Format("2006-01") == periodYM {
+		// Sin corte guardado: se sugiere la fecha límite de la entrega (solo en la respuesta, no se persiste).
+		input.CutoffDate = dueDate.Format(preliminarVentasDateLayout)
+	}
 	autoCredito := s.preliminarVentasAutoCredito(&company, periodYM, slotIndex, 0)
 	efectivo := autoCredito
 	if record.CreditoPeriodoAnteriorOverride != nil {
@@ -637,6 +672,11 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 	record.CreditoPeriodoAnteriorOverride = in.CreditoPeriodoAnteriorOverride
 	record.RetencionMonto = in.RetencionMonto
 	record.PercepcionMonto = in.PercepcionMonto
+	cutoff, err := parsePreliminarVentasCutoff(in.CutoffDate, periodYM)
+	if err != nil {
+		return nil, err
+	}
+	record.CutoffDate = cutoff
 	if record.Status == "" || record.Status == models.PreliminarVentasPendiente {
 		record.Status = models.PreliminarVentasRegistrado
 	}

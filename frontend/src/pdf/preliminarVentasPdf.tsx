@@ -41,6 +41,12 @@ function todayForPdf(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+/** "2026-09-15" → "15/09/2026" ('' si no es una fecha YYYY-MM-DD). */
+function formatIsoDate(iso?: string | null): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
 /** Sin guionado automático (react-pdf parte palabras con "-" por defecto; la plantilla no). */
 const noHyphen = (word: string) => [word];
 
@@ -208,6 +214,16 @@ const s = StyleSheet.create({
   infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   infoCardTitle: { flex: 1, fontSize: 7.6, fontWeight: 700, color: V2.navy, lineHeight: 1.25 },
   infoCardText: { fontSize: 7.3, color: V2.muted, lineHeight: 1.45 },
+  infoCardCutoff: {
+    fontSize: 7.3,
+    fontWeight: 700,
+    color: V2.navy,
+    lineHeight: 1.45,
+    marginTop: 5,
+    paddingTop: 5,
+    borderTopWidth: 0.5,
+    borderTopColor: GREEN_BORDER,
+  },
 
   /* Aviso importante */
   important: {
@@ -364,6 +380,9 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
   const summary = detail.summary;
   const record = detail.record;
   const today = todayForPdf();
+  // Fecha de corte de la entrega: las ventas del PDF son las acumuladas hasta ese día (el estudio
+  // envía 2 preliminares al mes, con cortes distintos). Sin corte definido se cae a la fecha de hoy.
+  const cutoffText = formatIsoDate(record.cutoff_date) || today;
   const igvAPagar = summary.igv_a_pagar;
   // Con saldo a favor (I.G.V. A PAGAR <= 0) no corresponde pedir compras: se omite la sección y su
   // aviso, mismo criterio que PreliminarVentasDetailPage.tsx.
@@ -499,7 +518,7 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
           <View style={s.splitRight}>
             <Card label="I.G.V. aproximado" value={`S/ ${fmtMoney(igvAproximado)}`} icon="clipboardList" />
             <Card label="Renta aproximada" value={`S/ ${fmtMoney(summary.monto_aproximado_renta)}`} icon="chartColumn" />
-            <Card label="Preliminar al" value={today} icon="calendarDays" />
+            <Card label="Preliminar al" value={cutoffText} icon="calendarDays" />
             <View style={s.infoCard}>
               <View style={s.infoCardHead}>
                 <View style={{ marginRight: 6 }}>
@@ -512,6 +531,10 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
               <Text style={s.infoCardText} hyphenationCallback={noHyphen}>
                 Es un resumen de todas las ventas que realizó durante el mes, se le envía días antes de cerrar el mes
                 para poder prever el pago de impuestos antes del cierre de mes.
+              </Text>
+              <Text style={s.infoCardCutoff} hyphenationCallback={noHyphen}>
+                Fecha de corte: {cutoffText} — Entrega {detail.slot_index} de 2. Las ventas informadas son las acumuladas
+                hasta esa fecha.
               </Text>
             </View>
           </View>

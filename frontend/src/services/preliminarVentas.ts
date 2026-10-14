@@ -54,6 +54,9 @@ export interface PreliminarVentasRecordInput {
   /** Montos aproximados simples (sin arrastre automático) que también restan del I.G.V. resultante. */
   retencion_monto: number;
   percepcion_monto: number;
+  /** Fecha de corte de la entrega (YYYY-MM-DD): las ventas son las acumuladas hasta ese día. Sin
+   * guardar, el servidor sugiere la fecha límite de la entrega. Debe caer dentro del mes del período. */
+  cutoff_date?: string;
 }
 
 export interface PreliminarVentasSummaryRow {
