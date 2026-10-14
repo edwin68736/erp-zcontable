@@ -494,28 +494,6 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
               </View>
             </View>
 
-            {showCompras ? (
-              <View style={{ marginTop: 10 }}>
-                <StepTitle title="2. Compras" icon="chartColumn" />
-                <View style={s.comprasTable}>
-                  <TableHead
-                    headers={['Concepto', 'Base imponible', 'I.G.V.', 'Total']}
-                    widths={COMPRAS_COLS}
-                    textStyle={COMPRAS_HEAD_TEXT}
-                  />
-                  <View style={[s.tRow, s.tRowLast, s.tRowYellow]}>
-                    <View style={[s.comprasCell, { width: COMPRAS_COLS[0] }]}>
-                      <Text style={s.comprasText}>Importe aproximado a traer en facturas de compra</Text>
-                    </View>
-                    {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
-                      <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
-                        <Text style={s.comprasNum}>{fmtCell(Math.round(Number(v ?? 0)))}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            ) : null}
           </View>
 
           <View style={s.splitRight}>
@@ -538,6 +516,29 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
             </View>
           </View>
         </View>
+
+        {showCompras ? (
+          <View wrap={false} style={{ marginBottom: 7 }}>
+            <StepTitle title="2. Compras" icon="chartColumn" />
+            <View style={s.comprasTable}>
+              <TableHead
+                headers={['Concepto', 'Base imponible', 'I.G.V.', 'Total']}
+                widths={COMPRAS_COLS}
+                textStyle={COMPRAS_HEAD_TEXT}
+              />
+              <View style={[s.tRow, s.tRowLast, s.tRowYellow]}>
+                <View style={[s.comprasCell, { width: COMPRAS_COLS[0] }]}>
+                  <Text style={s.comprasText}>Importe aproximado a traer en facturas de compra</Text>
+                </View>
+                {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
+                  <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
+                    <Text style={s.comprasNum}>{fmtCell(Math.round(Number(v ?? 0)))}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {showCompras ? (
           <View wrap={false} style={s.important}>
