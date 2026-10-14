@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   HOME_LINK,
@@ -35,6 +36,55 @@ const ACTIVE_NAV_CLASS =
 const ACTIVE_ICON_CLASS = 'text-sidebar';
 const ACTIVE_DOT_CLASS = 'bg-sidebar';
 
+/**
+ * Submenú del sidebar colapsado. Se pinta en document.body con position: fixed porque el aside y el
+ * nav tienen overflow (hidden/auto) que recortaba el submenú o lo dejaba detrás de la vista: así
+ * queda siempre por encima, pegado a la derecha del ícono, y sin salirse por abajo de la ventana.
+ */
+const CollapsedFlyout = ({
+  anchor,
+  label,
+  flyoutRef,
+  children,
+}: {
+  anchor: HTMLElement | null;
+  label: string;
+  flyoutRef: RefObject<HTMLDivElement>;
+  children: ReactNode;
+}) => {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      if (!anchor) return;
+      const r = anchor.getBoundingClientRect();
+      const h = flyoutRef.current?.offsetHeight ?? 0;
+      setPos({ top: Math.max(8, Math.min(r.top, window.innerHeight - h - 8)), left: r.right + 8 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [anchor, flyoutRef]);
+
+  return createPortal(
+    <div
+      ref={flyoutRef}
+      role="region"
+      aria-label={label}
+      className="fixed z-[100] min-w-[220px] max-w-[min(280px,calc(100vw-6rem))] rounded-2xl border border-white/15 bg-sidebar-dark py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
+      style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+    >
+      <p className="mb-2 truncate px-2 text-xs font-bold uppercase tracking-wide text-white/50">{label}</p>
+      {children}
+    </div>,
+    document.body,
+  );
+};
+
 const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const location = useLocation();
   const [, setPermissionsTick] = useState(0);
@@ -46,6 +96,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const activeModuleId = resolveSidebarModuleIdFromPathname(location.pathname);
 
   const asideRef = useRef<HTMLElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  /** Contenedor de cada cabecera de módulo: ancla donde se posiciona su submenú flotante. */
+  const anchorRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     const onPermissionsUpdated = () => setPermissionsTick((n) => n + 1);
@@ -58,9 +111,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   });
 
   useEffect(() => {
+    // Colapsado: al navegar (p. ej. desde el submenú flotante) el submenú se cierra para no tapar la vista.
+    if (isCollapsed) {
+      setOpenModuleId(null);
+      return;
+    }
     const id = resolveSidebarModuleIdFromPathname(location.pathname);
     if (id !== null) setOpenModuleId(id);
-  }, [location.pathname]);
+  }, [location.pathname, isCollapsed]);
 
   useEffect(() => {
     if (openModuleId === null) return;
@@ -75,7 +133,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
     if (!isCollapsed || openModuleId === null) return;
     const handle = (e: MouseEvent) => {
       const el = asideRef.current;
-      if (!el || el.contains(e.target as Node)) return;
+      if (!el || el.contains(e.target as Node) || flyoutRef.current?.contains(e.target as Node)) return;
       setOpenModuleId(null);
     };
     document.addEventListener('mousedown', handle);
@@ -190,7 +248,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       moduleIndex > 0 ? (isCollapsed ? 'mt-2 pt-2 border-t border-white/10' : 'mt-3 pt-3 border-t border-white/10') : '';
 
     return (
-      <div key={mod.id} className={`relative ${topPad}`}>
+      <div key={mod.id} ref={(el) => { anchorRefs.current[mod.id] = el; }} className={`relative ${topPad}`}>
         <button
           type="button"
           className={`flex w-full items-center rounded-2xl text-left transition-colors ${
@@ -227,18 +285,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         </button>
 
         {isCollapsed && isOpenMod ? (
-          <div
-            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] max-w-[min(280px,calc(100vw-6rem))] rounded-2xl border border-white/15 bg-sidebar-dark py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
-            role="region"
-            aria-label={mod.label}
-          >
-            <p className="mb-2 truncate px-2 text-xs font-bold uppercase tracking-wide text-white/50">{mod.label}</p>
+          <CollapsedFlyout anchor={anchorRefs.current[mod.id] ?? null} label={mod.label} flyoutRef={flyoutRef}>
             <div className="custom-scrollbar max-h-[min(70vh,24rem)] overflow-y-auto pr-1">
               <div className="rounded-xl border border-white/15 bg-white/[0.16] px-1 py-1 backdrop-blur-sm">
                 {renderEntries(mod, mod.entries, 'desktop-flyout')}
               </div>
             </div>
-          </div>
+          </CollapsedFlyout>
         ) : null}
 
         {!isCollapsed && isOpenMod ? (
@@ -259,7 +312,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
       moduleIndex > 0 ? (isCollapsed ? 'mt-2 pt-2 border-t border-white/10' : 'mt-3 pt-3 border-t border-white/10') : '';
 
     return (
-      <div key={STUDIO_SECTION.id} className={`relative ${topPad}`}>
+      <div key={STUDIO_SECTION.id} ref={(el) => { anchorRefs.current[STUDIO_SECTION.id] = el; }} className={`relative ${topPad}`}>
         <button
           type="button"
           className={`flex w-full items-center rounded-2xl text-left transition-colors ${
@@ -296,16 +349,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
         </button>
 
         {isCollapsed && isOpenMod ? (
-          <div
-            className="absolute left-full top-0 z-[100] ml-2 min-w-[220px] rounded-2xl border border-white/15 bg-sidebar-dark py-3 pl-3 pr-2 shadow-2xl shadow-black/40"
-            role="region"
-            aria-label={STUDIO_SECTION.label}
-          >
-            <p className="mb-2 truncate px-2 text-xs font-bold uppercase tracking-wide text-white/50">
-              {STUDIO_SECTION.label}
-            </p>
+          <CollapsedFlyout anchor={anchorRefs.current[STUDIO_SECTION.id] ?? null} label={STUDIO_SECTION.label} flyoutRef={flyoutRef}>
             {renderStudioEntries('desktop-flyout')}
-          </div>
+          </CollapsedFlyout>
         ) : null}
 
         {!isCollapsed && isOpenMod ? (

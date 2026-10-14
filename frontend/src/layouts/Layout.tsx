@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
@@ -23,6 +23,17 @@ const Layout = () => {
       return false;
     }
   });
+  // En Inicio el menú arranca colapsado (la escena ocupa todo el ancho); el botón de la cabecera
+  // lo expande solo mientras se siga en Inicio y no toca la preferencia guardada para el resto.
+  const { pathname } = useLocation();
+  const isHome = pathname === '/';
+  const [homeSidebarExpanded, setHomeSidebarExpanded] = useState(false);
+  useEffect(() => {
+    if (isHome) setHomeSidebarExpanded(false);
+  }, [isHome]);
+  const sidebarCollapsed = isHome ? !homeSidebarExpanded : isSidebarCollapsed;
+  const toggleSidebarCollapse = () =>
+    isHome ? setHomeSidebarExpanded((v) => !v) : setIsSidebarCollapsed((v) => !v);
   const [layoutThemeBg, setLayoutThemeBg] = useState(() => {
     try {
       return window.localStorage.getItem('layoutThemeBg') ?? '';
@@ -169,14 +180,14 @@ const Layout = () => {
         <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          isCollapsed={isSidebarCollapsed}
+          isCollapsed={sidebarCollapsed}
         />
         
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <Header
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onToggleSidebarCollapse={() => setIsSidebarCollapsed((v) => !v)}
+            isSidebarCollapsed={sidebarCollapsed}
+            onToggleSidebarCollapse={toggleSidebarCollapse}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             userName={user?.name}
           />
