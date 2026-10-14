@@ -214,16 +214,7 @@ const s = StyleSheet.create({
   infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   infoCardTitle: { flex: 1, fontSize: 7.6, fontWeight: 700, color: V2.navy, lineHeight: 1.25 },
   infoCardText: { fontSize: 7.3, color: V2.muted, lineHeight: 1.45 },
-  infoCardCutoff: {
-    fontSize: 7.3,
-    fontWeight: 700,
-    color: V2.navy,
-    lineHeight: 1.45,
-    marginTop: 5,
-    paddingTop: 5,
-    borderTopWidth: 0.5,
-    borderTopColor: GREEN_BORDER,
-  },
+  infoCardDate: { fontWeight: 700, color: V2.navy },
 
   /* Aviso importante */
   important: {
@@ -529,12 +520,9 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                 </Text>
               </View>
               <Text style={s.infoCardText} hyphenationCallback={noHyphen}>
-                Es un resumen de todas las ventas que realizó durante el mes, se le envía días antes de cerrar el mes
-                para poder prever el pago de impuestos antes del cierre de mes.
-              </Text>
-              <Text style={s.infoCardCutoff} hyphenationCallback={noHyphen}>
-                Fecha de corte: {cutoffText} — Entrega {detail.slot_index} de 2. Las ventas informadas son las acumuladas
-                hasta esa fecha.
+                Es un resumen de todas las ventas que realizó durante el mes a la fecha{' '}
+                <Text style={s.infoCardDate}>{cutoffText}</Text>, se le envía días antes de cerrar el mes para poder
+                prever el pago de impuestos antes del cierre de mes.
               </Text>
             </View>
           </View>
