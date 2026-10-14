@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { saveAs } from 'file-saver';
@@ -275,6 +275,27 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     void load();
   }, [load]);
 
+  // Enter salta al siguiente campo de monto en el orden visual (ventas → crédito → retención →
+  // percepción → % a reducir) y, tras el último, al botón Guardar. El orden es el del DOM, así que
+  // los campos que aparecen/desaparecen (p. ej. Compras) se respetan solos.
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const handleEnterNext = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    const target = e.target;
+    if (!(target instanceof HTMLInputElement) || target.inputMode !== 'decimal') return;
+    e.preventDefault();
+    const fields = Array.from(
+      formRef.current?.querySelectorAll<HTMLInputElement>('input[inputmode="decimal"]:not(:disabled)') ?? [],
+    );
+    const next = fields[fields.indexOf(target) + 1];
+    if (next) {
+      next.focus();
+      next.select();
+    } else {
+      formRef.current?.querySelector<HTMLButtonElement>('[data-save-button]')?.focus();
+    }
+  };
+
   const patchRecord = (patch: Partial<PreliminarVentasRecordInput>) => {
     setRecord((prev) => ({ ...prev, ...patch }));
   };
@@ -400,7 +421,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   const summary = computeLocalVentasSummary(record, companyIgvRate, detail.summary.renta_rate_pct, creditoEfectivo);
 
   return (
-    <div className={PAGE_WORKSPACE_CLASS}>
+    <div className={PAGE_WORKSPACE_CLASS} ref={formRef} onKeyDown={handleEnterNext}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
@@ -498,6 +519,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
                   <td className="py-2 pr-2 text-slate-700">{label}</td>
                   <td className="py-2 px-2">
                     <MoneyField
+                      fixedDecimals
                       disabled={!canUpdate || formLocked}
                       value={record[baseKey] as number}
                       onChange={(v) => patchRecord({ [baseKey]: v } as Partial<PreliminarVentasRecordInput>)}
@@ -506,6 +528,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
                   </td>
                   <td className="py-2 px-2">
                     <MoneyField
+                      fixedDecimals
                       disabled={!canUpdate || formLocked}
                       value={record[noGravKey] as number}
                       onChange={(v) => patchRecord({ [noGravKey]: v } as Partial<PreliminarVentasRecordInput>)}
@@ -540,6 +563,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
               (-) Crédito periodo anterior
             </label>
             <MoneyField
+              fixedDecimals
               nullable
               disabled={!canUpdate || formLocked}
               value={record.credito_periodo_anterior_override}
@@ -563,6 +587,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">(-) Retención</label>
             <MoneyField
+              fixedDecimals
               disabled={!canUpdate || formLocked}
               value={record.retencion_monto}
               onChange={(v) => patchRecord({ retencion_monto: v })}
@@ -572,6 +597,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
             <label className="block text-2xs font-semibold uppercase text-slate-500 mb-1">(-) Percepción</label>
             <MoneyField
+              fixedDecimals
               disabled={!canUpdate || formLocked}
               value={record.percepcion_monto}
               onChange={(v) => patchRecord({ percepcion_monto: v })}
@@ -600,6 +626,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             <div>
               <label className="block text-xs text-slate-500 mb-1">% del I.G.V. a reducir</label>
               <MoneyField
+                fixedDecimals
                 disabled={!canUpdate || formLocked}
                 value={record.reduccion_igv_pct}
                 onChange={(v) => patchRecord({ reduccion_igv_pct: Math.min(v, 100) })}
@@ -648,7 +675,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           </button>
         ) : null}
         {canUpdate ? (
-          <Button disabled={saving || formLocked} onClick={() => void handleSave()}>
+          <Button data-save-button disabled={saving || formLocked} onClick={() => void handleSave()}>
             {saving ? 'Guardando…' : 'Guardar registro'}
           </Button>
         ) : null}

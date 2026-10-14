@@ -76,11 +76,11 @@ function formatMoneyText(cleaned: string): string {
   return decPart != null ? `${formattedInt}.${decPart}` : formattedInt;
 }
 
-function formatValueForDisplay(n: number | null | undefined): string {
+function formatValueForDisplay(n: number | null | undefined, fixedDecimals = false): string {
   if (!n) return '';
   const [intPart, decPart] = Math.abs(n).toFixed(2).split('.');
   const formattedInt = formatIntWithCommas(intPart);
-  return decPart === '00' ? formattedInt : `${formattedInt}.${decPart}`;
+  return decPart === '00' && !fixedDecimals ? formattedInt : `${formattedInt}.${decPart}`;
 }
 
 type MoneyFieldProps = {
@@ -94,19 +94,21 @@ type MoneyFieldProps = {
    * "vacío" y "cero" significan cosas distintas (p. ej. "usar el valor sugerido" vs "override en 0"). */
   nullable?: boolean;
   onChangeNullable?: (value: number | null) => void;
+  /** Si true, al salir del campo siempre se muestran 2 decimales (1500 → 1,500.00). */
+  fixedDecimals?: boolean;
 };
 
 const MoneyField = forwardRef<HTMLInputElement, MoneyFieldProps>(
-  ({ value, onChange, onChangeNullable, nullable, disabled, className = '', id, placeholder }, forwardedRef) => {
+  ({ value, onChange, onChangeNullable, nullable, disabled, className = '', id, placeholder, fixedDecimals }, forwardedRef) => {
     const innerRef = useRef<HTMLInputElement | null>(null);
-    const [text, setText] = useState(() => formatValueForDisplay(value));
+    const [text, setText] = useState(() => formatValueForDisplay(value, fixedDecimals));
     const [focused, setFocused] = useState(false);
 
     // Si el valor externo cambia (carga del registro, "usar sugerido", etc.) y el campo no está en
     // edición activa, resincroniza el texto mostrado.
     useEffect(() => {
-      if (!focused) setText(formatValueForDisplay(value));
-    }, [value, focused]);
+      if (!focused) setText(formatValueForDisplay(value, fixedDecimals));
+    }, [value, focused, fixedDecimals]);
 
     const setRefs = (el: HTMLInputElement | null) => {
       innerRef.current = el;
@@ -145,7 +147,7 @@ const MoneyField = forwardRef<HTMLInputElement, MoneyFieldProps>(
     const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
       setFocused(false);
       // Al salir, "4363." o "4363" quedan igual re-formateados a partir del valor numérico real.
-      setText(formatValueForDisplay(value));
+      setText(formatValueForDisplay(value, fixedDecimals));
       e.target.setSelectionRange(0, 0);
     };
 
