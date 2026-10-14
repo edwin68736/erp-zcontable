@@ -1,0 +1,29 @@
+PÁGINA DE INICIO — imágenes
+===========================
+
+1) FONDO DE LA ESCENA
+   Coloca aquí la imagen con este nombre exacto:
+
+     frontend/public/home/fondo-inicio.jpeg
+
+   Si el archivo no existe se ve un degradado verde/gris de respaldo.
+   Tamaño sugerido: 1920x1080 o más, horizontal, ~300 KB-1 MB.
+   Tip: una foto desenfocada y oscura en la izquierda ayuda a que se lea el texto
+   (la página ya aplica un velo oscuro a la izquierda).
+   Si tu imagen es PNG/WEBP, cambia la extensión en la constante BG_IMAGE de
+   frontend/src/pages/Home.tsx.
+
+2) ICONOS DE LOS ACCESOS DIRECTOS
+   Carpeta: frontend/public/home/iconos/
+   Archivos (reemplázalos conservando el nombre):
+
+     clientes.svg   contabilidad.svg   supervisores.svg   vencimientos.svg
+     recursos.svg   reportes.svg       ventas.svg         comprobantes.svg
+
+   Medida con la que se muestran: 96 x 72 px (se ven bien PNG con fondo
+   transparente de ~192x144 px, o SVG con viewBox 0 0 96 72).
+   Si usas PNG/WEBP en lugar de SVG, cambia la extensión en
+   frontend/src/navigation/homeModules.ts (campo "icon").
+
+Después de copiar archivos NUEVOS a public/, recarga la página (Ctrl+F5).
+En producción se incluyen al hacer el build/deploy.

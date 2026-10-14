@@ -11,6 +11,7 @@ import {
   type DonutSlice,
 } from '../../components/supervisors/dashboard/DashboardParts';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import { MODULE_SLUG } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
 import { supervisorsService, type AssistantOverview, type AssistantWorkItem } from '../../services/supervisors';
@@ -19,15 +20,6 @@ import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 
 const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
 const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
-
-const MODULE_SLUG: Record<string, string> = {
-  pdt_601: 'pdt-601',
-  pdt_621: 'pdt-621',
-  detracciones: 'detracciones',
-  sunat_inbox: 'sunat-inbox',
-  informe_detracciones: 'informe-detracciones',
-  siscont_balances: 'siscont-balances',
-};
 
 type Tab = 'todas' | 'vencidas' | 'observadas' | 'semana' | 'revisar';
 

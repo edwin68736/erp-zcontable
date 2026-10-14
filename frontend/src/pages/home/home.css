@@ -1,0 +1,485 @@
+/* Página de Inicio: escena con robot 3D que sigue el cursor.
+ * --hm-x / --hm-y (-1…1) los escribe Home.tsx en el contenedor raíz al mover el mouse. */
+
+.hm-root {
+  --hm-x: 0;
+  --hm-y: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  min-height: calc(100vh - 7.5rem);
+  color: #0f172a;
+  /* Imagen de fondo: la primera que exista gana (ver public/home/LEEME.txt). Si no hay ninguna,
+     se ve el degradado de abajo. */
+  background-color: #2b3a37;
+  background-size: cover;
+  background-position: center;
+}
+.hm-root::before {
+  /* Velo oscuro para que el texto blanco se lea sobre cualquier foto. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 28, 23, 0.55) 0%, rgba(8, 28, 23, 0.1) 40%, rgba(8, 28, 23, 0.05) 100%);
+  pointer-events: none;
+}
+.hm-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+}
+.hm-stagewrap {
+  flex: 999 1 560px;
+  min-width: 0;
+  container-type: inline-size;
+}
+.hm-stage {
+  position: relative;
+  height: 780px;
+}
+.hm-rail {
+  flex: 1 1 340px;
+  max-width: 400px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hm-glass {
+  background: rgba(7, 48, 38, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+}
+.hm-white {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 14px 36px rgba(4, 30, 22, 0.28);
+}
+
+/* ---- plataforma ---- */
+.hm-platform {
+  position: absolute;
+  left: 50%;
+  top: 57%;
+  width: min(740px, 100%);
+  height: 250px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.hm-pr {
+  position: absolute;
+  border-radius: 50%;
+}
+.hm-pr1 {
+  inset: 0;
+  background: radial-gradient(ellipse, #0f3a30 0%, #06201a 70%);
+  border: 2px solid rgba(94, 234, 176, 0.55);
+  box-shadow: 0 0 40px rgba(52, 211, 153, 0.45), 0 30px 50px rgba(0, 0, 0, 0.45);
+}
+.hm-pr2 {
+  inset: 30px 70px;
+  border: 2px solid rgba(94, 234, 176, 0.8);
+  box-shadow: 0 0 22px rgba(52, 211, 153, 0.7), inset 0 0 26px rgba(52, 211, 153, 0.4);
+  animation: hm-pulse 4s ease-in-out infinite;
+}
+.hm-pr3 {
+  inset: 62px 150px;
+  background: radial-gradient(ellipse, rgba(94, 234, 176, 0.55), rgba(16, 120, 90, 0.15) 70%);
+  border: 2px solid rgba(160, 255, 215, 0.9);
+  box-shadow: 0 0 26px rgba(94, 234, 176, 0.8);
+}
+
+/* ---- robot ---- */
+.hm-robotwrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hm-robot {
+  position: absolute;
+  left: 50%;
+  top: 19%;
+  width: 300px;
+  height: 440px;
+  margin-left: -150px;
+  perspective: 900px;
+  animation: hm-floaty 5.5s ease-in-out infinite;
+  z-index: 2;
+}
+.hm-holo {
+  position: absolute;
+  left: -90px;
+  right: -90px;
+  top: 200px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 255, 205, 0.55);
+  box-shadow: 0 0 24px rgba(52, 211, 153, 0.55), inset 0 0 24px rgba(52, 211, 153, 0.25);
+  animation: hm-pulse 4s ease-in-out infinite;
+}
+/* Giro horizontal del cuerpo con el cursor; en vertical NO se inclina (solo se mueven los ojos). */
+.hm-r3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(calc(var(--hm-x) * 28deg));
+  transition: transform 0.22s ease-out;
+}
+/* Cabeza: volumen hecho de capas (ver HomeRobot.tsx). Gira más que el cuerpo para que se vea 3D. */
+.hm-head {
+  position: absolute;
+  left: 55px;
+  top: 0;
+  width: 190px;
+  height: 150px;
+  transform-style: preserve-3d;
+  /* El cuello es el pivote: la cabeza gira a los lados (Y) y asiente arriba/abajo (X) siguiendo el mouse. */
+  transform-origin: 50% 88%;
+  transform: translateZ(30px) rotateX(calc(var(--hm-y) * -16deg)) rotateY(calc(var(--hm-x) * 20deg));
+  transition: transform 0.2s ease-out;
+}
+.hm-hl {
+  position: absolute;
+  inset: 0;
+  border-radius: 46% 46% 42% 42% / 52% 52% 48% 48%;
+  backface-visibility: visible;
+}
+.hm-hl-front {
+  background: radial-gradient(ellipse 70% 60% at calc(38% - var(--hm-x) * 14%) 24%, #fff 0%, #f1f5f4 45%, #d3dedb 100%);
+  box-shadow: inset -10px -14px 22px rgba(40, 70, 60, 0.22);
+}
+.hm-ear {
+  position: absolute;
+  top: 50px;
+  width: 44px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #6ee7b7, #059669);
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.75);
+  transform: rotateY(90deg);
+}
+.hm-visor {
+  position: absolute;
+  left: 14px;
+  top: 26px;
+  right: 14px;
+  height: 94px;
+  border-radius: 44px;
+  background: linear-gradient(160deg, #1a2830, #05090c 70%);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.09), inset 0 -10px 18px rgba(0, 255, 200, 0.07), 0 0 0 3px rgba(200, 215, 210, 0.9);
+  overflow: hidden;
+  transform: translateZ(37px);
+}
+.hm-face {
+  position: absolute;
+  inset: 0;
+}
+.hm-eyes {
+  position: absolute;
+  inset: 0;
+  transform: translate(calc(var(--hm-x) * 8px), calc(var(--hm-y) * 6px));
+  transition: transform 0.12s ease-out;
+}
+.hm-eye {
+  position: absolute;
+  top: 20px;
+  width: 26px;
+  height: 34px;
+  border-radius: 50% 50% 46% 46%;
+  background: #6af4ff;
+  box-shadow: 0 0 14px #28e0ff, 0 0 30px rgba(40, 224, 255, 0.6);
+  animation: hm-blink 5.5s infinite;
+  transform-origin: 50% 60%;
+}
+.hm-mouth {
+  position: absolute;
+  left: 50%;
+  top: 60px;
+  width: 24px;
+  height: 12px;
+  margin-left: -12px;
+  border-bottom: 4px solid #6af4ff;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 6px 12px -4px rgba(40, 224, 255, 0.7);
+  transform: translateX(calc(var(--hm-x) * 4px));
+}
+.hm-body {
+  position: absolute;
+  left: 40px;
+  top: 138px;
+  width: 220px;
+  height: 215px;
+  transform-style: preserve-3d;
+}
+.hm-bl {
+  position: absolute;
+  inset: 0;
+  border-radius: 48% 48% 44% 44% / 34% 34% 66% 66%;
+}
+.hm-bl-front {
+  background: radial-gradient(circle at 35% 22%, #fff, #e8eeed 50%, #bfcdc9);
+  box-shadow: inset -14px -18px 30px rgba(40, 70, 60, 0.3);
+  overflow: hidden;
+}
+.hm-gloss {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at calc(50% + var(--hm-x) * 28%) 18%, rgba(255, 255, 255, 0.95), transparent 70%);
+}
+.hm-logo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 78px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: #24332f;
+}
+.hm-logo span {
+  color: #12a150;
+}
+.hm-belt {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 36px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, #34d399, transparent);
+  box-shadow: 0 0 18px #34d399;
+}
+.hm-arm {
+  position: absolute;
+  top: 180px;
+  width: 50px;
+  height: 128px;
+  border-radius: 30px;
+  background: linear-gradient(90deg, #fff, #d4dfdb);
+  box-shadow: inset -6px -8px 14px rgba(40, 70, 60, 0.25), 0 10px 18px rgba(0, 0, 0, 0.25);
+  transform-origin: 50% 10%;
+  z-index: 1;
+}
+.hm-arm-l {
+  left: 6px;
+  transform: rotate(16deg);
+}
+.hm-arm-r {
+  left: 244px;
+  transform: rotate(-34deg);
+  animation: hm-wave 3.2s ease-in-out infinite;
+}
+.hm-hand {
+  position: absolute;
+  left: -1px;
+  bottom: -16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #cfdad6);
+  box-shadow: inset -6px -8px 12px rgba(40, 70, 60, 0.25);
+}
+.hm-thruster {
+  position: absolute;
+  left: 70px;
+  top: 340px;
+  width: 160px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(94, 234, 176, 0.95), transparent 70%);
+  filter: blur(5px);
+}
+
+/* ---- saludo ---- */
+.hm-bubble {
+  position: absolute;
+  /* Centrado sobre el robot (que también está centrado en el escenario). */
+  left: 50%;
+  transform: translateX(-50%);
+  top: 1%;
+  width: 318px;
+  max-width: 100%;
+  z-index: 4;
+  box-sizing: border-box;
+  padding: 16px 22px;
+  border-radius: 28px;
+  background: rgba(8, 74, 52, 0.86);
+  border: 1.5px solid #5eeab0;
+  box-shadow: 0 0 28px rgba(52, 211, 153, 0.35);
+  color: #fff;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* ---- módulos en órbita ---- */
+.hm-node {
+  position: absolute;
+  width: 182px;
+  z-index: 3;
+  --hm-d: 14;
+  transform: translate(calc(var(--hm-x) * var(--hm-d) * 1px), calc(var(--hm-y) * var(--hm-d) * 0.6px));
+  transition: transform 0.25s ease-out;
+}
+.hm-art {
+  position: absolute;
+  left: 50%;
+  top: -68px;
+  width: 96px;
+  height: 72px;
+  margin-left: -48px;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+  object-fit: contain;
+}
+.hm-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 18px;
+  background: rgba(6, 38, 31, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  text-decoration: none;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+.hm-card:hover {
+  transform: translateY(-4px) scale(1.03);
+  background: rgba(10, 70, 54, 0.92);
+  border-color: #5eeab0;
+  color: #fff;
+}
+.hm-card:focus-visible,
+.hm-task:focus-visible {
+  outline: 3px solid #7ef0c0;
+  outline-offset: 2px;
+}
+.hm-ico {
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-kpi {
+  display: block;
+  border-radius: 16px;
+  padding: 12px 6px 10px;
+  text-align: center;
+  color: #fff;
+  text-decoration: none;
+  transition: transform 0.15s;
+}
+.hm-kpi:hover {
+  transform: translateY(-2px);
+  color: #fff;
+}
+.hm-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 0;
+  border-top: 1px solid #eef1f4;
+  font-size: 13.5px;
+  color: #0f172a;
+  text-decoration: none;
+}
+.hm-task:first-of-type {
+  border-top: 0;
+}
+.hm-task:hover .hm-task-label {
+  text-decoration: underline;
+}
+
+@keyframes hm-floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes hm-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.08); }
+}
+@keyframes hm-wave {
+  0%, 100% { transform: rotate(-34deg); }
+  50% { transform: rotate(-48deg); }
+}
+@keyframes hm-pulse {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hm-root *,
+  .hm-root *::before,
+  .hm-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Escenario angosto (medido sobre el propio escenario, no la ventana): los accesos pasan a una
+   cuadrícula debajo del robot para no taparlo. */
+@container (max-width: 760px) {
+  .hm-stage {
+    height: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 64px 14px;
+    padding-bottom: 12px;
+  }
+  .hm-node {
+    position: static !important;
+    width: auto;
+    transform: none;
+  }
+  .hm-art {
+    left: auto;
+    right: 8px;
+    margin-left: 0;
+    top: -54px;
+    transform: scale(0.8);
+    transform-origin: right bottom;
+  }
+  .hm-robotwrap {
+    grid-column: 1 / -1;
+    position: relative;
+    height: 500px;
+    order: -1;
+  }
+  .hm-platform {
+    top: auto;
+    bottom: 0;
+  }
+  .hm-bubble {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    grid-column: 1 / -1;
+    width: auto;
+    order: -2;
+  }
+}
+@media (max-width: 1100px) {
+  .hm-stagewrap {
+    flex-basis: 100%;
+  }
+  .hm-rail {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
