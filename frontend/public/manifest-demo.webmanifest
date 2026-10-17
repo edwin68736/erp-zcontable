@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "ZContable Demo",
+  "short_name": "ZC Demo",
+  "description": "Entorno de PRUEBAS de ZContable (datos de demostración, no es el sistema real).",
+  "lang": "es-PE",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#EA580C",
+  "categories": ["business", "finance", "productivity"],
+  "launch_handler": { "client_mode": "navigate-existing" },
+  "icons": [
+    { "src": "/pwa/icon-demo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-demo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-demo-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -42,12 +42,17 @@ BUILD_OUT="$BUILD_TMP/$BACKEND_BIN_NAME"
 echo "    listo: $(du -h "$BUILD_OUT" | cut -f1)"
 
 log "[2/6] Compilando frontend (npm run build, API = $STAGING_BACKEND_URL)..."
-(cd "$FRONTEND_DIR" && VITE_BACKEND_URL="$STAGING_BACKEND_URL" npm run build)
+# PWA "ZContable Demo": instalable también en pruebas, con nombre/ícono/color propios (ver vite.config.ts).
+(cd "$FRONTEND_DIR" && VITE_BACKEND_URL="$STAGING_BACKEND_URL" VITE_ENABLE_PWA=1 VITE_PWA_VARIANT=demo npm run build)
 if ! grep -q "$STAGING_BACKEND_URL" "$FRONTEND_DIR"/dist/assets/index-*.js 2>/dev/null; then
   echo "    ERROR: el build no quedó apuntando a $STAGING_BACKEND_URL — abortando antes de subir nada."
   exit 1
 fi
-echo "    listo: $FRONTEND_DIR/dist (confirmado: apunta a $STAGING_BACKEND_URL)"
+if ! grep -q "manifest-demo.webmanifest" "$FRONTEND_DIR/dist/index.html" 2>/dev/null; then
+  echo "    ERROR: el build de pruebas no trae el manifest de la PWA Demo — abortando antes de subir nada."
+  exit 1
+fi
+echo "    listo: $FRONTEND_DIR/dist (confirmado: apunta a $STAGING_BACKEND_URL, PWA Demo incluida)"
 
 log "[3/6] Subiendo binario nuevo al backend..."
 scp "${SSH_OPTS[@]}" -q "$BUILD_OUT" "$BACKEND_HOST:$BACKEND_PATH/${BACKEND_BIN_NAME}.new"
