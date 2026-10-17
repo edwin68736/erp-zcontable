@@ -23,7 +23,7 @@ import {
 // también pregunte si corresponde arrastrar la suspensión del período anterior, en vez de dejar que
 // el control nuevo nazca en falso silenciosamente (antes solo Detracciones preguntaba esto).
 import { detraccionesService, type SuspensionCarryOverRow } from '../../services/detracciones';
-import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 
 function formatDueDate(iso?: string): string {
@@ -55,7 +55,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const homePath = workspaceHomePath(workspace);
   const [searchParams, setSearchParams] = useSearchParams();
   // Igual que PDT 601/621: se trabaja "pasando el mes" (en setiembre se controla lo de agosto).
-  const initialPeriod = searchParams.get('period_ym') || previousMonthPeriodYM();
+  const initialPeriod = searchParams.get('period_ym') || currentPeriodYM();
 
   const [periodYm, setPeriodYm] = useState(initialPeriod);
   const [q, setQ] = useState('');

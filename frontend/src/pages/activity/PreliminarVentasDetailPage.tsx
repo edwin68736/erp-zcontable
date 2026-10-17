@@ -21,7 +21,7 @@ import {
 } from '../../services/preliminarVentas';
 import { generatePreliminarVentasPdfBlob, preliminarVentasPdfFilename } from '../../pdf/preliminarVentasPdf';
 import { loadLogoPngBlobForPdf } from '../../utils/pdfLogo';
-import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import type { CompanyIgvRate } from '../../utils/companyIgv';
 
@@ -241,7 +241,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   const companyId = Number(companyIdParam);
   const slotIndex = Number(slotIndexParam) === 2 ? 2 : 1;
   const [searchParams] = useSearchParams();
-  const periodYm = searchParams.get('period_ym') || previousMonthPeriodYM();
+  const periodYm = searchParams.get('period_ym') || currentPeriodYM();
   const listPath = `${activitiesBasePath(workspace)}/preliminar-ventas?period_ym=${encodeURIComponent(periodYm)}`;
   const homePath = workspaceHomePath(workspace);
 
@@ -650,13 +650,19 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           <div className="grid gap-4 sm:grid-cols-4">
             <div>
               <label className="block text-xs text-slate-500 mb-1">% del I.G.V. a reducir</label>
-              <MoneyField
-                fixedDecimals
-                disabled={!canUpdate || formLocked}
-                value={record.reduccion_igv_pct}
-                onChange={(v) => patchRecord({ reduccion_igv_pct: Math.min(v, 100) })}
-                className={FIELD_INPUT}
-              />
+              <div className="relative">
+                <MoneyField
+                  fixedDecimals
+                  disabled={!canUpdate || formLocked}
+                  value={record.reduccion_igv_pct}
+                  onChange={(v) => patchRecord({ reduccion_igv_pct: Math.min(v, 100) })}
+                  className={`${FIELD_INPUT} pr-9`}
+                />
+                <i
+                  className="fas fa-percent pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500"
+                  aria-hidden
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs text-slate-500 mb-1">Base imponible</label>
