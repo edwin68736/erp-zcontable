@@ -12,8 +12,8 @@ RUN npm install
 
 COPY . .
 
-# PWA instalable solo en producción (este Dockerfile es el del VPS de producción): ver vite.config.ts,
-# public/manifest.json y public/sw.js. El deploy a pruebas (scripts/deploy-staging.sh) no lo define.
+# PWA "ZContable" instalable en producción (este Dockerfile es el del VPS de producción): ver vite.config.ts,
+# public/manifest.json y public/sw.js. Pruebas arma su propia variante "Demo" en scripts/deploy-staging.sh.
 ENV VITE_ENABLE_PWA=1
 
 RUN npm run build
