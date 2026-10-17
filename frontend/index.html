@@ -29,6 +29,18 @@
       name="twitter:description"
       content="Somos un estudio contable en Arequipa, Perú. El compromiso de nuestra Firma es brindar a sus clientes el más completo y profesional servicio de la Contabilidad con absoluta integridad y de acuerdo a las normas establecidas por la profesión."
     />
+    <style>
+      /* Pantalla de carga con los colores corporativos (verde #019147 / azul #003786 del logo). Se muestra
+         mientras el JS carga y la reemplaza React al montar. */
+      html, body { margin: 0; background: #ffffff; }
+      .zc-boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #ffffff; color: #003786; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+      .zc-boot img { width: 132px; height: 132px; }
+      .zc-boot-bar { width: 168px; height: 4px; border-radius: 2px; background: #e4ebf5; overflow: hidden; }
+      .zc-boot-bar span { display: block; width: 45%; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #019147, #003786); animation: zc-boot-slide 1.15s ease-in-out infinite; }
+      .zc-boot p { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+      @keyframes zc-boot-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+      @media (prefers-reduced-motion: reduce) { .zc-boot-bar span { animation: none; width: 100%; } }
+    </style>
   </head>
   <body>
     <noscript>
@@ -38,7 +50,13 @@
         acuerdo a las normas establecidas por la profesión.
       </p>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div class="zc-boot" role="status" aria-live="polite">
+        <img src="/pwa/logo-boot.png" alt="ZContable" width="132" height="132" />
+        <div class="zc-boot-bar" aria-hidden="true"><span></span></div>
+        <p>Cargando…</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
