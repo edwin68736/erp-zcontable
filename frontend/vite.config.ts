@@ -18,7 +18,7 @@ function pwaHtml(enabled: boolean, variant: string): Plugin {
     transformIndexHtml() {
       if (!enabled) return []
       return [
-        { tag: 'link', attrs: { rel: 'manifest', href: demo ? '/manifest-demo.webmanifest' : '/manifest.webmanifest' }, injectTo: 'head' },
+        { tag: 'link', attrs: { rel: 'manifest', href: demo ? '/manifest-demo.json' : '/manifest.json' }, injectTo: 'head' },
         { tag: 'meta', attrs: { name: 'theme-color', content: demo ? '#EA580C' : '#003786' }, injectTo: 'head' },
         {
           tag: 'link',

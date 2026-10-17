@@ -48,7 +48,7 @@ if ! grep -q "$STAGING_BACKEND_URL" "$FRONTEND_DIR"/dist/assets/index-*.js 2>/de
   echo "    ERROR: el build no quedó apuntando a $STAGING_BACKEND_URL — abortando antes de subir nada."
   exit 1
 fi
-if ! grep -q "manifest-demo.webmanifest" "$FRONTEND_DIR/dist/index.html" 2>/dev/null; then
+if ! grep -q "manifest-demo.json" "$FRONTEND_DIR/dist/index.html" 2>/dev/null; then
   echo "    ERROR: el build de pruebas no trae el manifest de la PWA Demo — abortando antes de subir nada."
   exit 1
 fi
