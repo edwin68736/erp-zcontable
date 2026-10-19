@@ -81,33 +81,8 @@ function submitSunatSolForm(c: SunatSolCredentials): void {
  */
 export const SUNAT_MENU_LOGOUT_URL =
   'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=salir&pestana=null&agrupacion=null';
-/** Tiempo que se deja a SUNAT para procesar el cierre antes de entrar a la nueva empresa. La petición de cierre sale apenas empieza la navegación y SUNAT la procesa aunque la pestaña se vaya a otra dirección, por eso basta poco. */
-export const SUNAT_CLEANUP_WAIT_MS = 700;
-
-/**
- * Si desde este navegador no se abrió SUNAT por ZContable hace poco, se asume que no hay una sesión previa y se
- * entra directo (sin pasar por el cierre de sesión): es el camino rápido. Las sesiones de SUNAT abiertas por
- * fuera de ZContable no se detectan: ahí hay que pulsar "Salir" en SUNAT.
- */
-const LAST_OPEN_KEY = 'zc_sunat_last_open';
-const ASSUME_SESSION_MS = 60 * 60 * 1000;
-
-function maybeHasPreviousSession(): boolean {
-  try {
-    const last = Number(window.localStorage.getItem(LAST_OPEN_KEY) ?? 0);
-    return Number.isFinite(last) && last > 0 && Date.now() - last < ASSUME_SESSION_MS;
-  } catch {
-    return true; // sin almacenamiento: por seguridad se limpia siempre
-  }
-}
-
-function markSunatOpened(): void {
-  try {
-    window.localStorage.setItem(LAST_OPEN_KEY, String(Date.now()));
-  } catch {
-    /* sin almacenamiento: no se recuerda */
-  }
-}
+/** Tiempo que se deja a SUNAT para procesar el cierre antes de entrar a la nueva empresa. Siempre se limpia antes de entrar: no hay forma fiable de saber si hay otra sesión abierta (puede venir de otra pestaña, otro día o de fuera de ZContable) y SUNAT bloquea el ingreso si existe. */
+export const SUNAT_CLEANUP_WAIT_MS = 1200;
 
 /** Abre una pestaña nueva que ya navega al cierre de sesión de SUNAT. Debe llamarse desde un clic. */
 function openCleanupWindow(): Window | null {
@@ -121,12 +96,6 @@ function openCleanupWindow(): Window | null {
 
 /** Entra a SUNAT con el enlace de un solo uso, cerrando antes la sesión anterior de este navegador. */
 export function openSunatAccessUrl(url: string): void {
-  const needsCleanup = maybeHasPreviousSession();
-  markSunatOpened();
-  if (!needsCleanup) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    return;
-  }
   const w = openCleanupWindow();
   if (!w) {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -143,12 +112,6 @@ export function openSunatAccessUrl(url: string): void {
 
 /** Abre SUNAT en una pestaña nueva ya autenticada, con el formulario de login. Cierra antes la sesión anterior. Debe llamarse desde un clic. */
 export function openSunatSolLogin(c: SunatSolCredentials): void {
-  const needsCleanup = maybeHasPreviousSession();
-  markSunatOpened();
-  if (!needsCleanup) {
-    submitSunatSolForm(c);
-    return;
-  }
   const w = openCleanupWindow();
   if (!w) {
     submitSunatSolForm(c);
