@@ -69,7 +69,39 @@ export interface CredentialImportCommitResult {
   errors?: CredentialImportRowError[];
 }
 
+/** Error al generar el acceso a SUNAT: mensaje para el usuario, código estable y detalle técnico (sin claves). */
+export interface SunatAccessError {
+  message: string;
+  code?: string;
+  detail?: string;
+}
+
+export interface SunatAccessResult {
+  url: string;
+  expires_hint_seconds: number;
+}
+
 export const companyAccessCredentialsService = {
+  /** El servidor inicia sesión en SUNAT con las credenciales de la empresa y devuelve un enlace de un solo uso. */
+  async sunatAccess(companyId: number): Promise<SunatAccessResult> {
+    try {
+      const res = await client.post<{ data: SunatAccessResult }>(
+        `/finance/company-credentials/${companyId}/sunat-access`,
+        undefined,
+        { timeout: 45000 },
+      );
+      return res.data.data;
+    } catch (err) {
+      const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string } } }).response?.data;
+      const e: SunatAccessError = {
+        message: data?.error || 'No se pudo generar el acceso. Intente de nuevo.',
+        code: data?.code,
+        detail: data?.detail,
+      };
+      throw e;
+    }
+  },
+
   async filterFacets(): Promise<CompanyAccessCredentialFilterFacets> {
     const res = await client.get<{ data: CompanyAccessCredentialFilterFacets }>(
       '/finance/company-credentials/filter-facets',

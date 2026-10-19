@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"path/filepath"
 	"strconv"
@@ -15,12 +16,14 @@ import (
 type CompanyAccessCredentialController struct {
 	svc    *services.CompanyAccessCredentialService
 	access *services.AccessService
+	sunat  *services.SunatSolAccessService
 }
 
 func NewCompanyAccessCredentialController() *CompanyAccessCredentialController {
 	return &CompanyAccessCredentialController{
 		svc:    services.NewCompanyAccessCredentialService(),
 		access: services.NewAccessService(),
+		sunat:  services.NewSunatSolAccessService(),
 	}
 }
 
@@ -201,4 +204,43 @@ func (ctrl *CompanyAccessCredentialController) ImportAPI(c fiber.Ctx) error {
 		"unmatched_rucs":  unmatched,
 		"unmatched_count": len(unmatched),
 	})
+}
+
+// SunatAccessAPI POST /finance/company-credentials/:companyId/sunat-access
+// Genera el enlace de acceso directo a SUNAT (Clave SOL) de la empresa: el servidor hace el login por
+// detrás y devuelve un enlace de un solo uso para abrir en el navegador. Ver services/sunat_sol_access_service.go.
+func (ctrl *CompanyAccessCredentialController) SunatAccessAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if fe, ok := err.(*fiber.Error); ok {
+			return c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+	}
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 64)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID de empresa inválido"})
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	res, err := ctrl.sunat.Generate(uint(companyID), allowed, uid)
+	if err != nil {
+		var ae *services.SunatSolAccessError
+		if errors.As(err, &ae) {
+			status := fiber.StatusUnprocessableEntity
+			switch ae.Code {
+			case services.SunatAccessOutOfScope:
+				status = fiber.StatusForbidden
+			case services.SunatAccessInProgress:
+				status = fiber.StatusConflict
+			case services.SunatAccessUnavailable:
+				status = fiber.StatusBadGateway
+			}
+			return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo generar el acceso"})
+	}
+	return c.JSON(fiber.Map{"data": res})
 }

@@ -90,6 +90,7 @@ func AutoMigrate() error {
 		&models.ActivityParam{},
 		&models.ActivityParamAudit{},
 		&models.CompanyAccessCredential{},
+		&models.CompanyAccessLog{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

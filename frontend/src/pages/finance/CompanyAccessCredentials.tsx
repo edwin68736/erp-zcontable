@@ -4,7 +4,8 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import Pagination from '../../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
-import { openSunatSolLogin, sunatSolMissingField } from '../../utils/sunatSol';
+import { sunatSolMissingField } from '../../utils/sunatSol';
+import SunatAccessModal from '../../components/finance/SunatAccessModal';
 import {
   companyAccessCredentialsService,
   type CompanyAccessCredentialFilterFacets,
@@ -246,6 +247,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const [importValidateLoading, setImportValidateLoading] = useState(false);
   const [importCommitLoading, setImportCommitLoading] = useState(false);
   const [listNotice, setListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  const [sunatModalRow, setSunatModalRow] = useState<CompanyAccessCredentialRow | null>(null);
 
   /** Ingreso directo a SUNAT con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
   const handleOpenSunat = (row: CompanyAccessCredentialRow) => {
@@ -255,7 +257,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
       return;
     }
     setListNotice(null);
-    openSunatSolLogin({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+    setSunatModalRow(row);
   };
 
   const importBannerClass =
@@ -1167,6 +1169,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
             document.body,
           )
         : null}
+
+      {sunatModalRow ? <SunatAccessModal row={sunatModalRow} onClose={() => setSunatModalRow(null)} /> : null}
     </div>
   );
 };

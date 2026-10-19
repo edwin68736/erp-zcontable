@@ -34,8 +34,7 @@ export function sunatSolMissingField(c: SunatSolCredentials): string {
   return '';
 }
 
-/** Abre SUNAT en una pestaña nueva ya autenticada. Debe llamarse desde un clic (si no, el navegador bloquea la pestaña). */
-export function openSunatSolLogin(c: SunatSolCredentials): void {
+function submitSunatSolForm(c: SunatSolCredentials): void {
   const fields: Record<string, string> = {
     tipo: '2',
     dni: '',
@@ -68,4 +67,62 @@ export function openSunatSolLogin(c: SunatSolCredentials): void {
   } finally {
     form.remove();
   }
+}
+
+/**
+ * Limpieza de la sesión anterior de SUNAT en este navegador.
+ *
+ * SUNAT guarda UNA sesión de Menú SOL por navegador: si hay otra empresa abierta, el nuevo acceso dice
+ * "ya hay una sesión abierta". El botón "Salir" de SUNAT ejecuta `unLoad()`, que hace
+ * POST MenuInternet.htm {action:"salir", pestana:"null", agrupacion:"null"} (más borrar unas cookies
+ * propias). Desde otro sitio no se puede borrar cookies de sunat.gob.pe, pero sí navegar una pestaña a
+ * esa misma dirección con los mismos parámetros (navegación de primer nivel: lleva las cookies de
+ * SUNAT) y luego continuar al acceso nuevo.
+ */
+export const SUNAT_MENU_LOGOUT_URL =
+  'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?action=salir&pestana=null&agrupacion=null';
+/** Tiempo que se deja a SUNAT para procesar el cierre antes de entrar a la nueva empresa. */
+export const SUNAT_CLEANUP_WAIT_MS = 1800;
+
+/** Abre una pestaña nueva que ya navega al cierre de sesión de SUNAT. Debe llamarse desde un clic. */
+function openCleanupWindow(): Window | null {
+  // OJO: no se le quita el opener (`w.opener = null`). Sin ese vínculo el navegador no deja redirigir
+  // después esta misma pestaña al acceso nuevo (falla y obliga a abrir una segunda pestaña).
+  const w = window.open('about:blank', '_blank');
+  if (!w) return null;
+  w.location.href = SUNAT_MENU_LOGOUT_URL;
+  return w;
+}
+
+/** Entra a SUNAT con el enlace de un solo uso, cerrando antes la sesión anterior de este navegador. */
+export function openSunatAccessUrl(url: string): void {
+  const w = openCleanupWindow();
+  if (!w) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  window.setTimeout(() => {
+    try {
+      w.location.href = url;
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, SUNAT_CLEANUP_WAIT_MS);
+}
+
+/** Abre SUNAT en una pestaña nueva ya autenticada, con el formulario de login. Cierra antes la sesión anterior. Debe llamarse desde un clic. */
+export function openSunatSolLogin(c: SunatSolCredentials): void {
+  const w = openCleanupWindow();
+  if (!w) {
+    submitSunatSolForm(c);
+    return;
+  }
+  window.setTimeout(() => {
+    try {
+      w.close();
+    } catch {
+      /* ya cerrada */
+    }
+    submitSunatSolForm(c);
+  }, SUNAT_CLEANUP_WAIT_MS);
 }
