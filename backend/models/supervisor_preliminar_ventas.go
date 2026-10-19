@@ -42,6 +42,13 @@ type SupervisorPreliminarVentasRecord struct {
 	// entonces la fecha límite de la entrega según el calendario.
 	CutoffDate *time.Time `gorm:"type:date" json:"cutoff_date,omitempty"`
 
+	// RentaRegimen régimen con el que se calcula el pago a cuenta de renta de ESTA entrega: mype |
+	// rer | general | coeficiente — mismas opciones que la Liquidación. Vacío = sin elegir todavía: se
+	// resuelve por defecto (entrega 1 del mismo período → régimen de la empresa → MYPE), ver
+	// resolvePreliminarVentasRenta. RentaCoeficientePct solo aplica con "coeficiente".
+	RentaRegimen        string  `gorm:"size:20;not null;default:''" json:"renta_regimen"`
+	RentaCoeficientePct float64 `gorm:"type:decimal(7,4);not null;default:0" json:"renta_coeficiente_pct"`
+
 	// IgvAplicable18/105: qué tasa(s) de IGV aplican a esta entrega — al menos una debe quedar en
 	// true (si ambas llegan en false se cae a la tasa configurada de la empresa, nunca se guarda
 	// sin ninguna). Por defecto sigue companies.igv_rate; el usuario puede activar también la otra

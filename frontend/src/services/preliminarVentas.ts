@@ -57,6 +57,11 @@ export interface PreliminarVentasRecordInput {
   /** Fecha de corte de la entrega (YYYY-MM-DD): las ventas son las acumuladas hasta ese día. Sin
    * guardar, el servidor sugiere la fecha límite de la entrega. Debe caer dentro del mes del período. */
   cutoff_date?: string;
+  /** Régimen del pago a cuenta de renta: mype | rer | general | coeficiente (mismas opciones que la
+   * Liquidación). El servidor siempre lo devuelve resuelto. */
+  renta_regimen?: string;
+  /** % de coeficiente, solo con renta_regimen = "coeficiente". */
+  renta_coeficiente_pct?: number;
 }
 
 export interface PreliminarVentasSummaryRow {
@@ -91,6 +96,10 @@ export interface PreliminarVentasSummary {
   renta_base: number;
   renta_rate_pct: number;
   monto_aproximado_renta: number;
+  /** De dónde salió el régimen de renta aplicado: "entrega" (elegido en esta entrega), "entrega_1"
+   * (heredado de la entrega 1 del período), "empresa" (ficha de la empresa) o "por_defecto" (la
+   * empresa no lo tiene cargado: se asume MYPE 1 %, igual que la Liquidación). */
+  renta_regimen_origen?: 'entrega' | 'entrega_1' | 'empresa' | 'por_defecto';
 }
 
 export interface PreliminarVentasSlotDetail {

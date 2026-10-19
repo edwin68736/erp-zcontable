@@ -24,6 +24,18 @@ import { loadLogoPngBlobForPdf } from '../../utils/pdfLogo';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import type { CompanyIgvRate } from '../../utils/companyIgv';
+import {
+  LIQUIDATION_RENTA_REGIME_OPTIONS,
+  formatRentaRateLabel,
+  getRentaMensualRatePct,
+  parseLiquidationRentaRegime,
+  type LiquidationRentaRegime,
+} from '../../utils/companyTaxRegime';
+
+/** Régimen efectivo del registro (el servidor siempre lo manda resuelto; MYPE si por algo viniera vacío). */
+function recordRentaRegimen(record: PreliminarVentasRecordInput): LiquidationRentaRegime {
+  return parseLiquidationRentaRegime(record.renta_regimen) ?? 'mype';
+}
 
 const EMPTY_RECORD: PreliminarVentasRecordInput = {
   igv_aplicable_18: true,
@@ -45,6 +57,8 @@ const EMPTY_RECORD: PreliminarVentasRecordInput = {
   retencion_monto: 0,
   percepcion_monto: 0,
   cutoff_date: '',
+  renta_regimen: 'mype',
+  renta_coeficiente_pct: 0,
 };
 
 /** Concepto de Ventas × tasa IGV → las 2 keys editables (base/no gravadas) de ese par en
@@ -108,6 +122,7 @@ type LocalSummary = {
   comprasBase: number;
   comprasIgv: number;
   comprasTotal: number;
+  rentaBase: number;
   montoAproximadoRenta: number;
 };
 
@@ -204,6 +219,7 @@ function computeLocalVentasSummary(
     comprasBase,
     comprasIgv,
     comprasTotal,
+    rentaBase,
     montoAproximadoRenta,
   };
 }
@@ -417,11 +433,25 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     ...(record.igv_aplicable_18 ? ([18] as CompanyIgvRate[]) : []),
     ...(record.igv_aplicable_105 ? ([10.5] as CompanyIgvRate[]) : []),
   ];
-  // credito_periodo_anterior_auto y renta_rate_pct no dependen de la tasa de IGV elegida — se toman
-  // tal cual del último cálculo del backend (no hace falta recalcularlos en vivo).
+  // credito_periodo_anterior_auto no depende de la tasa de IGV elegida — se toma tal cual del último
+  // cálculo del backend. La tasa de renta sí se recalcula en vivo con el régimen elegido acá (mismas
+  // tasas que la Liquidación: MYPE 1 %, RER/General 1.5 %, Coeficiente = % indicado).
   const creditoAuto = detail.summary.credito_periodo_anterior_auto;
   const creditoEfectivo = record.credito_periodo_anterior_override ?? creditoAuto;
-  const summary = computeLocalVentasSummary(record, companyIgvRate, detail.summary.renta_rate_pct, creditoEfectivo);
+  const rentaRegimen = recordRentaRegimen(record);
+  const rentaRatePct = getRentaMensualRatePct(rentaRegimen, record.renta_coeficiente_pct);
+  const summary = computeLocalVentasSummary(record, companyIgvRate, rentaRatePct, creditoEfectivo);
+  // Aviso de dónde salió el régimen: solo mientras el usuario no lo haya cambiado respecto a lo cargado.
+  const rentaOrigenNote =
+    rentaRegimen === recordRentaRegimen(detail.record)
+      ? detail.summary.renta_regimen_origen === 'por_defecto'
+        ? 'La empresa no tiene régimen cargado en su ficha: se asume MYPE (1 %). Elíjalo aquí y guarde el registro.'
+        : detail.summary.renta_regimen_origen === 'entrega_1'
+          ? 'Tomado de la entrega 1 de este período.'
+          : detail.summary.renta_regimen_origen === 'empresa'
+            ? 'Tomado del régimen de la empresa.'
+            : ''
+      : '';
 
   return (
     <div className={PAGE_WORKSPACE_CLASS} ref={formRef} onKeyDown={handleEnterNext}>
@@ -679,6 +709,53 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           </div>
         </div>
       ) : null}
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <h2 className="text-sm font-semibold text-slate-800">Renta</h2>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <div>
+            <label htmlFor="pv-renta-regimen" className="block text-xs text-slate-500 mb-1">
+              Régimen para el pago a cuenta
+            </label>
+            <select
+              id="pv-renta-regimen"
+              disabled={!canUpdate || formLocked}
+              value={rentaRegimen}
+              onChange={(e) => patchRecord({ renta_regimen: e.target.value })}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500"
+            >
+              {LIQUIDATION_RENTA_REGIME_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                  {o.sunatRate ? ` — ${formatRentaRateLabel(o.sunatRate)}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {rentaRegimen === 'coeficiente' ? (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Coeficiente (%)</label>
+              <div className="relative">
+                <MoneyField
+                  disabled={!canUpdate || formLocked}
+                  value={record.renta_coeficiente_pct ?? 0}
+                  onChange={(v) => patchRecord({ renta_coeficiente_pct: Math.min(v, 100) })}
+                  className={`${FIELD_INPUT} pr-9 w-32`}
+                />
+                <i
+                  className="fas fa-percent pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500"
+                  aria-hidden
+                />
+              </div>
+            </div>
+          ) : null}
+          <p className="text-sm text-slate-600 pb-2">
+            Renta: <span className="font-semibold">{formatRentaRateLabel(rentaRatePct)}</span> sobre S/{' '}
+            {formatMoney(summary.rentaBase)} = <span className="font-semibold">S/ {formatMoney(summary.montoAproximadoRenta)}</span>
+          </p>
+        </div>
+        {rentaOrigenNote ? <p className="text-xs text-slate-500">{rentaOrigenNote}</p> : null}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">

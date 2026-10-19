@@ -85,6 +85,10 @@ type PreliminarVentasRecordInput struct {
 	// CutoffDate fecha de corte de la entrega (YYYY-MM-DD, vacío = sin definir): las ventas son las
 	// acumuladas hasta ese día. Debe caer dentro del mes del período.
 	CutoffDate string `json:"cutoff_date,omitempty"`
+	// RentaRegimen/RentaCoeficientePct: régimen elegido para el pago a cuenta de renta de la entrega
+	// (mype | rer | general | coeficiente). En la respuesta siempre viene resuelto (nunca vacío).
+	RentaRegimen        string  `json:"renta_regimen"`
+	RentaCoeficientePct float64 `json:"renta_coeficiente_pct"`
 }
 
 // PreliminarVentasSummaryRow una fila de la tabla "Ventas" (Facturas/Boletas/Notas de crédito/Total).
@@ -130,6 +134,10 @@ type PreliminarVentasSummary struct {
 	RentaBase            float64 `json:"renta_base"`
 	RentaRatePct         float64 `json:"renta_rate_pct"`
 	MontoAproximadoRenta float64 `json:"monto_aproximado_renta"`
+	// RentaRegimenOrigen de dónde salió el régimen aplicado: "entrega" (elegido y guardado en esta
+	// entrega), "entrega_1" (heredado de la entrega 1 del período), "empresa" (ficha de la empresa) o
+	// "por_defecto" (la empresa no tiene régimen: se asume MYPE 1 %, igual que la pantalla de Liquidación).
+	RentaRegimenOrigen string `json:"renta_regimen_origen"`
 }
 
 // PreliminarVentasSlotDetail detalle de UNA entrega tras EnsurePreliminarVentasSlot (lazy create).
@@ -182,17 +190,67 @@ func parseIgvRatePct(raw string) float64 {
 	return v
 }
 
-// preliminarVentasRentaRatePct tasa de pago a cuenta mensual de renta según régimen SUNAT de la
-// empresa (sin coeficiente manual, que solo existe a nivel de Liquidación) — mype 1%, rer/general
-// 1.5%, ver docs equivalente en frontend/src/utils/companyTaxRegime.ts (SUNAT_RENTA_RATE_BY_REGIME).
-func preliminarVentasRentaRatePct(regime string) float64 {
-	switch strings.ToLower(strings.TrimSpace(regime)) {
+// Opciones de régimen para el pago a cuenta de renta — las mismas que la Liquidación
+// (frontend/src/utils/companyTaxRegime.ts, LIQUIDATION_RENTA_REGIME_OPTIONS).
+const preliminarVentasRentaCoeficiente = "coeficiente"
+
+// normalizePreliminarVentasRentaRegimen devuelve mype | rer | general | coeficiente, o "" si no
+// reconoce el valor (acepta los alias rmt / rg que ya acepta la Liquidación).
+func normalizePreliminarVentasRentaRegimen(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case models.CompanyTaxRegimeMype, "rmt":
+		return models.CompanyTaxRegimeMype
+	case models.CompanyTaxRegimeRER:
+		return models.CompanyTaxRegimeRER
+	case models.CompanyTaxRegimeGeneral, "rg":
+		return models.CompanyTaxRegimeGeneral
+	case preliminarVentasRentaCoeficiente:
+		return preliminarVentasRentaCoeficiente
+	default:
+		return ""
+	}
+}
+
+// resolvePreliminarVentasRenta decide el régimen efectivo: el elegido en la entrega; si no hay,
+// el heredado de la entrega 1 del mismo período (inherited, ya normalizado, "" si no hay); si no, el
+// de la ficha de la empresa; y si la empresa no lo tiene cargado (la mayoría, hoy), MYPE — el mismo
+// valor por defecto que la pantalla de Liquidación — para que la renta nunca quede en 0 por un dato faltante.
+func resolvePreliminarVentasRenta(own string, ownCoef float64, inherited string, inheritedCoef float64, companyRegime string) (regimen string, coef float64, origen string) {
+	pick := func(r string, c float64, o string) (string, float64, string) {
+		if r != preliminarVentasRentaCoeficiente {
+			c = 0
+		}
+		return r, c, o
+	}
+	if r := normalizePreliminarVentasRentaRegimen(own); r != "" {
+		return pick(r, ownCoef, "entrega")
+	}
+	if r := normalizePreliminarVentasRentaRegimen(inherited); r != "" {
+		return pick(r, inheritedCoef, "entrega_1")
+	}
+	// En la ficha de la empresa solo existen mype | rer | general (no "coeficiente").
+	if r := normalizePreliminarVentasRentaRegimen(companyRegime); r != "" && r != preliminarVentasRentaCoeficiente {
+		return r, 0, "empresa"
+	}
+	return models.CompanyTaxRegimeMype, 0, "por_defecto"
+}
+
+// preliminarVentasRentaRatePct tasa de pago a cuenta mensual de renta para un régimen ya resuelto:
+// mype 1 %, rer/general 1.5 %, coeficiente = el % indicado a mano (0 si no se indicó) — igual que
+// rentaMensualRatePct de la Liquidación (ver también SUNAT_RENTA_RATE_BY_REGIME en el frontend).
+func preliminarVentasRentaRatePct(regimen string, coeficientePct float64) float64 {
+	switch normalizePreliminarVentasRentaRegimen(regimen) {
 	case models.CompanyTaxRegimeMype:
 		return 1
 	case models.CompanyTaxRegimeRER, models.CompanyTaxRegimeGeneral:
 		return 1.5
-	default:
+	case preliminarVentasRentaCoeficiente:
+		if coeficientePct > 0 {
+			return coeficientePct
+		}
 		return 0
+	default:
+		return 1
 	}
 }
 
@@ -228,6 +286,8 @@ func preliminarVentasRecordToInput(r *models.SupervisorPreliminarVentasRecord) P
 		RetencionMonto:                 r.RetencionMonto,
 		PercepcionMonto:                r.PercepcionMonto,
 		CutoffDate:                     formatPreliminarVentasCutoff(r.CutoffDate),
+		RentaRegimen:                   r.RentaRegimen,
+		RentaCoeficientePct:            r.RentaCoeficientePct,
 	}
 }
 
@@ -436,7 +496,8 @@ func (s *SupervisorService) computePreliminarVentasSummary(
 		rentaBaseRaw = 0
 	}
 	rentaBase := round2(rentaBaseRaw)
-	rentaRate := preliminarVentasRentaRatePct(company.TaxRegime)
+	rentaRegimen, rentaCoef, rentaOrigen := resolvePreliminarVentasRenta(in.RentaRegimen, in.RentaCoeficientePct, "", 0, company.TaxRegime)
+	rentaRate := preliminarVentasRentaRatePct(rentaRegimen, rentaCoef)
 	montoAproxRenta := 0.0
 	if rentaRate > 0 && rentaBase > 0 {
 		montoAproxRenta = roundToWhole(round2(rentaBase * rentaRate / 100))
@@ -457,6 +518,7 @@ func (s *SupervisorService) computePreliminarVentasSummary(
 		RentaBase:                  rentaBase,
 		RentaRatePct:               rentaRate,
 		MontoAproximadoRenta:       montoAproxRenta,
+		RentaRegimenOrigen:         rentaOrigen,
 	}
 }
 
@@ -590,12 +652,27 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 		// Sin corte guardado: se sugiere la fecha límite de la entrega (solo en la respuesta, no se persiste).
 		input.CutoffDate = dueDate.Format(preliminarVentasDateLayout)
 	}
+	// Régimen de renta: el de la entrega; si no lo eligieron, el de la entrega 1 del mismo período
+	// (el preliminar sale 2 veces al mes y lo normal es que el régimen no cambie entre ambas); si no,
+	// el de la empresa; y MYPE por defecto.
+	var inheritedRegimen string
+	var inheritedCoef float64
+	if slotIndex == 2 && normalizePreliminarVentasRentaRegimen(record.RentaRegimen) == "" {
+		var first models.SupervisorPreliminarVentasRecord
+		if err := database.DB.Where("monthly_control_id = ? AND slot_index = 1", ctrl.ID).First(&first).Error; err == nil {
+			inheritedRegimen, inheritedCoef = first.RentaRegimen, first.RentaCoeficientePct
+		}
+	}
+	rentaRegimen, rentaCoef, rentaOrigen := resolvePreliminarVentasRenta(record.RentaRegimen, record.RentaCoeficientePct, inheritedRegimen, inheritedCoef, company.TaxRegime)
+	input.RentaRegimen, input.RentaCoeficientePct = rentaRegimen, rentaCoef
+
 	autoCredito := s.preliminarVentasAutoCredito(&company, periodYM, slotIndex, 0)
 	efectivo := autoCredito
 	if record.CreditoPeriodoAnteriorOverride != nil {
 		efectivo = *record.CreditoPeriodoAnteriorOverride
 	}
 	summary := s.computePreliminarVentasSummary(&company, input, efectivo, autoCredito)
+	summary.RentaRegimenOrigen = rentaOrigen
 
 	return &PreliminarVentasSlotDetail{
 		PeriodYM:          periodYM,
@@ -677,6 +754,13 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 		return nil, err
 	}
 	record.CutoffDate = cutoff
+	// Régimen de renta elegido: se guarda tal cual (nunca vacío si el cliente lo manda). El % de
+	// coeficiente solo cuenta con régimen "coeficiente" y se acota a 0–100.
+	record.RentaRegimen = normalizePreliminarVentasRentaRegimen(in.RentaRegimen)
+	record.RentaCoeficientePct = 0
+	if record.RentaRegimen == preliminarVentasRentaCoeficiente {
+		record.RentaCoeficientePct = math.Min(math.Max(in.RentaCoeficientePct, 0), 100)
+	}
 	if record.Status == "" || record.Status == models.PreliminarVentasPendiente {
 		record.Status = models.PreliminarVentasRegistrado
 	}

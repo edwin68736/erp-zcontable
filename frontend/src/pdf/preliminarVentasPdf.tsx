@@ -203,6 +203,7 @@ const s = StyleSheet.create({
   },
   cardLabel: { fontSize: 6.4, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.2 },
   cardAmount: { fontSize: 12.5, fontWeight: 700, color: V2.greenDark, marginTop: 2 },
+  cardNote: { fontSize: 6.2, color: V2.muted, marginTop: 1 },
   infoCard: {
     borderWidth: 1,
     borderColor: GREEN_BORDER,
@@ -311,7 +312,22 @@ function TableHead({
   );
 }
 
-function Card({ label, value, icon }: { label: string; value: string; icon: PdfIconName }) {
+/** "MYPE 1 %", "RER 1.5 %", "Régimen General 1.5 %" o "Coeficiente 1.8 %" — el régimen con el que se calculó la renta. */
+function rentaRegimenNote(regimen: string | undefined, ratePct: number): string {
+  const rate = `${Number(ratePct.toFixed(4))} %`;
+  switch ((regimen ?? '').toLowerCase()) {
+    case 'rer':
+      return `RER ${rate}`;
+    case 'general':
+      return `Régimen General ${rate}`;
+    case 'coeficiente':
+      return `Coeficiente ${rate}`;
+    default:
+      return `MYPE ${rate}`;
+  }
+}
+
+function Card({ label, value, icon, note }: { label: string; value: string; icon: PdfIconName; note?: string }) {
   return (
     <View style={s.card}>
       <View style={{ marginRight: 7 }}>
@@ -320,6 +336,7 @@ function Card({ label, value, icon }: { label: string; value: string; icon: PdfI
       <View style={{ flex: 1 }}>
         <Text style={s.cardLabel}>{label}</Text>
         <Text style={s.cardAmount}>{value}</Text>
+        {note ? <Text style={s.cardNote}>{note}</Text> : null}
       </View>
     </View>
   );
@@ -508,7 +525,12 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
 
           <View style={s.splitRight}>
             <Card label="I.G.V. aproximado" value={`S/ ${fmtMoney(igvAproximado)}`} icon="clipboardList" />
-            <Card label="Renta aproximada" value={`S/ ${fmtMoney(summary.monto_aproximado_renta)}`} icon="chartColumn" />
+            <Card
+              label="Renta aproximada"
+              value={`S/ ${fmtMoney(summary.monto_aproximado_renta)}`}
+              icon="chartColumn"
+              note={rentaRegimenNote(record.renta_regimen, summary.renta_rate_pct)}
+            />
             <Card label="Preliminar al" value={cutoffText} icon="calendarDays" />
             <View style={s.infoCard}>
               <View style={s.infoCardHead}>
