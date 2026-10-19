@@ -4,6 +4,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import Pagination from '../../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import { openSunatSolLogin, sunatSolMissingField } from '../../utils/sunatSol';
 import {
   companyAccessCredentialsService,
   type CompanyAccessCredentialFilterFacets,
@@ -245,6 +246,17 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const [importValidateLoading, setImportValidateLoading] = useState(false);
   const [importCommitLoading, setImportCommitLoading] = useState(false);
   const [listNotice, setListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+
+  /** Ingreso directo a SUNAT con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
+  const handleOpenSunat = (row: CompanyAccessCredentialRow) => {
+    const missing = sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+    if (missing) {
+      setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
+      return;
+    }
+    setListNotice(null);
+    openSunatSolLogin({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+  };
 
   const importBannerClass =
     importBannerKind === 'success'
@@ -667,7 +679,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-[1400px] w-full text-left border-collapse">
+          <table className="min-w-[1500px] w-full text-left border-collapse">
             <thead>
               <tr>
                 <th colSpan={3} className={TH_GROUP}>
@@ -675,6 +687,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 </th>
                 <th colSpan={6} className={TH_GROUP}>
                   Claves SOL
+                </th>
+                <th rowSpan={2} className={TH_COL}>
+                  Accesos
                 </th>
                 <th colSpan={3} className={TH_GROUP}>
                   Banco de la Nación (detracciones)
@@ -716,14 +731,14 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
             <tbody>
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={19} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={20} className="px-4 py-8 text-center text-slate-500 text-sm">
                     <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
                     Cargando…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={19} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={20} className="px-4 py-8 text-center text-slate-500 text-sm">
                     No hay empresas para mostrar.
                   </td>
                 </tr>
@@ -749,6 +764,46 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                     />
                     <td className={`${TD} text-center`}>{row.assistant_username || '—'}</td>
                     <td className={`${TD} text-center`}>{row.supervisor_username || '—'}</td>
+                    <td className="px-2 py-2 text-xs border-b border-slate-100/90 align-top whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
+                        {(() => {
+                          const missing = sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSunat(row)}
+                              disabled={Boolean(missing)}
+                              title={
+                                missing
+                                  ? `Falta ${missing}: complételo con "Editar"`
+                                  : 'Ingresar a SUNAT con la clave SOL de esta empresa (abre una pestaña nueva)'
+                              }
+                              aria-label={`Ingresar a SUNAT como ${row.business_name || 'la empresa'}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-blue-900 px-2.5 py-1 text-2xs font-semibold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
+                            >
+                              <i className="fas fa-right-to-bracket" aria-hidden />
+                              SUNAT
+                            </button>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          disabled
+                          title="Próximamente"
+                          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-2xs font-semibold text-slate-400 cursor-not-allowed"
+                        >
+                          Pagos
+                        </button>
+                        <button
+                          type="button"
+                          disabled
+                          title="Próximamente"
+                          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-2xs font-semibold text-slate-400 cursor-not-allowed"
+                        >
+                          SUNAFIL
+                        </button>
+                      </div>
+                    </td>
                     <CopyableCredentialCell value={row.bnl_cuenta} cellClass={TD} mono />
                     <CopyableCredentialCell value={row.bnl_dni} cellClass={TD} mono />
                     <CopyableCredentialCell
