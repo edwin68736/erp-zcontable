@@ -32,6 +32,24 @@ import {
   type LiquidationRentaRegime,
 } from '../../utils/companyTaxRegime';
 
+/** Fecha de corte por defecto: HOY (hora del navegador). La fecha de corte debe caer dentro del mes
+ * del período (el servidor lo exige), así que si el período es otro mes se usa el último día de un
+ * período pasado o el primero de uno futuro. */
+function defaultCutoffDate(periodYm: string): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (today.slice(0, 7) === periodYm) return today;
+  if (today.slice(0, 7) < periodYm) return `${periodYm}-01`;
+  const lastDay = new Date(Number(periodYm.slice(0, 4)), Number(periodYm.slice(5, 7)), 0).getDate();
+  return `${periodYm}-${pad(lastDay)}`;
+}
+
+/** Si la entrega no tiene fecha de corte guardada, propone la de hoy (se guarda al pulsar Guardar). */
+function withDefaultCutoff(record: PreliminarVentasRecordInput, periodYm: string): PreliminarVentasRecordInput {
+  return record.cutoff_date ? record : { ...record, cutoff_date: defaultCutoffDate(periodYm) };
+}
+
 /** Régimen efectivo del registro (el servidor siempre lo manda resuelto; MYPE si por algo viniera vacío). */
 function recordRentaRegimen(record: PreliminarVentasRecordInput): LiquidationRentaRegime {
   return parseLiquidationRentaRegime(record.renta_regimen) ?? 'mype';
@@ -280,7 +298,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       setError('');
       const data = await preliminarVentasService.getSlotDetail(companyId, periodYm, slotIndex);
       setDetail(data);
-      setRecord(data.record);
+      setRecord(withDefaultCutoff(data.record, periodYm));
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo cargar el preliminar de ventas.'));
     } finally {
@@ -330,7 +348,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       setError('');
       const updated = await preliminarVentasService.saveSlotRecord(companyId, periodYm, slotIndex, record);
       setDetail(updated);
-      setRecord(updated.record);
+      setRecord(withDefaultCutoff(updated.record, periodYm));
       setMsg('Registro guardado correctamente.');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
@@ -544,7 +562,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             />
           </div>
           <p className="text-xs text-slate-500 pb-2">
-            Entrega {slotIndex} de 2 · sale en el PDF como "Fecha de corte". Si no la cambia, se usa la fecha límite de la entrega.
+            Entrega {slotIndex} de 2 · sale en el PDF como "Fecha de corte". Por defecto es la fecha de hoy; cámbiela si el corte es otro día.
           </p>
         </div>
 

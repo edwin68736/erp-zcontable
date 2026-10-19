@@ -647,11 +647,8 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 	}
 
 	input := preliminarVentasRecordToInput(&record)
-	dueDate := preliminarVentasSlotDueDate(periodYM, slotIndex)
-	if input.CutoffDate == "" && dueDate != nil && dueDate.Format("2006-01") == periodYM {
-		// Sin corte guardado: se sugiere la fecha límite de la entrega (solo en la respuesta, no se persiste).
-		input.CutoffDate = dueDate.Format(preliminarVentasDateLayout)
-	}
+	// CutoffDate sin guardar queda vacío: el formulario propone la fecha de HOY con la hora del
+	// navegador (el servidor puede estar en otra zona horaria y dar el día equivocado de noche).
 	// Régimen de renta: el de la entrega; si no lo eligieron, el de la entrega 1 del mismo período
 	// (el preliminar sale 2 veces al mes y lo normal es que el régimen no cambie entre ambas); si no,
 	// el de la empresa; y MYPE por defecto.
