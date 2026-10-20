@@ -112,13 +112,130 @@ func TestIndicatorDigitAcc(t *testing.T) {
 	a.addTimeliness("7", TimelinessMissing)
 	a.addTimeliness("7", TimelinessPending)
 	a.addTimeliness("7", TimelinessExempt) // no cuenta
-	a.addTimeliness("", TimelinessOnTime)  // sin dígito: se ignora
+	a.addTimeliness("", TimelinessOnTime)  // sin dígito: cuenta en el total, no en las filas por dígito
 	a.addTimeliness("x", TimelinessOnTime)
 	k := a.kpi("x", "X", 95)
-	if k.Total.Total != 4 || k.Total.OnTime != 1 || k.Total.Late != 1 || k.Total.Missing != 1 || k.Total.Pending != 1 || k.Total.RatePct != 25 {
+	if k.Total.Total != 6 || k.Total.OnTime != 3 || k.Total.Late != 1 || k.Total.Missing != 1 || k.Total.Pending != 1 || k.Total.RatePct != 50 || k.NoDigit != 2 {
 		t.Fatalf("total = %+v", k.Total)
 	}
 	if k.ByDigit[7].Total != 4 || k.ByDigit[0].Total != 0 {
 		t.Fatalf("por dígito = %+v", k.ByDigit)
 	}
+}
+
+// Los indicadores se calculan fila por fila; los módulos del dashboard con una consulta agrupada. Ambos
+// tienen que contar lo mismo: si no, el dashboard mostraría dos números distintos para lo mismo.
+func TestSupervisorIndicators_ReconcileWithPdtModuleSummary(t *testing.T) {
+	db := setupDashboardPuntualidadTestDB(t)
+	// El agregado consulta en paralelo; una base ":memory:" abre una base distinta por conexión.
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
+	svc := NewSupervisorService()
+	periodYM := "2026-07"
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+	// Misma regla/calendario para PDT 621 (una sola fila de calendario por período).
+	var cal models.FinanceCalendar
+	if err := db.Where("period_ym = ?", periodYM).First(&cal).Error; err != nil {
+		t.Fatalf("calendar: %v", err)
+	}
+	var rule models.ActivityRule
+	if err := db.First(&rule).Error; err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	tmpl := models.ActivityTemplate{Code: "AC-TEST-621B", Name: "PDT 621", ActivityType: models.CalendarActivityPDT621, ActivityRuleID: &rule.ID, Active: true}
+	if err := db.Create(&tmpl).Error; err != nil {
+		t.Fatalf("template: %v", err)
+	}
+	if err := db.Create(&models.FinanceCalendarActivity{CalendarID: cal.ID, ActivityTemplateID: tmpl.ID, NameSnapshot: "PDT 621",
+		ActivityTypeSnapshot: models.CalendarActivityPDT621, PrioritySnapshot: "media", DueDay: 15, ActivityRuleID: &rule.ID}).Error; err != nil {
+		t.Fatalf("activity: %v", err)
+	}
+
+	mk := func(code, dig string) models.Company {
+		co := seedEstudioCompany(t, db, code)
+		if err := db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, Dig: dig}).Error; err != nil {
+			t.Fatalf("credential: %v", err)
+		}
+		return co
+	}
+	onTime, late, none := mk("R001", "3"), mk("R002", "3"), mk("R003", "5")
+	if d, err := svc.SavePdt601Planilla(onTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"}); err != nil {
+		t.Fatalf("601 on time: %v", err)
+	} else if _, err := svc.ApproveDeclaration(d.Declaration.ID, 9); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if d, err := svc.SavePdt601Planilla(late.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"}); err != nil {
+		t.Fatalf("601 late: %v", err)
+	} else if _, err := svc.ApproveDeclaration(d.Declaration.ID, 9); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	d621 := map[string]uint{}
+	for name, c := range map[string]struct {
+		co    models.Company
+		fecha string
+	}{"onTime": {onTime, "2026-07-10"}, "late": {late, "2026-07-20"}} {
+		d, err := svc.SavePdt621Record(c.co.ID, periodYM, Pdt621RecordInput{PrimeraEntregaFecha: c.fecha})
+		if err != nil {
+			t.Fatalf("621 %s: %v", name, err)
+		}
+		d621[name] = d.Declaration.ID
+	}
+	if _, err := svc.EnsurePdt601(none.ID, periodYM); err != nil {
+		t.Fatalf("ensure 601: %v", err)
+	}
+	if _, err := svc.EnsurePdt621(none.ID, periodYM); err != nil {
+		t.Fatalf("ensure 621: %v", err)
+	}
+
+	p := SupervisorDashboardParams{PeriodYM: periodYM}
+	sum, err := svc.PdtDashboardSummary(p)
+	if err != nil {
+		t.Fatalf("PdtDashboardSummary: %v", err)
+	}
+	ind, err := svc.SupervisorIndicators(p)
+	if err != nil {
+		t.Fatalf("SupervisorIndicators: %v", err)
+	}
+	byKey := map[string]IndicatorDigit{}
+	for _, k := range ind.Kpis {
+		byKey[k.Key] = k.Total
+	}
+	check := func(name string, got IndicatorDigit, want PdtTypeSummary) {
+		t.Helper()
+		if got.OnTime != want.EntregadoATiempo || got.Late != want.EntregadoFueraDeFecha || got.Missing != want.Vencido || got.Pending != want.Pendiente {
+			t.Errorf("%s: indicador a tiempo/tarde/vencido/pendiente = %d/%d/%d/%d; módulo = %d/%d/%d/%d", name,
+				got.OnTime, got.Late, got.Missing, got.Pending,
+				want.EntregadoATiempo, want.EntregadoFueraDeFecha, want.Vencido, want.Pendiente)
+		}
+		if got.Total != want.Total-want.SinPlanilla-want.Suspendida {
+			t.Errorf("%s: total indicador %d, módulo %d (sin exentos)", name, got.Total, want.Total-want.SinPlanilla-want.Suspendida)
+		}
+	}
+	check("planillas (PDT 601)", byKey["planillas"], sum[models.SupervisorDeclPDT601])
+
+	// Diferencia a propósito: el KPI 3 mide la entrega del asistente (fecha de la 1.ª entrega contra el
+	// plazo interno), igual que el libro de Excel; el módulo PDT 621 solo cuenta como entregado lo que el
+	// supervisor ya aprobó. Antes de aprobar, el KPI ya cuenta 1 a tiempo y 1 tarde y el módulo los ve vencidos.
+	if k3 := byKey["archivadores"]; k3.OnTime != 1 || k3.Late != 1 || k3.Missing != 1 {
+		t.Fatalf("KPI 3 antes de aprobar = %+v, want 1 a tiempo, 1 tarde, 1 vencido", k3)
+	}
+	if m := sum[models.SupervisorDeclPDT621]; m.EntregadoATiempo != 0 || m.Vencido != 3 {
+		t.Fatalf("módulo PDT 621 antes de aprobar = %+v, want 0 entregados y 3 vencidos", m)
+	}
+	// Ya aprobadas las entregas, indicador y módulo coinciden.
+	for _, id := range d621 {
+		if _, err := svc.ApproveDeclaration(id, 9); err != nil {
+			t.Fatalf("approve 621: %v", err)
+		}
+	}
+	sum, _ = svc.PdtDashboardSummary(p)
+	ind, _ = svc.SupervisorIndicators(p)
+	for _, k := range ind.Kpis {
+		byKey[k.Key] = k.Total
+	}
+	check("archivadores (PDT 621) aprobados", byKey["archivadores"], sum[models.SupervisorDeclPDT621])
 }

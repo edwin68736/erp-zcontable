@@ -287,3 +287,82 @@ func TestPreliminarDateTimeliness_NoRule(t *testing.T) {
 		}
 	}
 }
+
+// El listado de Preliminar muestra la puntualidad de cada entrega: enviada a tiempo, enviada fuera de
+// plazo y sin enviar vencida (antes solo decía "Enviado"/"Pendiente").
+func TestListPreliminarVentas_ShowsTimelinessPerSlot(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	ana := models.User{Name: "Ana", Username: "ana"}
+	if err := db.Create(&ana).Error; err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	mkCo := func(code string) models.Company {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "Empresa " + code, InternalCode: code,
+			ClientType: models.CompanyClientTypeEstudio, Status: "activo", AssistantUserID: &ana.ID}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatalf("company: %v", err)
+		}
+		return co
+	}
+	onTime, late, none := mkCo("T001"), mkCo("T002"), mkCo("T003")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	tmpl := models.ActivityTemplate{Code: "AC-PRELIM-TL", Name: "PRELIMINAR DE VENTAS", ActivityType: models.CalendarActivityPreliminarVentas, Active: true}
+	if err := db.Create(&tmpl).Error; err != nil {
+		t.Fatalf("template: %v", err)
+	}
+	cal := models.FinanceCalendar{PeriodYM: "2026-07"}
+	if err := db.Create(&cal).Error; err != nil {
+		t.Fatalf("calendar: %v", err)
+	}
+	for _, d := range []int{14, 28} { // sin regla de plazo: la fecha es el límite
+		act := models.FinanceCalendarActivity{CalendarID: cal.ID, ActivityTemplateID: tmpl.ID, NameSnapshot: tmpl.Name,
+			ActivityTypeSnapshot: models.CalendarActivityPreliminarVentas, PrioritySnapshot: "media", TextColorSnapshot: "#000",
+			StartDay: d, EndDay: d, DueDay: d}
+		if err := db.Create(&act).Error; err != nil {
+			t.Fatalf("activity: %v", err)
+		}
+	}
+	mkCtrl := func(co models.Company) models.SupervisorMonthlyControl {
+		c := models.SupervisorMonthlyControl{CompanyID: co.ID, PeriodYM: "2026-07"}
+		if err := db.Create(&c).Error; err != nil {
+			t.Fatalf("control: %v", err)
+		}
+		return c
+	}
+	k1, k2 := mkCtrl(onTime), mkCtrl(late)
+	mkCtrl(none)
+	sentOn := time.Date(2026, 7, 13, 10, 0, 0, 0, time.Local)
+	sentLate := time.Date(2026, 7, 16, 10, 0, 0, 0, time.Local)
+	for _, r := range []models.SupervisorPreliminarVentasRecord{
+		{MonthlyControlID: k1.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sentOn, ReduccionIgvPct: 95},
+		{MonthlyControlID: k2.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sentLate, ReduccionIgvPct: 95},
+		{MonthlyControlID: k2.ID, SlotIndex: 2, Status: models.PreliminarVentasRegistrado, ReduccionIgvPct: 95},
+	} {
+		r := r
+		if err := db.Create(&r).Error; err != nil {
+			t.Fatalf("record: %v", err)
+		}
+	}
+
+	rows, _, err := svc.ListPreliminarVentas(PreliminarVentasListParams{PeriodYM: "2026-07", PerPage: 50})
+	if err != nil {
+		t.Fatalf("ListPreliminarVentas: %v", err)
+	}
+	got := map[uint][2]string{}
+	for _, r := range rows {
+		got[r.CompanyID] = [2]string{r.Slot1.Timeliness, r.Slot2.Timeliness}
+	}
+	want := map[uint][2]string{
+		onTime.ID: {TimelinessOnTime, TimelinessMissing}, // enviado a tiempo; la 2.ª sin enviar y ya vencida
+		late.ID:   {TimelinessLate, TimelinessMissing},   // enviado fuera de plazo; la 2.ª solo registrada (no enviada)
+		none.ID:   {TimelinessMissing, TimelinessMissing},
+	}
+	for id, w := range want {
+		if got[id] != w {
+			t.Errorf("empresa %d: puntualidad %v, want %v", id, got[id], w)
+		}
+	}
+}

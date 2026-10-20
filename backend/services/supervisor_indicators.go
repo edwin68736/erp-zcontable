@@ -42,6 +42,8 @@ type IndicatorKpi struct {
 	MetaPct float64          `json:"meta_pct"`
 	Total   IndicatorDigit   `json:"total"`
 	ByDigit []IndicatorDigit `json:"by_digit"`
+	// NoDigit empresas incluidas en `total` que no tienen dígito de RUC y por eso no aparecen en `by_digit`.
+	NoDigit int64 `json:"no_digit,omitempty"`
 }
 
 type IndicatorMailboxRow struct {
@@ -65,6 +67,9 @@ type SupervisorIndicators struct {
 // indicatorDigitAcc acumula los 10 dígitos de un KPI.
 type indicatorDigitAcc struct {
 	byDig map[string]*IndicatorDigit
+	// noDig empresas sin dígito de RUC numérico en sus claves: cuentan en el total del KPI (para que
+	// coincida con los módulos) pero no caen en ninguna fila de las tablas por dígito.
+	noDig IndicatorDigit
 }
 
 func newIndicatorDigitAcc() *indicatorDigitAcc {
@@ -73,6 +78,14 @@ func newIndicatorDigitAcc() *indicatorDigitAcc {
 		a.byDig[string(d)] = &IndicatorDigit{Dig: string(d)}
 	}
 	return a
+}
+
+// row fila del dígito (o la de "sin dígito" cuando la clave no trae un dígito numérico).
+func (a *indicatorDigitAcc) row(dig string) *IndicatorDigit {
+	if r := a.byDig[indicatorDigit(dig)]; r != nil {
+		return r
+	}
+	return &a.noDig
 }
 
 // indicatorDigit primer carácter numérico del dígito de RUC de la clave SOL ("" si no hay).
@@ -86,8 +99,8 @@ func indicatorDigit(raw string) string {
 
 // addTimeliness suma un veredicto de puntualidad (los exentos no cuentan).
 func (a *indicatorDigitAcc) addTimeliness(dig, timeliness string) {
-	row := a.byDig[indicatorDigit(dig)]
-	if row == nil || timeliness == TimelinessExempt {
+	row := a.row(dig)
+	if timeliness == TimelinessExempt {
 		return
 	}
 	row.Total++
@@ -105,10 +118,7 @@ func (a *indicatorDigitAcc) addTimeliness(dig, timeliness string) {
 
 // addReviewStatus suma el estado de un módulo con revisión (Siscont balances).
 func (a *indicatorDigitAcc) addReviewStatus(dig, status string) {
-	row := a.byDig[indicatorDigit(dig)]
-	if row == nil {
-		return
-	}
+	row := a.row(dig)
 	row.Total++
 	switch status {
 	case models.SupervisorDeclEntregado, models.SupervisorDeclAprobado, models.SupervisorDeclPresentado, models.SupervisorDeclCerrado:
@@ -143,6 +153,15 @@ func (a *indicatorDigitAcc) kpi(key, label string, meta float64) IndicatorKpi {
 		out.Total.Observed += row.Observed
 		out.Total.InReview += row.InReview
 	}
+	n := a.noDig
+	out.Total.Total += n.Total
+	out.Total.OnTime += n.OnTime
+	out.Total.Late += n.Late
+	out.Total.Missing += n.Missing
+	out.Total.Pending += n.Pending
+	out.Total.Observed += n.Observed
+	out.Total.InReview += n.InReview
+	out.NoDigit = n.Total
 	out.Total.RatePct = indicatorRate(out.Total.OnTime, out.Total.Total)
 	return out
 }

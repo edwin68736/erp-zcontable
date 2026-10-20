@@ -259,6 +259,11 @@ function DigitTable({ kpi, okHeader, showPending }: { kpi: IndicatorKpi; okHeade
           })}
         </tbody>
       </table>
+      {kpi.no_digit ? (
+        <p className="m-0 border-t border-[#EAF1ED] bg-[#F8FBF9] px-2 py-[6px] text-[10.5px] text-slate-500">
+          {kpi.no_digit} {kpi.no_digit === 1 ? 'empresa sin dígito de RUC cuenta' : 'empresas sin dígito de RUC cuentan'} en el total pero no en las filas por dígito.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -394,7 +399,7 @@ const SupervisorIndicatorsPanel = ({ params, reloadKey = 0 }: Props) => {
 
           <div className="flex flex-wrap gap-3">
             {k3 ? (
-              <Section title="KPI 3: Entrega de archivadores por RUC" hint="1.ª entrega del PDT 621 dentro del plazo interno del estudio.">
+              <Section title="KPI 3: Entrega de archivadores por RUC" hint="1.ª entrega del asistente (PDT 621) dentro del plazo interno del estudio, aunque el supervisor aún no la haya aprobado.">
                 <DigitTable kpi={k3} okHeader="Dentro de plazo" />
               </Section>
             ) : null}

@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { saveAs } from 'file-saver';
 import {
-  preliminarVentasStatusBadgeClass,
-  preliminarVentasStatusLabel,
+  preliminarVentasSlotBadge,
 } from '../../components/activity/preliminarVentasConfig';
 import LiquidacionIgvAplicableToggle from '../../components/supervisors/LiquidacionIgvAplicableToggle';
 import Button from '../../components/ui/Button';
@@ -531,9 +530,9 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
           <dt className="text-slate-500">Estado</dt>
           <dd>
             <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasStatusBadgeClass(detail.status)}`}
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${preliminarVentasSlotBadge(detail.status, detail.timeliness).className}`}
             >
-              {preliminarVentasStatusLabel(detail.status)}
+              {preliminarVentasSlotBadge(detail.status, detail.timeliness).label}
             </span>
           </dd>
           {detail.status === 'enviado' ? (

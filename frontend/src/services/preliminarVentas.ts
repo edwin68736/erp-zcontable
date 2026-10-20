@@ -4,6 +4,9 @@ import client from '../api/client';
 export interface PreliminarVentasSlotStatus {
   status: string;
   due_date?: string;
+  /** Puntualidad frente a la fecha del calendario: on_time | late | pending | missing | exempt. */
+  timeliness?: string;
+  sent_at?: string;
 }
 
 export interface PreliminarVentasListRow {
@@ -106,6 +109,8 @@ export interface PreliminarVentasSlotDetail {
   period_ym: string;
   slot_index: number;
   due_date?: string;
+  /** Puntualidad de esta entrega frente a su fecha del calendario. */
+  timeliness?: string;
   company_id: number;
   code: string;
   dig: string;

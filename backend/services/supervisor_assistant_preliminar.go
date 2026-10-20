@@ -21,17 +21,42 @@ type preliminarSlotWork struct {
 	Timeliness UploadTimelinessDTO
 }
 
-// preliminarVentasSlotWork evalúa las entregas 1 y 2 de cada empresa en el período.
-func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company, periodYM string) []preliminarSlotWork {
-	if len(companies) == 0 {
-		return nil
-	}
+// preliminarVentasSlotActivities las actividades de calendario de las 2 entregas del período, en orden
+// (la más temprana es la entrega 1). Vacío si el período no tiene calendario de Preliminar.
+func preliminarVentasSlotActivities(periodYM string) []models.FinanceCalendarActivity {
 	acts, err := CalendarActivitiesForType(periodYM, models.CalendarActivityPreliminarVentas)
 	if err != nil || len(acts) == 0 {
 		return nil
 	}
 	if len(acts) > 2 {
 		acts = acts[:2]
+	}
+	return acts
+}
+
+// preliminarSlotTimeliness puntualidad de UNA entrega: con regla de plazo se evalúa como cualquier
+// actividad del calendario; sin regla, la fecha de la entrega es el plazo. Solo una entrega ya enviada
+// cuenta su fecha de envío; registrada pero sin enviar sigue contando como pendiente/vencida.
+func preliminarSlotTimeliness(due time.Time, ruleID *uint, status string, sentAt *time.Time, suspendida bool, now time.Time) UploadTimelinessDTO {
+	var uploaded *time.Time
+	if status == models.PreliminarVentasEnviado {
+		uploaded = sentAt
+	}
+	tl := ComputeActivityRuleTimeliness(due, ruleID, uploaded, suspendida)
+	if tl.Timeliness == TimelinessNoRule {
+		tl = preliminarDateTimeliness(due, uploaded, now)
+	}
+	return tl
+}
+
+// preliminarVentasSlotWork evalúa las entregas 1 y 2 de cada empresa en el período.
+func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company, periodYM string) []preliminarSlotWork {
+	if len(companies) == 0 {
+		return nil
+	}
+	acts := preliminarVentasSlotActivities(periodYM)
+	if len(acts) == 0 {
+		return nil
 	}
 	ids := make([]uint, 0, len(companies))
 	for _, c := range companies {
@@ -80,14 +105,9 @@ func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company,
 			var sentAt *time.Time
 			if r, ok := recByKey[recKey{ctrl.ID, slot}]; ok {
 				w.Status = r.Status
-				if r.Status == models.PreliminarVentasEnviado {
-					sentAt = r.SentAt
-				}
+				sentAt = r.SentAt
 			}
-			w.Timeliness = ComputeActivityRuleTimeliness(due, act.ActivityRuleID, sentAt, ctrl.Suspendida)
-			if w.Timeliness.Timeliness == TimelinessNoRule {
-				w.Timeliness = preliminarDateTimeliness(due, sentAt, time.Now())
-			}
+			w.Timeliness = preliminarSlotTimeliness(due, act.ActivityRuleID, w.Status, sentAt, ctrl.Suspendida, time.Now())
 			out = append(out, w)
 		}
 	}

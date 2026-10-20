@@ -6,8 +6,7 @@ import { RowActionLink } from '../../components/activity/RowActionLink';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   PRELIMINAR_VENTAS_STATUS_FILTER,
-  preliminarVentasStatusBadgeClass,
-  preliminarVentasStatusLabel,
+  preliminarVentasSlotBadge,
 } from '../../components/activity/preliminarVentasConfig';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
@@ -321,11 +320,12 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
 // estado más de la entrega — así que pisa el estado real de AMBAS entregas en vez de mostrarse como
 // un chip aparte junto a la razón social (mismo criterio que pdt621DisplayStatus en PDT 601/621).
 function SlotBadge({ to, slot, suspendida }: { to: string; slot: PreliminarVentasSlotStatus; suspendida: boolean }) {
-  const label = suspendida ? 'Suspendida' : preliminarVentasStatusLabel(slot.status);
-  const badgeClass = suspendida ? 'bg-purple-100 text-purple-900' : preliminarVentasStatusBadgeClass(slot.status);
+  const badge = preliminarVentasSlotBadge(slot.status, slot.timeliness);
+  const label = suspendida ? 'Suspendida' : badge.label;
+  const badgeClass = suspendida ? 'bg-purple-100 text-purple-900' : badge.className;
   return (
     <div className="flex items-center gap-2">
-      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}>{label}</span>
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${badgeClass}`}>{label}</span>
       <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
     </div>
   );

@@ -669,6 +669,8 @@ export interface IndicatorKpi {
   meta_pct: number;
   total: IndicatorDigit;
   by_digit: IndicatorDigit[];
+  /** Empresas contadas en `total` que no tienen dígito de RUC y por eso no están en `by_digit`. */
+  no_digit?: number;
 }
 
 export interface IndicatorMailboxRow {
