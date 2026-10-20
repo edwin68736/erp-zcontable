@@ -377,18 +377,20 @@
   gap: 10px;
   padding: 9px 12px;
   border-radius: 18px;
-  background: rgba(6, 38, 31, 0.82);
+  /* Mismo verde, borde y brillo que la burbuja del saludo (.hm-bubble) para que todo se vea uniforme. */
+  background: rgba(8, 74, 52, 0.86);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1.5px solid #5eeab0;
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
   color: #fff;
   text-decoration: none;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .hm-card:hover {
   transform: translateY(-4px) scale(1.03);
-  background: rgba(10, 70, 54, 0.92);
-  border-color: #5eeab0;
+  background: rgba(13, 104, 74, 0.94);
+  box-shadow: 0 0 28px rgba(52, 211, 153, 0.55);
   color: #fff;
 }
 .hm-card:focus-visible,
