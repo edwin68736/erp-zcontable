@@ -475,13 +475,8 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     <div className={PAGE_WORKSPACE_CLASS} ref={formRef} onKeyDown={handleEnterNext}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-            Preliminar de ventas — {detail.business_name} · Entrega {slotIndex}
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Período {periodYm} · RUC {detail.ruc} · Código {detail.code} · Dígito {detail.dig} · Serie{' '}
-            {detail.document_number} · Vence {formatDate(detail.due_date)}
-          </p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Preliminar de ventas · Entrega {slotIndex}</h1>
+          <p className="text-slate-500 mt-1 text-sm">Período {periodYm}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -516,6 +511,20 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-slate-800">Empresa</h2>
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">
+          <div className="col-span-2 sm:col-span-4 flex flex-wrap items-baseline gap-x-3">
+            <dt className="text-slate-500">Razón social</dt>
+            <dd className="text-base font-semibold text-slate-900">{detail.business_name || '—'}</dd>
+          </div>
+          <dt className="text-slate-500">RUC</dt>
+          <dd className="text-slate-800 tabular-nums">{detail.ruc || '—'}</dd>
+          <dt className="text-slate-500">Código</dt>
+          <dd className="text-slate-800">{detail.code || '—'}</dd>
+          <dt className="text-slate-500">Dígito</dt>
+          <dd className="text-slate-800">{detail.dig || '—'}</dd>
+          <dt className="text-slate-500">Serie</dt>
+          <dd className="text-slate-800">{detail.document_number || '—'}</dd>
+          <dt className="text-slate-500">Vence</dt>
+          <dd className="text-slate-800">{formatDate(detail.due_date)}</dd>
           <dt className="text-slate-500">Asistente</dt>
           <dd className="text-slate-800">{detail.assistant_username || '—'}</dd>
           <dt className="text-slate-500">Estado</dt>
