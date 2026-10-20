@@ -13,6 +13,11 @@ import (
 
 const migActivityCodeSequenceSeed = "activity_templates_v1_seed_code_sequence"
 const migDropCalendarActivityLegacyCols = "finance_calendar_activities_v9_drop_legacy_columns"
+// migRetypeLegacyPreliminarVentas la plantilla histórica "PRELIMINAR DE VENTAS" quedó tipada `nps` (tipo que
+// ya no existe) y sus actividades de calendario guardaron ese tipo, así que el módulo Preliminar de
+// ventas no encontraba las fechas de entrega y mostraba "Sin fecha configurada".
+const migRetypeLegacyPreliminarVentas = "activity_templates_v11_retype_legacy_preliminar_ventas"
+
 const migRepairCalendarTemplateFK = "finance_calendar_activities_v10_repair_template_fk"
 
 // PrepareActivityTemplateSchema asegura columnas y repara huérfanos antes de AutoMigrate (FK).
@@ -70,6 +75,7 @@ func RunActivityTemplateMigrations(db *gorm.DB) error {
 		{migDropCalendarActivityLegacyCols, dropFinanceCalendarActivityLegacyColumns},
 		{migRepairCalendarTemplateFK, repairCalendarActivityTemplateFK},
 		{migEnforceCalendarActivityNotNull, enforceFinanceCalendarActivityNotNull},
+		{migRetypeLegacyPreliminarVentas, retypeLegacyPreliminarVentas},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -77,6 +83,32 @@ func RunActivityTemplateMigrations(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+// retypeLegacyPreliminarVentas pasa a preliminar_ventas las plantillas llamadas "PRELIMINAR DE VENTAS"
+// que quedaron con un tipo heredado (nps/other/vacío) y el tipo guardado en sus actividades de
+// calendario. Solo toca esas plantillas y esas actividades; el resto del catálogo queda igual.
+func retypeLegacyPreliminarVentas(db *gorm.DB) error {
+	if !db.Migrator().HasTable("activity_templates") || !db.Migrator().HasTable("finance_calendar_activities") {
+		return nil
+	}
+	legacy := []string{"nps", "other", ""}
+	var ids []uint
+	if err := db.Model(&models.ActivityTemplate{}).
+		Where("LOWER(TRIM(name)) = ? AND activity_type IN ?", "preliminar de ventas", legacy).
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := db.Model(&models.ActivityTemplate{}).Where("id IN ?", ids).
+		Update("activity_type", models.CalendarActivityPreliminarVentas).Error; err != nil {
+		return err
+	}
+	return db.Model(&models.FinanceCalendarActivity{}).
+		Where("activity_template_id IN ? AND activity_type_snapshot IN ?", ids, []string{"nps", "other"}).
+		Update("activity_type_snapshot", models.CalendarActivityPreliminarVentas).Error
 }
 
 func seedActivityCodeSequence(db *gorm.DB) error {
