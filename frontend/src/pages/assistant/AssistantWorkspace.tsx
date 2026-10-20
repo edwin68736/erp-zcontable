@@ -135,6 +135,8 @@ const AssistantWorkspace = () => {
   }
 
   const cs = data?.compliance;
+  // Un backend aún sin actualizar no manda `supervisors`: se tolera (la tarjeta dice "Sin supervisor asignado").
+  const supervisors = data?.supervisors ?? [];
   const trend = data?.trend ?? [];
   const pctSeries = trend.map((t) => t.compliance_pct);
   const trendDelta = pctSeries.length >= 2 ? Math.round((pctSeries[pctSeries.length - 1] - pctSeries[pctSeries.length - 2]) * 10) / 10 : null;
@@ -228,29 +230,29 @@ const AssistantWorkspace = () => {
               </span>
               <span className="min-w-0">
                 <span className="block text-[11px] font-bold uppercase tracking-wide text-green-800">
-                  {data.supervisors.length > 1 ? 'Mis supervisores' : 'Mi supervisor'}
+                  {supervisors.length > 1 ? 'Mis supervisores' : 'Mi supervisor'}
                 </span>
-                {data.supervisors.length === 0 ? (
+                {supervisors.length === 0 ? (
                   <span className="mt-1 block text-[16px] font-bold text-slate-700">Sin supervisor asignado</span>
-                ) : data.supervisors.length === 1 ? (
+                ) : supervisors.length === 1 ? (
                   <>
-                    <span className="block break-words text-[20px] font-extrabold leading-tight text-slate-900" title={data.supervisors[0].name}>
-                      {data.supervisors[0].name}
+                    <span className="block break-words text-[20px] font-extrabold leading-tight text-slate-900" title={supervisors[0].name}>
+                      {supervisors[0].name}
                     </span>
                     <span className="mt-1 block text-[12px] font-semibold text-green-800">
-                      revisa tus {data.supervisors[0].companies} {data.supervisors[0].companies === 1 ? 'empresa' : 'empresas'}
+                      revisa tus {supervisors[0].companies} {supervisors[0].companies === 1 ? 'empresa' : 'empresas'}
                     </span>
                   </>
                 ) : (
                   <ul className="m-0 mt-1 list-none space-y-[2px] p-0">
-                    {data.supervisors.slice(0, 3).map((sv) => (
+                    {supervisors.slice(0, 3).map((sv) => (
                       <li key={sv.user_id} className="flex items-baseline gap-2 text-[14px] font-bold text-slate-900">
                         <span className="truncate" title={sv.name}>{sv.name}</span>
                         <span className="shrink-0 text-[12px] font-semibold text-green-800">{sv.companies} {sv.companies === 1 ? 'empresa' : 'empresas'}</span>
                       </li>
                     ))}
-                    {data.supervisors.length > 3 ? (
-                      <li className="text-[12px] font-semibold text-green-800">+ {data.supervisors.length - 3} más</li>
+                    {supervisors.length > 3 ? (
+                      <li className="text-[12px] font-semibold text-green-800">+ {supervisors.length - 3} más</li>
                     ) : null}
                   </ul>
                 )}
