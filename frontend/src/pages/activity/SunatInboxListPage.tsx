@@ -108,13 +108,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       : weekContextLabel;
 
   const weekProgress = useMemo(() => {
-    const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0 };
+    const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0, opcional: 0 };
     const addSlots = (slots: SunatInboxCaptureSlot[]) => {
       const p = countMailboxWeekProgress(slots);
       acc.total += p.total;
       acc.pendiente += p.pendiente;
       acc.cargado += p.cargado;
       acc.verificado += p.verificado;
+      acc.opcional += p.opcional;
     };
     if (scope === 'month') {
       for (const row of monthRows) {
@@ -421,6 +422,15 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
               <span className="text-blue-700">{weekProgress.cargado} por verif.</span>
               {' · '}
               <span className="text-slate-600">{weekProgress.pendiente} pend.</span>
+              {weekProgress.opcional > 0 ? (
+                <span
+                  className="text-slate-400"
+                  title="Cargas de más que permite la grilla pero que no tienen plazo en el calendario: no cuentan como obligación ni como vencidas."
+                >
+                  {' · '}
+                  {weekProgress.opcional} opcionales
+                </span>
+              ) : null}
             </p>
           </div>
         ) : null}

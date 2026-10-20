@@ -604,6 +604,8 @@ export interface AssistantWorkItem {
   ruc?: string;
   module_key: string;
   module_label: string;
+  /** Entrega del mes (1 o 2) en módulos que se envían más de una vez por período (Preliminar de ventas). */
+  slot?: number;
   declaration_id?: number;
   state: 'vencida' | 'observada' | 'pendiente' | 'por_revisar';
   due_date?: string;

@@ -13,6 +13,8 @@ export interface SunatInboxMailboxSide {
     timeliness: string;
     due_at?: string;
     uploaded_at?: string;
+    /** Captura de más (sin plazo real en el calendario): no cuenta como pendiente obligatoria. */
+    optional?: boolean;
   };
 }
 

@@ -14,6 +14,8 @@ type UploadTimelinessDTO struct {
 	Timeliness string     `json:"timeliness"`
 	DueAt      *time.Time `json:"due_at,omitempty"`
 	UploadedAt *time.Time `json:"uploaded_at,omitempty"`
+	// Optional: captura de más que muestra la grilla (p. ej. Buzón SOL) sin obligación real detrás.
+	Optional bool `json:"optional,omitempty"`
 }
 
 // DetraccionesTimelinessDTO alias retrocompatible en API detracciones.

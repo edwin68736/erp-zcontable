@@ -154,7 +154,37 @@ func mailboxSlotDefaultDueDay(weekStart time.Time, slotIndex, slotsPerWeek int) 
 	return weekStart.AddDate(0, 0, offset)
 }
 
+// hasRealActivities true cuando TODAS las actividades del contexto son instancias reales tipo
+// sunat_inbox del calendario del período (no el fallback legacy de una sola actividad).
+func (c mailboxTimelinessCtx) hasRealActivities() bool {
+	if len(c.calendarActs) == 0 {
+		return false
+	}
+	for _, a := range c.calendarActs {
+		if a.ActivityTypeSnapshot != models.CalendarActivitySunatInbox {
+			return false
+		}
+	}
+	return true
+}
+
+// slotIsRealObligation un slot de la grilla es una obligación real solo si hay una actividad de
+// calendario detrás (la n-ésima fecha real de la semana). Los slots de más que muestra la grilla por
+// el ajuste "cargas por semana" son capturas opcionales: mismo criterio que sunatInboxRealSlotsForPeriod,
+// que es lo que cuenta el panel de cumplimiento (§5.9.6.3), para que grilla y panel no se contradigan.
+// Sin calendario real en el período no se altera el comportamiento histórico de la grilla.
+func (c mailboxTimelinessCtx) slotIsRealObligation(slotIndex int) bool {
+	if !c.hasRealActivities() {
+		return true
+	}
+	days := mailboxDueDatesInWeekFromActivities(c.calendarActs, c.periodYM, c.weekStart, c.weekStart.AddDate(0, 0, 6))
+	return slotIndex >= 1 && slotIndex <= len(days)
+}
+
 func enrichSunatInboxMailboxSideTimeliness(ctx mailboxTimelinessCtx, slotIndex int, uploadedAt *time.Time) UploadTimelinessDTO {
+	if !ctx.slotIsRealObligation(slotIndex) {
+		return UploadTimelinessDTO{UploadedAt: uploadedAt, Timeliness: TimelinessNoRule, Optional: true}
+	}
 	var ruleID *uint
 	if len(ctx.calendarActs) > 0 {
 		// Las 8 actividades reales de un mismo mes comparten la misma regla de hora ("CONTROL DE

@@ -25,7 +25,7 @@ func setupDashboardOverviewTestDB(t *testing.T) *gorm.DB {
 		&models.SupervisorDeclaration{}, &models.SupervisorPdt601Planilla{}, &models.SupervisorPdt621Record{},
 		&models.SupervisorAttachment{}, &models.SupervisorChangeLog{}, &models.SupervisorObservation{},
 		&models.CompanyAccessCredential{}, &models.ActivityRule{}, &models.ActivityTemplate{},
-		&models.FinanceCalendar{}, &models.FinanceCalendarActivity{},
+		&models.FinanceCalendar{}, &models.FinanceCalendarActivity{}, &models.SupervisorPreliminarVentasRecord{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

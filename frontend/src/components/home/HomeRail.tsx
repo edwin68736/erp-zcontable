@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MODULE_SLUG } from '../../navigation/moduleSlugs';
+import { MODULE_SLUG, workModuleLabel } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
 import {
@@ -152,11 +152,11 @@ const HomeRail = () => {
     }
     if (mode === 'work' && work) {
       return work.work.slice(0, 5).map((w) => ({
-        key: `${w.module_key}-${w.company_id}`,
-        label: `${w.module_label} — ${w.company}`,
+        key: `${w.module_key}-${w.company_id}-${w.slot ?? 0}`,
+        label: `${workModuleLabel(w.module_label, w.slot)} — ${w.company}`,
         right: dueRight(w.state, w.days_left),
         color: STATE_COLOR[w.state] ?? '#2563eb',
-        to: MODULE_SLUG[w.module_key] ? `${actBase}/${MODULE_SLUG[w.module_key]}/${w.company_id}${q}` : '/assistant',
+        to: MODULE_SLUG[w.module_key] ? `${actBase}/${MODULE_SLUG[w.module_key]}/${w.company_id}${w.slot ? `/${w.slot}` : ''}${q}` : '/assistant',
       }));
     }
     return [];

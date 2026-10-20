@@ -5,6 +5,8 @@ export type MailboxWeekProgress = {
   pendiente: number;
   cargado: number;
   verificado: number;
+  /** Capturas pendientes que NO son obligación real (cargas de más de la grilla); van aparte de `pendiente`. */
+  opcional: number;
 };
 
 function analyzeSlots(slots: SunatInboxCaptureSlot[]) {
@@ -52,12 +54,13 @@ export function summarizeMailboxSlots(slots: SunatInboxCaptureSlot[]): string {
 }
 
 export function countMailboxWeekProgress(slots: SunatInboxCaptureSlot[]): MailboxWeekProgress {
-  const out: MailboxWeekProgress = { total: 0, pendiente: 0, cargado: 0, verificado: 0 };
+  const out: MailboxWeekProgress = { total: 0, pendiente: 0, cargado: 0, verificado: 0, opcional: 0 };
   for (const sl of slots) {
     for (const side of [sl.sunat, sl.sunafil]) {
       out.total += 1;
       if (side.status === 'verificado') out.verificado += 1;
       else if (side.status === 'cargado') out.cargado += 1;
+      else if (side.timeliness?.optional) out.opcional += 1;
       else out.pendiente += 1;
     }
   }

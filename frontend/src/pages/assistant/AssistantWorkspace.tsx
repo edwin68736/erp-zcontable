@@ -11,7 +11,7 @@ import {
   type DonutSlice,
 } from '../../components/supervisors/dashboard/DashboardParts';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
-import { MODULE_SLUG } from '../../navigation/moduleSlugs';
+import { MODULE_SLUG, workModuleLabel } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
 import { supervisorsService, type AssistantOverview, type AssistantWorkItem } from '../../services/supervisors';
@@ -127,7 +127,9 @@ const AssistantWorkspace = () => {
 
   const detailPath = (w: AssistantWorkItem) => {
     const slug = MODULE_SLUG[w.module_key];
-    return slug ? `/assistant/activities/${slug}/${w.company_id}?period_ym=${encodeURIComponent(periodYm)}` : '/assistant';
+    if (!slug) return '/assistant';
+    const entrega = w.slot ? `/${w.slot}` : '';
+    return `/assistant/activities/${slug}/${w.company_id}${entrega}?period_ym=${encodeURIComponent(periodYm)}`;
   };
 
   if (!allowed) {
@@ -318,12 +320,12 @@ const AssistantWorkspace = () => {
                       const st = STATE_STYLE[w.state];
                       const due = dueText(w);
                       return (
-                        <div key={`${w.module_key}-${w.company_id}`} className="flex items-start gap-3 border-t border-[#EAF1ED] py-[11px]">
+                        <div key={`${w.module_key}-${w.company_id}-${w.slot ?? 0}`} className="flex items-start gap-3 border-t border-[#EAF1ED] py-[11px]">
                           <div className="w-1 shrink-0 self-stretch rounded" style={{ background: st.stripe }} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <strong className="text-[13px]">{w.company}</strong>
-                              <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-700">{w.module_label}</span>
+                              <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-700">{workModuleLabel(w.module_label, w.slot)}</span>
                               <span className="rounded-md px-[7px] py-px text-[10.5px] font-extrabold" style={{ background: st.bg, color: st.fg }}>{stateLabel(w)}</span>
                             </div>
                             <div className={`mt-[3px] text-[11.5px] ${due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>{due.text}</div>

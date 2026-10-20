@@ -243,3 +243,26 @@ func (s *SupervisorService) MonthlyComplianceSummary(p SupervisorDashboardParams
 	cs.finalize()
 	return cs, nil
 }
+
+// assistantComplianceSummary cumplimiento del panel del asistente: los mismos módulos que su lista de
+// trabajo (PDT 601/621, Detracciones, Informe detracciones, Siscont balances) más Buzón SOL, que
+// cuenta aparte porque es una obligación recurrente. Así "Mi cumplimiento", "Mis módulos" y la
+// tendencia hablan del mismo conjunto, más Preliminar de ventas (dos entregas por mes, solo si el
+// calendario del período las define). Informe/Siscont aportan su veredicto de puntualidad por empresa
+// (sin regla de plazo quedan en "exento o no aplica", sin afectar el %).
+func (s *SupervisorService) assistantComplianceSummary(p SupervisorDashboardParams, companies []models.Company) (ComplianceSummary, error) {
+	cs, err := s.MonthlyComplianceSummary(p)
+	if err != nil {
+		return ComplianceSummary{}, err
+	}
+	for _, mod := range []PdfReportModule{PdfReportInformeDetracciones, PdfReportSiscontBalances} {
+		for _, r := range s.pdfReportBuildRows(mod, companies, p.PeriodYM) {
+			cs.addTimeliness(r.Timeliness)
+		}
+	}
+	for _, w := range s.preliminarVentasSlotWork(companies, p.PeriodYM) {
+		cs.addTimeliness(w.Timeliness.Timeliness)
+	}
+	cs.finalize()
+	return cs, nil
+}

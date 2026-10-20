@@ -255,3 +255,67 @@ func TestSunatInboxRealSlotsForPeriod_IgnoresStaleActivitySnapshot(t *testing.T)
 		t.Fatalf("slots=%+v, want 0 — la actividad vieja (snapshot nps) no debe contarse solo porque su plantilla hoy es sunat_inbox", slots)
 	}
 }
+
+// La grilla de Buzón SOL muestra `cargas por semana` columnas por semana, pero solo las que tienen una
+// actividad de calendario real detrás son obligaciones (las mismas que cuenta el panel). Las demás no
+// deben figurar como vencidas: grilla y panel tienen que coincidir.
+func TestSunatInboxGrid_SlotsWithoutRealActivityAreNotObligations(t *testing.T) {
+	db := setupSunatInboxSummaryTestDB(t)
+	periodYM := "2026-09"
+	seedSunatInboxCalendarActivities(t, db, periodYM, []int{2, 5, 9})
+
+	ws1 := time.Date(2026, 8, 31, 0, 0, 0, 0, time.Local) // semana con los días 2 y 5
+	ws2 := time.Date(2026, 9, 7, 0, 0, 0, 0, time.Local)  // semana con solo el día 9
+	ws3 := time.Date(2026, 9, 14, 0, 0, 0, 0, time.Local) // semana sin actividades reales
+
+	cases := []struct {
+		name      string
+		ws        time.Time
+		slot      int
+		obligated bool
+	}{
+		{"semana 1 carga 1", ws1, 1, true},
+		{"semana 1 carga 2", ws1, 2, true},
+		{"semana 1 carga 3 (extra)", ws1, 3, false},
+		{"semana 2 carga 1", ws2, 1, true},
+		{"semana 2 carga 2 (sin 2.ª fecha real)", ws2, 2, false},
+		{"semana 3 carga 1 (sin fechas reales)", ws3, 1, false},
+	}
+	for _, c := range cases {
+		ctx := mailboxTimelinessCtxFor(periodYM, c.ws, 3)
+		got := enrichSunatInboxMailboxSideTimeliness(ctx, c.slot, nil)
+		isNoRule := got.Timeliness == TimelinessNoRule
+		if c.obligated && isNoRule {
+			t.Errorf("%s: debería ser obligación real, got %q", c.name, got.Timeliness)
+		}
+		if !c.obligated && (!isNoRule || got.DueAt != nil || !got.Optional) {
+			t.Errorf("%s: no debería ser obligación (sin plazo), got %+v", c.name, got)
+		}
+	}
+
+	// Cantidad de obligaciones en la grilla == slots reales que cuenta el panel.
+	real := sunatInboxRealSlotsForPeriod(periodYM)
+	count := 0
+	weeks, _ := weeksInPeriodYM(periodYM)
+	for _, w := range weeks {
+		ws, _ := parseWeekStart(w.WeekStart)
+		ctx := mailboxTimelinessCtxFor(periodYM, ws, 2)
+		for slot := 1; slot <= 2; slot++ {
+			if ctx.slotIsRealObligation(slot) {
+				count++
+			}
+		}
+	}
+	if count != len(real) {
+		t.Fatalf("obligaciones en la grilla = %d, slots reales del panel = %d", count, len(real))
+	}
+}
+
+// Sin actividades reales en el período no se cambia el comportamiento histórico de la grilla.
+func TestSunatInboxGrid_NoRealCalendarKeepsLegacyBehaviour(t *testing.T) {
+	setupSunatInboxSummaryTestDB(t)
+	ctx := mailboxTimelinessCtxFor("2026-07", time.Date(2026, 6, 29, 0, 0, 0, 0, time.Local), 2)
+	if !ctx.slotIsRealObligation(1) || !ctx.slotIsRealObligation(2) {
+		t.Fatal("sin calendario real la grilla no debe marcar slots como 'sin obligación'")
+	}
+}

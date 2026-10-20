@@ -18,12 +18,14 @@ import (
 // el resto del sistema; no hay estados nuevos.
 
 type AssistantWorkItem struct {
-	CompanyID     uint   `json:"company_id"`
-	Company       string `json:"company"`
-	RUC           string `json:"ruc"`
-	ModuleKey     string `json:"module_key"`
-	ModuleLabel   string `json:"module_label"`
-	DeclarationID uint   `json:"declaration_id,omitempty"`
+	CompanyID   uint   `json:"company_id"`
+	Company     string `json:"company"`
+	RUC         string `json:"ruc"`
+	ModuleKey   string `json:"module_key"`
+	ModuleLabel string `json:"module_label"`
+	// Slot entrega del mes (1 o 2) cuando el módulo se envía más de una vez por período (Preliminar de ventas).
+	Slot          int  `json:"slot,omitempty"`
+	DeclarationID uint `json:"declaration_id,omitempty"`
 	// State: vencida | observada | pendiente | por_revisar
 	State       string `json:"state"`
 	DueDate     string `json:"due_date,omitempty"`
@@ -163,6 +165,7 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 		det    []DetraccionesListRow
 		inf    []PdfReportListRow
 		sis    []PdfReportListRow
+		prelim []preliminarSlotWork
 		cs     ComplianceSummary
 		trend  []ComplianceTrendPoint
 		mods   []DashboardModuleRow
@@ -177,14 +180,25 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 			return nil
 		},
 		func() error { sis = s.pdfReportBuildRows(PdfReportSiscontBalances, companies, p.PeriodYM); return nil },
-		func() (err error) { cs, err = s.MonthlyComplianceSummary(p); return },
-		func() (err error) { trend, err = s.ComplianceTrend(p, 6); return },
+		func() error { prelim = s.preliminarVentasSlotWork(companies, p.PeriodYM); return nil },
+		func() (err error) { cs, err = s.assistantComplianceSummary(p, companies); return },
+		func() (err error) {
+			trend, err = s.complianceTrendWith(p, 6, func(pp SupervisorDashboardParams) (ComplianceSummary, error) {
+				scope, err := s.dashboardScopeCompanies(pp)
+				if err != nil {
+					return ComplianceSummary{}, err
+				}
+				return s.assistantComplianceSummary(pp, scope)
+			})
+			return
+		},
 		func() (err error) { mods, err = s.dashboardModuleRows(p, companies); return },
 		func() error { up = s.dashboardUpcoming(p.PeriodYM, companies); return nil },
 	}
-	if err := runParallel(8, tasks); err != nil {
+	if err := runParallel(10, tasks); err != nil {
 		return nil, err
 	}
+	mods = append(mods, moduleRowPreliminarVentas(prelim))
 	out.Compliance, out.Trend, out.Modules, out.Upcoming = cs, trend, mods, up
 
 	now := time.Now()
@@ -239,6 +253,18 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 				add(r.CompanyID, r.BusinessName, r.RUC, pair.mod.DeclType, pair.mod.Label, r.DeclarationID, st, due)
 			}
 		}
+	}
+
+	for _, w := range prelim {
+		if w.Suspendida || w.Status == models.PreliminarVentasEnviado {
+			continue
+		}
+		state := "pendiente"
+		if w.Timeliness.Timeliness == TimelinessMissing {
+			state = "vencida"
+		}
+		add(w.Company.ID, w.Company.BusinessName, w.Company.RUC, models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", nil, state, w.Timeliness.DueAt)
+		items[len(items)-1].Slot = w.SlotIndex
 	}
 
 	s.attachWorkNotes(items)

@@ -832,6 +832,12 @@ func trailingPeriods(periodYM string, months int) []string {
 // dashboard. Una llamada a MonthlyComplianceSummary por período (antes no existía ninguna vista de
 // tendencia: solo se podía ver un mes a la vez).
 func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months int) ([]ComplianceTrendPoint, error) {
+	return s.complianceTrendWith(p, months, s.MonthlyComplianceSummary)
+}
+
+// complianceTrendWith igual que ComplianceTrend pero con el cálculo mensual a elección (el panel del
+// asistente usa su propio conjunto de módulos, ver assistantComplianceSummary).
+func (s *SupervisorService) complianceTrendWith(p SupervisorDashboardParams, months int, monthly func(SupervisorDashboardParams) (ComplianceSummary, error)) ([]ComplianceTrendPoint, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido (use YYYY-MM)")
 	}
@@ -854,7 +860,7 @@ func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months 
 		tasks[i] = func() error {
 			periodParams := p
 			periodParams.PeriodYM = ym
-			cs, err := s.MonthlyComplianceSummary(periodParams)
+			cs, err := monthly(periodParams)
 			if err != nil {
 				return err
 			}

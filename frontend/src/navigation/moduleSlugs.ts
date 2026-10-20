@@ -6,4 +6,10 @@ export const MODULE_SLUG: Record<string, string> = {
   sunat_inbox: 'sunat-inbox',
   informe_detracciones: 'informe-detracciones',
   siscont_balances: 'siscont-balances',
+  preliminar_ventas: 'preliminar-ventas',
 };
+
+/** Rótulo de un ítem de trabajo: los módulos con varias entregas por mes indican cuál ("1.ª entrega"). */
+export function workModuleLabel(label: string, slot?: number): string {
+  return slot ? `${label} · ${slot}.ª entrega` : label;
+}
