@@ -49,6 +49,9 @@ func TestAssistantOverview_WorkListStatesAndScope(t *testing.T) {
 	if mine.Companies != 3 {
 		t.Fatalf("empresas = %d, want 3", mine.Companies)
 	}
+	if len(mine.Supervisors) != 1 || mine.Supervisors[0].UserID != sup.ID || mine.Supervisors[0].Name != "Claudia" || mine.Supervisors[0].Companies != 3 {
+		t.Fatalf("supervisores = %+v, want [Claudia con 3 empresas]", mine.Supervisors)
+	}
 	if mine.Counts.Observed != 1 || mine.Counts.InReview != 1 {
 		t.Fatalf("conteos = %+v, want 1 observada y 1 por revisar", mine.Counts)
 	}

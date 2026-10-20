@@ -611,8 +611,15 @@ export interface AssistantWorkItem {
   note?: string;
   note_by?: string;
 }
+/** Supervisor de (parte de) las empresas del asistente; user_id 0 = empresas sin supervisor asignado. */
+export interface AssistantSupervisorRef {
+  user_id: number;
+  name: string;
+  companies: number;
+}
 export interface AssistantOverview {
   companies: number;
+  supervisors: AssistantSupervisorRef[];
   compliance: ComplianceSummary;
   trend: ComplianceTrendPoint[];
   modules: DashboardModuleRow[];

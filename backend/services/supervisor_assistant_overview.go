@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -41,14 +42,24 @@ type AssistantCounts struct {
 	DueThisWeek  int64 `json:"due_this_week"`
 }
 
+// AssistantSupervisorRef supervisor a cargo de (parte de) las empresas del asistente, con cuántas de ellas supervisa.
+type AssistantSupervisorRef struct {
+	UserID    uint   `json:"user_id"`
+	Name      string `json:"name"`
+	Companies int    `json:"companies"`
+}
+
 type AssistantOverview struct {
-	Companies  int64                  `json:"companies"`
-	Compliance ComplianceSummary      `json:"compliance"`
-	Trend      []ComplianceTrendPoint `json:"trend"`
-	Modules    []DashboardModuleRow   `json:"modules"`
-	Counts     AssistantCounts        `json:"counts"`
-	Work       []AssistantWorkItem    `json:"work"`
-	Upcoming   []DashboardUpcoming    `json:"upcoming"`
+	Companies int64 `json:"companies"`
+	// Supervisors los supervisores de las empresas asignadas (el de cada empresa, ver companies.supervisor_user_id),
+	// de mayor a menor cantidad de empresas. UserID 0 = empresas sin supervisor asignado.
+	Supervisors []AssistantSupervisorRef `json:"supervisors"`
+	Compliance  ComplianceSummary        `json:"compliance"`
+	Trend       []ComplianceTrendPoint   `json:"trend"`
+	Modules     []DashboardModuleRow     `json:"modules"`
+	Counts      AssistantCounts          `json:"counts"`
+	Work        []AssistantWorkItem      `json:"work"`
+	Upcoming    []DashboardUpcoming      `json:"upcoming"`
 }
 
 var assistantWorkRank = map[string]int{"vencida": 0, "observada": 1, "pendiente": 2, "por_revisar": 3}
@@ -141,7 +152,7 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 	if err != nil {
 		return nil, err
 	}
-	out := &AssistantOverview{Companies: int64(len(companies)), Modules: []DashboardModuleRow{}, Work: []AssistantWorkItem{}, Upcoming: []DashboardUpcoming{}}
+	out := &AssistantOverview{Companies: int64(len(companies)), Supervisors: s.assistantSupervisors(companies), Modules: []DashboardModuleRow{}, Work: []AssistantWorkItem{}, Upcoming: []DashboardUpcoming{}}
 	if len(companies) == 0 {
 		return out, nil
 	}
@@ -308,4 +319,38 @@ func (s *SupervisorService) attachWorkNotes(items []AssistantWorkItem) {
 			}
 		}
 	}
+}
+
+// assistantSupervisors agrupa las empresas por su supervisor asignado (companies.supervisor_user_id).
+func (s *SupervisorService) assistantSupervisors(companies []models.Company) []AssistantSupervisorRef {
+	counts := map[uint]int{}
+	ids := make([]uint, 0)
+	for _, c := range companies {
+		var id uint
+		if c.SupervisorUserID != nil {
+			id = *c.SupervisorUserID
+		}
+		if _, seen := counts[id]; !seen && id != 0 {
+			ids = append(ids, id)
+		}
+		counts[id]++
+	}
+	names := s.userNames(ids)
+	out := make([]AssistantSupervisorRef, 0, len(counts))
+	for id, n := range counts {
+		ref := AssistantSupervisorRef{UserID: id, Companies: n}
+		if id == 0 {
+			ref.Name = "Sin supervisor asignado"
+		} else if ref.Name = names[id]; ref.Name == "" {
+			ref.Name = fmt.Sprintf("Usuario %d", id)
+		}
+		out = append(out, ref)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Companies != out[j].Companies {
+			return out[i].Companies > out[j].Companies
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }

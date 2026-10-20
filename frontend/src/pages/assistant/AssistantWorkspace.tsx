@@ -205,6 +205,59 @@ const AssistantWorkspace = () => {
         <p className="text-sm text-red-600">{error}</p>
       ) : data ? (
         <>
+          {/* Mis empresas y mi supervisor: lo primero que se ve del panel. */}
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/assistant/companies"
+              className="flex min-w-0 items-center gap-4 rounded-2xl border px-5 py-4 no-underline hover:shadow-sm"
+              style={{ flex: '1 1 300px', background: '#E0F2FE', borderColor: '#BAE6FD', color: 'inherit' }}
+              aria-label={`Empresas asignadas: ${data.companies}. Ver mis empresas`}
+            >
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-[24px] text-sky-700">
+                <i className="fas fa-building" aria-hidden />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-bold uppercase tracking-wide text-sky-800">Empresas asignadas</span>
+                <span className="block text-[46px] font-extrabold leading-none tabular-nums text-slate-900">{data.companies}</span>
+                <span className="mt-1 block text-[12px] font-semibold text-sky-800">a tu cargo · ver mis empresas →</span>
+              </span>
+            </Link>
+            <div className="flex min-w-0 items-center gap-4 rounded-2xl border px-5 py-4" style={{ flex: '1 1 300px', background: '#DCFCE7', borderColor: '#BBF7D0' }}>
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-[24px] text-green-700">
+                <i className="fas fa-user-check" aria-hidden />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-bold uppercase tracking-wide text-green-800">
+                  {data.supervisors.length > 1 ? 'Mis supervisores' : 'Mi supervisor'}
+                </span>
+                {data.supervisors.length === 0 ? (
+                  <span className="mt-1 block text-[16px] font-bold text-slate-700">Sin supervisor asignado</span>
+                ) : data.supervisors.length === 1 ? (
+                  <>
+                    <span className="block break-words text-[20px] font-extrabold leading-tight text-slate-900" title={data.supervisors[0].name}>
+                      {data.supervisors[0].name}
+                    </span>
+                    <span className="mt-1 block text-[12px] font-semibold text-green-800">
+                      revisa tus {data.supervisors[0].companies} {data.supervisors[0].companies === 1 ? 'empresa' : 'empresas'}
+                    </span>
+                  </>
+                ) : (
+                  <ul className="m-0 mt-1 list-none space-y-[2px] p-0">
+                    {data.supervisors.slice(0, 3).map((sv) => (
+                      <li key={sv.user_id} className="flex items-baseline gap-2 text-[14px] font-bold text-slate-900">
+                        <span className="truncate" title={sv.name}>{sv.name}</span>
+                        <span className="shrink-0 text-[12px] font-semibold text-green-800">{sv.companies} {sv.companies === 1 ? 'empresa' : 'empresas'}</span>
+                      </li>
+                    ))}
+                    {data.supervisors.length > 3 ? (
+                      <li className="text-[12px] font-semibold text-green-800">+ {data.supervisors.length - 3} más</li>
+                    ) : null}
+                  </ul>
+                )}
+              </span>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-3">
             <HeroGauge
               pct={cs?.compliance_pct ?? 0}
