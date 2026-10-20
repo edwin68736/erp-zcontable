@@ -64,6 +64,19 @@ func (s *SupervisorService) SunatInboxDashboardSummary(p SupervisorDashboardPara
 		return ComplianceSummary{}, nil
 	}
 
+	var cs ComplianceSummary
+	sunatInboxEachVerdict(p.PeriodYM, companyIDs, realSlots, func(_ uint, sunat, sunafil string) {
+		cs.addTimeliness(sunat)
+		cs.addTimeliness(sunafil)
+	})
+	cs.finalize()
+	return cs, nil
+}
+
+// sunatInboxEachVerdict recorre cada slot real del período de cada empresa y entrega el veredicto de
+// puntualidad de SUNAT y de SUNAFIL (un slot sin subida cuenta como pendiente/vencido según su plazo).
+// Lo usan el agregado de cumplimiento y los indicadores por asistente, para que cuenten exactamente lo mismo.
+func sunatInboxEachVerdict(periodYM string, companyIDs []uint, realSlots []sunatInboxRealSlot, visit func(companyID uint, sunat, sunafil string)) {
 	// Suspendida es global por control desde §5.9.7 — se lee para todas las empresas del alcance,
 	// tengan o no control todavía (lazy create en los otros módulos).
 	type ctrlRow struct {
@@ -74,7 +87,7 @@ func (s *SupervisorService) SunatInboxDashboardSummary(p SupervisorDashboardPara
 	var ctrls []ctrlRow
 	_ = database.DB.Table("supervisor_monthly_controls").
 		Select("company_id, id AS control_id, suspendida").
-		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", companyIDs, p.PeriodYM).
+		Where("company_id IN ? AND period_ym = ? AND deleted_at IS NULL", companyIDs, periodYM).
 		Scan(&ctrls).Error
 	ctrlByCompany := make(map[uint]ctrlRow, len(ctrls))
 	controlIDs := make([]uint, 0, len(ctrls))
@@ -116,7 +129,6 @@ func (s *SupervisorService) SunatInboxDashboardSummary(p SupervisorDashboardPara
 		ruleByID[*rs.ruleID] = rule
 	}
 
-	var cs ComplianceSummary
 	for _, cid := range companyIDs {
 		ctrl, hasCtrl := ctrlByCompany[cid]
 		exempt := hasCtrl && ctrl.Suspendida
@@ -134,12 +146,9 @@ func (s *SupervisorService) SunatInboxDashboardSummary(p SupervisorDashboardPara
 			if rs.ruleID != nil {
 				rule = ruleByID[*rs.ruleID]
 			}
-			cs.addTimeliness(sunatInboxSlotTimeliness(rs.dueDate, rule, sunatUploaded, exempt))
-			cs.addTimeliness(sunatInboxSlotTimeliness(rs.dueDate, rule, sunafilUploaded, exempt))
+			visit(cid, sunatInboxSlotTimeliness(rs.dueDate, rule, sunatUploaded, exempt), sunatInboxSlotTimeliness(rs.dueDate, rule, sunafilUploaded, exempt))
 		}
 	}
-	cs.finalize()
-	return cs, nil
 }
 
 // sunatInboxSlotTimeliness misma lógica que ComputeActivityRuleTimeliness (calendar_activity_

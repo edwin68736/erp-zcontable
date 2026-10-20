@@ -2239,3 +2239,18 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": data})
 }
+
+// DashboardIndicatorsAPI GET /api/supervisors/dashboard/indicators — indicadores de supervisión (KPI de
+// planillas, archivadores, declaraciones, balances y buzones por asistente) con el mismo alcance y
+// filtros del dashboard: el supervisor ve su cartera; el administrador ve el estudio o filtra por uno.
+func (ctrl *SupervisorController) DashboardIndicatorsAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardParamsFromQuery(c)
+	if err != nil {
+		return fiberErrorJSON(c, err)
+	}
+	data, err := ctrl.svc.SupervisorIndicators(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}

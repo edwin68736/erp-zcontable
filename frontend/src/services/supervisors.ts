@@ -505,6 +505,19 @@ export const supervisorsService = {
     const res = await client.get<{ data: DashboardOverview }>('/supervisors/dashboard/overview', { params });
     return res.data.data;
   },
+
+  /** Indicadores de supervisión (KPI por dígito de RUC y buzones por asistente), con el mismo alcance y filtros del dashboard. */
+  async dashboardIndicators(params: {
+    period_ym?: string;
+    general_status?: string;
+    risk_level?: string;
+    company_id?: number;
+    responsible_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<SupervisorIndicators> {
+    const res = await client.get<{ data: SupervisorIndicators }>('/supervisors/dashboard/indicators', { params });
+    return res.data.data;
+  },
 };
 
 export interface SupervisorPdtTypeSummary {
@@ -635,6 +648,45 @@ export interface AssistantOverview {
   };
   work: AssistantWorkItem[];
   upcoming: DashboardUpcoming[];
+}
+
+/** Una fila por dígito de RUC (o el total) de un indicador. `on_time` = a tiempo, o revisado en el KPI de balances. */
+export interface IndicatorDigit {
+  dig: string;
+  total: number;
+  on_time: number;
+  late: number;
+  missing: number;
+  pending: number;
+  observed?: number;
+  in_review?: number;
+  rate_pct: number;
+}
+
+export interface IndicatorKpi {
+  key: 'planillas' | 'archivadores' | 'declaraciones' | 'balances';
+  label: string;
+  meta_pct: number;
+  total: IndicatorDigit;
+  by_digit: IndicatorDigit[];
+}
+
+export interface IndicatorMailboxRow {
+  assistant: string;
+  sunat_ok: number;
+  sunat_pending: number;
+  sunat_late: number;
+  sunafil_ok: number;
+  sunafil_pending: number;
+  sunafil_late: number;
+}
+
+export interface SupervisorIndicators {
+  period_ym: string;
+  companies: number;
+  supervisors: AssistantSupervisorRef[];
+  kpis: IndicatorKpi[];
+  mailboxes: IndicatorMailboxRow[];
 }
 
 export interface DashboardOverview {

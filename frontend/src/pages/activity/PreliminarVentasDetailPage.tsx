@@ -248,11 +248,12 @@ function formatMoney(n: number | undefined): string {
 
 function formatDate(iso?: string): string {
   if (!iso) return 'sin fecha configurada';
-  // El backend manda un time.Time de Go serializado en RFC3339 completo (con hora/offset), no una
-  // fecha suelta — parsearlo directo, sin concatenarle "Txx:xx:xx" (eso lo dejaba inválido).
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'sin fecha configurada';
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  // La fecha límite es un día calendario: se toman los 10 primeros caracteres (AAAA-MM-DD) del valor del
+  // servidor. Parsearlo como instante lo corría un día atrás cuando el servidor está en UTC (medianoche UTC
+  // = el día anterior en Perú).
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return 'sin fecha configurada';
+  return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
 function formatDateTime(iso?: string): string {

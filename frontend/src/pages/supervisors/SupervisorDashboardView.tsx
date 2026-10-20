@@ -16,6 +16,7 @@ import {
   type DonutSlice,
   type RankDatum,
 } from '../../components/supervisors/dashboard/DashboardParts';
+import SupervisorIndicatorsPanel from '../../components/supervisors/dashboard/SupervisorIndicators';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
@@ -786,6 +787,9 @@ const SupervisorDashboardView = () => {
           </div>
         </>
       ) : null}
+
+      {/* Indicadores del libro mensual de supervisión (KPI por dígito de RUC y buzones por asistente) */}
+      <SupervisorIndicatorsPanel params={params} reloadKey={reloadKey} />
     </div>
   );
 };
