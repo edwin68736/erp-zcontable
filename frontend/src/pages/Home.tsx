@@ -22,17 +22,23 @@ const BG_STYLE: CSSProperties = {
   ].join(', '),
 };
 
-/** Posiciones de los accesos alrededor del robot (los de arriba/abajo se anclan al centro, donde está el robot; los de los lados, a los bordes) y cuánto se desplazan con el mouse. */
-const SLOTS: { left?: string; right?: string; top: number; d: number }[] = [
-  { left: 'calc(50% - 352px)', top: 25, d: 10 },
-  { left: 'calc(50% + 170px)', top: 23, d: 12 },
-  { left: '2%', top: 42, d: 18 },
-  { right: '0%', top: 42, d: 18 },
-  { left: '0%', top: 60, d: 16 },
-  { right: '3%', top: 64, d: 14 },
-  { left: 'calc(50% - 300px)', top: 74, d: 12 },
-  { left: 'calc(50% - 91px)', top: 82, d: 10 },
-];
+/**
+ * Ángulos (en grados, 0° = derecha, 90° = abajo) de cada acceso sobre la elipse que rodea al robot.
+ * Con pocos accesos se reparten en simétrico por los lados y la parte baja (sin tapar al robot ni el
+ * saludo); desde 5 se reparten parejo en todo el círculo, sin ninguno justo arriba (ahí va el saludo).
+ * Siempre en sentido horario empezando por arriba a la izquierda.
+ */
+function ringAngles(n: number): number[] {
+  const fixed: Record<number, number[]> = {
+    1: [90],
+    2: [150, 30],
+    3: [150, 90, 30],
+    4: [210, 330, 30, 150],
+  };
+  if (fixed[n]) return fixed[n];
+  const step = 360 / n;
+  return Array.from({ length: n }, (_, k) => -90 - step / 2 + step * k);
+}
 
 const clamp = (v: number) => Math.max(-1, Math.min(1, v));
 
@@ -42,6 +48,7 @@ const Home = () => {
   const firstName = displayName.split(/\s+/)[0].toUpperCase();
   const modules = useMemo(() => getHomeModules(), []);
   const sections = useMemo(() => getHomeSections(), []);
+  const angles = useMemo(() => ringAngles(modules.length), [modules.length]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const raf = useRef(0);
@@ -91,20 +98,25 @@ const Home = () => {
                 <path d="M12 2l2.2 6.3L21 10l-5.3 3.7L17 21l-5-4-5 4 1.3-7.3L3 10l6.8-1.7z" />
               </svg>
               <div>
-                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, lineHeight: 1.15 }}>¡Hola {firstName}!</h1>
-                <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 500, color: '#d9f6e8' }}>¿Qué vamos a hacer hoy?</p>
+                <h1 className="hm-bubble-title">¡Hola {firstName}!</h1>
+                <p className="hm-bubble-sub">¿Qué vamos a hacer hoy?</p>
               </div>
             </div>
 
             <HomeRobot />
 
             {modules.map((m, i) => {
-              const slot = SLOTS[i % SLOTS.length];
+              const rad = (angles[i] * Math.PI) / 180;
               return (
                 <div
                   key={m.key}
                   className="hm-node"
-                  style={{ left: slot.left, right: slot.right, top: `${slot.top}%`, ['--hm-d' as string]: slot.d }}
+                  style={{
+                    ['--hm-sx' as string]: Math.abs(Math.cos(rad)) < 0.05 ? 0 : Math.sign(Math.cos(rad)),
+                    ['--hm-axa' as string]: Math.abs(Math.cos(rad)).toFixed(4),
+                    ['--hm-ay' as string]: Math.sin(rad).toFixed(4),
+                    ['--hm-d' as string]: 8 + (i % 3) * 4,
+                  }}
                 >
                   <img className="hm-art" src={m.icon} alt="" aria-hidden draggable={false} />
                   <Link className="hm-card" to={m.to}>
