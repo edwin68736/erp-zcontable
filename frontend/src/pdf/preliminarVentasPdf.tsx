@@ -158,7 +158,7 @@ const s = StyleSheet.create({
   tHeadText: { fontSize: 6.1, fontWeight: 700, color: V2.muted, textTransform: 'uppercase', letterSpacing: 0.1 },
   tRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: V2.rule },
   tRowLast: { borderBottomWidth: 0 },
-  tCell: { paddingVertical: 3, paddingHorizontal: 5 },
+  tCell: { paddingVertical: 2.2, paddingHorizontal: 5 },
   tCellDivider: { borderLeftWidth: 0.5, borderLeftColor: V2.rule },
   tText: { fontSize: 7.6, color: V2.text },
   tNum: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
@@ -168,24 +168,24 @@ const s = StyleSheet.create({
   tRowYellow: { backgroundColor: YELLOW_SOFT },
   /* Compras: sección de totales, con más peso que el resto de tablas */
   comprasTable: { borderWidth: 1.5, borderColor: V2.green, borderRadius: 4, overflow: "hidden" },
-  comprasCell: { paddingVertical: 7, paddingHorizontal: 6 },
+  comprasCell: { paddingVertical: 5, paddingHorizontal: 6 },
   comprasText: { fontSize: 9, fontWeight: 700, color: V2.navy },
   comprasNum: { fontSize: 10.5, fontWeight: 700, color: V2.navy, textAlign: "right" },
 
   /* Resumen bajo la tabla de ventas */
   sumWrap: { marginLeft: '36%', marginTop: 5 },
   sumRow: { flexDirection: 'row', alignItems: 'center' },
-  sumLabel: { flex: 1, fontSize: 7.6, color: V2.text, textAlign: 'right', paddingRight: 10, paddingVertical: 3 },
+  sumLabel: { flex: 1, fontSize: 7.6, color: V2.text, textAlign: 'right', paddingRight: 10, paddingVertical: 2.2 },
   sumValueCell: {
     width: '31.25%',
-    paddingVertical: 3,
+    paddingVertical: 2.2,
     paddingHorizontal: 5,
     borderBottomWidth: 0.5,
     borderBottomColor: V2.rule,
   },
   sumValue: { fontSize: 7.6, color: V2.text, textAlign: 'right' },
   sumRowHighlight: { backgroundColor: V2.greenSoft, borderRadius: 3, marginTop: 4 },
-  sumLabelGreen: { flex: 1, fontSize: 8.2, fontWeight: 700, color: V2.greenDark, textAlign: 'right', paddingRight: 10, paddingVertical: 5.5 },
+  sumLabelGreen: { flex: 1, fontSize: 8.2, fontWeight: 700, color: V2.greenDark, textAlign: 'right', paddingRight: 10, paddingVertical: 4.5 },
   sumValueGreen: { fontSize: 9.6, fontWeight: 700, color: V2.greenDark, textAlign: 'right' },
 
 
@@ -243,10 +243,10 @@ const s = StyleSheet.create({
     borderColor: V2.green,
     borderRadius: 5,
     backgroundColor: V2.white,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 11,
   },
-  recoItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3.5 },
+  recoItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3 },
   recoItemLast: { marginBottom: 0 },
   recoText: { flex: 1, fontSize: 7.8, color: V2.text, lineHeight: 1.4 },
   recoNumber: { fontWeight: 700, color: V2.navy },
@@ -392,9 +392,8 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
   // envía 2 preliminares al mes, con cortes distintos). Sin corte definido se cae a la fecha de hoy.
   const cutoffText = formatIsoDate(record.cutoff_date) || today;
   const igvAPagar = summary.igv_a_pagar;
-  // Con saldo a favor (I.G.V. A PAGAR <= 0) no corresponde pedir compras: se omite la sección y su
-  // aviso, mismo criterio que PreliminarVentasDetailPage.tsx.
-  const showCompras = igvAPagar > 0;
+  // La sección "2. Compras" y el aviso IMPORTANTE salen siempre, con sus valores normales (0.00 si no hay
+  // I.G.V. por pagar): el documento mantiene la misma estructura en todos los casos.
   // I.G.V. que quedaría por pagar si la empresa trae las compras indicadas (I.G.V. a pagar menos el
   // I.G.V. de las compras). Con saldo a favor no hay nada que pagar: 0.
   const igvAproximado = igvAPagar > 0 ? Number(summary.monto_aproximado_igv ?? 0) : 0;
@@ -514,9 +513,10 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
               {retencion ? <SumRow label="(-) Retención" value={fmtMoney(retencion)} /> : null}
               {percepcion ? <SumRow label="(-) Percepción" value={fmtMoney(percepcion)} /> : null}
               <View style={[s.sumRow, s.sumRowHighlight]}>
-                <Text style={s.sumLabelGreen}>I.G.V. A PAGAR</Text>
+                {/* Resultado negativo = la empresa tiene I.G.V. a favor (crédito fiscal): no hay nada que pagar. */}
+                <Text style={s.sumLabelGreen}>{igvAPagar < 0 ? 'I.G.V. A FAVOR' : 'I.G.V. A PAGAR'}</Text>
                 <View style={[s.sumValueCell, { borderBottomWidth: 0 }]}>
-                  <Text style={s.sumValueGreen}>S/ {fmtMoney(igvAPagar)}</Text>
+                  <Text style={s.sumValueGreen}>S/ {fmtMoney(Math.abs(igvAPagar))}</Text>
                 </View>
               </View>
             </View>
@@ -550,45 +550,41 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
           </View>
         </View>
 
-        {showCompras ? (
-          <View wrap={false} style={{ marginBottom: 7 }}>
-            <StepTitle title="2. Compras" icon="chartColumn" />
-            <View style={s.comprasTable}>
-              <TableHead
-                headers={['Concepto', 'Base imponible', 'I.G.V.', 'Total']}
-                widths={COMPRAS_COLS}
-                textStyle={COMPRAS_HEAD_TEXT}
-              />
-              <View style={[s.tRow, s.tRowLast, s.tRowYellow]}>
-                <View style={[s.comprasCell, { width: COMPRAS_COLS[0] }]}>
-                  <Text style={s.comprasText}>Importe aproximado a traer en facturas de compra</Text>
-                </View>
-                {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
-                  <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
-                    <Text style={s.comprasNum}>{fmtCell(Math.round(Number(v ?? 0)))}</Text>
-                  </View>
-                ))}
+        <View wrap={false} style={{ marginBottom: 7 }}>
+          <StepTitle title="2. Compras" icon="chartColumn" />
+          <View style={s.comprasTable}>
+            <TableHead
+              headers={['Concepto', 'Base imponible', 'I.G.V.', 'Total']}
+              widths={COMPRAS_COLS}
+              textStyle={COMPRAS_HEAD_TEXT}
+            />
+            <View style={[s.tRow, s.tRowLast, s.tRowYellow]}>
+              <View style={[s.comprasCell, { width: COMPRAS_COLS[0] }]}>
+                <Text style={s.comprasText}>Importe aproximado a traer en facturas de compra</Text>
               </View>
+              {[summary.compras_base, summary.compras_igv, summary.compras_total].map((v, i) => (
+                <View key={i} style={[s.comprasCell, s.tCellDivider, { width: COMPRAS_COLS[i + 1], justifyContent: 'center' }]}>
+                  <Text style={s.comprasNum}>{fmtMoney(Math.round(Number(v ?? 0)))}</Text>
+                </View>
+              ))}
             </View>
           </View>
-        ) : null}
+        </View>
 
-        {showCompras ? (
-          <View wrap={false} style={s.important}>
-            <View style={{ marginRight: 8, marginTop: 1 }}>
-              <PdfIcon name="circleInfo" size={14} color={V2.navy} />
-            </View>
-            <Text style={s.importantText} hyphenationCallback={noHyphen}>
-              <Text style={s.importantStrong}>¡IMPORTANTE! </Text>
-              El monto de las compras indicado es solo un valor referencial. Se recomienda que{' '}
-              <Text style={s.importantItalic}>
-                el monto de las compras sea mayor al de las ventas para reducir el pago del I.G.V. En caso de que el
-                monto de las compras sea inferior al recomendado, su empresa podría estar sujeta a un mayor pago de
-                impuestos.
-              </Text>
-            </Text>
+        <View wrap={false} style={s.important}>
+          <View style={{ marginRight: 8, marginTop: 1 }}>
+            <PdfIcon name="circleInfo" size={14} color={V2.navy} />
           </View>
-        ) : null}
+          <Text style={s.importantText} hyphenationCallback={noHyphen}>
+            <Text style={s.importantStrong}>¡IMPORTANTE! </Text>
+            El monto de las compras indicado es solo un valor referencial. Se recomienda que{' '}
+            <Text style={s.importantItalic}>
+              el monto de las compras sea mayor al de las ventas para reducir el pago del I.G.V. En caso de que el
+              monto de las compras sea inferior al recomendado, su empresa podría estar sujeta a un mayor pago de
+              impuestos.
+            </Text>
+          </Text>
+        </View>
 
         <View style={s.divider} />
 

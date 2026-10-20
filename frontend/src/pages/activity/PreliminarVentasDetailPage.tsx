@@ -678,11 +678,13 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             />
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-            <p className="text-2xs font-semibold uppercase text-slate-500">I.G.V. A PAGAR</p>
+            <p className="text-2xs font-semibold uppercase text-slate-500">
+              {summary.igvAPagar < 0 ? 'I.G.V. A FAVOR' : 'I.G.V. A PAGAR'}
+            </p>
             <p
               className={`text-sm font-semibold tabular-nums ${summary.igvAPagar > 0 ? 'text-red-700' : 'text-primary-700'}`}
             >
-              {formatMoney(summary.igvAPagar)}
+              {formatMoney(Math.abs(summary.igvAPagar))}
             </p>
           </div>
         </div>
