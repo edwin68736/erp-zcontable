@@ -6,6 +6,9 @@ import (
 	"miappfiber/database"
 	"miappfiber/routes"
 	"miappfiber/services"
+	// Zona horaria embebida: America/Lima resuelve igual aunque el servidor no tenga tzdata
+	// (sin esto limaLoc cae a UTC en silencio y, p. ej., la recepción PDT 621 quedaría 5 h corrida).
+	_ "time/tzdata"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"

@@ -4,6 +4,8 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
+import { isAssignedPdt621Supervisor, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import {
   pdt621DisplayStatus,
   pdt621RowBgClass,
@@ -381,6 +383,30 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                 rows.map((row, idx) => {
                   const rec = row.record;
                   const suspendida = !!row.suspendida;
+                  // "Recepcionar" solo en la vista del supervisor y solo para el supervisor asignado a
+                  // la empresa — el backend lo vuelve a validar (RecepcionarPdt621).
+                  const porRecepcionar = pdt621EntregaPorRecepcionar(row.status, suspendida);
+                  const recepcionBtn = (entrega: 'primera' | 'segunda') =>
+                    workspace !== 'assistant' &&
+                    porRecepcionar === entrega &&
+                    isAssignedPdt621Supervisor(row.supervisor_user_id) ? (
+                      <Pdt621RecepcionarButton
+                        compact
+                        companyId={row.company_id}
+                        periodYm={periodYm}
+                        businessName={row.business_name}
+                        entrega={entrega}
+                        onDone={(_, message) => {
+                          setError('');
+                          setMsg(message);
+                          void load();
+                        }}
+                        onError={(message) => {
+                          setMsg('');
+                          setError(message);
+                        }}
+                      />
+                    ) : null;
                   const displayStatus = pdt621DisplayStatus({
                     status: row.status,
                     suspendida,
@@ -446,12 +472,16 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                           ) : null}
                         </div>
                       </td>
-                      <td className={`${TDN} ${GROUP_BORDER}`}>{suspendida ? '' : formatDateCell(rec?.primera_entrega_fecha)}</td>
+                      <td className={`${TDN} ${GROUP_BORDER}`}>
+                        {suspendida ? '' : recepcionBtn('primera') ?? formatDateCell(rec?.primera_entrega_fecha)}
+                      </td>
                       <td className={TDN}>{suspendida ? '' : rec?.primera_entrega_hora || ''}</td>
                       <td className={`${TD} max-w-[12rem]`} title={rec?.observacion || ''}>
                         <span className="block truncate">{rec?.observacion || ''}</span>
                       </td>
-                      <td className={`${TDN} ${GROUP_BORDER}`}>{suspendida ? '' : formatDateCell(rec?.segunda_entrega_fecha)}</td>
+                      <td className={`${TDN} ${GROUP_BORDER}`}>
+                        {suspendida ? '' : recepcionBtn('segunda') ?? formatDateCell(rec?.segunda_entrega_fecha)}
+                      </td>
                       <td className={TDN}>{suspendida ? '' : rec?.segunda_entrega_hora || ''}</td>
                       <td className={`${TD} ${GROUP_BORDER} whitespace-nowrap font-medium`}>
                         {suspendida ? '' : formatDateCell(rec?.fecha_declaracion)}

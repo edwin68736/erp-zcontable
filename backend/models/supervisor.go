@@ -293,12 +293,17 @@ const (
 type SupervisorPdt621Record struct {
 	ID               uint `gorm:"primaryKey" json:"id"`
 	MonthlyControlID uint `gorm:"not null;uniqueIndex" json:"monthly_control_id"`
-	// Revisión de archivadores.
+	// Revisión de archivadores. Fecha/hora las fija el SERVIDOR al "Recepcionar" (lo hace solo el
+	// supervisor asignado a la empresa, ver services.RecepcionarPdt621) — nunca se aceptan desde el
+	// formulario. 1ra entrega = recepción desde Pendiente (queda como historial, es la que mide el
+	// cumplimiento); 2da = recepción tras una observación.
 	PrimeraEntregaFecha *time.Time `gorm:"type:date" json:"primera_entrega_fecha,omitempty"`
 	PrimeraEntregaHora  string     `gorm:"size:5" json:"primera_entrega_hora,omitempty"`
+	PrimeraRecepcionPor *uint      `json:"primera_recepcion_por,omitempty"`
 	Observacion         string     `gorm:"type:text" json:"observacion,omitempty"`
 	SegundaEntregaFecha *time.Time `gorm:"type:date" json:"segunda_entrega_fecha,omitempty"`
 	SegundaEntregaHora  string     `gorm:"size:5" json:"segunda_entrega_hora,omitempty"`
+	SegundaRecepcionPor *uint      `json:"segunda_recepcion_por,omitempty"`
 	// Fecha real en que se declaró el PDT 621 (se compara contra el cronograma SUNAT por dígito).
 	FechaDeclaracion *time.Time `gorm:"type:date" json:"fecha_declaracion,omitempty"`
 	// Importes declarados PDT 621.

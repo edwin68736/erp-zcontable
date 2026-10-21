@@ -297,6 +297,7 @@ func Setup(app *fiber.App) {
 	sup.Get("/activity-modules/pdt-621/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621DetailAPI)
 	sup.Get("/activity-modules/pdt-621/companies/:companyId/record", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.Pdt621RecordOnlyAPI)
 	sup.Put("/activity-modules/pdt-621/companies/:companyId/record", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.Pdt621SaveRecordAPI)
+	sup.Post("/activity-modules/pdt-621/companies/:companyId/recepcionar", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.Pdt621RecepcionarAPI)
 	sup.Get("/tax-settlements/drafts-by-companies", middleware.RequirePermission(rbac.SupervisorsLiquidationsView), supervisorCtrl.TaxSettlementDraftsByCompaniesAPI)
 	sup.Get("/tax-settlements/:id", middleware.RequirePermission(rbac.SupervisorsLiquidationsView), supervisorCtrl.GetTaxSettlementAPI)
 	sup.Post("/tax-settlements", middleware.RequirePermission(rbac.SupervisorsLiquidationsCreate), supervisorCtrl.CreateTaxSettlementAPI)

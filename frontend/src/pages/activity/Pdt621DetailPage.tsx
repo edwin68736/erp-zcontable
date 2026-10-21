@@ -26,13 +26,17 @@ import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
+import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
+import { isAssignedPdt621Supervisor, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
+
+function formatEntrega(fecha?: string | null, hora?: string | null): string {
+  if (!fecha) return '';
+  const [y, m, d] = fecha.slice(0, 10).split('-');
+  return `${d}/${m}/${y}${hora ? ` ${hora}` : ''}`;
+}
 
 const EMPTY_RECORD: Pdt621RecordInput = {
-  primera_entrega_fecha: '',
-  primera_entrega_hora: '',
   observacion: '',
-  segunda_entrega_fecha: '',
-  segunda_entrega_hora: '',
   fecha_declaracion: '',
   total_ventas: 0,
   total_compras: 0,
@@ -48,11 +52,7 @@ const EMPTY_RECORD: Pdt621RecordInput = {
 function recordToInput(r: Pdt621Record | null | undefined): Pdt621RecordInput {
   if (!r) return { ...EMPTY_RECORD };
   return {
-    primera_entrega_fecha: r.primera_entrega_fecha ?? '',
-    primera_entrega_hora: r.primera_entrega_hora ?? '',
     observacion: r.observacion ?? '',
-    segunda_entrega_fecha: r.segunda_entrega_fecha ?? '',
-    segunda_entrega_hora: r.segunda_entrega_hora ?? '',
     fecha_declaracion: r.fecha_declaracion ?? '',
     total_ventas: r.total_ventas ?? 0,
     total_compras: r.total_compras ?? 0,
@@ -117,10 +117,14 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // escribe). formLocked bloquea el formulario igual que declarationLocked.
   const controlSuspendida = !!detail?.control_suspendida;
   const formLocked = declarationLocked || controlSuspendida;
-  // El asistente solo registra 1ra/2da entrega y carga el PDF — "Fecha de declaración e importes
-  // PDT 621" y la observación de revisión las completa el supervisor después, mismo criterio que
-  // "Seguimiento" en Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant).
+  // El asistente carga el PDF — "Fecha de declaración e importes PDT 621" y la observación de
+  // revisión las completa el supervisor después, mismo criterio que "Seguimiento" en
+  // Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant). La 1ra/2da entrega ya no la marca el
+  // asistente: la registra el supervisor asignado con "Recepcionar" (hora del servidor).
   const importesReadOnlyForAssistant = workspace === 'assistant';
+  const entregaPorRecepcionar = pdt621EntregaPorRecepcionar(declaration?.status, controlSuspendida);
+  const canRecepcionar =
+    workspace !== 'assistant' && !!entregaPorRecepcionar && isAssignedPdt621Supervisor(detail?.supervisor_user_id);
   const displayStatus = useMemo(
     () =>
       pdt621DisplayStatus({
@@ -324,6 +328,21 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     }
   };
 
+  const handleRecepcionado = (updated: Pdt621Detail, message: string) => {
+    setDetail((d) =>
+      d
+        ? {
+            ...d,
+            record: updated.record,
+            declaration: updated.declaration,
+            assistant_timeliness: updated.assistant_timeliness,
+          }
+        : d,
+    );
+    setRecord(recordToInput(updated.record));
+    setMsg(message);
+  };
+
   const patchRecord = (patch: Partial<Pdt621RecordInput>) => {
     setRecord((prev) => ({ ...prev, ...patch }));
   };
@@ -338,9 +357,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       setRecordSaving(true);
       setMsg('');
       const updated = await pdt621Service.saveRecord(companyId, periodYm, record);
-      // El guardado puede haber disparado la entrega automática (Pendiente/Observado → Por revisar,
-      // docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — se refleja acá también el estado y la
-      // puntualidad recalculada, no solo el registro.
       setDetail((d) =>
         d
           ? {
@@ -498,8 +514,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
                 {declaration.status === 'observado'
-                  ? 'Esperando que el asistente corrija la observación y vuelva a entregar.'
-                  : 'Esperando que el asistente entregue su registro.'}
+                  ? 'Esperando que el asistente corrija la observación y que el supervisor recepcione de nuevo el archivador (2da entrega).'
+                  : 'Esperando que el supervisor recepcione el archivador del asistente.'}
               </p>
             ) : (
               <>
@@ -567,47 +583,44 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">1ra entrega — Fecha</label>
-                <input
-                  type="date"
-                  disabled={!canUpdate || declarationLocked}
-                  value={record.primera_entrega_fecha}
-                  onChange={(e) => patchRecord({ primera_entrega_fecha: e.target.value })}
-                  className={FIELD_INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">1ra entrega — Hora</label>
-                <input
-                  type="time"
-                  disabled={!canUpdate || declarationLocked}
-                  value={record.primera_entrega_hora}
-                  onChange={(e) => patchRecord({ primera_entrega_hora: e.target.value })}
-                  className={FIELD_INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">2da entrega — Fecha</label>
-                <input
-                  type="date"
-                  disabled={!canUpdate || declarationLocked}
-                  value={record.segunda_entrega_fecha}
-                  onChange={(e) => patchRecord({ segunda_entrega_fecha: e.target.value })}
-                  className={FIELD_INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">2da entrega — Hora</label>
-                <input
-                  type="time"
-                  disabled={!canUpdate || declarationLocked}
-                  value={record.segunda_entrega_hora}
-                  onChange={(e) => patchRecord({ segunda_entrega_hora: e.target.value })}
-                  className={FIELD_INPUT}
-                />
-              </div>
+            {/* 1ra/2da entrega: de solo lectura para todos. Las registra el supervisor asignado con
+                "Recepcionar" y la fecha/hora la pone el servidor (RecepcionarPdt621) — así nadie
+                puede acomodarla al calendario. La 1ra queda como historial (mide el cumplimiento);
+                la 2da es la recepción tras una observación. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(['primera', 'segunda'] as const).map((entrega) => {
+                const fecha = entrega === 'primera' ? detail.record?.primera_entrega_fecha : detail.record?.segunda_entrega_fecha;
+                const hora = entrega === 'primera' ? detail.record?.primera_entrega_hora : detail.record?.segunda_entrega_hora;
+                return (
+                  <div key={entrega}>
+                    <span className="block text-xs text-slate-500 mb-1">
+                      {entrega === 'primera' ? '1ra entrega' : '2da entrega (tras observación)'} — recepción del supervisor
+                    </span>
+                    <div className="flex flex-wrap items-center gap-3 min-h-[2.5rem]">
+                      {fecha ? (
+                        <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-800 tabular-nums">
+                          <i className="fas fa-inbox text-primary-600" aria-hidden />
+                          {formatEntrega(fecha, hora)}
+                        </span>
+                      ) : entregaPorRecepcionar !== entrega ? (
+                        <span className="text-sm text-slate-400">—</span>
+                      ) : null}
+                      {canRecepcionar && entregaPorRecepcionar === entrega ? (
+                        <Pdt621RecepcionarButton
+                          companyId={companyId}
+                          periodYm={periodYm}
+                          businessName={detail.business_name}
+                          entrega={entrega}
+                          onDone={handleRecepcionado}
+                          onError={setMsg}
+                        />
+                      ) : entregaPorRecepcionar === entrega && !fecha ? (
+                        <span className="text-sm text-slate-500">Pendiente de recepción por el supervisor</span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <h2 className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">

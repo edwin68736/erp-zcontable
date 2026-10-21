@@ -429,11 +429,7 @@ const SupervisorLiquidacionCreatePage = () => {
       if (current.control_suspendida) return;
       const base = current.record;
       await pdt621Service.saveRecord(targetCompanyId, periodYm, {
-        primera_entrega_fecha: base?.primera_entrega_fecha ?? '',
-        primera_entrega_hora: base?.primera_entrega_hora ?? '',
         observacion: base?.observacion ?? '',
-        segunda_entrega_fecha: base?.segunda_entrega_fecha ?? '',
-        segunda_entrega_hora: base?.segunda_entrega_hora ?? '',
         fecha_declaracion: base?.fecha_declaracion ?? '',
         total_ventas: totalVentas,
         total_compras: totalCompras,

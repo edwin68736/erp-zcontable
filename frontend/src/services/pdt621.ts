@@ -25,13 +25,10 @@ export interface Pdt621Record {
   motivo_no_envio: string;
 }
 
-/** Cuerpo que envía el supervisor al guardar el seguimiento (fechas como AAAA-MM-DD). */
+/** Cuerpo que envía el supervisor al guardar el seguimiento (fechas como AAAA-MM-DD). No lleva
+ * fecha/hora de 1ra/2da entrega: esas las fija el servidor al Recepcionar (ver `recepcionar`). */
 export interface Pdt621RecordInput {
-  primera_entrega_fecha: string;
-  primera_entrega_hora: string;
   observacion: string;
-  segunda_entrega_fecha: string;
-  segunda_entrega_hora: string;
   fecha_declaracion: string;
   total_ventas: number;
   total_compras: number;
@@ -52,6 +49,8 @@ export interface Pdt621ListRow {
   ruc: string;
   tax_regime: string;
   assistant_username: string;
+  /** Supervisor asignado a la empresa — el único que puede Recepcionar el archivador. */
+  supervisor_user_id?: number | null;
   control_id?: number;
   declaration_id?: number;
   status: string;
@@ -81,6 +80,8 @@ export interface Pdt621Detail {
   ruc: string;
   tax_regime: string;
   assistant_username: string;
+  /** Supervisor asignado a la empresa — el único que puede Recepcionar el archivador. */
+  supervisor_user_id?: number | null;
   control_id: number;
   control_due_date?: string;
   declaration: SupervisorDeclaration;
@@ -143,6 +144,17 @@ export const pdt621Service = {
     const res = await client.put<{ data: Pdt621Detail }>(
       `/supervisors/activity-modules/pdt-621/companies/${companyId}/record`,
       body,
+      { params: { period_ym: periodYm } },
+    );
+    return res.data.data;
+  },
+
+  /** El supervisor asignado recibe físicamente el archivador. Sin cuerpo: fecha y hora las fija el
+   * SERVIDOR (hora de Lima). Pendiente → 1ra entrega; Observado → 2da entrega. Deja Por revisar. */
+  async recepcionar(companyId: number, periodYm: string): Promise<Pdt621Detail> {
+    const res = await client.post<{ data: Pdt621Detail }>(
+      `/supervisors/activity-modules/pdt-621/companies/${companyId}/recepcionar`,
+      null,
       { params: { period_ym: periodYm } },
     );
     return res.data.data;

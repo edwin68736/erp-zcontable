@@ -190,7 +190,7 @@ func TestPdt621EntregadoLabel_UsesInternalCalendar_NotSunatSchedule(t *testing.T
 	}
 	seedPdt621CalendarRule(t, db, periodYM, 15, 0)
 
-	detail, err := svc.SavePdt621Record(co.ID, periodYM, Pdt621RecordInput{PrimeraEntregaFecha: "2026-07-20"})
+	detail, err := recepcionarPdt621EnFecha(t, svc, co.ID, periodYM, "2026-07-20")
 	if err != nil {
 		t.Fatalf("SavePdt621Record: %v", err)
 	}
@@ -218,11 +218,11 @@ func TestPdt621Filter_EntregadoATiempoYFueraDeFecha(t *testing.T) {
 	}
 	seedPdt621CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := svc.SavePdt621Record(coOnTime.ID, periodYM, Pdt621RecordInput{PrimeraEntregaFecha: "2026-07-10"})
+	onTime, err := recepcionarPdt621EnFecha(t, svc, coOnTime.ID, periodYM, "2026-07-10")
 	if err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}
-	late, err := svc.SavePdt621Record(coLate.ID, periodYM, Pdt621RecordInput{PrimeraEntregaFecha: "2026-07-20"})
+	late, err := recepcionarPdt621EnFecha(t, svc, coLate.ID, periodYM, "2026-07-20")
 	if err != nil {
 		t.Fatalf("save late: %v", err)
 	}

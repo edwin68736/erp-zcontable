@@ -101,18 +101,14 @@ func TestSavePdt621RecordRoundTrip(t *testing.T) {
 	}
 
 	in := Pdt621RecordInput{
-		PrimeraEntregaFecha: "2026-07-05",
-		PrimeraEntregaHora:  "09:30",
-		Observacion:         "Archivador incompleto",
-		SegundaEntregaFecha: "2026-07-08",
-		SegundaEntregaHora:  "11:00",
-		FechaDeclaracion:    "2026-07-10",
-		TotalVentas:         12000,
-		TotalCompras:        8000,
-		Igv:                 720,
-		Rta:                 150,
-		EnvioSire:           "si",
-		FechaEnvioSire:      "2026-07-11",
+		Observacion:      "Archivador incompleto",
+		FechaDeclaracion: "2026-07-10",
+		TotalVentas:      12000,
+		TotalCompras:     8000,
+		Igv:              720,
+		Rta:              150,
+		EnvioSire:        "si",
+		FechaEnvioSire:   "2026-07-11",
 	}
 	saved, err := svc.SavePdt621Record(co.ID, "2026-07", in)
 	if err != nil {

@@ -2059,6 +2059,32 @@ func (ctrl *SupervisorController) Pdt621SaveRecordAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// Pdt621RecepcionarAPI POST /api/supervisors/activity-modules/pdt-621/companies/:companyId/recepcionar
+// Sin cuerpo: la fecha/hora de recepción la fija el servidor. Solo el supervisor asignado a la
+// empresa (la validación vive en el servicio).
+func (ctrl *SupervisorController) Pdt621RecepcionarAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	row, err := ctrl.svc.RecepcionarPdt621(uint(companyID), periodYM, uid)
+	if err != nil {
+		if errors.Is(err, services.ErrPdt621RecepcionNoAsignado) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
 // CreateTaxSettlementAPI POST /api/supervisors/tax-settlements — borrador inicial sin líneas (Finanzas completa después).
 func (ctrl *SupervisorController) CreateTaxSettlementAPI(c fiber.Ctx) error {
 	var body services.SupervisorTaxSettlementCreateInput

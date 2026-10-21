@@ -34,6 +34,9 @@ type Pdt621ListRow struct {
 	RUC               string           `json:"ruc"`
 	TaxRegime         string           `json:"tax_regime"`
 	AssistantUsername string           `json:"assistant_username"`
+	// SupervisorUserID supervisor asignado a la empresa (companies.supervisor_user_id) — el único que
+	// puede Recepcionar el archivador (RecepcionarPdt621); la UI lo usa para mostrar el botón.
+	SupervisorUserID  *uint            `json:"supervisor_user_id,omitempty"`
 	ControlID         *uint            `json:"control_id,omitempty"`
 	DeclarationID     *uint            `json:"declaration_id,omitempty"`
 	Status            string           `json:"status"`
@@ -68,6 +71,8 @@ type Pdt621Detail struct {
 	RUC               string                       `json:"ruc"`
 	TaxRegime         string                       `json:"tax_regime"`
 	AssistantUsername string                       `json:"assistant_username"`
+	// SupervisorUserID mismo criterio que Pdt621ListRow.SupervisorUserID.
+	SupervisorUserID  *uint                        `json:"supervisor_user_id,omitempty"`
 	ControlID         uint                         `json:"control_id"`
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
 	// ControlSuspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-
@@ -121,13 +126,11 @@ type Pdt621RecordDTO struct {
 }
 
 // Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD). Suspendida ya no es
-// parte de este input — se marca/desmarca solo desde Control de Detracciones (§5.9.7).
+// parte de este input — se marca/desmarca solo desde Control de Detracciones (§5.9.7). Tampoco trae
+// fecha/hora de 1ra/2da entrega: esas las fija el servidor al Recepcionar (RecepcionarPdt621); si un
+// cliente las manda, el JSON las descarta.
 type Pdt621RecordInput struct {
-	PrimeraEntregaFecha        string  `json:"primera_entrega_fecha"`
-	PrimeraEntregaHora         string  `json:"primera_entrega_hora"`
 	Observacion                string  `json:"observacion"`
-	SegundaEntregaFecha        string  `json:"segunda_entrega_fecha"`
-	SegundaEntregaHora         string  `json:"segunda_entrega_hora"`
 	FechaDeclaracion           string  `json:"fecha_declaracion"`
 	TotalVentas                float64 `json:"total_ventas"`
 	TotalCompras               float64 `json:"total_compras"`
@@ -358,6 +361,7 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 		RUC:                 strings.TrimSpace(company.RUC),
 		TaxRegime:           strings.TrimSpace(company.TaxRegime),
 		AssistantUsername:   assistantUsername(company.Assistant),
+		SupervisorUserID:    company.SupervisorUserID,
 		ControlID:           ctrl.ID,
 		ControlDueDate:      ctrl.DueDate,
 		ControlSuspendida:   ctrl.Suspendida,
@@ -434,11 +438,11 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 		return nil, err
 	}
 	record.MonthlyControlID = ctrl.ID
-	record.PrimeraEntregaFecha = pdt601ParseDate(in.PrimeraEntregaFecha)
-	record.PrimeraEntregaHora = strings.TrimSpace(in.PrimeraEntregaHora)
+	// Fecha/hora de 1ra y 2da entrega NO se toman del input (aunque vengan): solo las fija el
+	// servidor al Recepcionar (RecepcionarPdt621). Así nadie puede "acomodar" la fecha de entrega
+	// al calendario editándola a mano o llamando a la API directo — el registro existente las
+	// conserva tal cual.
 	record.Observacion = strings.TrimSpace(in.Observacion)
-	record.SegundaEntregaFecha = pdt601ParseDate(in.SegundaEntregaFecha)
-	record.SegundaEntregaHora = strings.TrimSpace(in.SegundaEntregaHora)
 	record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
 	record.TotalVentas = in.TotalVentas
 	record.TotalCompras = in.TotalCompras
@@ -450,37 +454,115 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
 	record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
 
+	// Guardar ya no "entrega" (antes: guardar con fecha de 1ra entrega pasaba a Por revisar, ver
+	// docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — esa transición ahora la hace únicamente
+	// RecepcionarPdt621, con la hora del servidor.
+	if record.ID == 0 {
+		err = database.DB.Create(&record).Error
+	} else {
+		err = database.DB.Save(&record).Error
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return s.EnsurePdt621(companyID, periodYM)
+}
+
+// ErrPdt621RecepcionNoAsignado el usuario no es el supervisor asignado a la empresa — el controlador
+// lo traduce a 403.
+var ErrPdt621RecepcionNoAsignado = errors.New("solo el supervisor asignado a esta empresa puede recepcionar el archivador")
+
+// pdt621Now hora actual del servidor; variable para poder fijarla en tests.
+var pdt621Now = time.Now
+
+// RecepcionarPdt621 el supervisor asignado a la empresa recibe físicamente el archivador del
+// asistente. Fecha y hora salen SIEMPRE del servidor (hora de Lima), nunca del cliente — así el
+// asistente no puede acomodar la fecha al calendario. Deja la declaración igual que antes la dejaba
+// la entrega del asistente (Por revisar), para que después se apruebe u observe como siempre:
+//   - Pendiente → graba la 1ra entrega. Es la que mide el cumplimiento y queda como historial.
+//   - Observado → graba la 2da entrega; la 1ra no se toca.
+//
+// Cualquier otro estado (Por revisar, Entregado) se rechaza: no se recepciona dos veces.
+func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, userID uint) (*Pdt621Detail, error) {
+	if userID == 0 {
+		return nil, ErrPdt621RecepcionNoAsignado
+	}
+	detail, err := s.EnsurePdt621(companyID, periodYM)
+	if err != nil {
+		return nil, err
+	}
+	if detail.SupervisorUserID == nil || *detail.SupervisorUserID != userID {
+		return nil, ErrPdt621RecepcionNoAsignado
+	}
+	if detail.ControlSuspendida {
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se recepciona")
+	}
 	declStatus := detail.Declaration.Status
-	declID := detail.Declaration.ID
+	if declStatus != models.SupervisorDeclPendiente && declStatus != models.SupervisorDeclObservado {
+		return nil, errors.New("el archivador ya fue recepcionado (solo se recepciona en estado Pendiente u Observado)")
+	}
+
+	lt := pdt621Now().In(limaLoc)
+	fecha := time.Date(lt.Year(), lt.Month(), lt.Day(), 0, 0, 0, 0, time.Local)
+	hora := lt.Format("15:04")
+	uid := userID
+	nuevo := fecha.Format("2006-01-02") + " " + hora
+	campo, anterior := "pdt621_primera_entrega", ""
+
 	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		var record models.SupervisorPdt621Record
+		if err := tx.Where("monthly_control_id = ?", detail.ControlID).First(&record).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			record = models.SupervisorPdt621Record{MonthlyControlID: detail.ControlID}
+		}
+		if declStatus == models.SupervisorDeclPendiente {
+			if record.PrimeraEntregaFecha != nil {
+				anterior = strings.TrimSpace(record.PrimeraEntregaFecha.Format("2006-01-02") + " " + record.PrimeraEntregaHora)
+			}
+			record.PrimeraEntregaFecha = &fecha
+			record.PrimeraEntregaHora = hora
+			record.PrimeraRecepcionPor = &uid
+		} else {
+			// Si ya hubo una 2da recepción (observado más de una vez) se reemplaza por la última;
+			// el valor anterior queda en el historial de cambios.
+			campo = "pdt621_segunda_entrega"
+			if record.SegundaEntregaFecha != nil {
+				anterior = strings.TrimSpace(record.SegundaEntregaFecha.Format("2006-01-02") + " " + record.SegundaEntregaHora)
+			}
+			record.SegundaEntregaFecha = &fecha
+			record.SegundaEntregaHora = hora
+			record.SegundaRecepcionPor = &uid
+		}
 		if record.ID == 0 {
 			if err := tx.Create(&record).Error; err != nil {
 				return err
 			}
-		} else {
-			if err := tx.Save(&record).Error; err != nil {
-				return err
-			}
+		} else if err := tx.Save(&record).Error; err != nil {
+			return err
 		}
-		// Entregar automático (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): guardar con
-		// fecha de entrega cargada es en sí mismo la acción de "entregar" — no hay selector de
-		// estado manual. Solo aplica desde Pendiente/Observado, nunca desde Por revisar (ya está
-		// ahí) ni Entregado (bloqueado más arriba, antes de llegar acá).
-		if record.PrimeraEntregaFecha != nil &&
-			(declStatus == models.SupervisorDeclPendiente || declStatus == models.SupervisorDeclObservado) {
-			return tx.Model(&models.SupervisorDeclaration{}).
-				Where("id = ?", declID).
-				Updates(map[string]interface{}{
-					"status":       models.SupervisorDeclPorRevisar,
-					"progress_pct": declarationProgressFromStatus(models.SupervisorDeclPorRevisar),
-				}).Error
+		// Condición sobre el estado en el UPDATE: si dos clics llegan a la vez, solo uno pasa.
+		res := tx.Model(&models.SupervisorDeclaration{}).
+			Where("id = ? AND status = ?", detail.Declaration.ID, declStatus).
+			Updates(map[string]interface{}{
+				"status":       models.SupervisorDeclPorRevisar,
+				"progress_pct": declarationProgressFromStatus(models.SupervisorDeclPorRevisar),
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("el archivador ya fue recepcionado")
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-
+	s.LogChange("declaration", detail.Declaration.ID, "status", declStatus, models.SupervisorDeclPorRevisar, userID)
+	s.LogChange("declaration", detail.Declaration.ID, campo, anterior, nuevo, userID)
 	return s.EnsurePdt621(companyID, periodYM)
 }
 
@@ -682,6 +764,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 			RUC:               strings.TrimSpace(co.RUC),
 			TaxRegime:         strings.TrimSpace(co.TaxRegime),
 			AssistantUsername: assistantUsername(co.Assistant),
+			SupervisorUserID:  co.SupervisorUserID,
 			Status:            models.SupervisorSunatSinRegistro,
 			Record:            recordByCompany[co.ID],
 			Suspendida:        suspendidaByCompany[co.ID],

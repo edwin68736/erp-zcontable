@@ -4,6 +4,9 @@ package services
 // (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9): guardar la planilla/registro con fecha de
 // entrega cargada mueve solo la declaración a "por_revisar" — no hay selector de estado manual — y una
 // vez "entregado" el guardado queda bloqueado hasta que se reabra.
+//
+// PDT 621: la entrega ya no la marca el asistente al guardar — la hace el supervisor asignado con
+// "Recepcionar" (hora del servidor), ver supervisor_pdt621_recepcion_test.go.
 
 import (
 	"testing"
@@ -83,7 +86,7 @@ func TestSavePdt601Planilla_BlockedWhenEntregado(t *testing.T) {
 	}
 }
 
-func TestSavePdt621Record_AutoTransitionsToPorRevisar_WhenFechaEntregaSet(t *testing.T) {
+func TestRecepcionarPdt621_TransitionsToPorRevisar(t *testing.T) {
 	db := setupPdt621TestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "E004")
@@ -91,9 +94,7 @@ func TestSavePdt621Record_AutoTransitionsToPorRevisar_WhenFechaEntregaSet(t *tes
 		t.Fatalf("CreatePeriod: %v", err)
 	}
 
-	detail, err := svc.SavePdt621Record(co.ID, "2026-07", Pdt621RecordInput{
-		PrimeraEntregaFecha: "2026-07-10",
-	})
+	detail, err := recepcionarPdt621EnFecha(t, svc, co.ID, "2026-07", "2026-07-10")
 	if err != nil {
 		t.Fatalf("SavePdt621Record: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestSavePdt621Record_AutoTransitionsToPorRevisar_WhenFechaEntregaSet(t *tes
 	}
 }
 
-func TestSavePdt621Record_NoTransition_WhenFechaEntregaEmpty(t *testing.T) {
+func TestSavePdt621Record_NoTransition(t *testing.T) {
 	db := setupPdt621TestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "E005")
@@ -126,9 +127,7 @@ func TestSavePdt621Record_BlockedWhenEntregado(t *testing.T) {
 	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
 		t.Fatalf("CreatePeriod: %v", err)
 	}
-	detail, err := svc.SavePdt621Record(co.ID, "2026-07", Pdt621RecordInput{
-		PrimeraEntregaFecha: "2026-07-10",
-	})
+	detail, err := recepcionarPdt621EnFecha(t, svc, co.ID, "2026-07", "2026-07-10")
 	if err != nil {
 		t.Fatalf("primer guardado: %v", err)
 	}

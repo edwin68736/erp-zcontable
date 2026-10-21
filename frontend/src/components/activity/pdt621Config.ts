@@ -1,3 +1,4 @@
+import { auth } from '../../services/auth';
 import {
   activityStatusBadgeClass,
   activityStatusLabel,
@@ -148,3 +149,21 @@ export function pdt621RowBgClass(timeliness: string | undefined, suspendida?: bo
 }
 
 export { formatStoredAt };
+
+/**
+ * Qué entrega toca recepcionar según el estado de la declaración PDT 621 — null si no corresponde.
+ * Pendiente (o sin registro todavía) → 1ra entrega; Observado → 2da entrega. Mismo criterio que
+ * RecepcionarPdt621 en el backend.
+ */
+export function pdt621EntregaPorRecepcionar(status: string | undefined, suspendida: boolean): 'primera' | 'segunda' | null {
+  if (suspendida) return null;
+  if (!status || status === 'pendiente' || status === 'sin_registro') return 'primera';
+  if (status === 'observado') return 'segunda';
+  return null;
+}
+
+/** Solo el supervisor asignado a la empresa recepciona (el backend lo vuelve a validar). */
+export function isAssignedPdt621Supervisor(supervisorUserId: number | null | undefined): boolean {
+  const me = auth.getUser()?.id;
+  return !!me && !!supervisorUserId && me === supervisorUserId;
+}
