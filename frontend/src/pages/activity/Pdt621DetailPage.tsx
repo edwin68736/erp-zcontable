@@ -27,7 +27,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
-import { isAssignedPdt621Supervisor, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
+import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 
 function formatEntrega(fecha?: string | null, hora?: string | null): string {
   if (!fecha) return '';
@@ -124,7 +124,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const importesReadOnlyForAssistant = workspace === 'assistant';
   const entregaPorRecepcionar = pdt621EntregaPorRecepcionar(declaration?.status, controlSuspendida);
   const canRecepcionar =
-    workspace !== 'assistant' && !!entregaPorRecepcionar && isAssignedPdt621Supervisor(detail?.supervisor_user_id);
+    workspace !== 'assistant' && !!entregaPorRecepcionar && canRecepcionarPdt621(detail?.supervisor_user_id);
   const displayStatus = useMemo(
     () =>
       pdt621DisplayStatus({

@@ -1,4 +1,5 @@
 import { auth } from '../../services/auth';
+import { P } from '../../rbac/codes';
 import {
   activityStatusBadgeClass,
   activityStatusLabel,
@@ -162,8 +163,12 @@ export function pdt621EntregaPorRecepcionar(status: string | undefined, suspendi
   return null;
 }
 
-/** Solo el supervisor asignado a la empresa recepciona (el backend lo vuelve a validar). */
-export function isAssignedPdt621Supervisor(supervisorUserId: number | null | undefined): boolean {
+/**
+ * Puede recepcionar el archivador PDT 621 de esta empresa: el supervisor asignado, o quien tenga el
+ * permiso de recepcionar cualquier empresa (Administrador). El backend lo vuelve a validar.
+ */
+export function canRecepcionarPdt621(supervisorUserId: number | null | undefined): boolean {
+  if (auth.hasPermission(P.supervisorsPdt621ReceiveAny)) return true;
   const me = auth.getUser()?.id;
   return !!me && !!supervisorUserId && me === supervisorUserId;
 }

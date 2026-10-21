@@ -9,6 +9,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	"miappfiber/rbac"
 
 	"gorm.io/gorm"
 )
@@ -532,7 +533,7 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 
 // ErrPdt621RecepcionNoAsignado el usuario no es el supervisor asignado a la empresa — el controlador
 // lo traduce a 403.
-var ErrPdt621RecepcionNoAsignado = errors.New("solo el supervisor asignado a esta empresa puede recepcionar el archivador")
+var ErrPdt621RecepcionNoAsignado = errors.New("solo el supervisor asignado a esta empresa (o un administrador) puede recepcionar el archivador")
 
 // pdt621Now hora actual del servidor; variable para poder fijarla en tests.
 var pdt621Now = time.Now
@@ -557,7 +558,8 @@ func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, u
 	if err != nil {
 		return nil, err
 	}
-	if detail.SupervisorUserID == nil || *detail.SupervisorUserID != userID {
+	asignado := detail.SupervisorUserID != nil && *detail.SupervisorUserID == userID
+	if !asignado && !Authz().HasPermission(userID, rbac.SupervisorsPdt621ReceiveAny) {
 		return nil, ErrPdt621RecepcionNoAsignado
 	}
 	if detail.ControlSuspendida {

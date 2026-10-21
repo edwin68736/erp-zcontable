@@ -12,6 +12,7 @@ import (
 
 	"miappfiber/database"
 	"miappfiber/models"
+	"miappfiber/rbac"
 )
 
 const testPdt621SupervisorID uint = 9
@@ -206,5 +207,45 @@ func TestSavePdt621Record_YaNoEntrega(t *testing.T) {
 	}
 	if d.Declaration.Status != models.SupervisorDeclPendiente {
 		t.Fatalf("Status=%s, want pendiente (guardar ya no entrega; solo Recepcionar)", d.Declaration.Status)
+	}
+}
+
+func TestRecepcionarPdt621_AdministradorRecepcionaCualquierEmpresa(t *testing.T) {
+	db := setupPdt621TestDB(t)
+	if err := db.AutoMigrate(&models.Permission{}, &models.Role{}, &models.RolePermission{}, &models.UserRole{}); err != nil {
+		t.Fatalf("migrate rbac: %v", err)
+	}
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "R007")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	// La empresa la supervisa otro (42); 55 es administrador con el permiso de recepcionar cualquiera.
+	db.Model(&models.Company{}).Where("id = ?", co.ID).Update("supervisor_user_id", 42)
+	const admin uint = 55
+	perm := models.Permission{ModuleID: 1, Code: rbac.SupervisorsPdt621ReceiveAny, Action: "receive", Name: "test"}
+	role := models.Role{Code: rbac.RoleAdministrador, Name: "Administrador", IsSystem: true}
+	db.Create(&perm)
+	db.Create(&role)
+	db.Create(&models.RolePermission{RoleID: role.ID, PermissionID: perm.ID})
+	db.Create(&models.UserRole{UserID: admin, RoleID: role.ID})
+	Authz().InvalidateAll()
+	t.Cleanup(Authz().InvalidateAll)
+
+	// Un supervisor que no es el asignado sigue sin poder.
+	if _, err := svc.RecepcionarPdt621(co.ID, "2026-07", 77); !errors.Is(err, ErrPdt621RecepcionNoAsignado) {
+		t.Fatalf("otro supervisor: err=%v, want ErrPdt621RecepcionNoAsignado", err)
+	}
+	d, err := svc.RecepcionarPdt621(co.ID, "2026-07", admin)
+	if err != nil {
+		t.Fatalf("administrador: %v", err)
+	}
+	if d.Declaration.Status != models.SupervisorDeclPorRevisar {
+		t.Fatalf("Status=%s, want por_revisar", d.Declaration.Status)
+	}
+	var rec models.SupervisorPdt621Record
+	db.Where("monthly_control_id = ?", d.ControlID).First(&rec)
+	if rec.PrimeraRecepcionPor == nil || *rec.PrimeraRecepcionPor != admin {
+		t.Fatalf("PrimeraRecepcionPor=%v, want %d (queda registrado que recepcionó el administrador)", rec.PrimeraRecepcionPor, admin)
 	}
 }

@@ -31,6 +31,10 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillRolePermission(db, rbac.RoleAsistente, rbac.SettingsFirmBrandingView); err != nil {
 		return err
 	}
+	// El administrador también puede recepcionar el archivador PDT 621 de cualquier empresa.
+	if err := backfillRolePermission(db, rbac.RoleAdministrador, rbac.SupervisorsPdt621ReceiveAny); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}

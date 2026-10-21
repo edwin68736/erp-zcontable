@@ -89,6 +89,7 @@ export const P = {
   supervisorsDeclarationsApprove: 'supervisors.declarations_approve',
   supervisorsDeclarationsObserve: 'supervisors.declarations_observe',
   supervisorsDeclarationsReopen: 'supervisors.declarations_reopen',
+  supervisorsPdt621ReceiveAny: 'supervisors.pdt621_receive_any',
   supervisorsLiquidationsView: 'supervisors.liquidations_view',
   supervisorsLiquidationsCreate: 'supervisors.liquidations_create',
   supervisorsLiquidationsUpdate: 'supervisors.liquidations_update',

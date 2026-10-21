@@ -143,6 +143,7 @@ var registryDefs = []PermDef{
 	{SupervisorsDeclarationsApprove, ModSupervisores, "Declaraciones", "Aprobar declaración"},
 	{SupervisorsDeclarationsObserve, ModSupervisores, "Declaraciones", "Observar declaración"},
 	{SupervisorsDeclarationsReopen, ModSupervisores, "Declaraciones", "Reabrir declaración entregada (PDT 601/621)"},
+	{SupervisorsPdt621ReceiveAny, ModSupervisores, "Declaraciones", "Recepcionar archivador PDT 621 de cualquier empresa"},
 
 	{SupervisorsLiquidationsView, ModSupervisores, "Liquidaciones", "Ver liquidación tributaria"},
 	{SupervisorsLiquidationsCreate, ModSupervisores, "Liquidaciones", "Crear liquidación tributaria"},
@@ -352,7 +353,7 @@ func administradorCodes() []string {
 // para poder diferenciarlos sin tocar Administrador si en el futuro hace falta.
 func gerenciaSupervisorCodes() []string {
 	deny := append([]string(nil), supervisorDeny...)
-	deny = append(deny, FinanceSunatDueDatesManage)
+	deny = append(deny, FinanceSunatDueDatesManage, SupervisorsPdt621ReceiveAny)
 	return codesExcept(deny)
 }
 

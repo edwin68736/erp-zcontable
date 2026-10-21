@@ -125,6 +125,10 @@ const (
 	// de Update/Approve/Observe, asignado únicamente a Super usuario — mismo criterio ya usado para
 	// PaymentsViewVoided.
 	SupervisorsDeclarationsReopen = "supervisors.declarations_reopen"
+	// SupervisorsPdt621ReceiveAny recepcionar el archivador PDT 621 de CUALQUIER empresa, no solo de
+	// las que el usuario supervisa (por defecto solo puede el supervisor asignado). Exclusivo de
+	// Administrador (y Super usuario), mismo criterio que FinanceSunatDueDatesManage.
+	SupervisorsPdt621ReceiveAny = "supervisors.pdt621_receive_any"
 
 	SupervisorsLiquidationsView    = "supervisors.liquidations_view"
 	SupervisorsLiquidationsCreate  = "supervisors.liquidations_create"

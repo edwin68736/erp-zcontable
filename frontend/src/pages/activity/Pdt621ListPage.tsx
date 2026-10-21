@@ -5,7 +5,7 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
-import { isAssignedPdt621Supervisor, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
+import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import {
   pdt621DisplayStatus,
   pdt621RowBgClass,
@@ -389,7 +389,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                   const recepcionBtn = (entrega: 'primera' | 'segunda') =>
                     workspace !== 'assistant' &&
                     porRecepcionar === entrega &&
-                    isAssignedPdt621Supervisor(row.supervisor_user_id) ? (
+                    canRecepcionarPdt621(row.supervisor_user_id) ? (
                       <Pdt621RecepcionarButton
                         compact
                         companyId={row.company_id}
