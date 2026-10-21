@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -1135,6 +1136,12 @@ func (s *SupervisorService) UploadMailboxCapture(
 		return nil, err
 	}
 
+	// Adjunto que el slot tenía antes: se borra al final, una vez que el slot ya apunta al nuevo.
+	previousAttachmentID := slot.SunatAttachmentID
+	if mailboxType == models.SupervisorMailboxTypeSunafil {
+		previousAttachmentID = slot.SunafilAttachmentID
+	}
+
 	now := time.Now()
 	updates := map[string]interface{}{}
 	switch mailboxType {
@@ -1168,6 +1175,13 @@ func (s *SupervisorService) UploadMailboxCapture(
 		Preload("SunafilAttachment").
 		First(&slot, slotID).Error; err != nil {
 		return nil, err
+	}
+	// Se borra DESPUÉS de apuntar el slot al nuevo (nunca antes) para que un fallo no deje el
+	// slot sin archivo. Si el borrado falla, el reemplazo ya quedó hecho: solo se registra el aviso.
+	if previousAttachmentID != nil && *previousAttachmentID != att.ID {
+		if err := s.DeleteAttachment(*previousAttachmentID); err != nil {
+			log.Printf("[sunat_inbox] no se pudo borrar el adjunto reemplazado id=%d (slot %d): %v", *previousAttachmentID, slotID, err)
+		}
 	}
 	timelinessCtx := mailboxTimelinessCtxFor(periodYM, weekStartParsed, detail.CapturesPerWeek)
 	dto := enrichSunatInboxCaptureSlotTimeliness(captureSlotDTO(&slot, slot.SlotIndex), timelinessCtx)
