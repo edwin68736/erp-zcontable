@@ -246,13 +246,74 @@ func pdt621DueDateCandidates(periodYM string) []pdt601DueDateCandidate {
 		if err != nil {
 			continue
 		}
-		deadline := dueDate
-		if rule, err := LoadActiveActivityRule(act.ActivityRuleID); err == nil && rule != nil {
-			deadline = BuildUploadDeadline(dueDate, rule)
+		// Sin regla = fin del día programado (23:59:59): ahora se compara fecha+hora de la recepción
+		// (pdt621PuntualidadSQL), y con la medianoche una entrega del mismo día saldría tarde.
+		var rule *models.ActivityRule
+		if r, err := LoadActiveActivityRule(act.ActivityRuleID); err == nil {
+			rule = r
 		}
+		deadline := BuildUploadDeadline(dueDate, rule)
 		out = append(out, pdt601DueDateCandidate{Start: act.RucDigitStartSnapshot, End: act.RucDigitEndSnapshot, Due: deadline})
 	}
 	return out
+}
+
+// pdt621PrimeraEntregaAt fecha + hora de la 1ra entrega (recepción del supervisor), para evaluar el
+// plazo interno con reglas de fecha y hora (p. ej. "hasta las 15:00 del día programado"). La hora es
+// la de Lima que grabó el servidor al recepcionar; se arma como hora "de pared" en time.Local, igual
+// que BuildUploadDeadline arma el límite, así ambos se comparan en la misma escala sin importar la
+// zona del servidor. Sin hora (registros viejos) queda a las 00:00, como antes.
+func pdt621PrimeraEntregaAt(fecha *string, hora string) *time.Time {
+	if fecha == nil {
+		return nil
+	}
+	d := pdt601ParseDate(*fecha)
+	if d == nil {
+		return nil
+	}
+	if h, err := time.ParseInLocation("15:04", strings.TrimSpace(hora), time.Local); err == nil {
+		t := time.Date(d.Year(), d.Month(), d.Day(), h.Hour(), h.Minute(), 0, 0, time.Local)
+		return &t
+	}
+	return d
+}
+
+// pdt621PuntualidadSQL condiciones SQL "entregado a tiempo" / "fuera de plazo" de la 1ra entrega
+// (alias `r` = supervisor_pdt621_records) contra el límite del calendario interno, con FECHA + HORA —
+// mismo criterio que pdt621PrimeraEntregaAt en Go: fuera de plazo si el día de la recepción es
+// posterior al programado, o es el mismo día y la hora (HH:MM) pasa la hora límite de la regla
+// ("23:59" si la regla compara solo fecha o no hay regla). Sin hora (registros viejos) cuenta como
+// 00:00. Se compara DATE() + texto HH:MM (y no TIMESTAMP) para que funcione igual en MySQL y SQLite.
+// ok=false si el período no tiene ninguna actividad PDT 621 en el calendario.
+func pdt621PuntualidadSQL(periodYM, companyIDExpr string) (onTime, late string, ok bool) {
+	candidates := pdt621DueDateCandidates(periodYM)
+	if len(candidates) == 0 {
+		return "", "", false
+	}
+	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	digExpr := fmt.Sprintf("(SELECT cac.dig FROM company_access_credentials cac WHERE cac.company_id = %s LIMIT 1)", companyIDExpr)
+	build := func(format string) string {
+		var whens []string
+		wildcard := "NULL"
+		for _, c := range candidates {
+			lit := sq(c.Due.Format(format))
+			if c.Start == nil || c.End == nil {
+				wildcard = lit
+				continue
+			}
+			whens = append(whens, fmt.Sprintf("WHEN CAST(%s AS UNSIGNED) BETWEEN %d AND %d THEN %s", digExpr, *c.Start, *c.End, lit))
+		}
+		if len(whens) == 0 {
+			return wildcard
+		}
+		return "(CASE " + strings.Join(whens, " ") + " ELSE " + wildcard + " END)"
+	}
+	dueDay, dueTime := build("2006-01-02"), build("15:04")
+	tarde := fmt.Sprintf("(DATE(r.primera_entrega_fecha) > %s OR (DATE(r.primera_entrega_fecha) = %s AND COALESCE(r.primera_entrega_hora, '') > %s))",
+		dueDay, dueDay, dueTime)
+	onTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR NOT %s)", dueDay, tarde)
+	late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND %s)", dueDay, tarde)
+	return onTime, late, true
 }
 
 // pdt621DueDateSQLCase mismo mecanismo que pdt601DueDateSQLCase (supervisor_pdt601_service.go), para
@@ -382,8 +443,8 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 func pdt621AssistantTimelinessDTO(periodYM, dig string, controlSuspendida bool, recordDTO *Pdt621RecordDTO) UploadTimelinessDTO {
 	exempt := controlSuspendida
 	var primeraEntregaAt *time.Time
-	if recordDTO != nil && recordDTO.PrimeraEntregaFecha != nil {
-		primeraEntregaAt = pdt601ParseDate(*recordDTO.PrimeraEntregaFecha)
+	if recordDTO != nil {
+		primeraEntregaAt = pdt621PrimeraEntregaAt(recordDTO.PrimeraEntregaFecha, recordDTO.PrimeraEntregaHora)
 	}
 	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), primeraEntregaAt, exempt)
 }
@@ -625,7 +686,7 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND c.suspendida = ?
 		)`, p.PeriodYM, true)
 	} else if statusFilter == pdt621StatusFilterEntregadoATiempo {
-		dueCase, hasAny := pdt621DueDateSQLCase(p.PeriodYM, "companies.id")
+		onTime, _, hasAny := pdt621PuntualidadSQL(p.PeriodYM, "companies.id")
 		if !hasAny {
 			q = q.Where(`EXISTS (
 				SELECT 1 FROM supervisor_monthly_controls c
@@ -638,11 +699,11 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND (r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)
-			)`, dueCase, dueCase), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
+				AND %s
+			)`, onTime), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter == pdt621StatusFilterEntregadoFueraDeFecha {
-		dueCase, hasAny := pdt621DueDateSQLCase(p.PeriodYM, "companies.id")
+		_, late, hasAny := pdt621PuntualidadSQL(p.PeriodYM, "companies.id")
 		if !hasAny {
 			q = q.Where("1 = 0")
 		} else {
@@ -651,8 +712,8 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 				INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.status = ?
 				INNER JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL
 				WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-				AND r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s
-			)`, dueCase, dueCase), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
+				AND %s
+			)`, late), models.SupervisorDeclPDT621, models.SupervisorDeclEntregado, p.PeriodYM)
 		}
 	} else if statusFilter != "" {
 		q = q.Where(`EXISTS (
@@ -822,8 +883,8 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		// primera entrega, sin importar si SUNAT terminó aceptando la declaración o no — eso ya lo
 		// cubre DeclarationTimeliness arriba, contra el cronograma oficial.
 		var primeraEntregaAt *time.Time
-		if row.Record != nil && row.Record.PrimeraEntregaFecha != nil {
-			primeraEntregaAt = pdt601ParseDate(*row.Record.PrimeraEntregaFecha)
+		if row.Record != nil {
+			primeraEntregaAt = pdt621PrimeraEntregaAt(row.Record.PrimeraEntregaFecha, row.Record.PrimeraEntregaHora)
 		}
 		pdt621Act := PickCalendarActivityByDigit(pdt621Acts, pdt601DigitFromString(row.Dig))
 		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, exempt).Timeliness

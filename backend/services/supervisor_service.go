@@ -464,9 +464,9 @@ func pdtBucketConditions(periodYM string) map[string]string {
 		pdt601Late = fmt.Sprintf("(pl.fecha_entrega IS NOT NULL AND %s IS NOT NULL AND pl.fecha_entrega > %s)", dueCase, dueCase)
 	}
 	pdt621OnTime, pdt621Late := "1=1", "1=0"
-	if dueCase, ok := pdt621DueDateSQLCase(periodYM, "c.company_id"); ok {
-		pdt621OnTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR r.primera_entrega_fecha <= %s)", dueCase, dueCase)
-		pdt621Late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND r.primera_entrega_fecha > %s)", dueCase, dueCase)
+	// Fecha + hora de la recepción (reglas "hasta las HH:MM"), ver pdt621PuntualidadSQL.
+	if onTime, late, ok := pdt621PuntualidadSQL(periodYM, "c.company_id"); ok {
+		pdt621OnTime, pdt621Late = onTime, late
 	}
 	todayLit := sq(time.Now().Format("2006-01-02"))
 	entregadoStatus := sq(models.SupervisorDeclEntregado)
