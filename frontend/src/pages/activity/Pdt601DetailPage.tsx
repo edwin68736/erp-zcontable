@@ -376,10 +376,10 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   const handleSavePlanilla = async () => {
     if (!canUpdate || formLocked) return;
-    // Régimen laboral es obligatorio siempre (a diferencia de NPS/Ticket AFP, que solo aplican al
+    // Régimen laboral es obligatorio (a diferencia de NPS/Ticket AFP, que solo aplican al
     // seguimiento del supervisor): se muestra y edita en la tarjeta "Empresa", visible para ambos
-    // workspaces, independientemente de sin_planilla/suspendida.
-    if (!planilla.regimen_laboral) {
+    // workspaces — salvo con "Sin planilla": sin trabajadores no hay régimen que declarar.
+    if (!planilla.sin_planilla && !planilla.regimen_laboral) {
       showMsg('Seleccione el régimen laboral.', 'error');
       return;
     }
@@ -535,7 +535,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
               <div>
                 <p className="text-slate-500 mb-1">Régimen laboral</p>
                 <select
-                  required
+                  required={!planilla.sin_planilla}
                   value={planilla.regimen_laboral}
                   disabled={formLocked}
                   onChange={(e) => patchPlanilla({ regimen_laboral: e.target.value })}
@@ -554,7 +554,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Régimen laboral</label>
               <select
-                required
+                required={!planilla.sin_planilla}
                 value={planilla.regimen_laboral}
                 disabled={formLocked}
                 onChange={(e) => patchPlanilla({ regimen_laboral: e.target.value })}
