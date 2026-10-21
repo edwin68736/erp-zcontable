@@ -454,8 +454,11 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                               {displayStatus.label}
                             </span>
                             {/* Botón de acción (registrar/ver) movido acá desde la última columna,
-                                junto al estado en vez de al fondo de la fila. */}
-                            <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar registro" />
+                                junto al estado en vez de al fondo de la fila. El asistente no entra
+                                al detalle: solo ve estados y la recepción del supervisor. */}
+                            {workspace !== 'assistant' ? (
+                              <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar registro" />
+                            ) : null}
                           </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver

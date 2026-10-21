@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"miappfiber/rbac"
 	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
@@ -947,6 +948,11 @@ func (ctrl *SupervisorController) UploadAttachmentAPI(c fiber.Ctx) error {
 		if e, ok := err.(*fiber.Error); ok {
 			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
 		}
+	}
+	// El archivo PDT 621 lo carga solo el supervisor (quien puede aprobar declaraciones), nunca el
+	// asistente — mismo criterio que la recepción del archivador (Pdt621RecepcionarAPI).
+	if did > 0 && !services.Authz().HasPermission(uid, rbac.SupervisorsDeclarationsApprove) && ctrl.svc.IsPdt621Declaration(uint(did)) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "el archivo PDT 621 lo carga solo el supervisor"})
 	}
 	if fh.Size > 10*1024*1024 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "archivo máximo 10 MB"})

@@ -566,6 +566,15 @@ func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, u
 	return s.EnsurePdt621(companyID, periodYM)
 }
 
+// IsPdt621Declaration true si la declaración es un PDT 621 (para restringir quién carga su archivo).
+func (s *SupervisorService) IsPdt621Declaration(id uint) bool {
+	var d models.SupervisorDeclaration
+	if err := database.DB.Select("declaration_type").First(&d, id).Error; err != nil {
+		return false
+	}
+	return d.DeclarationType == models.SupervisorDeclPDT621
+}
+
 // pdt621FilteredCompaniesQuery arma el query de empresas (sin paginar) para un conjunto de
 // filtros — compartido por ListPdt621 (pagina en SQL) y ExportPdt621 (trae todo, para el reporte
 // Excel). Mismo patrón que pdt601FilteredCompaniesQuery.
