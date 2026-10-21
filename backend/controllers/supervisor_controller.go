@@ -2065,6 +2065,17 @@ func (ctrl *SupervisorController) Pdt621SaveRecordAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// Pdt621ServerTimeAPI GET /api/supervisors/activity-modules/pdt-621/server-time
+// Hora actual del servidor (Lima) para mostrarla en el modal de recepción.
+func (ctrl *SupervisorController) Pdt621ServerTimeAPI(c fiber.Ctx) error {
+	now := services.Pdt621ServerNow()
+	return c.JSON(fiber.Map{"data": fiber.Map{
+		"epoch_ms": now.UnixMilli(),
+		"fecha":    now.Format("2006-01-02"),
+		"hora":     now.Format("15:04:05"),
+	}})
+}
+
 // Pdt621RecepcionarAPI POST /api/supervisors/activity-modules/pdt-621/companies/:companyId/recepcionar
 // Sin cuerpo: la fecha/hora de recepción la fija el servidor. Solo el supervisor asignado a la
 // empresa (la validación vive en el servicio).

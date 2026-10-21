@@ -537,6 +537,10 @@ var ErrPdt621RecepcionNoAsignado = errors.New("solo el supervisor asignado a est
 // pdt621Now hora actual del servidor; variable para poder fijarla en tests.
 var pdt621Now = time.Now
 
+// Pdt621ServerNow hora actual del servidor en Lima — la misma fuente que usa RecepcionarPdt621, para
+// que el modal de recepción muestre la fecha/hora que se va a registrar sin depender del reloj de la PC.
+func Pdt621ServerNow() time.Time { return pdt621Now().In(limaLoc) }
+
 // RecepcionarPdt621 el supervisor asignado a la empresa recibe físicamente el archivador del
 // asistente. Fecha y hora salen SIEMPRE del servidor (hora de Lima), nunca del cliente — así el
 // asistente no puede acomodar la fecha al calendario. Deja la declaración igual que antes la dejaba

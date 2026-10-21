@@ -149,6 +149,14 @@ export const pdt621Service = {
     return res.data.data;
   },
 
+  /** Hora actual del servidor (Lima): la que se registrará al recepcionar. */
+  async serverTime(): Promise<{ epoch_ms: number; fecha: string; hora: string }> {
+    const res = await client.get<{ data: { epoch_ms: number; fecha: string; hora: string } }>(
+      '/supervisors/activity-modules/pdt-621/server-time',
+    );
+    return res.data.data;
+  },
+
   /** El supervisor asignado recibe físicamente el archivador. Sin cuerpo: fecha y hora las fija el
    * SERVIDOR (hora de Lima). Pendiente → 1ra entrega; Observado → 2da entrega. Deja Por revisar. */
   async recepcionar(companyId: number, periodYm: string): Promise<Pdt621Detail> {
