@@ -10,6 +10,7 @@ import (
 	"miappfiber/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -1152,13 +1153,20 @@ func (s *SupervisorService) UploadMailboxCapture(
 		updates["sunafil_verified_by_user_id"] = nil
 		updates["sunafil_verified_at"] = nil
 	}
-	if err := database.DB.Model(&slot).Updates(updates).Error; err != nil {
+	// Omit(Associations): `slot` trae SunatAttachment/SunafilAttachment precargados (el adjunto
+	// VIEJO). Sin el Omit, GORM re-escribe la FK desde ese struct asociado y pisa el
+	// sunat_attachment_id nuevo del mapa: el estado y la fecha cambiaban pero el archivo
+	// seguía siendo el anterior.
+	if err := database.DB.Model(&slot).Omit(clause.Associations).Updates(updates).Error; err != nil {
 		return nil, err
 	}
+	// Se relee en un struct nuevo para no arrastrar las asociaciones precargadas anteriores.
+	slotID := slot.ID
+	slot = models.SupervisorMailboxCaptureSlot{}
 	if err := database.DB.
 		Preload("SunatAttachment").
 		Preload("SunafilAttachment").
-		First(&slot, slot.ID).Error; err != nil {
+		First(&slot, slotID).Error; err != nil {
 		return nil, err
 	}
 	timelinessCtx := mailboxTimelinessCtxFor(periodYM, weekStartParsed, detail.CapturesPerWeek)
