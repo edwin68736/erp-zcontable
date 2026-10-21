@@ -25,6 +25,11 @@ const HORA_LIMA = new Intl.DateTimeFormat('es-PE', {
   hour12: false,
 });
 
+/** Solo la primera letra ("Miércoles, 21 de octubre de 2026") — `capitalize` de CSS sube cada palabra. */
+function capitalizar(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /**
  * Reloj del SERVIDOR mientras el modal está abierto: pide la hora al backend una vez y la hace avanzar
  * con el desfase respecto del reloj local — si la PC tiene la hora mal, igual se muestra la del servidor.
@@ -145,7 +150,7 @@ const Pdt621RecepcionarButton = ({ companyId, periodYm, businessName, entrega, c
                 <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-4 text-center">
                   {now ? (
                     <>
-                      <p className="text-sm font-medium text-primary-800 capitalize">{FECHA_LIMA.format(now)}</p>
+                      <p className="text-sm font-medium text-primary-800">{capitalizar(FECHA_LIMA.format(now))}</p>
                       <p className="mt-1 text-4xl font-bold tracking-tight text-primary-900 tabular-nums">
                         {HORA_LIMA.format(now)}
                       </p>
