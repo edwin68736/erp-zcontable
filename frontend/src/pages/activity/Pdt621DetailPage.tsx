@@ -829,38 +829,67 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           e.preventDefault();
           if (canUpload && !uploading) setDragOver(true);
         }}
-        onDragLeave={() => setDragOver(false)}
+        onDragLeave={(e) => {
+          // Solo al salir de la tarjeta, no al pasar entre sus elementos internos (evita parpadeo).
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+        }}
         onDrop={handleDrop}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-slate-800">PDT 621 ({attachments.length})</h2>
-          {canUpload ? (
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium cursor-pointer hover:bg-primary-700">
-              <i className="fas fa-upload" aria-hidden />
-              {uploading ? 'Subiendo…' : 'Cargar PDT 621'}
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,image/*"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => void handleUpload(e.target.files)}
-              />
-            </label>
-          ) : null}
+          <h2 className="text-sm font-semibold text-slate-800">Archivo PDT 621</h2>
+          <span className="text-xs text-slate-500">
+            {attachments.length === 0 ? 'Sin archivo cargado' : `${attachments.length} archivo${attachments.length > 1 ? 's' : ''}`}
+          </span>
         </div>
         {canUpload ? (
-          <p
-            className={`text-xs rounded-lg border border-dashed px-3 py-2 text-center transition-colors ${
-              dragOver ? 'border-primary-400 text-primary-700 bg-primary-50' : 'border-slate-200 text-slate-400'
+          // Zona de carga: se puede arrastrar y soltar el archivo (en toda la tarjeta) o hacer clic
+          // para elegirlo. Se resalta mientras se arrastra un archivo encima.
+          <label
+            className={`group flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${
+              uploading
+                ? 'cursor-wait border-primary-300 bg-primary-50/60'
+                : dragOver
+                  ? 'cursor-copy border-primary-500 bg-primary-50'
+                  : 'cursor-pointer border-slate-300 bg-slate-50/60 hover:border-primary-400 hover:bg-primary-50/40'
             }`}
           >
-            Arrastra el archivo aquí para cargarlo
-            {attachments.length > 0 ? ' — reemplaza al que ya está cargado' : ''}
-          </p>
+            <span
+              className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
+                dragOver || uploading ? 'bg-primary-600 text-white' : 'bg-white text-primary-600 shadow-sm group-hover:bg-primary-600 group-hover:text-white'
+              }`}
+            >
+              <i
+                className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-2xl ${dragOver ? 'animate-bounce' : ''}`}
+                aria-hidden
+              />
+            </span>
+            <span className="text-sm font-semibold text-slate-800">
+              {uploading ? 'Subiendo archivo…' : dragOver ? 'Suelta el archivo para cargarlo' : 'Arrastra y suelta aquí el PDT 621'}
+            </span>
+            {!uploading ? (
+              <span className="text-xs text-slate-500">
+                o <span className="font-medium text-primary-700 underline underline-offset-2">haz clic para seleccionarlo</span> · PDF o
+                imagen, máx. 10 MB
+              </span>
+            ) : null}
+            {attachments.length > 0 && !uploading ? (
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                <i className="fas fa-sync-alt text-3xs" aria-hidden />
+                Reemplaza al archivo ya cargado
+              </span>
+            ) : null}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(e) => void handleUpload(e.target.files)}
+            />
+          </label>
         ) : null}
         {attachments.length === 0 ? (
-          <p className="text-sm text-slate-500">Sin archivos cargados.</p>
+          canUpload ? null : <p className="text-sm text-slate-500">Sin archivos cargados.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
             {attachments.map((a) => {
