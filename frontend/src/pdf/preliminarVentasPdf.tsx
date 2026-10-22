@@ -197,9 +197,9 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: GREEN_BORDER,
     borderRadius: 5,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 8,
-    marginBottom: 7,
+    marginBottom: 5,
   },
   cardLabel: { fontSize: 6.4, fontWeight: 700, color: V2.greenDark, textTransform: 'uppercase', letterSpacing: 0.2 },
   cardAmount: { fontSize: 12.5, fontWeight: 700, color: V2.greenDark, marginTop: 2 },
@@ -209,12 +209,12 @@ const s = StyleSheet.create({
     borderColor: GREEN_BORDER,
     borderRadius: 5,
     backgroundColor: V2.white,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 10,
   },
   infoCardHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   infoCardTitle: { flex: 1, fontSize: 7.6, fontWeight: 700, color: V2.navy, lineHeight: 1.25 },
-  infoCardText: { fontSize: 7.3, color: V2.muted, lineHeight: 1.45 },
+  infoCardText: { fontSize: 7.3, color: V2.muted, lineHeight: 1.35 },
   infoCardDate: { fontWeight: 700, color: V2.navy },
 
   /* Aviso importante */
@@ -225,18 +225,18 @@ const s = StyleSheet.create({
     borderColor: V2.green,
     borderRadius: 5,
     backgroundColor: V2.white,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  importantText: { flex: 1, fontSize: 8.2, color: V2.text, lineHeight: 1.5, fontStyle: 'italic' },
+  importantText: { flex: 1, fontSize: 8.2, color: V2.text, lineHeight: 1.4, fontStyle: 'italic' },
   importantStrong: { fontWeight: 700, color: V2.navy },
   importantItalic: { fontStyle: 'italic' },
 
-  divider: { borderTopWidth: 1, borderTopColor: V2.navy, borderStyle: 'dashed', marginBottom: 9 },
+  divider: { borderTopWidth: 1, borderTopColor: V2.navy, borderStyle: 'dashed', marginBottom: 6 },
 
   /* Recomendaciones */
-  recoHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  recoHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   recoTitle: { fontSize: 10, fontWeight: 700, color: V2.blue, textTransform: 'uppercase', letterSpacing: 0.3 },
   recoBox: {
     borderWidth: 1,
@@ -246,9 +246,9 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 11,
   },
-  recoItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3 },
+  recoItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 },
   recoItemLast: { marginBottom: 0 },
-  recoText: { flex: 1, fontSize: 7.8, color: V2.text, lineHeight: 1.4 },
+  recoText: { flex: 1, fontSize: 7.8, color: V2.text, lineHeight: 1.3 },
   recoNumber: { fontWeight: 700, color: V2.navy },
 
   /* Pie */
@@ -646,5 +646,5 @@ export function preliminarVentasPdfFilename(detail: PreliminarVentasSlotDetail):
     .replace(/\s+/g, '.')
     .replace(/\.+/g, '.')
     .replace(/^\.+|\.+$/g, '');
-  return `PRELIMINAR-VENTAS-${detail.period_ym}-ENTREGA${detail.slot_index}-${business || detail.company_id}.pdf`;
+  return `PV-${detail.period_ym}-ENTREGA${detail.slot_index}-${business || detail.company_id}.pdf`;
 }
