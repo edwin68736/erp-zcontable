@@ -69,6 +69,11 @@ export interface Pdt621ListRow {
   // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
   // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
   suspendida: boolean;
+  /** Motivo con el que el supervisor observó el archivador (el último), quién y cuándo. No confundir
+   * con `record.observacion`, que son las "Notas adicionales" libres del supervisor. */
+  observacion_motivo?: string;
+  observado_por?: string;
+  observado_at?: string;
 }
 
 export interface Pdt621Detail {
@@ -97,6 +102,10 @@ export interface Pdt621Detail {
   // control_suspendida: ver comentario en Pdt621ListRow.suspendida — de solo lectura acá, se marca
   // desde Control de Detracciones.
   control_suspendida: boolean;
+  /** Ver Pdt621ListRow.observacion_motivo. */
+  observacion_motivo?: string;
+  observado_por?: string;
+  observado_at?: string;
 }
 
 export interface Pdt621ListResponse {

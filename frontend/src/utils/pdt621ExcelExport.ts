@@ -51,7 +51,7 @@ const HEADERS = [
   'ESTADO',
   '1RA ENTREGA FECHA',
   '1RA ENTREGA HORA',
-  'OBSERVACIÓN',
+  'OBSERVACIÓN (MOTIVO)',
   '2DA ENTREGA FECHA',
   '2DA ENTREGA HORA',
   'FECHA DECLARACIÓN',
@@ -64,9 +64,10 @@ const HEADERS = [
   '¿ENVIÓ SIRE?',
   'FECHA ENVÍO SIRE',
   'MOTIVO NO ENVÍO',
+  'NOTAS ADICIONALES',
 ];
 
-const COLUMN_WIDTHS = [8, 8, 32, 13, 10, 16, 15, 14, 11, 26, 14, 11, 14, 13, 13, 13, 13, 11, 11, 11, 14, 22];
+const COLUMN_WIDTHS = [8, 8, 32, 13, 10, 16, 15, 14, 11, 30, 14, 11, 14, 13, 13, 13, 13, 11, 11, 11, 14, 22, 30];
 
 function formatDateCell(iso?: string | null): string {
   if (!iso) return '';
@@ -169,11 +170,12 @@ export async function exportPdt621ReportExcel(options: {
     setText(row.assistant_username || '—');
     setText(displayStatus.label, 'center');
     // Suspendida no hay seguimiento que registrar (ver Pdt621DetailPage.tsx): estas columnas
-    // quedan en blanco. Observación NO se blanquea: el backend fuerza ahí la nota fija "Empresa
-    // suspendida", que sí debe verse acá.
+    // quedan en blanco. "Observación" es el motivo con el que el supervisor observó el archivador
+    // (último, si hubo varios) — se deja aunque después se haya entregado, como constancia. Las notas
+    // libres del supervisor van aparte, en "Notas adicionales" (última columna).
     setText(suspendida ? '' : formatDateCell(rec?.primera_entrega_fecha), 'center');
     setText(suspendida ? '' : rec?.primera_entrega_hora || '', 'center');
-    setText(rec?.observacion || '');
+    setText(row.observacion_motivo || '');
     setText(suspendida ? '' : formatDateCell(rec?.segunda_entrega_fecha), 'center');
     setText(suspendida ? '' : rec?.segunda_entrega_hora || '', 'center');
     setText(suspendida ? '' : formatDateCell(rec?.fecha_declaracion), 'center');
@@ -186,6 +188,7 @@ export async function exportPdt621ReportExcel(options: {
     setText(!suspendida && rec?.envio_sire ? (SIRE_LABEL[rec.envio_sire] ?? rec.envio_sire) : '', 'center');
     setText(suspendida ? '' : formatDateCell(rec?.fecha_envio_sire), 'center');
     setText(suspendida ? '' : rec?.motivo_no_envio || '');
+    setText(rec?.observacion || '');
 
     rowIdx += 1;
   }

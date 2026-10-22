@@ -19,7 +19,6 @@ import {
   supervisorsService,
   type SupervisorAttachment,
   type SupervisorDeclaration,
-  type SupervisorObservation,
 } from '../../services/supervisors';
 import { pdt621Service, type Pdt621Detail, type Pdt621Record, type Pdt621RecordInput } from '../../services/pdt621';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
@@ -85,22 +84,21 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
   const canReopen = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsReopen), []);
-  const canCreateObservation = useMemo(() => auth.hasPermission(P.supervisorsObservationsCreate), []);
 
   const [detail, setDetail] = useState<Pdt621Detail | null>(null);
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
-  const [observations, setObservations] = useState<SupervisorObservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [obsText, setObsText] = useState('');
-  const [obsSaving, setObsSaving] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
   const [reopenOpen, setReopenOpen] = useState(false);
   const [record, setRecord] = useState<Pdt621RecordInput>({ ...EMPTY_RECORD });
+  // "Notas adicionales" (record.observacion) va oculto por defecto; se abre solo si ya tiene texto o
+  // si el supervisor marca el checkbox. No es la observación al asistente (eso es el motivo de Observar).
+  const [showNotas, setShowNotas] = useState(false);
   const [recordSaving, setRecordSaving] = useState(false);
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -162,11 +160,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     setAttachments(rows);
   }, []);
 
-  const loadObservations = useCallback(async (declarationId: number) => {
-    const rows = await supervisorsService.listObservations(0, declarationId);
-    setObservations(rows);
-  }, []);
-
   const load = useCallback(async () => {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       setError('Empresa inválida.');
@@ -179,10 +172,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       const data = await pdt621Service.getDetail(companyId, periodYm);
       setDetail(data);
       setRecord(recordToInput(data.record));
-      await Promise.all([
-        loadAttachments(data.declaration.id),
-        loadObservations(data.declaration.id),
-      ]);
+      setShowNotas(!!data.record?.observacion?.trim());
+      await loadAttachments(data.declaration.id);
     } catch (err) {
       console.error(err);
       setError(extractApiErrorMessage(err, 'No se pudo cargar el detalle.'));
@@ -190,7 +181,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     } finally {
       setLoading(false);
     }
-  }, [companyId, periodYm, loadAttachments, loadObservations]);
+  }, [companyId, periodYm, loadAttachments]);
 
   useEffect(() => {
     void load();
@@ -273,24 +264,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     void handleUpload(e.dataTransfer.files);
   };
 
-  const handleAddObservation = async () => {
-    if (!declaration || !canCreateObservation) return;
-    const body = obsText.trim();
-    if (!body) return;
-    try {
-      setObsSaving(true);
-      setMsg('');
-      await supervisorsService.createObservation({ declaration_id: declaration.id, body });
-      setObsText('');
-      await loadObservations(declaration.id);
-      setMsg('Observación registrada.');
-    } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo registrar la observación.'));
-    } finally {
-      setObsSaving(false);
-    }
-  };
-
   const handleApprove = async () => {
     if (!declaration || !canApprove) return;
     try {
@@ -310,7 +283,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     if (!declaration || !canObserve) return;
     const notes = supervisorNotes.trim();
     if (!notes) {
-      setMsg('Ingrese el texto de la observación.');
+      setMsg('Ingrese el motivo de la observación.');
       return;
     }
     try {
@@ -318,9 +291,19 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       setMsg('');
       const updated = await supervisorsService.observeDeclaration(declaration.id, notes);
       refreshDeclaration(updated);
+      const me = auth.getUser();
+      setDetail((d) =>
+        d
+          ? {
+              ...d,
+              observacion_motivo: notes,
+              observado_por: me?.name || me?.username || '',
+              observado_at: new Date().toISOString(),
+            }
+          : d,
+      );
       setSupervisorNotes('');
-      await loadObservations(declaration.id);
-      setMsg('Observación registrada.');
+      setMsg('Archivador observado.');
     } catch (err) {
       setMsg(extractApiErrorMessage(err, 'No se pudo observar.'));
     } finally {
@@ -511,23 +494,37 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               </div>
             ) : declaration.status !== 'por_revisar' ? (
               // Todavía no hay nada que revisar (Pendiente) u observado esperando corrección.
-              <p className="flex items-start gap-2 text-sm text-slate-500">
-                <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
-                {declaration.status === 'observado'
-                  ? 'Esperando que el asistente corrija la observación y que el supervisor recepcione de nuevo el archivador (2da entrega).'
-                  : 'Esperando que el supervisor recepcione el archivador del asistente.'}
-              </p>
+              <div className="space-y-3">
+                {declaration.status === 'observado' && detail.observacion_motivo ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Motivo de la observación</p>
+                    <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{detail.observacion_motivo}</p>
+                    {detail.observado_por || detail.observado_at ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Observado{detail.observado_por ? ` por ${detail.observado_por}` : ''}
+                        {detail.observado_at ? ` el ${formatStoredAt(detail.observado_at)}` : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <p className="flex items-start gap-2 text-sm text-slate-500">
+                  <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
+                  {declaration.status === 'observado'
+                    ? 'Esperando que el asistente corrija la observación y que el supervisor recepcione de nuevo el archivador (2da entrega).'
+                    : 'Esperando que el supervisor recepcione el archivador del asistente.'}
+                </p>
+              </div>
             ) : (
               <>
                 {canObserve ? (
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Observar</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Motivo de la observación</label>
                     <textarea
                       value={supervisorNotes}
                       onChange={(e) => setSupervisorNotes(e.target.value)}
                       rows={3}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Indique la observación…"
+                      placeholder="Indique qué debe corregir el asistente…"
                     />
                     <button
                       type="button"
@@ -771,20 +768,48 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           </>
         )}
 
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Observación</label>
-          <textarea
-            disabled={!canUpdate || formLocked || importesReadOnlyForAssistant}
-            value={record.observacion}
-            onChange={(e) => patchRecord({ observacion: e.target.value })}
-            rows={2}
-            className={FIELD_INPUT}
-            placeholder={
-              importesReadOnlyForAssistant
-                ? 'Observación del supervisor sobre la revisión del archivador…'
-                : 'Observación sobre la revisión del archivador…'
-            }
-          />
+        {/* Notas adicionales: nota libre y opcional del supervisor sobre el PDT 621 — NO es la
+            observación al asistente (eso es el motivo de "Observar", que es lo que ve el asistente y
+            sale en la columna Observación). Oculta por defecto; se guarda con "Guardar registro". */}
+        <div className="space-y-2">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showNotas}
+              disabled={!canUpdate || formLocked || importesReadOnlyForAssistant}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setShowNotas(true);
+                  return;
+                }
+                if (
+                  record.observacion.trim() &&
+                  !window.confirm('¿Quitar las notas adicionales? Se borrarán al guardar el registro.')
+                ) {
+                  return;
+                }
+                patchRecord({ observacion: '' });
+                setShowNotas(false);
+              }}
+              className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            Agregar notas adicionales
+          </label>
+          {showNotas ? (
+            <div>
+              <textarea
+                disabled={!canUpdate || formLocked || importesReadOnlyForAssistant}
+                value={record.observacion}
+                onChange={(e) => patchRecord({ observacion: e.target.value })}
+                rows={3}
+                className={FIELD_INPUT}
+                placeholder="Nota opcional del supervisor sobre este PDT 621…"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Nota opcional del supervisor. No es una observación al asistente: para eso use "Observar".
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {canUpdate ? (
@@ -886,45 +911,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           </ul>
         )}
       </div>
-
-      {/* El asistente no registra observaciones acá — solo carga el PDF (ver bloque de arriba).
-          Esta sección (agregar/leer el hilo de observaciones) es exclusiva del supervisor. */}
-      {workspace === 'supervisor' ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-          <h2 className="text-sm font-semibold text-slate-800">Observaciones</h2>
-          {canCreateObservation ? (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={obsText}
-                onChange={(e) => setObsText(e.target.value)}
-                placeholder="Nueva observación…"
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <button
-                type="button"
-                disabled={obsSaving || !obsText.trim()}
-                onClick={() => void handleAddObservation()}
-                className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50"
-              >
-                Agregar
-              </button>
-            </div>
-          ) : null}
-          {observations.length === 0 ? (
-            <p className="text-sm text-slate-500">Sin observaciones.</p>
-          ) : (
-            <ul className="space-y-2">
-              {observations.map((o) => (
-                <li key={o.id} className="text-sm border border-slate-100 rounded-lg px-3 py-2 bg-slate-50/50">
-                  <p className="text-slate-800">{o.body}</p>
-                  <p className="text-xs text-slate-500 mt-1">{formatStoredAt(o.created_at)}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
 
       {preview ? (
         <FilePreviewModal

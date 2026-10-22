@@ -16,6 +16,7 @@ const (
 	migDropNPSTable                 = "supervisor_v1_drop_nps_table"
 	migSuspendidaGlobalPorControl   = "supervisor_v1_suspendida_global_por_control"
 	migPreliminarVentasRateSplit    = "supervisor_v1_preliminar_ventas_rate_split"
+	migPdt621ObservacionesANotas    = "supervisor_v1_pdt621_observaciones_a_notas"
 )
 
 // RunSupervisorMigrations ejecuta migraciones de datos del módulo supervisores (una sola vez).
@@ -34,6 +35,7 @@ func RunSupervisorMigrations(db *gorm.DB) error {
 		{migDropNPSTable, migrateDropNPSTable},
 		{migSuspendidaGlobalPorControl, migrateSuspendidaGlobalPorControl},
 		{migPreliminarVentasRateSplit, migratePreliminarVentasRateSplit},
+		{migPdt621ObservacionesANotas, migratePdt621ObservacionesANotas},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {

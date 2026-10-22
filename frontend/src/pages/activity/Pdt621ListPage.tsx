@@ -5,6 +5,7 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
+import Pdt621ObservacionButton from '../../components/activity/Pdt621ObservacionButton';
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import {
   pdt621DisplayStatus,
@@ -453,6 +454,17 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                             >
                               {displayStatus.label}
                             </span>
+                            {/* Ojito solo mientras está Observado: motivo, quién y cuándo. Es la forma
+                                en que el asistente (sin acceso al detalle) ve qué tiene que corregir. */}
+                            {row.status === 'observado' && !suspendida ? (
+                              <Pdt621ObservacionButton
+                                businessName={row.business_name}
+                                periodYm={periodYm}
+                                motivo={row.observacion_motivo}
+                                observadoPor={row.observado_por}
+                                observadoAt={row.observado_at}
+                              />
+                            ) : null}
                             {/* Botón de acción (registrar/ver) movido acá desde la última columna,
                                 junto al estado en vez de al fondo de la fila. El asistente no entra
                                 al detalle: solo ve estados y la recepción del supervisor. */}
@@ -479,8 +491,10 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                         {suspendida ? '' : recepcionBtn('primera') ?? formatDateCell(rec?.primera_entrega_fecha)}
                       </td>
                       <td className={TDN}>{suspendida ? '' : rec?.primera_entrega_hora || ''}</td>
-                      <td className={`${TD} max-w-[12rem]`} title={rec?.observacion || ''}>
-                        <span className="block truncate">{rec?.observacion || ''}</span>
+                      {/* Observación = motivo con el que el supervisor observó el archivador (el
+                          último). Las "Notas adicionales" libres solo van en el detalle y el Excel. */}
+                      <td className={`${TD} max-w-[12rem]`} title={row.observacion_motivo || ''}>
+                        <span className="block truncate">{row.observacion_motivo || ''}</span>
                       </td>
                       <td className={`${TDN} ${GROUP_BORDER}`}>
                         {suspendida ? '' : recepcionBtn('segunda') ?? formatDateCell(rec?.segunda_entrega_fecha)}

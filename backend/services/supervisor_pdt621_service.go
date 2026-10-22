@@ -60,6 +60,12 @@ type Pdt621ListRow struct {
 	// Suspendida: SupervisorMonthlyControl.Suspendida (§5.9.7) — global, siempre presente aunque
 	// `Record` sea nil (empresa sin registro todavía).
 	Suspendida bool `json:"suspendida"`
+	// Observación del supervisor = motivo de "Observar" (supervisor_declarations.notes), el último si
+	// se observó más de una vez; quién y cuándo salen del historial de cambios de estado. Las notas
+	// libres del supervisor son otra cosa: record.observacion ("Notas adicionales").
+	ObservacionMotivo string     `json:"observacion_motivo,omitempty"`
+	ObservadoPor      string     `json:"observado_por,omitempty"`
+	ObservadoAt       *time.Time `json:"observado_at,omitempty"`
 }
 
 // Pdt621Detail detalle tras EnsurePdt621 (lazy create o reutiliza bootstrap).
@@ -91,6 +97,12 @@ type Pdt621Detail struct {
 	// período no tiene ninguna actividad "pdt_621" configurada. Reemplaza a `declaration.due_date`
 	// (0% de uso real, §3.1) como fuente para mostrar "Vencimiento" en el frontend.
 	CalendarDueDate *time.Time `json:"calendar_due_date,omitempty"`
+	// Observación del supervisor = motivo de "Observar" (supervisor_declarations.notes), el último si
+	// se observó más de una vez; quién y cuándo salen del historial de cambios de estado. Las notas
+	// libres del supervisor son otra cosa: record.observacion ("Notas adicionales").
+	ObservacionMotivo string     `json:"observacion_motivo,omitempty"`
+	ObservadoPor      string     `json:"observado_por,omitempty"`
+	ObservadoAt       *time.Time `json:"observado_at,omitempty"`
 }
 
 // pdt621StatusFilterSuspendida filtro sintético del listado: empresas marcadas suspendidas.
@@ -414,7 +426,11 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 
 	dig := s.companyDig(company.ID)
 	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, ctrl.Suspendida, recordDTO)
+	obs := s.pdt621ObservacionInfo([]uint{decl.ID})[decl.ID]
 	return &Pdt621Detail{
+		ObservacionMotivo:   obs.Motivo,
+		ObservadoPor:        obs.Por,
+		ObservadoAt:         obs.At,
 		PeriodYM:            periodYM,
 		CompanyID:           company.ID,
 		Code:                strings.TrimSpace(company.InternalCode),
@@ -633,6 +649,57 @@ func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, u
 	return s.EnsurePdt621(companyID, periodYM)
 }
 
+type pdt621ObsInfo struct {
+	Motivo string
+	Por    string
+	At     *time.Time
+}
+
+// pdt621ObservacionInfo motivo de la última observación de cada declaración (notes, que solo escribe
+// "Observar" en PDT 621) y quién/cuándo, desde el último cambio de estado a "observado" del historial.
+// Sin motivo no hay entrada.
+func (s *SupervisorService) pdt621ObservacionInfo(declIDs []uint) map[uint]pdt621ObsInfo {
+	out := map[uint]pdt621ObsInfo{}
+	if len(declIDs) == 0 {
+		return out
+	}
+	type declNotes struct {
+		ID    uint
+		Notes string
+	}
+	var decls []declNotes
+	_ = database.DB.Model(&models.SupervisorDeclaration{}).Select("id, notes").
+		Where("id IN ? AND notes <> ''", declIDs).Scan(&decls).Error
+	if len(decls) == 0 {
+		return out
+	}
+	conMotivo := make([]uint, 0, len(decls))
+	for _, d := range decls {
+		if m := strings.TrimSpace(d.Notes); m != "" {
+			out[d.ID] = pdt621ObsInfo{Motivo: m}
+			conMotivo = append(conMotivo, d.ID)
+		}
+	}
+	var logs []models.SupervisorChangeLog
+	_ = database.DB.Where("entity_type = ? AND entity_id IN ? AND field_name = ? AND new_value = ?",
+		"declaration", conMotivo, "status", models.SupervisorDeclObservado).
+		Order("created_at ASC, id ASC").Find(&logs).Error
+	userIDs := []uint{}
+	ultimo := map[uint]models.SupervisorChangeLog{}
+	for _, l := range logs {
+		ultimo[l.EntityID] = l // ascendente: queda el último
+		userIDs = append(userIDs, l.UserID)
+	}
+	names := s.userNames(userIDs)
+	for id, l := range ultimo {
+		info := out[id]
+		at := l.CreatedAt
+		info.At, info.Por = &at, names[l.UserID]
+		out[id] = info
+	}
+	return out
+}
+
 // IsPdt621Declaration true si la declaración es un PDT 621 (para restringir quién carga su archivo).
 func (s *SupervisorService) IsPdt621Declaration(id uint) bool {
 	var d models.SupervisorDeclaration
@@ -786,6 +853,8 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		}
 	}
 
+	obsByDecl := s.pdt621ObservacionInfo(declIDs)
+
 	credDig := map[uint]string{}
 	var creds []models.CompanyAccessCredential
 	_ = database.DB.Where("company_id IN ?", ids).Find(&creds).Error
@@ -846,6 +915,9 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 			Suspendida:        suspendidaByCompany[co.ID],
 		}
 		if d, ok := declByCompany[co.ID]; ok {
+			if o, ok := obsByDecl[d.DeclarationID]; ok {
+				row.ObservacionMotivo, row.ObservadoPor, row.ObservadoAt = o.Motivo, o.Por, o.At
+			}
 			cid, did := d.ControlID, d.DeclarationID
 			row.ControlID = &cid
 			row.DeclarationID = &did

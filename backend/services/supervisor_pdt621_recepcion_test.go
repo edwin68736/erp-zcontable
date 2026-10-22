@@ -249,3 +249,41 @@ func TestRecepcionarPdt621_AdministradorRecepcionaCualquierEmpresa(t *testing.T)
 		t.Fatalf("PrimeraRecepcionPor=%v, want %d (queda registrado que recepcionó el administrador)", rec.PrimeraRecepcionPor, admin)
 	}
 }
+
+func TestPdt621Observacion_MotivoQuienYCuandoEnListaYDetalle(t *testing.T) {
+	db := setupPdt621TestDB(t)
+	if err := db.AutoMigrate(&models.SupervisorChangeLog{}); err != nil {
+		t.Fatalf("migrate change log: %v", err)
+	}
+	svc := NewSupervisorService()
+	co := seedEstudioCompany(t, db, "R008")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	d, err := recepcionarPdt621EnFecha(t, svc, co.ID, "2026-07", "2026-07-10")
+	if err != nil {
+		t.Fatalf("recepción: %v", err)
+	}
+	if _, err := svc.ObserveDeclaration(d.Declaration.ID, testPdt621SupervisorID, "Falta la hoja de compras"); err != nil {
+		t.Fatalf("Observe: %v", err)
+	}
+	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: "2026-07", Page: 1, PerPage: 20})
+	if err != nil || len(res.Rows) != 1 {
+		t.Fatalf("ListPdt621: %v (%d filas)", err, len(res.Rows))
+	}
+	row := res.Rows[0]
+	if row.ObservacionMotivo != "Falta la hoja de compras" || row.ObservadoAt == nil {
+		t.Fatalf("lista: motivo=%q at=%v", row.ObservacionMotivo, row.ObservadoAt)
+	}
+	det, err := svc.EnsurePdt621(co.ID, "2026-07")
+	if err != nil {
+		t.Fatalf("EnsurePdt621: %v", err)
+	}
+	if det.ObservacionMotivo != "Falta la hoja de compras" || det.ObservadoAt == nil {
+		t.Fatalf("detalle: motivo=%q at=%v", det.ObservacionMotivo, det.ObservadoAt)
+	}
+	// Las notas adicionales (record.observacion) no se confunden con el motivo.
+	if det.Record != nil && det.Record.Observacion == det.ObservacionMotivo {
+		t.Fatal("el motivo de observar no debía copiarse a las notas adicionales")
+	}
+}
