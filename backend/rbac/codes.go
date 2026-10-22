@@ -150,6 +150,10 @@ const (
 	CompanyCredentialsView   = "finance.company_credentials_view"
 	CompanyCredentialsManage = "finance.company_credentials_manage"
 	CompanyCredentialsImport = "finance.company_credentials_import"
+	// CompanyCredentialsSolView ver Usuario y Clave SOL en Claves SOL (Administrador, Supervisor y Super
+	// usuario). Sin este permiso el servidor ni siquiera envía esos dos datos: el usuario solo usa el
+	// acceso directo a SUNAT, que el servidor genera con la clave guardada.
+	CompanyCredentialsSolView = "finance.company_credentials_sol_view"
 
 	FinanceSunatDueDatesView   = "finance.sunat_due_dates_view"
 	FinanceSunatDueDatesManage = "finance.sunat_due_dates_manage"

@@ -32,6 +32,9 @@ type CompanyAccessCredentialRow struct {
 
 	SolUsuario string `json:"sol_usuario"`
 	SolClave   string `json:"sol_clave"`
+	// SolConfigurado: hay usuario y clave SOL cargados. Se envía siempre (aunque usuario/clave vayan
+	// vacíos por falta de permiso) para que el botón de acceso directo sepa si puede intentarlo.
+	SolConfigurado bool `json:"sol_configurado"`
 
 	BnlCuenta            string `json:"bnl_cuenta"`
 	BnlDNI               string `json:"bnl_dni"`
@@ -130,6 +133,7 @@ func (s *CompanyAccessCredentialService) rowFrom(company models.Company, cred *m
 		row.Dig = cred.Dig
 		row.SolUsuario = cred.SolUsuario
 		row.SolClave = cred.SolClave
+		row.SolConfigurado = strings.TrimSpace(cred.SolUsuario) != "" && strings.TrimSpace(cred.SolClave) != ""
 		row.BnlCuenta = cred.BnlCuenta
 		row.BnlDNI = cred.BnlDNI
 		row.BnlClaveDetracciones = cred.BnlClaveDetracciones

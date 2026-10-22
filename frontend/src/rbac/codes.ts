@@ -105,6 +105,7 @@ export const P = {
   companyCredentialsView: 'finance.company_credentials_view',
   companyCredentialsManage: 'finance.company_credentials_manage',
   companyCredentialsImport: 'finance.company_credentials_import',
+  companyCredentialsSolView: 'finance.company_credentials_sol_view',
   financeSunatDueDatesView: 'finance.sunat_due_dates_view',
   financeSunatDueDatesManage: 'finance.sunat_due_dates_manage',
   salesEmit: 'sales.emit',

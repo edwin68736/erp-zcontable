@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"miappfiber/rbac"
 	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
@@ -38,6 +39,19 @@ func (ctrl *CompanyAccessCredentialController) allowedCompanyIDs(c fiber.Ctx) ([
 	return ctrl.access.GetAllowedCompanyIDs(uid)
 }
 
+// redactSol vacía usuario y clave SOL si el usuario no tiene permiso de verlos: nunca salen del
+// servidor (no basta con ocultar la columna en pantalla). SolConfigurado se mantiene.
+func (ctrl *CompanyAccessCredentialController) redactSol(c fiber.Ctx, rows []services.CompanyAccessCredentialRow) {
+	uid, err := getUserID(c)
+	if err == nil && services.Authz().HasPermission(uid, rbac.CompanyCredentialsSolView) {
+		return
+	}
+	for i := range rows {
+		rows[i].SolUsuario = ""
+		rows[i].SolClave = ""
+	}
+}
+
 func (ctrl *CompanyAccessCredentialController) ListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)
 	if err != nil {
@@ -65,6 +79,7 @@ func (ctrl *CompanyAccessCredentialController) ListAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	ctrl.redactSol(c, out.Rows)
 	return c.JSON(fiber.Map{
 		"data":        out.Rows,
 		"total":       out.Total,
@@ -108,6 +123,11 @@ func (ctrl *CompanyAccessCredentialController) GetAPI(c fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	if row != nil {
+		rows := []services.CompanyAccessCredentialRow{*row}
+		ctrl.redactSol(c, rows)
+		row = &rows[0]
+	}
 	return c.JSON(fiber.Map{"data": row})
 }
 
@@ -127,12 +147,24 @@ func (ctrl *CompanyAccessCredentialController) UpdateAPI(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
+	// Quien no puede ver usuario/clave SOL los recibe vacíos: al guardar se conservan los guardados
+	// (si no, editar otra clave borraría la SOL).
+	if uid, uerr := getUserID(c); uerr != nil || !services.Authz().HasPermission(uid, rbac.CompanyCredentialsSolView) {
+		if cur, cerr := ctrl.svc.GetByCompanyID(uint(companyID), allowed); cerr == nil && cur != nil {
+			body.SolUsuario, body.SolClave = cur.SolUsuario, cur.SolClave
+		}
+	}
 	row, err := ctrl.svc.Upsert(uint(companyID), body, allowed)
 	if err != nil {
 		if strings.Contains(err.Error(), "no encontrada") || strings.Contains(err.Error(), "alcance") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if row != nil {
+		rows := []services.CompanyAccessCredentialRow{*row}
+		ctrl.redactSol(c, rows)
+		row = &rows[0]
 	}
 	return c.JSON(fiber.Map{"data": row})
 }

@@ -23,6 +23,9 @@ export interface CompanyAccessCredentialRow {
   supervisor_username: string;
   sol_usuario: string;
   sol_clave: string;
+  /** Hay usuario y clave SOL cargados. Llega siempre, aunque usuario/clave vengan vacíos porque el
+   * usuario no tiene permiso de verlos (finance.company_credentials_sol_view). */
+  sol_configurado?: boolean;
   bnl_cuenta: string;
   bnl_dni: string;
   bnl_clave_detracciones: string;

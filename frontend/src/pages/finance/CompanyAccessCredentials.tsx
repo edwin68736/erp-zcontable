@@ -92,6 +92,19 @@ function CopyableCredentialCell({
   );
 }
 
+/**
+ * Qué falta para el acceso directo a SUNAT ('' si está todo). Sin permiso de ver usuario/clave SOL,
+ * esos dos datos llegan vacíos del servidor: ahí manda `sol_configurado` (el acceso lo genera el
+ * servidor con la clave guardada, el navegador no la necesita).
+ */
+function solMissing(row: CompanyAccessCredentialRow): string {
+  if (row.sol_usuario || row.sol_clave) {
+    return sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+  }
+  if (!(row.ruc ?? '').trim()) return 'RUC';
+  return row.sol_configurado ? '' : 'usuario y clave SOL';
+}
+
 function emptyForm(): CompanyAccessCredentialUpdateInput {
   return {
     dig: '',
@@ -207,6 +220,19 @@ type CompanyAccessCredentialsProps = {
 
 const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredentialsProps) => {
   const isAssistantView = variant === 'assistant';
+  // Usuario y Clave SOL: solo Administrador, Supervisor y Super usuario. Sin el permiso, el servidor
+  // ni siquiera los envía (llegan vacíos); el usuario entra a SUNAT con el acceso directo.
+  const canSeeSol = useMemo(() => auth.hasPermission(P.companyCredentialsSolView), []);
+  // Asistente: solo ve sus propias empresas, así que la columna "Asistente" sería siempre él mismo.
+  // Se reconoce por permisos (en el frontend no está el rol): puede figurar como asistente de una
+  // empresa pero no como supervisor.
+  const isAsistente = useMemo(
+    () => auth.hasPermission(P.companiesAssignAssistant) && !auth.hasPermission(P.companiesAssignSupervisor),
+    [],
+  );
+  const showAssistantCol = !isAsistente;
+  const solGroupCols = 2 + (canSeeSol ? 2 : 0) + (showAssistantCol ? 1 : 0) + 1;
+  const totalCols = 3 + solGroupCols + 1 + 3 + 2 + 1 + 3 + 1;
   const canManage = useMemo(
     () => !isAssistantView && auth.hasPermission(P.companyCredentialsManage),
     [isAssistantView],
@@ -251,7 +277,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
   /** Ingreso directo a SUNAT con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
   const handleOpenSunat = (row: CompanyAccessCredentialRow) => {
-    const missing = sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+    const missing = solMissing(row);
     if (missing) {
       setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
       return;
@@ -687,7 +713,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <th colSpan={3} className={TH_GROUP}>
                   Columnas generales
                 </th>
-                <th colSpan={6} className={TH_GROUP}>
+                <th colSpan={solGroupCols} className={TH_GROUP}>
                   Claves SOL
                 </th>
                 <th rowSpan={2} className={TH_COL}>
@@ -715,9 +741,13 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <th className={TH_COL}>Dig</th>
                 <th className={TH_COL}>Razón social</th>
                 <th className={TH_COL}>RUC</th>
-                <th className={TH_COL}>Usuario</th>
-                <th className={TH_COL}>Clave</th>
-                <th className={TH_COL}>Asistente</th>
+                {canSeeSol ? (
+                  <>
+                    <th className={TH_COL}>Usuario</th>
+                    <th className={TH_COL}>Clave</th>
+                  </>
+                ) : null}
+                {showAssistantCol ? <th className={TH_COL}>Asistente</th> : null}
                 <th className={TH_COL}>Supervisor</th>
                 <th className={TH_COL}>Cta</th>
                 <th className={TH_COL}>DNI</th>
@@ -733,14 +763,14 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
             <tbody>
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
                     <i className="fas fa-spinner fa-spin mr-2" aria-hidden />
                     Cargando…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-500 text-sm">
                     No hay empresas para mostrar.
                   </td>
                 </tr>
@@ -757,19 +787,23 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                       {row.business_name || '—'}
                     </td>
                     <CopyableCredentialCell value={row.ruc} cellClass={`${TD} whitespace-nowrap`} mono />
-                    <CopyableCredentialCell value={row.sol_usuario} cellClass={TD} />
-                    <CopyableCredentialCell
-                      value={row.sol_clave}
-                      cellClass={TD}
-                      secret
-                      showSecrets={showSecrets}
-                    />
-                    <td className={`${TD} text-center`}>{row.assistant_username || '—'}</td>
+                    {canSeeSol ? (
+                      <>
+                        <CopyableCredentialCell value={row.sol_usuario} cellClass={TD} />
+                        <CopyableCredentialCell
+                          value={row.sol_clave}
+                          cellClass={TD}
+                          secret
+                          showSecrets={showSecrets}
+                        />
+                      </>
+                    ) : null}
+                    {showAssistantCol ? <td className={`${TD} text-center`}>{row.assistant_username || '—'}</td> : null}
                     <td className={`${TD} text-center`}>{row.supervisor_username || '—'}</td>
                     <td className="px-2 py-2 text-xs border-b border-slate-100/90 align-top whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
                         {(() => {
-                          const missing = sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+                          const missing = solMissing(row);
                           return (
                             <button
                               type="button"
@@ -916,6 +950,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <p className="text-xs text-slate-500">
                   Asistente: {editRow.assistant_username || '—'} · Supervisor: {editRow.supervisor_username || '—'}
                 </p>
+                {/* Usuario/Clave SOL solo con permiso de verlos (sin él llegan vacíos del servidor y,
+                    al guardar, el servidor conserva los guardados). */}
+                {canSeeSol ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="block text-sm sm:col-span-2">
                     <span className="text-slate-600">Usuario SOL</span>
@@ -938,6 +975,12 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                     />
                   </label>
                 </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Usuario y clave SOL reservados al administrador y al supervisor. Para entrar a SUNAT use el
+                    botón «SUNAT» de la lista.
+                  </p>
+                )}
               </fieldset>
 
               <fieldset className="space-y-3">

@@ -42,6 +42,7 @@ var registryDefs = []PermDef{
 	{CompanyCredentialsView, ModRecursos, "Claves de acceso", "Ver claves de acceso por empresa"},
 	{CompanyCredentialsManage, ModRecursos, "Claves de acceso", "Editar claves de acceso por empresa"},
 	{CompanyCredentialsImport, ModRecursos, "Claves de acceso", "Importar claves de acceso desde Excel"},
+	{CompanyCredentialsSolView, ModRecursos, "Claves de acceso", "Ver usuario y clave SOL"},
 	{FinanceSunatDueDatesView, ModRecursos, "Vencimientos SUNAT", "Ver cronograma de vencimientos SUNAT"},
 	{FinanceSunatDueDatesManage, ModRecursos, "Vencimientos SUNAT", "Editar cronograma de vencimientos SUNAT"},
 
@@ -234,6 +235,7 @@ var contadorDeny = []string{
 	SubscriptionPlansCreate, SubscriptionPlansUpdate, SubscriptionPlansTiers, SubscriptionPlansDelete,
 	PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided, ProductsDelete,
 	FinanceSunatDueDatesManage,
+	CompanyCredentialsSolView,
 }
 
 // asistenteCodes lista cerrada del rol Asistente.
@@ -357,6 +359,16 @@ func gerenciaSupervisorCodes() []string {
 	return codesExcept(deny)
 }
 
+func removeCode(codes []string, code string) []string {
+	out := codes[:0:0]
+	for _, c := range codes {
+		if c != code {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // RolePermissionCodes conjunto canónico de permisos de un rol de sistema.
 // FUENTE ÚNICA: semilla, reconciliación y tests derivan de aquí.
 func RolePermissionCodes(roleCode string) []string {
@@ -365,8 +377,11 @@ func RolePermissionCodes(roleCode string) []string {
 		return append([]string(nil), AllPermissionCodes...)
 	case RoleAdministrador:
 		return administradorCodes()
-	case RoleGerencia, RoleSupervisor:
+	case RoleSupervisor:
 		return gerenciaSupervisorCodes()
+	case RoleGerencia:
+		// Igual que Supervisor salvo ver usuario/clave SOL (solo Administrador, Supervisor y Super usuario).
+		return removeCode(gerenciaSupervisorCodes(), CompanyCredentialsSolView)
 	case RoleContador:
 		return contadorCodes()
 	case RoleAsistente:

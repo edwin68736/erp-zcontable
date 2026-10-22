@@ -179,7 +179,9 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
         <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
           {phase.kind === 'error' ? (
             <>
-              {phase.error.code !== 'faltan_datos' && phase.error.code !== 'sin_acceso' ? (
+              {/* Plan B en el navegador: necesita usuario y clave SOL, que no llegan a quien no tiene
+                  permiso de verlos — para esos usuarios no se ofrece. */}
+              {phase.error.code !== 'faltan_datos' && phase.error.code !== 'sin_acceso' && row.sol_usuario && row.sol_clave ? (
                 <button
                   type="button"
                   onClick={() => {

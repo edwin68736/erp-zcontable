@@ -31,6 +31,13 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillRolePermission(db, rbac.RoleAsistente, rbac.SettingsFirmBrandingView); err != nil {
 		return err
 	}
+	// Ver usuario/clave SOL: Administrador y Supervisor (Super usuario ya tiene todo). Los roles ya
+	// configurados no reciben permisos nuevos solos (ver reconcileSystemRolePermissions).
+	for _, rc := range []string{rbac.RoleAdministrador, rbac.RoleSupervisor} {
+		if err := backfillRolePermission(db, rc, rbac.CompanyCredentialsSolView); err != nil {
+			return err
+		}
+	}
 	// El administrador también puede recepcionar el archivador PDT 621 de cualquier empresa.
 	if err := backfillRolePermission(db, rbac.RoleAdministrador, rbac.SupervisorsPdt621ReceiveAny); err != nil {
 		return err
