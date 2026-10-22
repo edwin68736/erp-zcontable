@@ -249,6 +249,7 @@ func Setup(app *fiber.App) {
 	sup.Get("/notifications", middleware.RequirePermission(rbac.SupervisorsNotificationsView), supervisorCtrl.ListNotificationsAPI)
 	sup.Post("/notifications/:id/read", middleware.RequirePermission(rbac.SupervisorsNotificationsView), supervisorCtrl.MarkNotificationReadAPI)
 	sup.Get("/activity-modules/preliminar-ventas", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PreliminarVentasListAPI)
+	sup.Get("/activity-modules/preliminar-ventas/export", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PreliminarVentasExportAPI)
 	sup.Get("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.PreliminarVentasSlotDetailAPI)
 	sup.Put("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.PreliminarVentasSlotSaveAPI)
 	sup.Post("/activity-modules/preliminar-ventas/companies/:companyId/slots/:slotIndex/sent", middleware.RequirePermission(rbac.SupervisorsDeclarationsUpdate), supervisorCtrl.PreliminarVentasSlotMarkSentAPI)

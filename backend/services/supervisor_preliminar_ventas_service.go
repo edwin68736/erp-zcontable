@@ -28,6 +28,8 @@ type PreliminarVentasListParams struct {
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
+	// All: sin paginar (reporte Excel).
+	All bool
 }
 
 // PreliminarVentasSlotStatus estado + fecha límite de una entrega puntual — usado en el listado
@@ -39,6 +41,12 @@ type PreliminarVentasSlotStatus struct {
 	// missing | exempt (vacío si el período no tiene esa entrega configurada). SentAt: cuándo se envió.
 	Timeliness string     `json:"timeliness,omitempty"`
 	SentAt     *time.Time `json:"sent_at,omitempty"`
+	// RegistradoAt cuándo se registraron los datos por primera vez = cuándo se ENTREGÓ (mide el plazo).
+	RegistradoAt *time.Time `json:"registrado_at,omitempty"`
+	// Disponible: ya llegó la fecha de la entrega según el calendario (hora del servidor, Lima). La
+	// pantalla oculta registrar/enviar hasta esa fecha; el backend NO lo bloquea (a propósito, para
+	// poder permitir entregas anticipadas más adelante). Sin fecha configurada, siempre disponible.
+	Disponible bool `json:"disponible"`
 }
 
 // PreliminarVentasListRow fila del listado (empresa + período), con el estado de sus dos entregas.
@@ -166,6 +174,9 @@ type PreliminarVentasSlotDetail struct {
 	CompanyIgvRate float64    `json:"company_igv_rate"`
 	Status         string     `json:"status"`
 	SentAt         *time.Time `json:"sent_at,omitempty"`
+	// RegistradoAt / Disponible: ver PreliminarVentasSlotStatus.
+	RegistradoAt *time.Time `json:"registrado_at,omitempty"`
+	Disponible   bool       `json:"disponible"`
 	// Timeliness puntualidad de esta entrega frente a su fecha del calendario (ver PreliminarVentasSlotStatus).
 	Timeliness string                      `json:"timeliness,omitempty"`
 	Record     PreliminarVentasRecordInput `json:"record"`
@@ -680,7 +691,7 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 	slotDue := preliminarVentasSlotDueDate(periodYM, slotIndex)
 	slotTimeliness := ""
 	if acts := preliminarVentasSlotActivities(periodYM); slotDue != nil && slotIndex >= 1 && slotIndex <= len(acts) {
-		slotTimeliness = preliminarSlotTimeliness(*slotDue, acts[slotIndex-1].ActivityRuleID, status, record.SentAt, ctrl.Suspendida, time.Now()).Timeliness
+		slotTimeliness = preliminarSlotTimeliness(*slotDue, acts[slotIndex-1].ActivityRuleID, status, preliminarRegistradoAt(&record), ctrl.Suspendida, time.Now()).Timeliness
 	}
 
 	return &PreliminarVentasSlotDetail{
@@ -699,6 +710,8 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 		CompanyIgvRate:    parseIgvRatePct(company.IgvRate),
 		Status:            status,
 		SentAt:            record.SentAt,
+		RegistradoAt:      preliminarRegistradoAt(&record),
+		Disponible:        activityDateReached(slotDue),
 		Record:            input,
 		Summary:           summary,
 		DocumentNumber:    preliminarVentasDocumentNumber(&company, periodYM),
@@ -874,17 +887,22 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		Slot2Status       *string
 		Slot1SentAt       *time.Time
 		Slot2SentAt       *time.Time
+		Slot1CreatedAt    *time.Time
+		Slot2CreatedAt    *time.Time
 	}
 	var raws []rawRow
-	err := q.Select(
+	q = q.Select(
 		"comp.id AS company_id, comp.internal_code AS code, comp.business_name, comp.ruc, " +
 			"au.username AS assistant_username, " +
 			"COALESCE(c.suspendida, false) AS suspendida, " +
-			"s1.status AS slot1_status, s2.status AS slot2_status, s1.sent_at AS slot1_sent_at, s2.sent_at AS slot2_sent_at",
+			"s1.status AS slot1_status, s2.status AS slot2_status, s1.sent_at AS slot1_sent_at, s2.sent_at AS slot2_sent_at, " +
+			"s1.created_at AS slot1_created_at, s2.created_at AS slot2_created_at",
 	).
-		Order("comp.internal_code ASC").
-		Limit(perPage).Offset((page - 1) * perPage).
-		Scan(&raws).Error
+		Order("comp.internal_code ASC")
+	if !p.All {
+		q = q.Limit(perPage).Offset((page - 1) * perPage)
+	}
+	err := q.Scan(&raws).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -892,10 +910,10 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 	due1, due2 := preliminarVentasSlotDueDates(p.PeriodYM)
 	acts := preliminarVentasSlotActivities(p.PeriodYM)
 	now := time.Now()
-	slotState := func(idx int, status string, due *time.Time, sentAt *time.Time, suspendida bool) PreliminarVentasSlotStatus {
-		out := PreliminarVentasSlotStatus{Status: status, DueDate: due, SentAt: sentAt}
+	slotState := func(idx int, status string, due *time.Time, sentAt, registradoAt *time.Time, suspendida bool) PreliminarVentasSlotStatus {
+		out := PreliminarVentasSlotStatus{Status: status, DueDate: due, SentAt: sentAt, RegistradoAt: registradoAt, Disponible: activityDateReached(due)}
 		if due != nil && idx < len(acts) {
-			out.Timeliness = preliminarSlotTimeliness(*due, acts[idx].ActivityRuleID, status, sentAt, suspendida, now).Timeliness
+			out.Timeliness = preliminarSlotTimeliness(*due, acts[idx].ActivityRuleID, status, registradoAt, suspendida, now).Timeliness
 		}
 		return out
 	}
@@ -917,8 +935,8 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 			RUC:               strings.TrimSpace(r.RUC),
 			AssistantUsername: strings.TrimSpace(r.AssistantUsername),
 			Suspendida:        r.Suspendida,
-			Slot1:             slotState(0, s1, due1, r.Slot1SentAt, r.Suspendida),
-			Slot2:             slotState(1, s2, due2, r.Slot2SentAt, r.Suspendida),
+			Slot1:             slotState(0, s1, due1, r.Slot1SentAt, r.Slot1CreatedAt, r.Suspendida),
+			Slot2:             slotState(1, s2, due2, r.Slot2SentAt, r.Slot2CreatedAt, r.Suspendida),
 		})
 	}
 	return rows, total, nil

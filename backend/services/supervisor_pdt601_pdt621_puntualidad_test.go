@@ -218,7 +218,8 @@ func TestPdt621Filter_EntregadoATiempoYFueraDeFecha(t *testing.T) {
 	}
 	seedPdt621CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := recepcionarPdt621EnFecha(t, svc, coOnTime.ID, periodYM, "2026-07-10")
+	// La recepción solo se habilita desde el día programado (15): a tiempo = ese mismo día.
+	onTime, err := recepcionarPdt621EnFecha(t, svc, coOnTime.ID, periodYM, "2026-07-15")
 	if err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}

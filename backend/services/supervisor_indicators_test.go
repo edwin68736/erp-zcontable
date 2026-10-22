@@ -177,7 +177,7 @@ func TestSupervisorIndicators_ReconcileWithPdtModuleSummary(t *testing.T) {
 	for name, c := range map[string]struct {
 		co    models.Company
 		fecha string
-	}{"onTime": {onTime, "2026-07-10"}, "late": {late, "2026-07-20"}} {
+	}{"onTime": {onTime, "2026-07-15"}, "late": {late, "2026-07-20"}} { // recepción desde el día programado (15)
 		d, err := recepcionarPdt621EnFecha(t, svc, c.co.ID, periodYM, c.fecha)
 		if err != nil {
 			t.Fatalf("621 %s: %v", name, err)

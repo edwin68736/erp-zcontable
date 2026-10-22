@@ -70,7 +70,6 @@ func TestPdt621ReglaHasta15_UsaLaHoraDeRecepcion(t *testing.T) {
 	cases := []struct {
 		code, momento, want string
 	}{
-		{"H001", "2026-07-14 18:00", TimelinessOnTime}, // día anterior, cualquier hora
 		{"H002", "2026-07-15 14:59", TimelinessOnTime},
 		{"H003", "2026-07-15 15:00", TimelinessOnTime}, // el límite 15:00 entra
 		{"H004", "2026-07-15 15:01", TimelinessLate},
@@ -149,5 +148,51 @@ func TestPdt621ReglaSoloFecha_IgnoraLaHora(t *testing.T) {
 	}
 	if len(r.Rows) != 1 {
 		t.Fatalf("filtro a_tiempo con regla solo-fecha debía traer la empresa, trajo %d", len(r.Rows))
+	}
+}
+
+// La pantalla oculta Recepcionar hasta el día programado (campo Disponible); el backend NO lo
+// bloquea, a propósito, para poder permitir entregas anticipadas más adelante.
+func TestPdt621Recepcion_DisponibleDesdeElDiaProgramado(t *testing.T) {
+	db := setupPdt621TestDBWithCalendar(t)
+	svc := NewSupervisorService()
+	periodYM := "2026-07"
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt621CalendarRuleConHora(t, db, periodYM, 15, models.ActivityRuleCompareDateTime, "15:00")
+	co := seedEstudioCompany(t, db, "B001")
+	database.DB.Model(&models.Company{}).Where("id = ?", co.ID).Update("supervisor_user_id", testPdt621SupervisorID)
+
+	prev := pdt621Now
+	defer func() { pdt621Now = prev }()
+	enLima := func(s string) func() time.Time {
+		at, _ := time.ParseInLocation("2006-01-02 15:04", s, limaLoc)
+		return func() time.Time { return at }
+	}
+
+	// Un día antes (a última hora, hora de Lima): no disponible.
+	pdt621Now = enLima("2026-07-14 23:59")
+	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
+	if err != nil || len(res.Rows) != 1 {
+		t.Fatalf("ListPdt621: %v", err)
+	}
+	if res.Rows[0].Disponible || res.Rows[0].CalendarDueDate == nil {
+		t.Fatalf("antes del día: disponible=%v due=%v, want false y fecha", res.Rows[0].Disponible, res.Rows[0].CalendarDueDate)
+	}
+	if d, err := svc.EnsurePdt621(co.ID, periodYM); err != nil || d.Disponible {
+		t.Fatalf("detalle antes del día: disponible debía ser false (err=%v)", err)
+	}
+
+	// El día programado: disponible.
+	pdt621Now = enLima("2026-07-15 08:00")
+	if d, err := svc.EnsurePdt621(co.ID, periodYM); err != nil || !d.Disponible {
+		t.Fatalf("el día programado debía estar disponible (err=%v)", err)
+	}
+
+	// El backend no bloquea por fecha: una recepción anticipada (vía API) se acepta.
+	pdt621Now = enLima("2026-07-10 09:00")
+	if _, err := svc.RecepcionarPdt621(co.ID, periodYM, testPdt621SupervisorID); err != nil {
+		t.Fatalf("el backend no debía rechazar una recepción anticipada: %v", err)
 	}
 }

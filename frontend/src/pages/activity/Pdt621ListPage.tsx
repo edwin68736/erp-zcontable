@@ -386,7 +386,10 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                   const suspendida = !!row.suspendida;
                   // "Recepcionar" solo en la vista del supervisor y solo para el supervisor asignado a
                   // la empresa — el backend lo vuelve a validar (RecepcionarPdt621).
-                  const porRecepcionar = pdt621EntregaPorRecepcionar(row.status, suspendida);
+                  // Antes del día programado (calendario, fecha del servidor) no se muestran ni
+                  // Recepcionar ni el lápiz — solo la pantalla: el backend no bloquea entregas anticipadas.
+                  const noDisponible = row.disponible === false;
+                  const porRecepcionar = noDisponible ? null : pdt621EntregaPorRecepcionar(row.status, suspendida);
                   const recepcionBtn = (entrega: 'primera' | 'segunda') =>
                     workspace !== 'assistant' &&
                     porRecepcionar === entrega &&
@@ -468,8 +471,15 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                             {/* Botón de acción (registrar/ver) movido acá desde la última columna,
                                 junto al estado en vez de al fondo de la fila. El asistente no entra
                                 al detalle: solo ve estados y la recepción del supervisor. */}
-                            {workspace !== 'assistant' ? (
+                            {workspace !== 'assistant' && !noDisponible ? (
                               <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar registro" />
+                            ) : workspace !== 'assistant' ? (
+                              <span
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400"
+                                title={`Se habilita el ${formatDateCell(row.calendar_due_date)}`}
+                              >
+                                <i className="fas fa-lock text-xs" aria-hidden />
+                              </span>
                             ) : null}
                           </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra

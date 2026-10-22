@@ -7,6 +7,10 @@ export interface PreliminarVentasSlotStatus {
   /** Puntualidad frente a la fecha del calendario: on_time | late | pending | missing | exempt. */
   timeliness?: string;
   sent_at?: string;
+  /** Cuándo se registraron los datos por primera vez = cuándo se ENTREGÓ (mide el plazo). */
+  registrado_at?: string;
+  /** Ya llegó la fecha de la entrega (hora del servidor). Antes, la pantalla oculta registrar/enviar. */
+  disponible: boolean;
 }
 
 export interface PreliminarVentasListRow {
@@ -124,6 +128,9 @@ export interface PreliminarVentasSlotDetail {
   company_igv_rate: number;
   status: string;
   sent_at?: string;
+  /** Ver PreliminarVentasSlotStatus.registrado_at / disponible. */
+  registrado_at?: string;
+  disponible: boolean;
   record: PreliminarVentasRecordInput;
   summary: PreliminarVentasSummary;
   document_number: string;
@@ -142,6 +149,15 @@ export const preliminarVentasService = {
       { params },
     );
     return res.data;
+  },
+
+  /** Todas las empresas que matchean los filtros (sin paginar) — para el reporte Excel. */
+  async fetchExportData(params: { period_ym: string; q?: string; status?: string }): Promise<PreliminarVentasListRow[]> {
+    const res = await client.get<{ data: PreliminarVentasListRow[] }>(
+      '/supervisors/activity-modules/preliminar-ventas/export',
+      { params },
+    );
+    return res.data.data ?? [];
   },
 
   async getSlotDetail(companyId: number, periodYm: string, slotIndex: number): Promise<PreliminarVentasSlotDetail> {

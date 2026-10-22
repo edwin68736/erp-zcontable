@@ -74,6 +74,10 @@ export interface Pdt621ListRow {
   observacion_motivo?: string;
   observado_por?: string;
   observado_at?: string;
+  /** Día programado de la actividad PDT 621 (calendario interno, por grupo de RUC). */
+  calendar_due_date?: string;
+  /** Ya llegó ese día (fecha del servidor). Antes, la pantalla oculta Recepcionar y el lápiz. */
+  disponible: boolean;
 }
 
 export interface Pdt621Detail {
@@ -102,6 +106,8 @@ export interface Pdt621Detail {
   // control_suspendida: ver comentario en Pdt621ListRow.suspendida — de solo lectura acá, se marca
   // desde Control de Detracciones.
   control_suspendida: boolean;
+  /** Ver Pdt621ListRow.disponible. */
+  disponible: boolean;
   /** Ver Pdt621ListRow.observacion_motivo. */
   observacion_motivo?: string;
   observado_por?: string;

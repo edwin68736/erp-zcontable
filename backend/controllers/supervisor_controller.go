@@ -1068,6 +1068,32 @@ func (ctrl *SupervisorController) PreliminarVentasListAPI(c fiber.Ctx) error {
 	})
 }
 
+// PreliminarVentasExportAPI GET /api/supervisors/activity-modules/preliminar-ventas/export
+// Mismos filtros que el listado, sin paginar — para el reporte Excel.
+func (ctrl *SupervisorController) PreliminarVentasExportAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	rows, _, err := ctrl.svc.ListPreliminarVentas(services.PreliminarVentasListParams{
+		PeriodYM:          c.Query("period_ym", ""),
+		Q:                 c.Query("q", ""),
+		Status:            c.Query("status", ""),
+		AllowedCompanyIDs: allowed,
+		All:               true,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if rows == nil {
+		rows = []services.PreliminarVentasListRow{}
+	}
+	return c.JSON(fiber.Map{"data": rows})
+}
+
 // preliminarVentasSlotFromParams valida :slotIndex (1 o 2) del path.
 func preliminarVentasSlotFromParams(c fiber.Ctx) (int, error) {
 	slot, err := strconv.Atoi(c.Params("slotIndex"))

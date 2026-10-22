@@ -120,7 +120,10 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant). La 1ra/2da entrega ya no la marca el
   // asistente: la registra el supervisor asignado con "Recepcionar" (hora del servidor).
   const importesReadOnlyForAssistant = workspace === 'assistant';
-  const entregaPorRecepcionar = pdt621EntregaPorRecepcionar(declaration?.status, controlSuspendida);
+  // Antes del día programado (calendario, fecha del servidor) no se ofrece Recepcionar — solo la
+  // pantalla: el backend no bloquea entregas anticipadas.
+  const noDisponible = !!detail && detail.disponible === false;
+  const entregaPorRecepcionar = noDisponible ? null : pdt621EntregaPorRecepcionar(declaration?.status, controlSuspendida);
   const canRecepcionar =
     workspace !== 'assistant' && !!entregaPorRecepcionar && canRecepcionarPdt621(detail?.supervisor_user_id);
   const displayStatus = useMemo(
@@ -598,6 +601,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                         <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-800 tabular-nums">
                           <i className="fas fa-inbox text-primary-600" aria-hidden />
                           {formatEntrega(fecha, hora)}
+                        </span>
+                      ) : noDisponible && entrega === 'primera' ? (
+                        <span className="inline-flex items-center gap-2 text-sm text-slate-500">
+                          <i className="fas fa-lock text-slate-400" aria-hidden />
+                          Se habilita el {formatEntrega(detail.calendar_due_date)}
                         </span>
                       ) : entregaPorRecepcionar !== entrega ? (
                         <span className="text-sm text-slate-400">—</span>

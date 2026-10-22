@@ -32,18 +32,33 @@ export function preliminarVentasStatusBadgeClass(status: string): string {
   return activityStatusBadgeClass(status, PRELIMINAR_VENTAS_BADGE);
 }
 
+/** Fondo celeste de la celda de una entrega fuera de plazo (lista y Excel). */
+export const PRELIMINAR_VENTAS_LATE_CELL_CLASS = 'bg-sky-50';
+/** Mismo celeste para la celda del Excel (ARGB). */
+export const PRELIMINAR_VENTAS_LATE_CELL_ARGB = 'FFE0F2FE';
+
+/** La entrega ya se ENTREGÓ: se registraron sus datos (o además se envió). Mide el plazo. */
+export function preliminarVentasEntregada(status: string): boolean {
+  return status === 'registrado' || status === 'enviado';
+}
+
+/** Entregada después de su fecha del calendario (celda celeste). */
+export function preliminarVentasEntregadaFueraDePlazo(status: string, timeliness?: string): boolean {
+  return preliminarVentasEntregada(status) && timeliness === 'late';
+}
+
 /**
- * Insignia de una entrega: el estado más la puntualidad frente a la fecha del calendario. Una entrega
- * enviada después de su fecha dice "Enviado fuera de plazo"; la que sigue sin enviarse pasada su fecha
- * dice "(vencido)" — igual que los criterios del libro de control (ENVIADO / ENVIADO, FUERA DE PLAZO /
- * PENDIENTE).
+ * Insignia de una entrega: el estado más la puntualidad frente a la fecha del calendario. La entrega
+ * cuenta desde que se REGISTRAN sus datos: registrada (o enviada) después de su fecha dice "Entregado
+ * fuera de plazo" (celeste), aunque ya estuviera vencida al registrarla; la que sigue sin registrarse
+ * pasada su fecha dice "Pendiente · vencido".
  */
 export function preliminarVentasSlotBadge(status: string, timeliness?: string): { label: string; className: string } {
   const base = preliminarVentasStatusLabel(status);
-  if (status === 'enviado' && timeliness === 'late') {
-    return { label: 'Enviado fuera de plazo', className: 'bg-orange-100 text-orange-900' };
+  if (preliminarVentasEntregadaFueraDePlazo(status, timeliness)) {
+    return { label: 'Entregado fuera de plazo', className: 'bg-sky-100 text-sky-900' };
   }
-  if (status !== 'enviado' && timeliness === 'missing') {
+  if (!preliminarVentasEntregada(status) && timeliness === 'missing') {
     return { label: `${base} · vencido`, className: 'bg-red-100 text-red-800' };
   }
   return { label: base, className: preliminarVentasStatusBadgeClass(status) };

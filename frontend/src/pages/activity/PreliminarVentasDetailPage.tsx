@@ -337,7 +337,10 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     setRecord((prev) => ({ ...prev, ...patch }));
   };
 
-  const formLocked = !!detail?.control_suspendida;
+  // Antes de la fecha de la entrega (calendario, fecha del servidor) la pantalla no deja registrar ni
+  // enviar — solo la pantalla: el backend no bloquea entregas anticipadas.
+  const noDisponible = !!detail && detail.disponible === false;
+  const formLocked = !!detail?.control_suspendida || noDisponible;
   const canMarkSent = detail?.status === 'registrado' || detail?.status === 'enviado';
 
   const handleSave = async () => {
@@ -535,6 +538,12 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
               {preliminarVentasSlotBadge(detail.status, detail.timeliness).label}
             </span>
           </dd>
+          {detail.registrado_at ? (
+            <>
+              <dt className="text-slate-500">Entregado</dt>
+              <dd className="text-slate-800">{formatDateTime(detail.registrado_at)}</dd>
+            </>
+          ) : null}
           {detail.status === 'enviado' ? (
             <>
               <dt className="text-slate-500">Enviado</dt>
@@ -542,7 +551,13 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             </>
           ) : null}
         </dl>
-        {formLocked ? (
+        {noDisponible && !detail.control_suspendida ? (
+          <p className="flex items-start gap-2 text-sm text-slate-500">
+            <i className="fas fa-lock mt-0.5 text-slate-400" aria-hidden />
+            Esta entrega se habilita el {formatDate(detail.due_date)}, según el calendario de actividades.
+          </p>
+        ) : null}
+        {detail.control_suspendida ? (
           <p className="flex items-start gap-2 text-sm text-slate-500">
             <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
             Esta empresa está marcada "Suspendida" en este período (desde Control de Detracciones) — no se puede editar.

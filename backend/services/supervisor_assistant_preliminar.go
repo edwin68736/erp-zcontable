@@ -35,12 +35,14 @@ func preliminarVentasSlotActivities(periodYM string) []models.FinanceCalendarAct
 }
 
 // preliminarSlotTimeliness puntualidad de UNA entrega: con regla de plazo se evalúa como cualquier
-// actividad del calendario; sin regla, la fecha de la entrega es el plazo. Solo una entrega ya enviada
-// cuenta su fecha de envío; registrada pero sin enviar sigue contando como pendiente/vencida.
-func preliminarSlotTimeliness(due time.Time, ruleID *uint, status string, sentAt *time.Time, suspendida bool, now time.Time) UploadTimelinessDTO {
+// actividad del calendario; sin regla, la fecha de la entrega es el plazo. La entrega cuenta como
+// ENTREGADA desde que se registran sus datos (no desde que se marca enviada al cliente): `registradoAt`
+// es el momento del primer guardado (CreatedAt del registro — el registro solo se crea al guardar).
+// Registrar después de la fecha es "entregado fuera de plazo", aunque ya estuviera vencida.
+func preliminarSlotTimeliness(due time.Time, ruleID *uint, status string, registradoAt *time.Time, suspendida bool, now time.Time) UploadTimelinessDTO {
 	var uploaded *time.Time
-	if status == models.PreliminarVentasEnviado {
-		uploaded = sentAt
+	if status == models.PreliminarVentasRegistrado || status == models.PreliminarVentasEnviado {
+		uploaded = registradoAt
 	}
 	tl := ComputeActivityRuleTimeliness(due, ruleID, uploaded, suspendida)
 	if tl.Timeliness == TimelinessNoRule {
@@ -84,7 +86,7 @@ func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company,
 	}
 	var recs []models.SupervisorPreliminarVentasRecord
 	if len(ctrlIDs) > 0 {
-		_ = database.DB.Select("monthly_control_id", "slot_index", "status", "sent_at").
+		_ = database.DB.Select("monthly_control_id", "slot_index", "status", "sent_at", "created_at").
 			Where("monthly_control_id IN ?", ctrlIDs).Find(&recs).Error
 	}
 	recByKey := make(map[recKey]models.SupervisorPreliminarVentasRecord, len(recs))
@@ -102,12 +104,13 @@ func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company,
 				continue
 			}
 			w := preliminarSlotWork{Company: co, SlotIndex: slot, Status: models.PreliminarVentasPendiente, Suspendida: ctrl.Suspendida}
-			var sentAt *time.Time
+			var registradoAt *time.Time
 			if r, ok := recByKey[recKey{ctrl.ID, slot}]; ok {
 				w.Status = r.Status
-				sentAt = r.SentAt
+				at := r.CreatedAt
+				registradoAt = &at
 			}
-			w.Timeliness = preliminarSlotTimeliness(due, act.ActivityRuleID, w.Status, sentAt, ctrl.Suspendida, time.Now())
+			w.Timeliness = preliminarSlotTimeliness(due, act.ActivityRuleID, w.Status, registradoAt, ctrl.Suspendida, time.Now())
 			out = append(out, w)
 		}
 	}
@@ -143,10 +146,12 @@ func moduleRowPreliminarVentas(slots []preliminarSlotWork) DashboardModuleRow {
 			continue
 		}
 		out.Total++
+		// Entregada = registrada (o ya enviada): ver preliminarSlotTimeliness.
+		entregada := w.Status == models.PreliminarVentasRegistrado || w.Status == models.PreliminarVentasEnviado
 		switch {
-		case w.Status == models.PreliminarVentasEnviado && w.Timeliness.Timeliness == TimelinessLate:
+		case entregada && w.Timeliness.Timeliness == TimelinessLate:
 			out.FueraFecha++
-		case w.Status == models.PreliminarVentasEnviado:
+		case entregada:
 			out.ATiempo++
 		case w.Timeliness.Timeliness == TimelinessMissing:
 			out.Vencido++

@@ -5,7 +5,9 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
+  PRELIMINAR_VENTAS_LATE_CELL_CLASS,
   PRELIMINAR_VENTAS_STATUS_FILTER,
+  preliminarVentasEntregadaFueraDePlazo,
   preliminarVentasSlotBadge,
 } from '../../components/activity/preliminarVentasConfig';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
@@ -24,6 +26,7 @@ import {
 import { detraccionesService, type SuspensionCarryOverRow } from '../../services/detracciones';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { exportPreliminarVentasReportExcel } from '../../utils/preliminarVentasExcelExport';
 
 function formatDueDate(iso?: string): string {
   if (!iso) return 'Sin fecha configurada';
@@ -67,6 +70,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
   // (§5.9.9.3), así que no se acota por permiso de edición.
@@ -162,6 +166,24 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     }
   };
 
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    try {
+      setExportingExcel(true);
+      setError('');
+      const exportRows = await preliminarVentasService.fetchExportData({
+        period_ym: periodYm,
+        q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
+        status: statusFilter || undefined,
+      });
+      await exportPreliminarVentasReportExcel({ periodYm, rows: exportRows, workspace });
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   const slotLink = (companyId: number, slotIndex: 1 | 2) => {
     const path = `${activitiesBasePath(workspace)}/preliminar-ventas/${companyId}/${slotIndex}`;
     return `${path}?period_ym=${encodeURIComponent(periodYm)}`;
@@ -216,6 +238,15 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleExportExcel()}
+          disabled={loading || exportingExcel}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100 disabled:opacity-50 shrink-0"
+        >
+          <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs`} aria-hidden />
+          Excel
+        </button>
       </div>
 
       {error ? (
@@ -279,10 +310,10 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                     >
                       <span className="block truncate">{row.assistant_username || '—'}</span>
                     </td>
-                    <td className={TD}>
+                    <td className={`${TD} ${slotCellClass(row.slot1, row.suspendida)}`}>
                       <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} suspendida={row.suspendida} />
                     </td>
-                    <td className={TD}>
+                    <td className={`${TD} ${slotCellClass(row.slot2, row.suspendida)}`}>
                       <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} suspendida={row.suspendida} />
                     </td>
                   </tr>
@@ -319,6 +350,11 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
 // Suspendida es un overlay global del período (SupervisorMonthlyControl.Suspendida, §5.9.7) — no un
 // estado más de la entrega — así que pisa el estado real de AMBAS entregas en vez de mostrarse como
 // un chip aparte junto a la razón social (mismo criterio que pdt621DisplayStatus en PDT 601/621).
+/** Celda celeste: entrega registrada después de su fecha del calendario (igual en el Excel). */
+function slotCellClass(slot: PreliminarVentasSlotStatus, suspendida: boolean): string {
+  return !suspendida && preliminarVentasEntregadaFueraDePlazo(slot.status, slot.timeliness) ? PRELIMINAR_VENTAS_LATE_CELL_CLASS : '';
+}
+
 function SlotBadge({ to, slot, suspendida }: { to: string; slot: PreliminarVentasSlotStatus; suspendida: boolean }) {
   const badge = preliminarVentasSlotBadge(slot.status, slot.timeliness);
   const label = suspendida ? 'Suspendida' : badge.label;
@@ -326,7 +362,18 @@ function SlotBadge({ to, slot, suspendida }: { to: string; slot: PreliminarVenta
   return (
     <div className="flex items-center gap-2">
       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${badgeClass}`}>{label}</span>
-      <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
+      {/* El lápiz aparece recién desde la fecha de la entrega en el calendario (fecha del servidor).
+          Solo es la pantalla: el backend no bloquea entregas anticipadas. */}
+      {slot.disponible !== false ? (
+        <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
+      ) : (
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400"
+          title={`Se habilita el ${formatDueDate(slot.due_date)}`}
+        >
+          <i className="fas fa-lock text-xs" aria-hidden />
+        </span>
+      )}
     </div>
   );
 }

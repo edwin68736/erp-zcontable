@@ -18,11 +18,11 @@ const MONTH_NAMES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 
-/** "2026-08" → "agosto 2026". */
+/** "2026-08" → "AGOSTO 2026" (en mayúsculas, como lo pide el estudio para el preliminar). */
 function periodLabel(periodYm: string): string {
   const [y, m] = periodYm.split('-').map(Number);
   const name = MONTH_NAMES[(m ?? 0) - 1];
-  return name && y ? `${name} ${y}` : periodYm;
+  return name && y ? `${name.toUpperCase()} ${y}` : periodYm;
 }
 const GREEN_BORDER = '#C9EBD9';
 

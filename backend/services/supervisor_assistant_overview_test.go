@@ -206,7 +206,9 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 		}
 	}
 
-	// c1: entrega 1 enviada a tiempo (día 4); c2: entrega 1 solo registrada; c3: suspendida.
+	// La entrega cuenta desde que se REGISTRAN los datos (CreatedAt del registro), no desde el envío.
+	// c1: entrega 1 registrada a tiempo (día 4) y enviada; c2: entrega 1 registrada tarde (día 10,
+	// vencía el 5) sin enviar → entregada fuera de plazo; c3: suspendida.
 	mkCtrl := func(co models.Company, susp bool) models.SupervisorMonthlyControl {
 		c := models.SupervisorMonthlyControl{CompanyID: co.ID, PeriodYM: "2026-07", Suspendida: susp}
 		if err := db.Create(&c).Error; err != nil {
@@ -216,9 +218,10 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 	}
 	k1, k2, _ := mkCtrl(c1, false), mkCtrl(c2, false), mkCtrl(c3, true)
 	sent := time.Date(2026, 7, 4, 10, 0, 0, 0, time.Local)
+	regTarde := time.Date(2026, 7, 10, 10, 0, 0, 0, time.Local)
 	for _, r := range []models.SupervisorPreliminarVentasRecord{
-		{MonthlyControlID: k1.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sent, ReduccionIgvPct: 95},
-		{MonthlyControlID: k2.ID, SlotIndex: 1, Status: models.PreliminarVentasRegistrado, ReduccionIgvPct: 95},
+		{MonthlyControlID: k1.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sent, ReduccionIgvPct: 95, CreatedAt: sent},
+		{MonthlyControlID: k2.ID, SlotIndex: 1, Status: models.PreliminarVentasRegistrado, ReduccionIgvPct: 95, CreatedAt: regTarde},
 	} {
 		r := r
 		if err := db.Create(&r).Error; err != nil {
@@ -236,9 +239,10 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 			row = &got.Modules[i]
 		}
 	}
-	// 3 empresas × 2 entregas = 6; la suspendida (2) queda fuera → 4: 1 a tiempo y 3 vencidas.
-	if row == nil || row.Total != 4 || row.ATiempo != 1 || row.Vencido != 3 || row.Pendiente != 0 {
-		t.Fatalf("módulo preliminar = %+v, want total 4, a tiempo 1, vencido 3", row)
+	// 3 empresas × 2 entregas = 6; la suspendida (2) queda fuera → 4: 1 a tiempo, 1 fuera de plazo
+	// (registrada tarde) y 2 vencidas (las entregas 2, sin registrar).
+	if row == nil || row.Total != 4 || row.ATiempo != 1 || row.FueraFecha != 1 || row.Vencido != 2 || row.Pendiente != 0 {
+		t.Fatalf("módulo preliminar = %+v, want total 4, a tiempo 1, fuera de plazo 1, vencido 2", row)
 	}
 	type key struct {
 		company uint
@@ -250,7 +254,8 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 			work[key{w.CompanyID, w.Slot}] = w.State
 		}
 	}
-	want := map[key]string{{c1.ID, 2}: "vencida", {c2.ID, 1}: "vencida", {c2.ID, 2}: "vencida"}
+	// c2 entrega 1 ya está entregada (registrada) pero sigue en la lista de trabajo: falta enviarla.
+	want := map[key]string{{c1.ID, 2}: "vencida", {c2.ID, 1}: "pendiente", {c2.ID, 2}: "vencida"}
 	if len(work) != len(want) {
 		t.Fatalf("trabajo de preliminar = %v, want %v", work, want)
 	}
@@ -259,7 +264,7 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 			t.Fatalf("trabajo de preliminar = %v, want %v", work, want)
 		}
 	}
-	// Cumplimiento: suma las 6 unidades (1 a tiempo, 3 vencidas, 2 exentas por suspensión).
+	// Cumplimiento: suma las 6 unidades (1 a tiempo, 1 fuera de plazo, 2 vencidas, 2 exentas).
 	if got.Compliance.Total != baseTotal+6 || got.Compliance.OnTime < 1 {
 		t.Fatalf("cumplimiento = %+v, want total %d con ≥1 a tiempo", got.Compliance, baseTotal+6)
 	}
@@ -334,12 +339,16 @@ func TestListPreliminarVentas_ShowsTimelinessPerSlot(t *testing.T) {
 	}
 	k1, k2 := mkCtrl(onTime), mkCtrl(late)
 	mkCtrl(none)
-	sentOn := time.Date(2026, 7, 13, 10, 0, 0, 0, time.Local)
-	sentLate := time.Date(2026, 7, 16, 10, 0, 0, 0, time.Local)
+	regOn := time.Date(2026, 7, 13, 10, 0, 0, 0, time.Local)
+	regLate := time.Date(2026, 7, 16, 10, 0, 0, 0, time.Local)
+	regLate2 := time.Date(2026, 7, 30, 10, 0, 0, 0, time.Local)
+	sentAfter := time.Date(2026, 7, 20, 10, 0, 0, 0, time.Local)
 	for _, r := range []models.SupervisorPreliminarVentasRecord{
-		{MonthlyControlID: k1.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sentOn, ReduccionIgvPct: 95},
-		{MonthlyControlID: k2.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sentLate, ReduccionIgvPct: 95},
-		{MonthlyControlID: k2.ID, SlotIndex: 2, Status: models.PreliminarVentasRegistrado, ReduccionIgvPct: 95},
+		// Registrada a tiempo y enviada después de la fecha: cuenta el registro → a tiempo.
+		{MonthlyControlID: k1.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &sentAfter, ReduccionIgvPct: 95, CreatedAt: regOn},
+		{MonthlyControlID: k2.ID, SlotIndex: 1, Status: models.PreliminarVentasEnviado, SentAt: &regLate, ReduccionIgvPct: 95, CreatedAt: regLate},
+		// Registrada después de su fecha (28) y sin enviar: entregada fuera de plazo (ya no "vencida").
+		{MonthlyControlID: k2.ID, SlotIndex: 2, Status: models.PreliminarVentasRegistrado, ReduccionIgvPct: 95, CreatedAt: regLate2},
 	} {
 		r := r
 		if err := db.Create(&r).Error; err != nil {
@@ -356,8 +365,8 @@ func TestListPreliminarVentas_ShowsTimelinessPerSlot(t *testing.T) {
 		got[r.CompanyID] = [2]string{r.Slot1.Timeliness, r.Slot2.Timeliness}
 	}
 	want := map[uint][2]string{
-		onTime.ID: {TimelinessOnTime, TimelinessMissing}, // enviado a tiempo; la 2.ª sin enviar y ya vencida
-		late.ID:   {TimelinessLate, TimelinessMissing},   // enviado fuera de plazo; la 2.ª solo registrada (no enviada)
+		onTime.ID: {TimelinessOnTime, TimelinessMissing}, // registrada a tiempo; la 2.ª sin registrar y ya vencida
+		late.ID:   {TimelinessLate, TimelinessLate},      // ambas registradas después de su fecha
 		none.ID:   {TimelinessMissing, TimelinessMissing},
 	}
 	for id, w := range want {
