@@ -374,26 +374,36 @@ func migratePreliminarVentasRateSplit(db *gorm.DB) error {
 		// Instalación nueva (o ya migrada): nunca tuvo las columnas viejas de una sola tasa.
 		return nil
 	}
+	// Nombres reales de columna: GORM no pone "_" antes del número (FacturasBase18 → facturas_base18,
+	// IgvAplicable18 → igv_aplicable18); la versión anterior usaba facturas_base_18 y fallaba siempre
+	// (Error 1054), dejando sin correr las migraciones siguientes. Solo se copian las filas que aún no
+	// tienen nada en las columnas nuevas: si ya se cargaron datos por tasa, no se pisan con las viejas.
 	if err := db.Exec(`
 		UPDATE supervisor_preliminar_ventas_records r
 		INNER JOIN supervisor_monthly_controls c ON c.id = r.monthly_control_id
 		INNER JOIN companies co ON co.id = c.company_id
 		SET
-			r.facturas_base_18 = IF(co.igv_rate = '10.5', 0, r.facturas_base),
-			r.facturas_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.facturas_no_gravadas),
-			r.facturas_base_105 = IF(co.igv_rate = '10.5', r.facturas_base, 0),
-			r.facturas_no_gravadas_105 = IF(co.igv_rate = '10.5', r.facturas_no_gravadas, 0),
-			r.boletas_base_18 = IF(co.igv_rate = '10.5', 0, r.boletas_base),
-			r.boletas_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.boletas_no_gravadas),
-			r.boletas_base_105 = IF(co.igv_rate = '10.5', r.boletas_base, 0),
-			r.boletas_no_gravadas_105 = IF(co.igv_rate = '10.5', r.boletas_no_gravadas, 0),
-			r.notas_credito_base_18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_base),
-			r.notas_credito_no_gravadas_18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_no_gravadas),
-			r.notas_credito_base_105 = IF(co.igv_rate = '10.5', r.notas_credito_base, 0),
-			r.notas_credito_no_gravadas_105 = IF(co.igv_rate = '10.5', r.notas_credito_no_gravadas, 0),
-			r.igv_aplicable_18 = IF(co.igv_rate = '10.5', 0, 1),
-			r.igv_aplicable_105 = IF(co.igv_rate = '10.5', 1, 0)
+			r.facturas_base18 = IF(co.igv_rate = '10.5', 0, r.facturas_base),
+			r.facturas_no_gravadas18 = IF(co.igv_rate = '10.5', 0, r.facturas_no_gravadas),
+			r.facturas_base105 = IF(co.igv_rate = '10.5', r.facturas_base, 0),
+			r.facturas_no_gravadas105 = IF(co.igv_rate = '10.5', r.facturas_no_gravadas, 0),
+			r.boletas_base18 = IF(co.igv_rate = '10.5', 0, r.boletas_base),
+			r.boletas_no_gravadas18 = IF(co.igv_rate = '10.5', 0, r.boletas_no_gravadas),
+			r.boletas_base105 = IF(co.igv_rate = '10.5', r.boletas_base, 0),
+			r.boletas_no_gravadas105 = IF(co.igv_rate = '10.5', r.boletas_no_gravadas, 0),
+			r.notas_credito_base18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_base),
+			r.notas_credito_no_gravadas18 = IF(co.igv_rate = '10.5', 0, r.notas_credito_no_gravadas),
+			r.notas_credito_base105 = IF(co.igv_rate = '10.5', r.notas_credito_base, 0),
+			r.notas_credito_no_gravadas105 = IF(co.igv_rate = '10.5', r.notas_credito_no_gravadas, 0),
+			r.igv_aplicable18 = IF(co.igv_rate = '10.5', 0, 1),
+			r.igv_aplicable105 = IF(co.igv_rate = '10.5', 1, 0)
 		WHERE r.deleted_at IS NULL
+			AND (r.facturas_base <> 0 OR r.facturas_no_gravadas <> 0 OR r.boletas_base <> 0
+				OR r.boletas_no_gravadas <> 0 OR r.notas_credito_base <> 0 OR r.notas_credito_no_gravadas <> 0)
+			AND r.facturas_base18 = 0 AND r.facturas_no_gravadas18 = 0 AND r.facturas_base105 = 0
+			AND r.facturas_no_gravadas105 = 0 AND r.boletas_base18 = 0 AND r.boletas_no_gravadas18 = 0
+			AND r.boletas_base105 = 0 AND r.boletas_no_gravadas105 = 0 AND r.notas_credito_base18 = 0
+			AND r.notas_credito_no_gravadas18 = 0 AND r.notas_credito_base105 = 0 AND r.notas_credito_no_gravadas105 = 0
 	`).Error; err != nil {
 		return fmt.Errorf("migrar preliminar_ventas_records a columnas por tasa: %w", err)
 	}
