@@ -516,7 +516,9 @@ export function PreliminarVentasPdfDocument({ detail, firm, logoPng }: Props) {
                 {/* Resultado negativo = la empresa tiene I.G.V. a favor (crédito fiscal): no hay nada que pagar. */}
                 <Text style={s.sumLabelGreen}>{igvAPagar < 0 ? 'I.G.V. A FAVOR' : 'I.G.V. A PAGAR'}</Text>
                 <View style={[s.sumValueCell, { borderBottomWidth: 0 }]}>
-                  <Text style={s.sumValueGreen}>S/ {fmtMoney(Math.abs(igvAPagar))}</Text>
+                  <Text style={s.sumValueGreen}>
+                    {igvAPagar < 0 ? '- ' : ''}S/ {fmtMoney(Math.abs(igvAPagar))}
+                  </Text>
                 </View>
               </View>
             </View>

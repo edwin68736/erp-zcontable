@@ -24,6 +24,8 @@ export interface TaxSettlementCreateInput {
   period_to?: string | null;
   notes?: string;
   pdt621_json?: string;
+  /** "rh" o "factura"; si se omite, el servidor usa el tipo por defecto de la empresa. */
+  payment_document_type?: 'rh' | 'factura';
   lines: TaxSettlementLineInput[];
 }
 

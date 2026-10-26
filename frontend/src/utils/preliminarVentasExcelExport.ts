@@ -50,8 +50,11 @@ export async function exportPreliminarVentasReportExcel(options: {
   periodYm: string;
   rows: PreliminarVentasListRow[];
   workspace: ExcelLetterheadWorkspace;
+  /** Entregas a incluir (por defecto las 2). */
+  slots?: Array<1 | 2>;
 }): Promise<void> {
   const { periodYm, rows, workspace } = options;
+  const slots: Array<1 | 2> = options.slots?.length ? [...options.slots].sort() : [1, 2];
   if (rows.length === 0) {
     throw new Error('No hay datos para exportar.');
   }
@@ -59,27 +62,19 @@ export async function exportPreliminarVentasReportExcel(options: {
   const due2 = rows.find((r) => r.slot2.due_date)?.slot2.due_date;
   const slotHeader = (n: number, due?: string) => `ENTREGA ${n}${due ? ` (${formatDate(due)})` : ''}`;
 
-  const headers = [
-    'CÓDIGO',
-    'DÍGITO',
-    'RAZÓN SOCIAL',
-    'RUC',
-    'ASISTENTE',
-    `${slotHeader(1, due1)} ESTADO`,
-    'ENTREGA 1 REGISTRADO',
-    'ENTREGA 1 ENVIADO',
-    `${slotHeader(2, due2)} ESTADO`,
-    'ENTREGA 2 REGISTRADO',
-    'ENTREGA 2 ENVIADO',
-  ];
-  const widths = [8, 8, 34, 13, 14, 24, 17, 17, 24, 17, 17];
+  const headers = ['CÓDIGO', 'DÍGITO', 'RAZÓN SOCIAL', 'RUC', 'ASISTENTE'];
+  const widths = [8, 8, 34, 13, 14];
+  for (const n of slots) {
+    headers.push(`${slotHeader(n, n === 1 ? due1 : due2)} ESTADO`, `ENTREGA ${n} REGISTRADO`, `ENTREGA ${n} ENVIADO`);
+    widths.push(24, 17, 17);
+  }
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Preliminar de ventas');
   await buildExcelLetterhead({
     sheet,
     totalCols: headers.length,
-    title: `PRELIMINAR DE VENTAS${workspace === 'supervisor' ? ' — SUPERVISORES' : ' — ASISTENTES'}`,
+    title: `PRELIMINAR DE VENTAS${slots.length === 1 ? ` — ENTREGA ${slots[0]}` : ''}${workspace === 'supervisor' ? ' — SUPERVISORES' : ' — ASISTENTES'}`,
     periodYm,
     companyCount: rows.length,
     workspace,
@@ -128,8 +123,7 @@ export async function exportPreliminarVentasReportExcel(options: {
     setText(row.business_name || '—');
     setText(row.ruc || '—', 'center');
     setText(row.assistant_username || '—');
-    setSlot(row.slot1);
-    setSlot(row.slot2);
+    for (const n of slots) setSlot(n === 1 ? row.slot1 : row.slot2);
     rowIdx += 1;
   }
 
@@ -141,6 +135,6 @@ export async function exportPreliminarVentasReportExcel(options: {
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(
     new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `reporte-preliminar-ventas-${periodYm}.xlsx`,
+    `reporte-preliminar-ventas-${periodYm}${slots.length === 1 ? `-entrega-${slots[0]}` : ''}.xlsx`,
   );
 }

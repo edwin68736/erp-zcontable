@@ -80,7 +80,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const listPath = `${activityModulePath(workspace, 'pdt-621')}?period_ym=${encodeURIComponent(periodYm)}`;
 
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
-  const canUpload = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
+  // El archivo PDT 621 lo carga el supervisor: el asistente solo lo ve/descarga.
+  const canUpload = useMemo(
+    () => workspace !== 'assistant' && auth.hasPermission(P.supervisorsAttachmentsUpload),
+    [workspace],
+  );
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
   const canReopen = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsReopen), []);

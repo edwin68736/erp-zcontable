@@ -280,6 +280,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   const homePath = workspaceHomePath(workspace);
 
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
+  const canMarkSentRole = canUpdate && workspace !== 'assistant';
 
   const [detail, setDetail] = useState<PreliminarVentasSlotDetail | null>(null);
   const [record, setRecord] = useState<PreliminarVentasRecordInput>({ ...EMPTY_RECORD });
@@ -361,7 +362,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   };
 
   const handleMarkSent = async () => {
-    if (!canUpdate || formLocked || !canMarkSent) return;
+    if (!canMarkSentRole || formLocked || !canMarkSent) return;
     try {
       setMarkingSent(true);
       setMsg('');
@@ -708,7 +709,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
             <p
               className={`text-sm font-semibold tabular-nums ${summary.igvAPagar > 0 ? 'text-red-700' : 'text-primary-700'}`}
             >
-              {formatMoney(Math.abs(summary.igvAPagar))}
+              {formatMoney(summary.igvAPagar)}
             </p>
           </div>
         </div>
@@ -815,7 +816,8 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       </div>
 
       <div className="flex flex-wrap justify-end gap-3">
-        {canUpdate ? (
+        {/* Enviar el preliminar al cliente es tarea del supervisor: el asistente solo registra. */}
+        {canMarkSentRole ? (
           <button
             type="button"
             disabled={markingSent || formLocked || !canMarkSent || detail.status === 'enviado'}

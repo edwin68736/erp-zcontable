@@ -71,6 +71,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [excelSlots, setExcelSlots] = useState<'both' | '1' | '2'>('both');
 
   // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
   // (§5.9.9.3), así que no se acota por permiso de edición.
@@ -176,7 +177,12 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
         status: statusFilter || undefined,
       });
-      await exportPreliminarVentasReportExcel({ periodYm, rows: exportRows, workspace });
+      await exportPreliminarVentasReportExcel({
+        periodYm,
+        rows: exportRows,
+        workspace,
+        slots: excelSlots === 'both' ? [1, 2] : [Number(excelSlots) as 1 | 2],
+      });
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
@@ -237,6 +243,21 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
           <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
+        </div>
+        <div className="shrink-0">
+          <label htmlFor="pv-excel-slots" className="block text-xs font-medium text-slate-500 mb-1">
+            Excel de
+          </label>
+          <select
+            id="pv-excel-slots"
+            value={excelSlots}
+            onChange={(e) => setExcelSlots(e.target.value as 'both' | '1' | '2')}
+            className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="both">Ambas entregas</option>
+            <option value="1">Entrega 1</option>
+            <option value="2">Entrega 2</option>
+          </select>
         </div>
         <button
           type="button"

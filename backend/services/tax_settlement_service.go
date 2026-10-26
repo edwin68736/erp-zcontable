@@ -137,6 +137,8 @@ type TaxSettlementCreateInput struct {
 	PeriodTo           *time.Time               `json:"period_to"`
 	Notes              string                   `json:"notes"`
 	Pdt621JSON         string                   `json:"pdt621_json"`
+	// PaymentDocumentType "rh" o "factura"; vacío = el tipo por defecto de la ficha de la empresa.
+	PaymentDocumentType string                  `json:"payment_document_type"`
 	Lines              []TaxSettlementLineInput `json:"lines"`
 }
 
@@ -255,6 +257,27 @@ func (s *TaxSettlementService) validateLine(in TaxSettlementLineInput) error {
 	return nil
 }
 
+// resolveSettlementPaymentDocumentType tipo de documento de cobro de una liquidación nueva: el
+// indicado explícitamente o, si viene vacío, el "Tipo de documento por defecto" de la ficha de la
+// empresa (Company.DefaultPaymentDocumentType). Sin dato válido, RH.
+func resolveSettlementPaymentDocumentType(companyID uint, explicit string) (string, error) {
+	v := strings.TrimSpace(explicit)
+	if v != "" {
+		if v != models.TaxSettlementPaymentDocTypeRH && v != models.TaxSettlementPaymentDocTypeFactura {
+			return "", errors.New("payment_document_type inválido: use 'rh' o 'factura'")
+		}
+		return v, nil
+	}
+	var co models.Company
+	if err := database.DB.Select("id", "default_payment_document_type").First(&co, companyID).Error; err != nil {
+		return "", errors.New("empresa no encontrada")
+	}
+	if co.DefaultPaymentDocumentType == models.TaxSettlementPaymentDocTypeFactura {
+		return models.TaxSettlementPaymentDocTypeFactura, nil
+	}
+	return models.TaxSettlementPaymentDocTypeRH, nil
+}
+
 func (s *TaxSettlementService) CreateDraft(in TaxSettlementCreateInput) (*models.TaxSettlement, error) {
 	if in.CompanyID == 0 {
 		return nil, errors.New("company_id requerido")
@@ -262,14 +285,19 @@ func (s *TaxSettlementService) CreateDraft(in TaxSettlementCreateInput) (*models
 	if len(in.Lines) == 0 {
 		return nil, errors.New("agregue al menos una línea")
 	}
+	docType, err := resolveSettlementPaymentDocumentType(in.CompanyID, in.PaymentDocumentType)
+	if err != nil {
+		return nil, err
+	}
 	ts := models.TaxSettlement{
-		CompanyID:   in.CompanyID,
-		Status:      models.TaxSettlementStatusDraft,
-		Notes:       in.Notes,
-		Pdt621JSON:  in.Pdt621JSON,
-		PeriodLabel: strings.TrimSpace(in.PeriodLabel),
-		PeriodFrom:  in.PeriodFrom,
-		PeriodTo:    in.PeriodTo,
+		CompanyID:           in.CompanyID,
+		Status:              models.TaxSettlementStatusDraft,
+		Notes:               in.Notes,
+		Pdt621JSON:          in.Pdt621JSON,
+		PeriodLabel:         strings.TrimSpace(in.PeriodLabel),
+		PeriodFrom:          in.PeriodFrom,
+		PeriodTo:            in.PeriodTo,
+		PaymentDocumentType: docType,
 	}
 	if in.IssueDate.IsZero() {
 		ts.IssueDate = time.Now()
@@ -354,16 +382,22 @@ func (s *TaxSettlementService) CreateSupervisorInitialDraft(in SupervisorTaxSett
 		return nil, errors.New("company_id requerido")
 	}
 	var co models.Company
-	if err := database.DB.Select("id", "igv_rate").First(&co, in.CompanyID).Error; err != nil {
+	if err := database.DB.Select("id", "igv_rate", "default_payment_document_type").First(&co, in.CompanyID).Error; err != nil {
 		return nil, errors.New("empresa no encontrada")
 	}
 	if _, err := validateCompanyIgvRate(co.IgvRate); err != nil {
 		return nil, errors.New("la empresa no tiene IGV configurado; regístrelo en los datos de la empresa")
 	}
+	// El borrador lo continúa Finanzas: nace con el tipo de documento por defecto de la empresa.
+	docType := models.TaxSettlementPaymentDocTypeRH
+	if co.DefaultPaymentDocumentType == models.TaxSettlementPaymentDocTypeFactura {
+		docType = models.TaxSettlementPaymentDocTypeFactura
+	}
 	ts := models.TaxSettlement{
-		CompanyID:   in.CompanyID,
-		Status:      models.TaxSettlementStatusDraft,
-		PeriodLabel: strings.TrimSpace(in.PeriodLabel),
+		CompanyID:           in.CompanyID,
+		Status:              models.TaxSettlementStatusDraft,
+		PeriodLabel:         strings.TrimSpace(in.PeriodLabel),
+		PaymentDocumentType: docType,
 	}
 	if in.IssueDate.IsZero() {
 		ts.IssueDate = time.Now()

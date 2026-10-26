@@ -170,7 +170,11 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const canObserve = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsObserve), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
   const canReopen = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsReopen), []);
-  const canUpload = useMemo(() => auth.hasPermission(P.supervisorsAttachmentsUpload), []);
+  // El archivo PDT 601 lo carga el supervisor: el asistente solo lo ve/descarga.
+  const canUpload = useMemo(
+    () => workspace !== 'assistant' && auth.hasPermission(P.supervisorsAttachmentsUpload),
+    [workspace],
+  );
 
   const [detail, setDetail] = useState<Pdt601Detail | null>(null);
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);

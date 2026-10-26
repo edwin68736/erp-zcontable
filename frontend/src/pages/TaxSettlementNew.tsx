@@ -484,17 +484,9 @@ const TaxSettlementNew = () => {
         liquidation_period: lp,
         period_label: periodLabelFromYM(lp) || lp,
         notes: notes.trim(),
+        payment_document_type: paymentDocumentType,
         lines: payloadLines,
       });
-      if (paymentDocumentType === 'factura') {
-        await taxSettlementsService.updatePaymentDocumentType(created.id, 'factura').catch(() => {
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: { type: 'error', message: 'No se pudo aplicar el tipo de documento de cobro Factura.' },
-            }),
-          );
-        });
-      }
       window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación en borrador creada.' } }));
       navigate(`/tax-settlements/${created.id}`);
     } catch (e: unknown) {
