@@ -261,7 +261,7 @@ func (ctrl *CompanyAccessCredentialController) ImportAPI(c fiber.Ctx) error {
 }
 
 // SunatAccessAPI POST /finance/company-credentials/:companyId/sunat-access
-// Genera el enlace de acceso directo a SUNAT (Clave SOL) de la empresa: el servidor hace el login por
+// Genera el enlace de acceso directo a SUNAT, Pagos o SUNAFIL (Clave SOL) de la empresa: el servidor hace el login por
 // detrás y devuelve un enlace de un solo uso para abrir en el navegador. Ver services/sunat_sol_access_service.go.
 func (ctrl *CompanyAccessCredentialController) SunatAccessAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)
@@ -279,7 +279,12 @@ func (ctrl *CompanyAccessCredentialController) SunatAccessAPI(c fiber.Ctx) error
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
-	res, err := ctrl.sunat.Generate(uint(companyID), allowed, uid)
+	// Destino opcional en el cuerpo: "sunat" (por defecto), "pagos" o "sunafil".
+	var body struct {
+		Target string `json:"target"`
+	}
+	_ = c.Bind().Body(&body)
+	res, err := ctrl.sunat.Generate(uint(companyID), allowed, uid, strings.TrimSpace(body.Target))
 	if err != nil {
 		var ae *services.SunatSolAccessError
 		if errors.As(err, &ae) {

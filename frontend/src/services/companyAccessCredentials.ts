@@ -85,12 +85,12 @@ export interface SunatAccessResult {
 }
 
 export const companyAccessCredentialsService = {
-  /** El servidor inicia sesión en SUNAT con las credenciales de la empresa y devuelve un enlace de un solo uso. */
-  async sunatAccess(companyId: number): Promise<SunatAccessResult> {
+  /** El servidor inicia sesión con las credenciales de la empresa (SUNAT, Pagos o SUNAFIL) y devuelve un enlace de un solo uso. */
+  async sunatAccess(companyId: number, target: 'sunat' | 'pagos' | 'sunafil' = 'sunat'): Promise<SunatAccessResult> {
     try {
       const res = await client.post<{ data: SunatAccessResult }>(
         `/finance/company-credentials/${companyId}/sunat-access`,
-        undefined,
+        { target },
         { timeout: 45000 },
       );
       return res.data.data;

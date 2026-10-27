@@ -4,7 +4,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import Pagination from '../../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
-import { sunatSolMissingField } from '../../utils/sunatSol';
+import { SUNAT_TARGETS, sunatSolMissingField, type SunatAccessTarget } from '../../utils/sunatSol';
 import SunatAccessModal from '../../components/finance/SunatAccessModal';
 import {
   companyAccessCredentialsService,
@@ -277,17 +277,17 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const [importValidateLoading, setImportValidateLoading] = useState(false);
   const [importCommitLoading, setImportCommitLoading] = useState(false);
   const [listNotice, setListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
-  const [sunatModalRow, setSunatModalRow] = useState<CompanyAccessCredentialRow | null>(null);
+  const [sunatModal, setSunatModal] = useState<{ row: CompanyAccessCredentialRow; target: SunatAccessTarget } | null>(null);
 
-  /** Ingreso directo a SUNAT con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
-  const handleOpenSunat = (row: CompanyAccessCredentialRow) => {
+  /** Ingreso directo a SUNAT, Pagos o SUNAFIL con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
+  const handleOpenSunat = (row: CompanyAccessCredentialRow, target: SunatAccessTarget = 'sunat') => {
     const missing = solMissing(row);
     if (missing) {
       setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
       return;
     }
     setListNotice(null);
-    setSunatModalRow(row);
+    setSunatModal({ row, target });
   };
 
   const importBannerClass =
@@ -843,22 +843,27 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                             </button>
                           );
                         })()}
-                        <button
-                          type="button"
-                          disabled
-                          title="Próximamente"
-                          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-2xs font-semibold text-slate-400 cursor-not-allowed"
-                        >
-                          Pagos
-                        </button>
-                        <button
-                          type="button"
-                          disabled
-                          title="Próximamente"
-                          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-2xs font-semibold text-slate-400 cursor-not-allowed"
-                        >
-                          SUNAFIL
-                        </button>
+                        {(['pagos', 'sunafil'] as const).map((t) => {
+                          const missing = solMissing(row);
+                          const label = SUNAT_TARGETS[t].label;
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => handleOpenSunat(row, t)}
+                              disabled={Boolean(missing)}
+                              title={
+                                missing
+                                  ? `Falta ${missing}: complételo con "Editar"`
+                                  : `Ingresar a ${label} con la clave SOL de esta empresa (abre una pestaña nueva)`
+                              }
+                              aria-label={`Ingresar a ${label} como ${row.business_name || 'la empresa'}`}
+                              className="inline-flex items-center rounded-full border border-blue-900 bg-white px-2.5 py-1 text-2xs font-semibold text-blue-900 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
                       </div>
                     </td>
                     <CopyableCredentialCell value={row.bnl_cuenta} cellClass={TD} mono />
@@ -1234,7 +1239,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           )
         : null}
 
-      {sunatModalRow ? <SunatAccessModal row={sunatModalRow} onClose={() => setSunatModalRow(null)} /> : null}
+      {sunatModal ? <SunatAccessModal row={sunatModal.row} target={sunatModal.target} onClose={() => setSunatModal(null)} /> : null}
     </div>
   );
 };

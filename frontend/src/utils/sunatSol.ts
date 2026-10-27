@@ -9,16 +9,57 @@
  *
  * Campos que SUNAT espera (copiados de su login): tipo=2 (RUC), custom_ruc=<RUC>, j_username=<usuario
  * SOL>, j_password=<clave SOL>, dni vacío, captcha vacío (solo lo pide tras 3 intentos fallidos),
- * originalUrl/lang/state fijos del Menú SOL.
+ * originalUrl/lang/state fijos de cada destino (SUNAT, Pagos, SUNAFIL; ver SUNAT_TARGETS).
  */
 
-const SUNAT_SOL_CLIENT_ID = '085b176d-2437-44cd-8c3e-e9a83b705921';
-const SUNAT_SOL_LOGIN_ACTION = `https://api-seguridad.sunat.gob.pe/v1/clientessol/${SUNAT_SOL_CLIENT_ID}/oauth2/j_security_check`;
-const SUNAT_SOL_ORIGINAL_URL = 'https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm';
 const SUNAT_SOL_LANG = 'es-PE';
-/** Menú SOL tal como lo abre la otra aplicación del estudio (cabina): cliente, originalUrl y state idénticos a su URL. `state` = mapa serializado que identifica a dónde volver tras el login. */
-const SUNAT_SOL_STATE =
-  'rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAAEZXhlY3B0AAZwYXJhbXN0AFEqJiomL2NsLXRpLWl0bWVudWNhYmluYS9NZW51SW50ZXJuZXQuaHRtJjBlMWY4NDg5ZmVlYWJmOTMxNmI5ODUwNTYyMjA5MTE4ZjkxZTJjMmN0AANleGVweA==';
+
+/** A dónde se entra con la clave SOL de la empresa. */
+export type SunatAccessTarget = 'sunat' | 'pagos' | 'sunafil';
+
+type SunatTargetConfig = {
+  label: string;
+  /** Cliente OAuth de SUNAT para ese destino (solo viaja en la ruta; no es secreto). */
+  clientId: string;
+  originalUrl: string;
+  /** `state` idéntico al que usa la otra aplicación del estudio para ese botón. */
+  state: string;
+  /** Si el destino cuelga del Menú SOL (e-menu) hay que cerrar antes la sesión anterior del navegador. */
+  menuSol: boolean;
+};
+
+export const SUNAT_TARGETS: Record<SunatAccessTarget, SunatTargetConfig> = {
+  // Menú SOL tal como lo abre la otra aplicación (cabina). `state` = mapa serializado que dice a dónde volver tras el login.
+  sunat: {
+    label: 'SUNAT',
+    clientId: '085b176d-2437-44cd-8c3e-e9a83b705921',
+    originalUrl: 'https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm',
+    state:
+      'rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAAEZXhlY3B0AAZwYXJhbXN0AFEqJiomL2NsLXRpLWl0bWVudWNhYmluYS9NZW51SW50ZXJuZXQuaHRtJjBlMWY4NDg5ZmVlYWJmOTMxNmI5ODUwNTYyMjA5MTE4ZjkxZTJjMmN0AANleGVweA==',
+    menuSol: true,
+  },
+  // Pagos: plataforma de pagos y deudas del Menú SOL.
+  pagos: {
+    label: 'Pagos',
+    clientId: '59d39217-c025-4de5-b342-393b0f4630ab',
+    originalUrl: 'https://e-menu.sunat.gob.pe/cl-ti-itmenu2/AutenticaMenuInternetPlataforma.htm',
+    state:
+      'rO0ABXQA7HpIam90dXJFVVlqQlpNb2t3NE8xQUZiZFBYdG5qZlhKbzVRQ3k0TnBZZ0lWNWhBNDU4OTZWU2xUbU85V1pVa2gvQUU2N09OR1VPR0M2d2g1YTBmMkxlOGpZQWNiazcyVXkweEhkTU44QWQrNVJCYUJURkgvcHdPRkxGZkplSTN5dkFESjdBSXZXM2lZbkZOc2NwMWNsbWJ2c1pXeUJQVnNIOEdERklJZWFCd1AvRFFVTFcraGRoeGk0YTczVC9pS3Z0Vmd1WVBqODlJckN3LzViaE5LelBmcnNqcURTNHdNOVYvTitvYTVyVmM9',
+    menuSol: true,
+  },
+  // SUNAFIL: casilla electrónica; entra con la misma clave SOL y no usa el Menú SOL (nada que cerrar antes).
+  sunafil: {
+    label: 'SUNAFIL',
+    clientId: 'b6474e23-8a3b-4153-b301-dafcc9646250',
+    originalUrl: 'https://casillaelectronica.sunafil.gob.pe/si.inbox/Login/Empresa',
+    state: 's',
+    menuSol: false,
+  },
+};
+
+function loginAction(t: SunatTargetConfig): string {
+  return `https://api-seguridad.sunat.gob.pe/v1/clientessol/${t.clientId}/oauth2/j_security_check`;
+}
 
 export type SunatSolCredentials = {
   ruc?: string | null;
@@ -34,7 +75,8 @@ export function sunatSolMissingField(c: SunatSolCredentials): string {
   return '';
 }
 
-function submitSunatSolForm(c: SunatSolCredentials): void {
+function submitSunatSolForm(c: SunatSolCredentials, target: SunatAccessTarget): void {
+  const cfg = SUNAT_TARGETS[target];
   const fields: Record<string, string> = {
     tipo: '2',
     dni: '',
@@ -42,14 +84,14 @@ function submitSunatSolForm(c: SunatSolCredentials): void {
     j_username: (c.usuario ?? '').trim(),
     j_password: c.clave ?? '',
     captcha: '',
-    originalUrl: SUNAT_SOL_ORIGINAL_URL,
+    originalUrl: cfg.originalUrl,
     lang: SUNAT_SOL_LANG,
-    state: SUNAT_SOL_STATE,
+    state: cfg.state,
   };
 
   const form = document.createElement('form');
   form.method = 'POST';
-  form.action = SUNAT_SOL_LOGIN_ACTION;
+  form.action = loginAction(cfg);
   form.target = '_blank';
   form.rel = 'noopener noreferrer';
   form.style.display = 'none';
@@ -94,8 +136,12 @@ function openCleanupWindow(): Window | null {
   return w;
 }
 
-/** Entra a SUNAT con el enlace de un solo uso, cerrando antes la sesión anterior de este navegador. */
-export function openSunatAccessUrl(url: string): void {
+/** Entra con el enlace de un solo uso; en los destinos del Menú SOL cierra antes la sesión anterior de este navegador. */
+export function openSunatAccessUrl(url: string, target: SunatAccessTarget = 'sunat'): void {
+  if (!SUNAT_TARGETS[target].menuSol) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
   const w = openCleanupWindow();
   if (!w) {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -110,11 +156,15 @@ export function openSunatAccessUrl(url: string): void {
   }, SUNAT_CLEANUP_WAIT_MS);
 }
 
-/** Abre SUNAT en una pestaña nueva ya autenticada, con el formulario de login. Cierra antes la sesión anterior. Debe llamarse desde un clic. */
-export function openSunatSolLogin(c: SunatSolCredentials): void {
+/** Abre el destino en una pestaña nueva ya autenticada, con el formulario de login. En el Menú SOL cierra antes la sesión anterior. Debe llamarse desde un clic. */
+export function openSunatSolLogin(c: SunatSolCredentials, target: SunatAccessTarget = 'sunat'): void {
+  if (!SUNAT_TARGETS[target].menuSol) {
+    submitSunatSolForm(c, target);
+    return;
+  }
   const w = openCleanupWindow();
   if (!w) {
-    submitSunatSolForm(c);
+    submitSunatSolForm(c, target);
     return;
   }
   window.setTimeout(() => {
@@ -123,6 +173,6 @@ export function openSunatSolLogin(c: SunatSolCredentials): void {
     } catch {
       /* ya cerrada */
     }
-    submitSunatSolForm(c);
+    submitSunatSolForm(c, target);
   }, SUNAT_CLEANUP_WAIT_MS);
 }

@@ -31,11 +31,8 @@ import (
 // códigos de resultado y rutas sin parámetros.
 
 const (
-	sunatSolBaseURL     = "https://api-seguridad.sunat.gob.pe/v1/clientessol/085b176d-2437-44cd-8c3e-e9a83b705921/oauth2"
-	sunatSolOriginalURL = "https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm"
-	sunatSolLang        = "es-PE"
-	// Menú SOL tal como lo abre la otra aplicación del estudio (cabina): cliente, originalUrl y state idénticos a su URL. state = mapa serializado que identifica a dónde volver tras el login (/cl-ti-itmenucabina/MenuInternet.htm).
-	sunatSolState = "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAAEZXhlY3B0AAZwYXJhbXN0AFEqJiomL2NsLXRpLWl0bWVudWNhYmluYS9NZW51SW50ZXJuZXQuaHRtJjBlMWY4NDg5ZmVlYWJmOTMxNmI5ODUwNTYyMjA5MTE4ZjkxZTJjMmN0AANleGVweA=="
+	sunatSolBaseHost = "https://api-seguridad.sunat.gob.pe/v1/clientessol"
+	sunatSolLang     = "es-PE"
 
 	sunatSolUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 	sunatSolMaxHops   = 8
@@ -45,6 +42,49 @@ const (
 	// SUNAT pide captcha al 3er intento fallido y bloquearía el acceso manual también.
 	sunatSolBadCredsCooldown = 10 * time.Minute
 )
+
+// Destino del ingreso directo: el mismo login SOL con distinto "cliente", originalUrl y state, que son los que
+// la otra aplicación del estudio usa para cada botón. FinalHosts son los únicos sitios a los que se acepta un
+// enlace de acceso (nunca se sigue ese enlace: abrirlo lo consumiría).
+type sunatSolTarget struct {
+	Name        string
+	ClientID    string
+	OriginalURL string
+	State       string
+	FinalHosts  []string
+}
+
+const (
+	sunatAccessTargetPagos   = "pagos"
+	sunatAccessTargetSunafil = "sunafil"
+)
+
+var sunatSolTargets = map[string]sunatSolTarget{
+	// Menú SOL (cabina).
+	sunatAccessTargetSunat: {
+		Name:        sunatAccessTargetSunat,
+		ClientID:    "085b176d-2437-44cd-8c3e-e9a83b705921",
+		OriginalURL: "https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm",
+		State:       "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAAEZXhlY3B0AAZwYXJhbXN0AFEqJiomL2NsLXRpLWl0bWVudWNhYmluYS9NZW51SW50ZXJuZXQuaHRtJjBlMWY4NDg5ZmVlYWJmOTMxNmI5ODUwNTYyMjA5MTE4ZjkxZTJjMmN0AANleGVweA==",
+		FinalHosts:  []string{"e-menu.sunat.gob.pe"},
+	},
+	// Pagos: plataforma de pagos y deudas del Menú SOL.
+	sunatAccessTargetPagos: {
+		Name:        sunatAccessTargetPagos,
+		ClientID:    "59d39217-c025-4de5-b342-393b0f4630ab",
+		OriginalURL: "https://e-menu.sunat.gob.pe/cl-ti-itmenu2/AutenticaMenuInternetPlataforma.htm",
+		State:       "rO0ABXQA7HpIam90dXJFVVlqQlpNb2t3NE8xQUZiZFBYdG5qZlhKbzVRQ3k0TnBZZ0lWNWhBNDU4OTZWU2xUbU85V1pVa2gvQUU2N09OR1VPR0M2d2g1YTBmMkxlOGpZQWNiazcyVXkweEhkTU44QWQrNVJCYUJURkgvcHdPRkxGZkplSTN5dkFESjdBSXZXM2lZbkZOc2NwMWNsbWJ2c1pXeUJQVnNIOEdERklJZWFCd1AvRFFVTFcraGRoeGk0YTczVC9pS3Z0Vmd1WVBqODlJckN3LzViaE5LelBmcnNqcURTNHdNOVYvTitvYTVyVmM9",
+		FinalHosts:  []string{"e-menu.sunat.gob.pe"},
+	},
+	// SUNAFIL: casilla electrónica; entra con la misma clave SOL (SUNAT entrega un código de un solo uso).
+	sunatAccessTargetSunafil: {
+		Name:        sunatAccessTargetSunafil,
+		ClientID:    "b6474e23-8a3b-4153-b301-dafcc9646250",
+		OriginalURL: "https://casillaelectronica.sunafil.gob.pe/si.inbox/Login/Empresa",
+		State:       "s",
+		FinalHosts:  []string{"casillaelectronica.sunafil.gob.pe"},
+	},
+}
 
 // Códigos de error estables (el frontend decide el mensaje y las acciones según el código).
 const (
@@ -87,7 +127,7 @@ type SunatSolAccessResult struct {
 
 type SunatSolAccessService struct {
 	creds   *CompanyAccessCredentialService
-	baseURL string // inyectable para pruebas
+	baseURL string // inyectable para pruebas; vacío = la URL real de cada destino
 
 	mu       sync.Mutex
 	inFlight map[uint]bool
@@ -97,7 +137,6 @@ type SunatSolAccessService struct {
 func NewSunatSolAccessService() *SunatSolAccessService {
 	return &SunatSolAccessService{
 		creds:    NewCompanyAccessCredentialService(),
-		baseURL:  sunatSolBaseURL,
 		inFlight: map[uint]bool{},
 		badUntil: map[string]time.Time{},
 	}
@@ -105,7 +144,14 @@ func NewSunatSolAccessService() *SunatSolAccessService {
 
 // Generate genera el enlace de acceso a SUNAT de una empresa. `allowed` es el alcance del usuario
 // (nil = todo el estudio), igual que en el resto del módulo de claves.
-func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID uint) (res *SunatSolAccessResult, err error) {
+func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID uint, targetName string) (res *SunatSolAccessResult, err error) {
+	if targetName == "" {
+		targetName = sunatAccessTargetSunat
+	}
+	target, ok := sunatSolTargets[targetName]
+	if !ok {
+		return nil, accessErr(SunatAccessUnexpected, "Destino de acceso no válido.", targetName)
+	}
 	defer func() {
 		// Bitácora: quién abrió qué empresa y si salió bien (nunca claves ni enlaces).
 		status, code := sunatAccessStatusOK, ""
@@ -119,7 +165,7 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 			}
 		}
 		if dbErr := database.DB.Create(&models.CompanyAccessLog{
-			CompanyID: companyID, UserID: userID, Target: sunatAccessTargetSunat, Status: status, ErrorCode: code,
+			CompanyID: companyID, UserID: userID, Target: target.Name, Status: status, ErrorCode: code,
 		}).Error; dbErr != nil {
 			log.Printf("sunat-access: no se pudo registrar la bitácora: %v", dbErr)
 		}
@@ -159,7 +205,7 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 		s.mu.Unlock()
 	}()
 
-	link, err := s.login(ruc, usuario, clave)
+	link, err := s.login(target, ruc, usuario, clave)
 	if err != nil {
 		var ae *SunatSolAccessError
 		if errors.As(err, &ae) && (ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha) {
@@ -170,6 +216,26 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 		return nil, err
 	}
 	return &SunatSolAccessResult{URL: link, ExpiresHintSeconds: 300}, nil
+}
+
+// base URL del portal de seguridad para un destino (en pruebas se reemplaza por un servidor falso).
+func (s *SunatSolAccessService) baseFor(t sunatSolTarget) string {
+	if s.baseURL != "" {
+		return s.baseURL
+	}
+	return sunatSolBaseHost + "/" + t.ClientID + "/oauth2"
+}
+
+func (t sunatSolTarget) isFinalHost(u *url.URL) bool {
+	if u == nil {
+		return false
+	}
+	for _, h := range t.FinalHosts {
+		if strings.EqualFold(u.Hostname(), h) {
+			return true
+		}
+	}
+	return false
 }
 
 func credKey(companyID uint, parts ...string) string {
@@ -183,8 +249,6 @@ var (
 	reMenuURLInBody   = regexp.MustCompile(`https://e-menu\.sunat\.gob\.pe/[^\s"'<>\\]+`)
 )
 
-func isMenuHost(u *url.URL) bool { return strings.EqualFold(u.Hostname(), "e-menu.sunat.gob.pe") }
-
 // safeURL: host + ruta, sin parámetros (los parámetros pueden llevar tokens).
 func safeURL(u *url.URL) string {
 	if u == nil {
@@ -194,7 +258,8 @@ func safeURL(u *url.URL) string {
 }
 
 // login hace el recorrido completo y devuelve el enlace de un solo uso a e-menu.sunat.gob.pe.
-func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error) {
+func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave string) (string, error) {
+	base := s.baseFor(target)
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{
 		Jar:     jar,
@@ -211,8 +276,8 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 	note := func(status int, u *url.URL) { trail = append(trail, fmt.Sprintf("%d %s", status, safeURL(u))) }
 	fail := func(code, msg string) error { return accessErr(code, msg, strings.Join(trail, " → ")) }
 
-	loginPage := s.baseURL + "/loginMenuSol?lang=" + sunatSolLang + "&showDni=true&showLanguages=false&originalUrl=" +
-		sunatSolOriginalURL + "&state=" + sunatSolState
+	loginPage := base + "/loginMenuSol?lang=" + sunatSolLang + "&showDni=true&showLanguages=false&originalUrl=" +
+		target.OriginalURL + "&state=" + target.State
 
 	// 1) Página de login (deja las cookies de sesión que el navegador también tendría).
 	req, _ := http.NewRequest(http.MethodGet, loginPage, nil)
@@ -232,11 +297,11 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 		"j_username":  {usuario},
 		"j_password":  {clave},
 		"captcha":     {""},
-		"originalUrl": {sunatSolOriginalURL},
+		"originalUrl": {target.OriginalURL},
 		"lang":        {sunatSolLang},
-		"state":       {sunatSolState},
+		"state":       {target.State},
 	}
-	req, _ = http.NewRequest(http.MethodPost, s.baseURL+"/j_security_check", strings.NewReader(form.Encode()))
+	req, _ = http.NewRequest(http.MethodPost, base+"/j_security_check", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Referer", loginPage)
 	req.Header.Set("Origin", "https://api-seguridad.sunat.gob.pe")
@@ -268,7 +333,7 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 			if lerr != nil {
 				return "", fail(SunatAccessUnexpected, "SUNAT respondió de forma inesperada al iniciar sesión.")
 			}
-			if isMenuHost(loc) {
+			if target.isFinalHost(loc) {
 				// SUNAT ya entregó el enlace de un solo uso (sin pedir método): se devuelve sin seguirlo.
 				return loc.String(), nil
 			}
@@ -302,14 +367,14 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 		}
 	}
 	if sessionID == "" {
-		if m := reMenuURLInBody.FindString(strings.ReplaceAll(body, `\/`, `/`)); m != "" {
+		if m := target.findURLInText(strings.ReplaceAll(body, `\/`, `/`)); m != "" {
 			return m, nil
 		}
 		return "", fail(SunatAccessUnexpected, "No se encontró el paso de método de autenticación en la respuesta de SUNAT.")
 	}
 
 	// 4) "Continuar sin código": la misma petición que hace el botón de SUNAT; responde con el enlace de un solo uso.
-	nreq, _ := http.NewRequest(http.MethodGet, s.baseURL+"/redireccion-sin-codigo/"+sessionID, nil)
+	nreq, _ := http.NewRequest(http.MethodGet, base+"/redireccion-sin-codigo/"+sessionID, nil)
 	nreq.Header.Set("Accept", "application/json, text/plain, */*")
 	nreq.Header.Set("X-Requested-With", "XMLHttpRequest")
 	if lastPage != nil {
@@ -323,7 +388,7 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		loc, lerr := resp.Location()
 		resp.Body.Close()
-		if lerr == nil && isMenuHost(loc) {
+		if lerr == nil && target.isFinalHost(loc) {
 			return loc.String(), nil
 		}
 		return "", fail(SunatAccessUnexpected, "SUNAT respondió de forma inesperada al continuar sin código.")
@@ -333,15 +398,26 @@ func (s *SunatSolAccessService) login(ruc, usuario, clave string) (string, error
 	if resp.StatusCode != http.StatusOK {
 		return "", fail(SunatAccessUnexpected, "SUNAT rechazó el paso de continuar sin código.")
 	}
-	if link := extractMenuURL(b); link != "" {
+	if link := extractAccessURL(b, target); link != "" {
 		return link, nil
 	}
 	return "", accessErr(SunatAccessUnexpected, "SUNAT no entregó el enlace de acceso en la respuesta esperada.",
 		strings.Join(trail, " → ")+" | campos: "+jsonKeysSummary(b))
 }
 
-// extractMenuURL busca en la respuesta (JSON o texto) el enlace a e-menu.sunat.gob.pe.
-func extractMenuURL(b []byte) string {
+// findURLInText primer enlace https a uno de los hosts finales del destino dentro de un texto.
+func (t sunatSolTarget) findURLInText(text string) string {
+	for _, h := range t.FinalHosts {
+		re := regexp.MustCompile("https://" + regexp.QuoteMeta(h) + `/[^\s"'<>\\]+`)
+		if m := re.FindString(text); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
+// extractAccessURL busca en la respuesta (JSON o texto) el enlace de acceso del destino (e-menu o la casilla de SUNAFIL).
+func extractAccessURL(b []byte, target sunatSolTarget) string {
 	var v any
 	if err := json.Unmarshal(b, &v); err == nil {
 		var found, other string
@@ -353,7 +429,7 @@ func extractMenuURL(b []byte) string {
 				if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
 					return
 				}
-				if isMenuHost(u) && found == "" {
+				if target.isFinalHost(u) && found == "" {
 					found = u.String()
 				} else if strings.HasSuffix(strings.ToLower(u.Hostname()), "sunat.gob.pe") && other == "" {
 					other = u.String()
@@ -372,11 +448,11 @@ func extractMenuURL(b []byte) string {
 		if found != "" {
 			return found
 		}
-		if other != "" {
+		if other != "" && strings.HasSuffix(target.FinalHosts[0], "sunat.gob.pe") {
 			return other
 		}
 	}
-	return reMenuURLInBody.FindString(strings.ReplaceAll(string(b), `\/`, `/`))
+	return target.findURLInText(strings.ReplaceAll(string(b), `\/`, `/`))
 }
 
 // jsonKeysSummary solo los NOMBRES de los campos (nunca los valores, que pueden llevar tokens).

@@ -62,7 +62,7 @@ func TestSunatLogin_FlujoCompleto(t *testing.T) {
 		`{"estado":"ok","urlRedireccion":"https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm?code=XYZ&state=S"}`)
 	svc := newTestSunatService(f.srv.URL)
 
-	got, err := svc.login("20123456789", "USUARIO1", "clave-secreta")
+	got, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave-secreta")
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestSunatLogin_CredencialesRechazadas(t *testing.T) {
 	f := newFakeSunat(t, "/oauth2/error?x=1", "", "")
 	svc := newTestSunatService(f.srv.URL)
 	// El mock redirige a una ruta que no existe en mux; basta con que la ruta contenga /oauth2/error.
-	_, err := svc.login("20123456789", "USUARIO1", "mala")
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "mala")
 	var ae *SunatSolAccessError
 	if !errors.As(err, &ae) || ae.Code != SunatAccessBadCreds {
 		t.Fatalf("esperaba credenciales_rechazadas, obtuve %v", err)
@@ -97,7 +97,7 @@ func TestSunatLogin_EnlaceDirectoSinSeguirlo(t *testing.T) {
 	// Si SUNAT redirige directo a e-menu, se devuelve el enlace SIN seguirlo (seguirlo lo consumiría).
 	f := newFakeSunat(t, "https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/Autentica.htm?code=ABC", "", "")
 	svc := newTestSunatService(f.srv.URL)
-	got, err := svc.login("20123456789", "USUARIO1", "clave")
+	got, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestSunatLogin_EnlaceDirectoSinSeguirlo(t *testing.T) {
 func TestSunatLogin_VuelveAlFormularioEsCaptcha(t *testing.T) {
 	f := newFakeSunat(t, "/loginMenuSol", "", "")
 	svc := newTestSunatService(f.srv.URL)
-	_, err := svc.login("20123456789", "USUARIO1", "clave")
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
 	var ae *SunatSolAccessError
 	if !errors.As(err, &ae) || ae.Code != SunatAccessCaptcha {
 		t.Fatalf("esperaba captcha, obtuve %v", err)
@@ -119,7 +119,7 @@ func TestSunatLogin_VuelveAlFormularioEsCaptcha(t *testing.T) {
 func TestSunatLogin_RespuestaSinEnlaceNoFiltraValores(t *testing.T) {
 	f := newFakeSunat(t, "/metodo/123456789012", `<html>Método</html>`, `{"estado":"ok","token":"SECRETO-123"}`)
 	svc := newTestSunatService(f.srv.URL)
-	_, err := svc.login("20123456789", "USUARIO1", "clave")
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
 	var ae *SunatSolAccessError
 	if !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected {
 		t.Fatalf("esperaba respuesta_inesperada, obtuve %v", err)
@@ -132,7 +132,7 @@ func TestSunatLogin_RespuestaSinEnlaceNoFiltraValores(t *testing.T) {
 	}
 }
 
-func TestExtractMenuURL(t *testing.T) {
+func TestExtractAccessURL(t *testing.T) {
 	cases := map[string]string{
 		`{"a":{"b":["https://otro.com/x","https://e-menu.sunat.gob.pe/cl/ok?c=1"]}}`: "https://e-menu.sunat.gob.pe/cl/ok?c=1",
 		`{"url":"https://api-seguridad.sunat.gob.pe/algo"}`:                        "https://api-seguridad.sunat.gob.pe/algo",
@@ -140,8 +140,64 @@ func TestExtractMenuURL(t *testing.T) {
 		`{"sin":"enlace"}`: "",
 	}
 	for in, want := range cases {
-		if got := extractMenuURL([]byte(in)); got != want {
-			t.Errorf("extractMenuURL(%s) = %q, quiero %q", in, got, want)
+		if got := extractAccessURL([]byte(in), sunatSolTargets[sunatAccessTargetSunat]); got != want {
+			t.Errorf("extractAccessURL(%s) = %q, quiero %q", in, got, want)
+		}
+	}
+}
+
+func TestSunatLogin_DestinosUsanSusParametros(t *testing.T) {
+	cases := []struct {
+		name      string
+		link      string
+		wantOrig  string
+		wantState string
+	}{
+		{sunatAccessTargetPagos, "https://e-menu.sunat.gob.pe/cl-ti-itmenu2/AutenticaMenuInternetPlataforma.htm?code=P1&state=S",
+			"https://e-menu.sunat.gob.pe/cl-ti-itmenu2/AutenticaMenuInternetPlataforma.htm", sunatSolTargets[sunatAccessTargetPagos].State},
+		{sunatAccessTargetSunafil, "https://casillaelectronica.sunafil.gob.pe/si.inbox/Login/Empresa?state=s&code=J1&lang=es-PE",
+			"https://casillaelectronica.sunafil.gob.pe/si.inbox/Login/Empresa", "s"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeSunat(t, "/metodo/123456789012", `<html>Método de Autenticación</html>`,
+				`{"estado":"ok","urlRedireccion":"`+tc.link+`"}`)
+			svc := newTestSunatService(f.srv.URL)
+			got, err := svc.login(sunatSolTargets[tc.name], "20123456789", "USUARIO1", "clave")
+			if err != nil {
+				t.Fatalf("login: %v", err)
+			}
+			if got != tc.link {
+				t.Errorf("enlace = %q, quiero %q", got, tc.link)
+			}
+			if f.postedForm["originalUrl"] != tc.wantOrig || f.postedForm["state"] != tc.wantState {
+				t.Errorf("parámetros enviados incorrectos: %v", f.postedForm)
+			}
+		})
+	}
+}
+
+func TestSunatLogin_SunafilNoAceptaEnlaceDeOtroSitio(t *testing.T) {
+	// Un enlace a e-menu no sirve para SUNAFIL: el destino solo acepta su propia casilla.
+	f := newFakeSunat(t, "/metodo/123456789012", `<html>Método</html>`,
+		`{"url":"https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm?code=X"}`)
+	svc := newTestSunatService(f.srv.URL)
+	if _, err := svc.login(sunatSolTargets[sunatAccessTargetSunafil], "20123456789", "USUARIO1", "clave"); err == nil {
+		t.Fatal("se esperaba error: el enlace no es de la casilla de SUNAFIL")
+	}
+}
+
+func TestSunatSolTargets_UrlsPorCliente(t *testing.T) {
+	svc := &SunatSolAccessService{}
+	want := map[string]string{
+		sunatAccessTargetSunat:   "085b176d-2437-44cd-8c3e-e9a83b705921",
+		sunatAccessTargetPagos:   "59d39217-c025-4de5-b342-393b0f4630ab",
+		sunatAccessTargetSunafil: "b6474e23-8a3b-4153-b301-dafcc9646250",
+	}
+	for name, client := range want {
+		got := svc.baseFor(sunatSolTargets[name])
+		if got != "https://api-seguridad.sunat.gob.pe/v1/clientessol/"+client+"/oauth2" {
+			t.Errorf("%s: base = %s", name, got)
 		}
 	}
 }

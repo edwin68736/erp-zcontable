@@ -5,10 +5,12 @@ import {
   type CompanyAccessCredentialRow,
   type SunatAccessError,
 } from '../../services/companyAccessCredentials';
-import { openSunatAccessUrl, openSunatSolLogin } from '../../utils/sunatSol';
+import { openSunatAccessUrl, openSunatSolLogin, SUNAT_TARGETS, type SunatAccessTarget } from '../../utils/sunatSol';
 
 type Props = {
   row: CompanyAccessCredentialRow;
+  /** Destino del acceso; por defecto SUNAT (Menú SOL). */
+  target?: SunatAccessTarget;
   onClose: () => void;
 };
 
@@ -21,12 +23,13 @@ type Phase =
 const NO_RETRY_CODES = new Set(['faltan_datos', 'credenciales_rechazadas', 'credenciales_en_pausa', 'captcha', 'sin_acceso']);
 
 /**
- * Ventana de "Acceso a SUNAT": el servidor inicia sesión por detrás con las credenciales de la empresa
+ * Ventana de "Acceso a SUNAT / Pagos / SUNAFIL": el servidor inicia sesión por detrás con las credenciales de la empresa
  * (unos segundos) y entrega un enlace de un solo uso; cuando está listo se habilita "Ir a SUNAT", que lo
  * abre en una pestaña nueva y entra directo al panel. Si el servidor no puede (SUNAT cambió algo, pide
  * captcha…), ofrece el ingreso con formulario como alternativa.
  */
-const SunatAccessModal = ({ row, onClose }: Props) => {
+const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
+  const label = SUNAT_TARGETS[target].label;
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -44,21 +47,21 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
     };
   }, []);
   useEffect(() => {
-    const key = `${row.company_id}:${attempt}`;
+    const key = `${row.company_id}:${target}:${attempt}`;
     if (requestKey.current === key) return;
     requestKey.current = key;
     setPhase({ kind: 'loading' });
     setCopied(false);
     setShowDetail(false);
     companyAccessCredentialsService
-      .sunatAccess(row.company_id)
+      .sunatAccess(row.company_id, target)
       .then((r) => {
         if (alive.current && requestKey.current === key) setPhase({ kind: 'ready', url: r.url });
       })
       .catch((e: SunatAccessError) => {
         if (alive.current && requestKey.current === key) setPhase({ kind: 'error', error: e });
       });
-  }, [row.company_id, attempt]);
+  }, [row.company_id, target, attempt]);
 
   useEffect(() => {
     if (phase.kind === 'ready') goRef.current?.focus();
@@ -75,7 +78,7 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
   const goToSunat = () => {
     if (phase.kind !== 'ready') return;
     // Cierra primero la sesión anterior de SUNAT en este navegador y luego entra (ver utils/sunatSol.ts).
-    openSunatAccessUrl(phase.url);
+    openSunatAccessUrl(phase.url, target);
     onClose();
   };
 
@@ -112,10 +115,10 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
           </span>
           <div className="min-w-0">
             <h2 id="sunat-access-title" className="text-base font-bold text-slate-900">
-              {phase.kind === 'ready' ? '¡Acceso generado!' : phase.kind === 'error' ? 'No se pudo generar el acceso' : 'Generando acceso a SUNAT…'}
+              {phase.kind === 'ready' ? '¡Acceso generado!' : phase.kind === 'error' ? 'No se pudo generar el acceso' : `Generando acceso a ${label}…`}
             </h2>
             <p className="mt-0.5 truncate text-sm text-slate-600" title={title}>
-              {phase.kind === 'loading' ? 'Iniciando sesión por usted en' : 'Portal SUNAT de'} <strong>{title}</strong>
+              {phase.kind === 'loading' ? 'Iniciando sesión por usted en' : `Portal ${label} de`} <strong>{title}</strong>
               {row.ruc ? <span className="text-slate-500"> · {row.ruc}</span> : null}
             </p>
           </div>
@@ -137,7 +140,7 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
               <input
                 readOnly
                 value={phase.url}
-                aria-label="Enlace de acceso directo a SUNAT"
+                aria-label={`Enlace de acceso directo a ${label}`}
                 onFocus={(e) => e.currentTarget.select()}
                 className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600"
               />
@@ -152,7 +155,7 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
             </div>
             <p className="mt-2 text-2xs text-slate-500">
               <i className="fas fa-circle-info mr-1" aria-hidden />
-              Funciona una sola vez. Úselo ahora y no lo comparta: da acceso completo a SUNAT de esta empresa.
+              Funciona una sola vez. Úselo ahora y no lo comparta: da acceso completo a {label} de esta empresa.
             </p>
           </div>
         ) : null}
@@ -185,7 +188,7 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
                 <button
                   type="button"
                   onClick={() => {
-                    openSunatSolLogin({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+                    openSunatSolLogin({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave }, target);
                     onClose();
                   }}
                   title="Abre SUNAT enviando el formulario de login desde su navegador (puede pedirle elegir 'Continuar sin código')"
@@ -216,7 +219,7 @@ const SunatAccessModal = ({ row, onClose }: Props) => {
               disabled={phase.kind !== 'ready'}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Ir a SUNAT
+              Ir a {label}
             </button>
           ) : null}
         </div>
