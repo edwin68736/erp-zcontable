@@ -838,7 +838,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                                   : `Ingresar a ${label} con la clave SOL de esta empresa (abre una pestaña nueva)`
                               }
                               aria-label={`Ingresar a ${label} como ${row.business_name || 'la empresa'}`}
-                              className="inline-flex shrink-0 rounded-full transition hover:brightness-95 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale disabled:hover:brightness-100 disabled:hover:shadow-none"
+                              className="inline-flex shrink-0 rounded-full bg-white ring-1 ring-slate-200 transition hover:brightness-95 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale disabled:hover:brightness-100 disabled:hover:shadow-none"
                             >
                               <img src={image} width={imageWidth} height={96} alt="" aria-hidden draggable={false} className="h-6 w-auto max-w-none shrink-0 select-none" />
                             </button>
