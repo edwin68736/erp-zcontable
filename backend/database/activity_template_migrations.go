@@ -18,6 +18,11 @@ const migDropCalendarActivityLegacyCols = "finance_calendar_activities_v9_drop_l
 // ventas no encontraba las fechas de entrega y mostraba "Sin fecha configurada".
 const migRetypeLegacyPreliminarVentas = "activity_templates_v11_retype_legacy_preliminar_ventas"
 
+// migRetagPreliminarVentasCalendarActivities la plantilla ya estaba con el tipo correcto (preliminar_ventas),
+// pero sus actividades de calendario siguen con el tipo guardado `nps` y el módulo no las encuentra: la
+// migración anterior solo corregía actividades cuando también tenía que cambiar la plantilla.
+const migRetagPreliminarVentasCalendarActivities = "finance_calendar_activities_v12_retag_preliminar_ventas"
+
 const migRepairCalendarTemplateFK = "finance_calendar_activities_v10_repair_template_fk"
 
 // PrepareActivityTemplateSchema asegura columnas y repara huérfanos antes de AutoMigrate (FK).
@@ -76,6 +81,7 @@ func RunActivityTemplateMigrations(db *gorm.DB) error {
 		{migRepairCalendarTemplateFK, repairCalendarActivityTemplateFK},
 		{migEnforceCalendarActivityNotNull, enforceFinanceCalendarActivityNotNull},
 		{migRetypeLegacyPreliminarVentas, retypeLegacyPreliminarVentas},
+		{migRetagPreliminarVentasCalendarActivities, retagPreliminarVentasCalendarActivities},
 	}
 	for _, step := range steps {
 		if err := applyMigrationOnce(db, step.name, step.fn); err != nil {
@@ -108,6 +114,26 @@ func retypeLegacyPreliminarVentas(db *gorm.DB) error {
 	}
 	return db.Model(&models.FinanceCalendarActivity{}).
 		Where("activity_template_id IN ? AND activity_type_snapshot IN ?", ids, []string{"nps", "other"}).
+		Update("activity_type_snapshot", models.CalendarActivityPreliminarVentas).Error
+}
+
+// retagPreliminarVentasCalendarActivities alinea el tipo guardado en las actividades de calendario con el de
+// su plantilla cuando la plantilla es preliminar_ventas y la actividad quedó con un tipo heredado (nps/other).
+func retagPreliminarVentasCalendarActivities(db *gorm.DB) error {
+	if !db.Migrator().HasTable("activity_templates") || !db.Migrator().HasTable("finance_calendar_activities") {
+		return nil
+	}
+	var ids []uint
+	if err := db.Model(&models.ActivityTemplate{}).
+		Where("activity_type = ?", models.CalendarActivityPreliminarVentas).
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return db.Model(&models.FinanceCalendarActivity{}).
+		Where("activity_template_id IN ? AND activity_type_snapshot IN ?", ids, []string{"nps", "other", ""}).
 		Update("activity_type_snapshot", models.CalendarActivityPreliminarVentas).Error
 }
 
