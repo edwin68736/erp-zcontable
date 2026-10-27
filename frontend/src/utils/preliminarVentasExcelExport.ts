@@ -1,11 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { PreliminarVentasListRow, PreliminarVentasSlotStatus } from '../services/preliminarVentas';
-import {
-  PRELIMINAR_VENTAS_LATE_CELL_ARGB,
-  preliminarVentasEntregadaFueraDePlazo,
-  preliminarVentasSlotBadge,
-} from '../components/activity/preliminarVentasConfig';
+import { preliminarVentasExcelFillArgb, preliminarVentasSlotBadge } from '../components/activity/preliminarVentasConfig';
 import { buildExcelLetterhead, type ExcelLetterheadWorkspace } from './excelLetterhead';
 
 // Mismo estilo que pdt621ExcelExport.ts: "Aptos Narrow" 10pt en todo el archivo, todo en mayúsculas.
@@ -20,9 +16,8 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
   right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
 };
-/** Celeste: entrega registrada después de su fecha del calendario (mismo color que la lista). */
-const LATE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PRELIMINAR_VENTAS_LATE_CELL_ARGB } };
-const SUSPENDIDA_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3E8FF' } };
+/** Relleno de las celdas de una entrega según su estado (reglas de color compartidas con los demás Excel). */
+const slotFill = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 
 function formatDate(iso?: string | null): string {
   if (!iso) return '';
@@ -105,13 +100,10 @@ export async function exportPreliminarVentasReportExcel(options: {
       if (fill) c.fill = fill;
       c.alignment = { vertical: 'middle', horizontal: align, wrapText: align === 'left' };
     };
-    // Las 3 celdas de una entrega fuera de plazo van en celeste (igual que la lista).
+    // Las 3 celdas de una entrega (estado, registrado, enviado) llevan el color de su estado: verde a tiempo,
+    // celeste fuera de plazo, naranja pendiente/registrado y rosado suspendida — como PDT 601/621.
     const setSlot = (slot: PreliminarVentasSlotStatus) => {
-      const fill = row.suspendida
-        ? SUSPENDIDA_FILL
-        : preliminarVentasEntregadaFueraDePlazo(slot.status, slot.timeliness)
-          ? LATE_FILL
-          : undefined;
+      const fill = slotFill(preliminarVentasExcelFillArgb(slot.status, slot.timeliness, !!row.suspendida));
       const label = row.suspendida ? 'Suspendida' : preliminarVentasSlotBadge(slot.status, slot.timeliness).label;
       setText(label, 'center', fill);
       setText(row.suspendida ? '' : formatDateTime(slot.registrado_at), 'center', fill);

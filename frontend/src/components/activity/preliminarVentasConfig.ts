@@ -63,3 +63,22 @@ export function preliminarVentasSlotBadge(status: string, timeliness?: string): 
   }
   return { label: base, className: preliminarVentasStatusBadgeClass(status) };
 }
+
+/**
+ * Color (ARGB) de las celdas de una entrega en el Excel — mismas reglas que los Excel de PDT 601/621 y
+ * Detracciones: suspendida en rosado, entregado a tiempo en verde, entregado fuera de plazo en celeste y
+ * pendiente (o registrado sin enviar) en naranja.
+ */
+export const PRELIMINAR_VENTAS_EXCEL_FILL = {
+  suspendida: 'FFFEE2E2',
+  aTiempo: 'FFDCFCE7',
+  fueraDePlazo: PRELIMINAR_VENTAS_LATE_CELL_ARGB,
+  pendiente: 'FFFFEDD5',
+} as const;
+
+export function preliminarVentasExcelFillArgb(status: string, timeliness: string | undefined, suspendida: boolean): string {
+  if (suspendida) return PRELIMINAR_VENTAS_EXCEL_FILL.suspendida;
+  if (preliminarVentasEntregadaFueraDePlazo(status, timeliness)) return PRELIMINAR_VENTAS_EXCEL_FILL.fueraDePlazo;
+  if (status === 'enviado') return PRELIMINAR_VENTAS_EXCEL_FILL.aTiempo;
+  return PRELIMINAR_VENTAS_EXCEL_FILL.pendiente;
+}
