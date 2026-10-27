@@ -122,7 +122,8 @@ const DocumentForm = () => {
         setLoading(true);
         setError('');
         const [comps, doc] = await Promise.all([
-          companiesService.list(),
+          // Alta: solo empresas activas. Al editar un documento existente se incluyen las inactivas.
+          companiesService.list(isEdit ? { status: 'todos' } : {}),
           isEdit && documentId ? documentsService.get(documentId) : Promise.resolve(null),
         ]);
 

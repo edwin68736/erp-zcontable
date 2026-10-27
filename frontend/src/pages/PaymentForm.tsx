@@ -384,7 +384,8 @@ const PaymentForm = () => {
         setError('');
 
         const [comps, pay] = await Promise.all([
-          companiesService.list(),
+          // Alta: solo empresas activas. Al editar un pago existente se incluyen las inactivas.
+          companiesService.list(isEdit ? { status: 'todos' } : {}),
           isEdit && paymentId ? paymentsService.get(paymentId) : Promise.resolve(null),
         ]);
 

@@ -10,6 +10,30 @@ export interface CompaniesListParams {
   code_order?: 'asc' | 'desc';
 }
 
+/** Empresa del estudio que ya tiene el RUC que se quiere registrar (respuesta 409 al crear). */
+export interface CompanyRucConflict {
+  kind: 'activa' | 'inactiva' | 'eliminada';
+  company_id: number;
+  code: string;
+  business_name: string;
+  ruc: string;
+  status: string;
+  deleted_at?: string;
+  /** Se puede reactivar desde el alta (inactiva o eliminada). */
+  reactivable: boolean;
+}
+
+/** Extrae el conflicto de RUC de un error de la API (409 al crear/reactivar), si lo hay. */
+export function extractRucConflict(err: unknown): CompanyRucConflict | null {
+  const data = (err as { response?: { status?: number; data?: { ruc_conflict?: CompanyRucConflict } } })?.response;
+  return data?.status === 409 && data.data?.ruc_conflict ? data.data.ruc_conflict : null;
+}
+
+/** true si la API rechazó la reactivación porque el código ya lo usa otra empresa activa. */
+export function isCodeConflict(err: unknown): boolean {
+  return Boolean((err as { response?: { data?: { code_conflict?: boolean } } })?.response?.data?.code_conflict);
+}
+
 export interface PaginationMeta {
   page: number;
   per_page: number;
@@ -100,6 +124,15 @@ export const companiesService = {
 
   async create(input: CompanyUpsertInput): Promise<Company> {
     const res = await client.post<Company>('/companies', input);
+    return res.data;
+  },
+
+  /**
+   * Reactiva una empresa inactiva o eliminada que tiene el mismo RUC que se estaba registrando, aplicando
+   * los datos del formulario (conserva su historial). 409 con `ruc_conflict` o `code_conflict` si no se puede.
+   */
+  async reactivate(id: number, input: CompanyUpsertInput): Promise<Company> {
+    const res = await client.post<Company>(`/companies/${id}/reactivate`, input);
     return res.data;
   },
 

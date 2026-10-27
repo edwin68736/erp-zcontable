@@ -659,7 +659,7 @@ func (s *SupervisorService) ListPdtBucketCompanies(p SupervisorDashboardParams, 
 
 	q := database.DB.Table("supervisor_declarations AS d").
 		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
-		Joins("JOIN companies comp ON comp.id = c.company_id AND comp.status = 'activo'").
+		Joins("JOIN companies comp ON comp.id = c.company_id AND "+companyStudioVisibleSQL("comp")).
 		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
 		Where("c.period_ym = ? AND d.declaration_type = ?", p.PeriodYM, declarationType).
@@ -743,7 +743,7 @@ func (s *SupervisorService) PdtAssistantPerformance(p SupervisorDashboardParams)
 		Select("co.assistant_user_id AS assistant_user_id, COALESCE(u.username, '') AS assistant_username, "+
 			"d.declaration_type AS declaration_type, "+pdtBucketsSelectSQL(p.PeriodYM)).
 		Joins("JOIN supervisor_monthly_controls c ON c.id = d.monthly_control_id").
-		Joins("JOIN companies co ON co.id = c.company_id").
+		Joins("JOIN companies co ON co.id = c.company_id AND "+companyStudioVisibleSQL("co")).
 		Joins("LEFT JOIN users u ON u.id = co.assistant_user_id").
 		Joins("LEFT JOIN supervisor_pdt601_planillas pl ON pl.monthly_control_id = c.id AND pl.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_pdt621_records r ON r.monthly_control_id = c.id AND r.deleted_at IS NULL").
@@ -1060,6 +1060,8 @@ func (s *SupervisorService) ListControls(p SupervisorListParams) ([]models.Super
 		p.PerPage = 200
 	}
 	q := database.DB.Model(&models.SupervisorMonthlyControl{})
+	// Solo controles de empresas visibles (activas y no eliminadas); la suspendida sigue siendo visible.
+	q = q.Where("supervisor_monthly_controls.company_id IN (?)", visibleStudioCompanyIDs())
 	if p.PeriodYM != "" {
 		q = q.Where("period_ym = ?", p.PeriodYM)
 	}
@@ -1080,7 +1082,7 @@ func (s *SupervisorService) ListControls(p SupervisorListParams) ([]models.Super
 	}
 	if p.Q != "" {
 		like := "%" + strings.TrimSpace(p.Q) + "%"
-		q = q.Joins("JOIN companies ON companies.id = supervisor_monthly_controls.company_id").
+		q = q.Joins("JOIN companies ON companies.id = supervisor_monthly_controls.company_id AND "+companyStudioVisibleSQL("companies")).
 			Where("companies.business_name LIKE ? OR companies.ruc LIKE ?", like, like)
 	}
 	q = s.applyCompanyScope(q, p.AllowedCompanyIDs)
@@ -1644,7 +1646,8 @@ func (s *SupervisorService) reportMonthlyQuery(p SupervisorReportListParams) *go
 			COALESCE(supervisor_tax_liquidations.total_pagar, 0) AS total_pagar`).
 		Joins("JOIN companies ON companies.id = supervisor_monthly_controls.company_id").
 		Joins("LEFT JOIN supervisor_tax_liquidations ON supervisor_tax_liquidations.monthly_control_id = supervisor_monthly_controls.id").
-		Where("supervisor_monthly_controls.period_ym = ?", p.PeriodYM)
+		Where("supervisor_monthly_controls.period_ym = ?", p.PeriodYM).
+		Where(companyStudioVisibleSQL("companies"))
 	q = s.applyCompanyScope(q, p.AllowedCompanyIDs)
 	if strings.TrimSpace(p.Q) != "" {
 		like := "%" + strings.TrimSpace(p.Q) + "%"
@@ -1899,7 +1902,8 @@ func (s *SupervisorService) ReportObservationsHistory(p SupervisorReportListPara
 		Joins("LEFT JOIN supervisor_monthly_controls ON supervisor_monthly_controls.id = supervisor_observations.monthly_control_id").
 		Joins("LEFT JOIN companies ON companies.id = supervisor_monthly_controls.company_id").
 		Joins("LEFT JOIN users ON users.id = supervisor_observations.user_id").
-		Where("supervisor_monthly_controls.period_ym = ?", p.PeriodYM)
+		Where("supervisor_monthly_controls.period_ym = ?", p.PeriodYM).
+		Where(companyStudioVisibleSQL("companies"))
 	if strings.TrimSpace(p.Q) != "" {
 		like := "%" + strings.TrimSpace(p.Q) + "%"
 		q = q.Where("companies.business_name LIKE ? OR companies.ruc LIKE ? OR supervisor_observations.body LIKE ?", like, like, like)

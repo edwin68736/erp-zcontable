@@ -303,6 +303,11 @@ func (s *CompanyService) ValidateNewCompanyForCreate(db *gorm.DB, input *models.
 		return errors.New("el código interno es requerido")
 	}
 
+	// Un RUC no se repite: si ya lo tiene otra empresa (activa, inactiva o eliminada) no se crea otra.
+	if err := checkRucAvailable(db, input.RUC, 0); err != nil {
+		return err
+	}
+
 	taken, err := companyInternalCodeTaken(db, input.InternalCode, 0)
 	if err != nil {
 		return err
@@ -582,7 +587,13 @@ func (s *CompanyService) Update(id uint, input *models.Company) error {
 	}
 
 	if input.RUC != "" {
-		c.RUC = strings.TrimSpace(input.RUC)
+		newRUC := strings.TrimSpace(input.RUC)
+		if newRUC != strings.TrimSpace(c.RUC) && c.ClientType == models.CompanyClientTypeEstudio {
+			if err := checkRucAvailable(database.DB, newRUC, id); err != nil {
+				return err
+			}
+		}
+		c.RUC = newRUC
 	}
 	if input.BusinessName != "" {
 		c.BusinessName = strings.TrimSpace(input.BusinessName)

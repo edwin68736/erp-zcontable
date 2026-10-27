@@ -87,6 +87,7 @@ func Setup(app *fiber.App) {
 	api.Get("/companies/:id", middleware.RequirePermission(rbac.CompaniesView), companyCtrl.GetAPI)
 	api.Get("/companies/:id/statement", middleware.RequirePermission(rbac.CompaniesView), companyCtrl.StatementAPI)
 	api.Post("/companies", middleware.RequirePermission(rbac.CompaniesCreate), companyCtrl.CreateAPI)
+	api.Post("/companies/:id/reactivate", middleware.RequirePermission(rbac.CompaniesCreate), companyCtrl.ReactivateAPI)
 	api.Put("/companies/:id", middleware.RequirePermission(rbac.CompaniesUpdate), companyCtrl.UpdateAPI)
 	api.Put("/companies/:id/convert-to-studio", middleware.RequirePermission(rbac.CompaniesConvertToStudio), companyCtrl.ConvertToStudioAPI)
 	api.Patch("/companies/:id/status", middleware.RequirePermission(rbac.CompaniesStatus), companyCtrl.PatchStatusAPI)

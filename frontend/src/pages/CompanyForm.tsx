@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { companiesService, type CompanyUpsertInput } from '../services/companies';
+import {
+  companiesService,
+  extractRucConflict,
+  isCodeConflict,
+  type CompanyRucConflict,
+  type CompanyUpsertInput,
+} from '../services/companies';
+import CompanyReactivateModal from '../components/CompanyReactivateModal';
 import { usersService } from '../services/users';
 import { contactsService, type ContactUpsertInput } from '../services/contacts';
 import { subscriptionPlansService } from '../services/subscriptionPlans';
@@ -71,6 +78,11 @@ const CompanyForm = () => {
 
   const [loading, setLoading] = useState(isEdit);
   const [error, setError] = useState('');
+  // RUC que ya pertenece a una empresa inactiva/eliminada: se ofrece reactivarla en vez de duplicarla.
+  const [rucConflict, setRucConflict] = useState<CompanyRucConflict | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<CompanyUpsertInput | null>(null);
+  const [reactivating, setReactivating] = useState(false);
+  const [reactivateError, setReactivateError] = useState('');
   const [validatingRuc, setValidatingRuc] = useState(false);
   const lastSuccessfulRucLookup = useRef<string>('');
   const rucLookupInFlight = useRef(false);
@@ -425,6 +437,7 @@ const CompanyForm = () => {
         return;
       }
 
+      setPendingPayload(payload);
       const created = await companiesService.create(payload);
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa creada correctamente.' } }),
@@ -449,11 +462,48 @@ const CompanyForm = () => {
       navigate('/companies', { replace: true });
     } catch (err: unknown) {
       console.error(err);
+      const conflict = extractRucConflict(err);
+      if (conflict?.reactivable) {
+        // RUC de una empresa inactiva o eliminada: se ofrece reactivarla (sin toast de error).
+        setReactivateError('');
+        setRucConflict(conflict);
+        return;
+      }
       const message = extractApiErrorMessage(err, 'Error al guardar la empresa');
       setError(message);
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'error', message } }),
       );
+    }
+  };
+
+  const handleReactivate = async (newCode: string) => {
+    if (!rucConflict || !pendingPayload) return;
+    try {
+      setReactivating(true);
+      setReactivateError('');
+      const reactivated = await companiesService.reactivate(rucConflict.company_id, { ...pendingPayload, code: newCode });
+      window.dispatchEvent(
+        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa reactivada con los datos del formulario.' } }),
+      );
+      if (draftContacts.length > 0) {
+        try {
+          await Promise.all(draftContacts.map((c) => contactsService.create(reactivated.id, c.payload)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setRucConflict(null);
+      navigate('/companies', { replace: true });
+    } catch (err: unknown) {
+      console.error(err);
+      setReactivateError(
+        isCodeConflict(err)
+          ? `El código "${newCode}" ya lo usa otra empresa activa: escribe uno distinto.`
+          : extractApiErrorMessage(err, 'No se pudo reactivar la empresa.'),
+      );
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -498,6 +548,16 @@ const CompanyForm = () => {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
 
+      {rucConflict ? (
+        <CompanyReactivateModal
+          conflict={rucConflict}
+          initialCode={code}
+          saving={reactivating}
+          error={reactivateError}
+          onCancel={() => setRucConflict(null)}
+          onReactivate={(c) => void handleReactivate(c)}
+        />
+      ) : null}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2">
           <div className="flex flex-wrap items-center gap-2">

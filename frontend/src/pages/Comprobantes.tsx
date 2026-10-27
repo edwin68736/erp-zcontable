@@ -117,7 +117,7 @@ const Comprobantes = () => {
   const lastFilterKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void companiesService.list().then(setCompanies).catch(() => setCompanies([]));
+    void companiesService.list({ status: 'todos' }).then(setCompanies).catch(() => setCompanies([]));
   }, []);
 
   useEffect(() => {

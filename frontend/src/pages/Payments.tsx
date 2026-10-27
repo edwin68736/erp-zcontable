@@ -120,7 +120,8 @@ const Payments = () => {
   const fetchCompanies = async () => {
     try {
       setError('');
-      const comps = await companiesService.list();
+      // Historial: incluye empresas inactivas (sus pagos siguen existiendo).
+      const comps = await companiesService.list({ status: 'todos' });
       setCompanies(comps);
     } catch (e) {
       console.error(e);

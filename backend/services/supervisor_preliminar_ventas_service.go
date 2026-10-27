@@ -849,7 +849,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		Joins("LEFT JOIN supervisor_preliminar_ventas_records s1 ON s1.monthly_control_id = c.id AND s1.slot_index = 1 AND s1.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_preliminar_ventas_records s2 ON s2.monthly_control_id = c.id AND s2.slot_index = 2 AND s2.deleted_at IS NULL").
 		Joins("LEFT JOIN users au ON au.id = comp.assistant_user_id").
-		Where("comp.client_type = ? AND comp.status = ?", models.CompanyClientTypeEstudio, "activo")
+		Where(companyStudioVisibleSQL("comp"))
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("comp.id IN ?", p.AllowedCompanyIDs)

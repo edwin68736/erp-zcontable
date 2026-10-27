@@ -26,6 +26,8 @@ func (s *AccessService) GetAllowedCompanyIDs(userID uint) ([]uint, error) {
 	if err := database.DB.
 		Model(&models.CompanyAssignment{}).
 		Where("user_id = ?", userID).
+		// Una asignación a una empresa eliminada no da acceso a nada.
+		Where("company_id IN (?)", database.DB.Model(&models.Company{}).Select("id")).
 		Pluck("company_id", &extra).Error; err != nil {
 		return nil, err
 	}

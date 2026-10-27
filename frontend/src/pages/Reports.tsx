@@ -121,7 +121,7 @@ const Reports = () => {
   }, []);
 
   useEffect(() => {
-    void companiesService.list().then(setCompanyOptions).catch(() => setCompanyOptions([]));
+    void companiesService.list({ status: 'todos' }).then(setCompanyOptions).catch(() => setCompanyOptions([]));
   }, []);
 
   useEffect(() => {

@@ -375,3 +375,74 @@ func TestListPreliminarVentas_ShowsTimelinessPerSlot(t *testing.T) {
 		}
 	}
 }
+
+// Las listas del estudio trabajan solo con empresas activas y no eliminadas; una empresa SUSPENDIDA (marca
+// del control mensual) sigue siendo una empresa activa y se muestra. Caso real: la lista de Preliminar
+// mostraba una empresa eliminada que seguía con estado "activo".
+func TestListPreliminarVentas_OnlyVisibleCompanies(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	if err := db.AutoMigrate(&models.CompanyAssignment{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := NewSupervisorService()
+	mk := func(code, status string) models.Company {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "Empresa " + code, InternalCode: code,
+			ClientType: models.CompanyClientTypeEstudio, Status: status}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatalf("company: %v", err)
+		}
+		return co
+	}
+	active, suspended, inactive, deleted := mk("V001", "activo"), mk("V002", "activo"), mk("V003", "inactivo"), mk("V004", "activo")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	if err := db.Create(&models.SupervisorMonthlyControl{CompanyID: suspended.ID, PeriodYM: "2026-07", Suspendida: true}).Error; err != nil {
+		t.Fatalf("control: %v", err)
+	}
+	if err := db.Delete(&deleted).Error; err != nil { // eliminada pero con estado "activo", como en producción
+		t.Fatalf("delete: %v", err)
+	}
+
+	rows, total, err := svc.ListPreliminarVentas(PreliminarVentasListParams{PeriodYM: "2026-07", PerPage: 50})
+	if err != nil {
+		t.Fatalf("ListPreliminarVentas: %v", err)
+	}
+	got := map[uint]bool{}
+	for _, r := range rows {
+		got[r.CompanyID] = r.Suspendida
+	}
+	if total != 2 || len(got) != 2 {
+		t.Fatalf("empresas listadas = %v (total %d), want solo la activa y la suspendida", got, total)
+	}
+	if _, ok := got[active.ID]; !ok {
+		t.Fatal("falta la empresa activa")
+	}
+	if susp, ok := got[suspended.ID]; !ok || !susp {
+		t.Fatal("la empresa suspendida debe verse (con su marca de suspendida)")
+	}
+	if _, ok := got[inactive.ID]; ok {
+		t.Fatal("una empresa inactiva no debe aparecer")
+	}
+	if _, ok := got[deleted.ID]; ok {
+		t.Fatal("una empresa eliminada no debe aparecer aunque conserve estado activo")
+	}
+
+	// Una asignación a una empresa eliminada no cuenta como acceso.
+	user := models.User{Name: "Ana", Username: "ana"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []uint{active.ID, deleted.ID} {
+		if err := db.Create(&models.CompanyAssignment{UserID: user.ID, CompanyID: id}).Error; err != nil {
+			t.Fatalf("assignment: %v", err)
+		}
+	}
+	allowed, err := NewAccessService().GetAllowedCompanyIDs(user.ID)
+	if err != nil {
+		t.Fatalf("GetAllowedCompanyIDs: %v", err)
+	}
+	if len(allowed) != 1 || allowed[0] != active.ID {
+		t.Fatalf("empresas permitidas = %v, want solo %d", allowed, active.ID)
+	}
+}

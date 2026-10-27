@@ -39,7 +39,8 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 const Companies = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
-  const initialStatus = searchParams.get('status') ?? '';
+  // Solo dos vistas: activas (por defecto) e inactivas. Las eliminadas no tienen vista.
+  const initialStatus = searchParams.get('status') === 'inactivo' ? 'inactivo' : 'activo';
   const initialPage = parsePositiveInt(searchParams.get('page'), 1);
   const initialPerPage = parsePositiveInt(searchParams.get('per_page'), 20);
   /** Orden por código (URL). */
@@ -135,8 +136,9 @@ const Companies = () => {
     if (company.status === next && !newCode) return;
     try {
       setStatusUpdatingId(company.id);
-      const updated = await companiesService.patchStatus(company.id, next, newCode);
-      setCompanies((prev) => prev.map((c) => (c.id === company.id ? { ...c, status: next, code: updated.code } : c)));
+      await companiesService.patchStatus(company.id, next, newCode);
+      // La empresa cambia de vista (activas ↔ inactivas): se recarga el listado en vez de mantenerla en la fila.
+      void reloadCompanies();
       window.dispatchEvent(
         new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Estado de la empresa actualizado.' } }),
       );
@@ -169,12 +171,12 @@ const Companies = () => {
   const reloadCompanies = useCallback(async () => {
     const sp = new URLSearchParams(searchKey);
     const qRaw = (sp.get('q') ?? '').trim();
-    const stRaw = (sp.get('status') ?? '').trim();
+    const stRaw = sp.get('status') === 'inactivo' ? 'inactivo' : 'activo';
     try {
       setLoading(true);
       const res = await companiesService.listPaged({
         q: qRaw || undefined,
-        status: stRaw || undefined,
+        status: stRaw,
         client_type: 'estudio',
         code_order: sp.get('code_order') === 'desc' ? 'desc' : 'asc',
         page: parsePositiveInt(sp.get('page'), 1),
@@ -304,7 +306,7 @@ const Companies = () => {
     setStatus(nextStatus);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (nextStatus) next.set('status', nextStatus);
+      if (nextStatus === 'inactivo') next.set('status', 'inactivo');
       else next.delete('status');
       next.set('page', '1');
       if (next.get('per_page') == null) next.set('per_page', String(initialPerPage));
@@ -506,9 +508,8 @@ const Companies = () => {
             onChange={handleStatusChange}
             className="min-w-[160px]"
             options={[
-              { value: '', label: 'Todos' },
-              { value: 'activo', label: 'Activo' },
-              { value: 'inactivo', label: 'Inactivo' },
+              { value: 'activo', label: 'Activas' },
+              { value: 'inactivo', label: 'Inactivas' },
             ]}
           />
         </div>

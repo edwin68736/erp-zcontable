@@ -46,7 +46,15 @@ func (ctrl *CompanyController) hasCompaniesPerm(c fiber.Ctx, code string) bool {
 
 func (ctrl *CompanyController) ListAPI(c fiber.Ctx) error {
 	q := c.Query("q", "")
-	status := c.Query("status", "")
+	// Por defecto solo empresas activas: las inactivas se piden explícitamente (status=inactivo) desde
+	// Finanzas > Empresas, y las eliminadas no se listan nunca. "todos" es solo para uso interno de la API.
+	status := strings.ToLower(strings.TrimSpace(c.Query("status", "")))
+	switch status {
+	case "":
+		status = "activo"
+	case "todos":
+		status = ""
+	}
 	pageStr := c.Query("page", "")
 	perPageStr := c.Query("per_page", "")
 
@@ -164,9 +172,40 @@ func (ctrl *CompanyController) CreateAPI(c fiber.Ctx) error {
 	}
 	input.ClientType = models.CompanyClientTypeEstudio
 	if err := ctrl.companyService.Create(&input); err != nil {
+		var rc *services.ErrCompanyRucConflict
+		if errors.As(err, &rc) {
+			// 409 con la empresa existente: el formulario ofrece reactivarla (inactiva o eliminada).
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error(), "ruc_conflict": rc.Conflict})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(input)
+}
+
+// ReactivateAPI POST /api/companies/:id/reactivate — reactiva una empresa inactiva o eliminada que tiene el
+// mismo RUC que se estaba registrando, aplicando sobre ella los datos del formulario.
+func (ctrl *CompanyController) ReactivateAPI(c fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	var input models.Company
+	if err := c.Bind().Body(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	company, err := ctrl.companyService.ReactivateCompany(uint(id), &input)
+	if err != nil {
+		var cc *services.ErrCompanyCodeConflict
+		if errors.As(err, &cc) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error(), "code_conflict": true, "code": cc.Code})
+		}
+		var rc *services.ErrCompanyRucConflict
+		if errors.As(err, &rc) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error(), "ruc_conflict": rc.Conflict})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(company)
 }
 
 func (ctrl *CompanyController) UpdateAPI(c fiber.Ctx) error {
