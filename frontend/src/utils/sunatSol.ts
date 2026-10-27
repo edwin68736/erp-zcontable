@@ -19,6 +19,9 @@ export type SunatAccessTarget = 'sunat' | 'pagos' | 'sunafil';
 
 type SunatTargetConfig = {
   label: string;
+  /** Imagen del botón (public/icons) y su ancho en px a 96 px de alto (reserva el espacio antes de cargar). */
+  image: string;
+  imageWidth: number;
   /** Cliente OAuth de SUNAT para ese destino (solo viaja en la ruta; no es secreto). */
   clientId: string;
   originalUrl: string;
@@ -32,6 +35,8 @@ export const SUNAT_TARGETS: Record<SunatAccessTarget, SunatTargetConfig> = {
   // Menú SOL tal como lo abre la otra aplicación (cabina). `state` = mapa serializado que dice a dónde volver tras el login.
   sunat: {
     label: 'SUNAT',
+    image: '/icons/acceso-sunat.png',
+    imageWidth: 319,
     clientId: '085b176d-2437-44cd-8c3e-e9a83b705921',
     originalUrl: 'https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm',
     state:
@@ -41,6 +46,8 @@ export const SUNAT_TARGETS: Record<SunatAccessTarget, SunatTargetConfig> = {
   // Pagos: plataforma de pagos y deudas del Menú SOL.
   pagos: {
     label: 'Pagos',
+    image: '/icons/acceso-pagos.png',
+    imageWidth: 315,
     clientId: '59d39217-c025-4de5-b342-393b0f4630ab',
     originalUrl: 'https://e-menu.sunat.gob.pe/cl-ti-itmenu2/AutenticaMenuInternetPlataforma.htm',
     state:
@@ -50,6 +57,8 @@ export const SUNAT_TARGETS: Record<SunatAccessTarget, SunatTargetConfig> = {
   // SUNAFIL: casilla electrónica; entra con la misma clave SOL y no usa el Menú SOL (nada que cerrar antes).
   sunafil: {
     label: 'SUNAFIL',
+    image: '/icons/acceso-sunafil.png',
+    imageWidth: 341,
     clientId: 'b6474e23-8a3b-4153-b301-dafcc9646250',
     originalUrl: 'https://casillaelectronica.sunafil.gob.pe/si.inbox/Login/Empresa',
     state: 's',

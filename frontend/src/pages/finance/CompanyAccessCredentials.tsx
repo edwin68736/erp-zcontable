@@ -737,7 +737,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <th colSpan={solGroupCols} className={TH_GROUP}>
                   Claves SOL
                 </th>
-                <th rowSpan={2} className={TH_COL}>
+                <th rowSpan={2} className={`${TH_COL} min-w-[16.5rem]`}>
                   Accesos
                 </th>
                 <th colSpan={3} className={TH_GROUP}>
@@ -823,29 +823,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                     <td className={`${TD} text-center`}>{row.supervisor_username || '—'}</td>
                     <td className="px-2 py-2 text-xs border-b border-slate-100/90 align-top whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
-                        {(() => {
+                        {(Object.keys(SUNAT_TARGETS) as SunatAccessTarget[]).map((t) => {
                           const missing = solMissing(row);
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenSunat(row)}
-                              disabled={Boolean(missing)}
-                              title={
-                                missing
-                                  ? `Falta ${missing}: complételo con "Editar"`
-                                  : 'Ingresar a SUNAT con la clave SOL de esta empresa (abre una pestaña nueva)'
-                              }
-                              aria-label={`Ingresar a SUNAT como ${row.business_name || 'la empresa'}`}
-                              className="inline-flex items-center gap-1 rounded-full bg-blue-900 px-2.5 py-1 text-2xs font-semibold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
-                            >
-                              <i className="fas fa-right-to-bracket" aria-hidden />
-                              SUNAT
-                            </button>
-                          );
-                        })()}
-                        {(['pagos', 'sunafil'] as const).map((t) => {
-                          const missing = solMissing(row);
-                          const label = SUNAT_TARGETS[t].label;
+                          const { label, image, imageWidth } = SUNAT_TARGETS[t];
                           return (
                             <button
                               key={t}
@@ -858,9 +838,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                                   : `Ingresar a ${label} con la clave SOL de esta empresa (abre una pestaña nueva)`
                               }
                               aria-label={`Ingresar a ${label} como ${row.business_name || 'la empresa'}`}
-                              className="inline-flex items-center rounded-full border border-blue-900 bg-white px-2.5 py-1 text-2xs font-semibold text-blue-900 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
+                              className="inline-flex shrink-0 rounded-full transition hover:brightness-95 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale disabled:hover:brightness-100 disabled:hover:shadow-none"
                             >
-                              {label}
+                              <img src={image} width={imageWidth} height={96} alt="" aria-hidden draggable={false} className="h-6 w-auto max-w-none shrink-0 select-none" />
                             </button>
                           );
                         })}
