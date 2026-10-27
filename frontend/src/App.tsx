@@ -34,6 +34,7 @@ import RolePermissions from './pages/RolePermissions';
 import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
 import ModuleComingSoon from './pages/ModuleComingSoon';
+import ToolUnderConstruction from './pages/tools/ToolUnderConstruction';
 import SupervisorDashboard from './pages/supervisors/SupervisorDashboard';
 import SupervisorPeriods from './pages/supervisors/SupervisorPeriods';
 import SupervisorCompaniesPage from './pages/supervisors/SupervisorCompaniesPage';
@@ -114,6 +115,8 @@ function App() {
             <Route path="logout" element={<Logout />} />
             <Route path="dashboard" element={guard(P.dashboardView, <Dashboard />)} />
             <Route path="m/:slug" element={<ModuleComingSoon />} />
+            {/* Herramientas: sin permisos por ahora; cada una muestra "En construcción". */}
+            <Route path="tools/:slug" element={<ToolUnderConstruction />} />
             <Route path="companies" element={guard(P.companiesView, <Companies />)} />
             <Route path="companies/external" element={guard([P.companiesExternalView, P.accessStudio], <ExternalClients />)} />
             <Route path="companies/new" element={guard(P.companiesView, <CompanyForm />)} />

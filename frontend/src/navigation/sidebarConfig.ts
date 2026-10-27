@@ -8,6 +8,7 @@
 
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
+import { TOOLS, toolPath } from './toolsConfig';
 
 export type SidebarLinkItem = {
   to: string;
@@ -44,7 +45,7 @@ export type SidebarFlatLink = {
 export type SidebarModuleEntry = SidebarGroup | SidebarFlatLink;
 
 /** IDs estables para permisos / telemetría futura */
-export type OperationalModuleId = 'global' | 'finance' | 'supervisors' | 'assistant' | 'pos' | 'module4' | 'module5';
+export type OperationalModuleId = 'global' | 'finance' | 'supervisors' | 'assistant' | 'pos' | 'tools' | 'module4' | 'module5';
 
 export type OperationalModuleConfig = {
   id: OperationalModuleId;
@@ -84,7 +85,7 @@ export const PLACEHOLDER_PAGE_COPY: Record<ComingSoonModuleSlug, { title: string
 
 /** Mapeo estable id operativo → slug URL (p. ej. permisos o analytics) */
 export const COMING_SOON_BY_OPERATIONAL_ID: Record<
-  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos' | 'global'>,
+  Exclude<OperationalModuleId, 'finance' | 'supervisors' | 'assistant' | 'pos' | 'tools' | 'global'>,
   { slug: ComingSoonModuleSlug }
 > = {
   module4: { slug: 'module-4' },
@@ -352,6 +353,20 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           { to: '/pos', icon: 'fas fa-bolt', label: 'Nueva venta', exact: true, permission: P.salesEmit },
           { to: '/pos/history', icon: 'fas fa-receipt', label: 'Mis comprobantes', permission: P.salesHistory },
         ],
+      },
+    ],
+  },
+  {
+    // Herramientas: consultas y utilidades (SIRE, RH, ITF, tipo de cambio…). Por ahora sin permisos: las ve
+    // cualquier usuario autenticado y cada una muestra "En construcción" (ver toolsConfig.ts).
+    id: 'tools',
+    label: 'Herramientas',
+    icon: 'fas fa-screwdriver-wrench',
+    entries: [
+      {
+        type: 'group',
+        label: 'Herramientas',
+        items: TOOLS.map((t) => ({ to: toolPath(t.slug), icon: t.icon, label: t.label, public: true })),
       },
     ],
   },
