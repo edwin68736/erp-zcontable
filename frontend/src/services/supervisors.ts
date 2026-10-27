@@ -619,6 +619,9 @@ export interface AssistantWorkItem {
   module_label: string;
   /** Entrega del mes (1 o 2) en módulos que se envían más de una vez por período (Preliminar de ventas). */
   slot?: number;
+  /** Buzón SOL observado: qué buzón/carga (`detail`) y la semana (`week_start`) a la que hay que ir. */
+  detail?: string;
+  week_start?: string;
   declaration_id?: number;
   state: 'vencida' | 'observada' | 'pendiente' | 'por_revisar';
   due_date?: string;

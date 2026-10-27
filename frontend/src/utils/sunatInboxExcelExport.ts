@@ -10,6 +10,7 @@ const SUPERVISOR_LABEL_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid',
 const VERIFICADO_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
 const CARGADO_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
 const PENDIENTE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+const OBSERVADO_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
 const THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
   left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -17,19 +18,21 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
 };
 
-/** Mismos 3 estados que la celda en pantalla (MailboxCaptureSlotCell / sunatInboxConfig.ts). */
-type SideStatus = 'pendiente' | 'cargado' | 'verificado';
+/** Mismos estados que la celda en pantalla (MailboxCaptureSlotCell / sunatInboxConfig.ts). */
+type SideStatus = 'pendiente' | 'cargado' | 'verificado' | 'observado';
 
 const STATUS_LABEL: Record<SideStatus, string> = {
   pendiente: 'PENDIENTE',
   cargado: 'CARGADO',
   verificado: 'VERIFICADO',
+  observado: 'OBSERVADO',
 };
 
 const STATUS_FILL: Record<SideStatus, ExcelJS.Fill> = {
   pendiente: PENDIENTE_FILL,
   cargado: CARGADO_FILL,
   verificado: VERIFICADO_FILL,
+  observado: OBSERVADO_FILL,
 };
 
 type ReportColumn = {
@@ -113,6 +116,7 @@ function sideStatus(side?: SunatInboxMailboxSide): SideStatus {
   const status = (side?.status ?? '').trim().toLowerCase();
   if (status === 'verificado') return 'verificado';
   if (status === 'cargado') return 'cargado';
+  if (status === 'observado') return 'observado';
   return 'pendiente';
 }
 

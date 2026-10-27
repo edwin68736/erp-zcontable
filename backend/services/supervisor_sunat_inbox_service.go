@@ -44,13 +44,17 @@ type SunatInboxListParams struct {
 
 // SunatInboxMailboxSide estado y archivo de un buzón en un slot.
 type SunatInboxMailboxSide struct {
-	Status       string              `json:"status"`
-	AttachmentID *uint               `json:"attachment_id,omitempty"`
-	FileName     string              `json:"file_name,omitempty"`
-	FileURL      string              `json:"file_url,omitempty"`
-	UploadedAt   *time.Time          `json:"uploaded_at,omitempty"`
-	VerifiedAt   *time.Time          `json:"verified_at,omitempty"`
-	Timeliness   UploadTimelinessDTO `json:"timeliness"`
+	Status       string     `json:"status"`
+	AttachmentID *uint      `json:"attachment_id,omitempty"`
+	FileName     string     `json:"file_name,omitempty"`
+	FileURL      string     `json:"file_url,omitempty"`
+	UploadedAt   *time.Time `json:"uploaded_at,omitempty"`
+	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
+	// Observation/ObservedBy/ObservedAt: motivo vigente cuando el supervisor observó la captura (status "observado").
+	Observation string              `json:"observation,omitempty"`
+	ObservedBy  string              `json:"observed_by,omitempty"`
+	ObservedAt  *time.Time          `json:"observed_at,omitempty"`
+	Timeliness  UploadTimelinessDTO `json:"timeliness"`
 }
 
 // SunatInboxCaptureSlot slot de carga semanal (columna dinámica).
@@ -317,6 +321,9 @@ func mailboxSideFromSlot(slot *models.SupervisorMailboxCaptureSlot, mailboxType 
 		}
 		side.UploadedAt = slot.SunatUploadedAt
 		side.VerifiedAt = slot.SunatVerifiedAt
+		if slot.SunatStatus == models.SupervisorMailboxStatusObservado {
+			side.Observation, side.ObservedBy, side.ObservedAt = slot.SunatObservation, slot.SunatObservedByName, slot.SunatObservedAt
+		}
 	case models.SupervisorMailboxTypeSunafil:
 		side.Status = slot.SunafilStatus
 		if slot.SunafilAttachment != nil {
@@ -326,6 +333,9 @@ func mailboxSideFromSlot(slot *models.SupervisorMailboxCaptureSlot, mailboxType 
 		}
 		side.UploadedAt = slot.SunafilUploadedAt
 		side.VerifiedAt = slot.SunafilVerifiedAt
+		if slot.SunafilStatus == models.SupervisorMailboxStatusObservado {
+			side.Observation, side.ObservedBy, side.ObservedAt = slot.SunafilObservation, slot.SunafilObservedByName, slot.SunafilObservedAt
+		}
 	}
 	return side
 }
@@ -345,6 +355,16 @@ func captureSlotDTO(slot *models.SupervisorMailboxCaptureSlot, slotIndex int) Su
 
 func buildVirtualSlots(dbSlots map[int]*models.SupervisorMailboxCaptureSlot, n int, ctx mailboxTimelinessCtx) []SunatInboxCaptureSlot {
 	return buildSunatInboxSlots(dbSlots, n, ctx)
+}
+
+// anyMailboxObserved algún buzón de las capturas está observado por el supervisor.
+func anyMailboxObserved(slots []SunatInboxCaptureSlot) bool {
+	for _, sl := range slots {
+		if sl.Sunat.Status == models.SupervisorMailboxStatusObservado || sl.Sunafil.Status == models.SupervisorMailboxStatusObservado {
+			return true
+		}
+	}
+	return false
 }
 
 func analyzeCaptureSlots(slots []SunatInboxCaptureSlot) (anyPendiente, anyCargado, anyVerificado, allVerificado bool) {
@@ -396,6 +416,8 @@ func companyMatchesMailboxFilter(slots []SunatInboxCaptureSlot, filter string) b
 	}
 	anyPendiente, anyCargado, anyVerificado, allVerificado := analyzeCaptureSlots(slots)
 	switch filter {
+	case models.SupervisorMailboxStatusObservado:
+		return anyMailboxObserved(slots)
 	case models.SupervisorMailboxStatusPendiente:
 		return anyPendiente
 	case models.SupervisorMailboxStatusCargado:
@@ -777,13 +799,13 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 // cuando Scope="week", todas las del período cuando Scope="month") — a diferencia de
 // SunatInboxListRow, que siempre trae una única semana fija.
 type SunatInboxExportRow struct {
-	CompanyID          uint                                `json:"company_id"`
-	Code               string                              `json:"code"`
-	Dig                string                              `json:"dig"`
-	BusinessName       string                              `json:"business_name"`
-	RUC                string                              `json:"ruc"`
-	AssistantUsername  string                              `json:"assistant_username"`
-	SupervisorUsername string                              `json:"supervisor_username"`
+	CompanyID          uint                               `json:"company_id"`
+	Code               string                             `json:"code"`
+	Dig                string                             `json:"dig"`
+	BusinessName       string                             `json:"business_name"`
+	RUC                string                             `json:"ruc"`
+	AssistantUsername  string                             `json:"assistant_username"`
+	SupervisorUsername string                             `json:"supervisor_username"`
 	Weeks              map[string][]SunatInboxCaptureSlot `json:"weeks"`
 	// Suspendida: ver comentario en SunatInboxListRow.Suspendida.
 	Suspendida bool `json:"suspendida"`
@@ -1041,8 +1063,8 @@ func (s *SupervisorService) ListSunatInboxMonth(p SunatInboxListParams) (*sunatI
 	rows := filteredRows[offset:end]
 
 	return &sunatInboxMonthListResult{
-		Meta:       SunatInboxListMeta{CapturesPerWeek: slotsPerWeek, Weeks: weeks},
-		Rows:       rows, Total: total, Page: page, PerPage: perPage,
+		Meta: SunatInboxListMeta{CapturesPerWeek: slotsPerWeek, Weeks: weeks},
+		Rows: rows, Total: total, Page: page, PerPage: perPage,
 		TotalPages: sunatInboxTotalPages(total, perPage),
 	}, nil
 }
@@ -1152,6 +1174,7 @@ func (s *SupervisorService) UploadMailboxCapture(
 		updates["sunat_uploaded_at"] = now
 		updates["sunat_verified_by_user_id"] = nil
 		updates["sunat_verified_at"] = nil
+		clearMailboxObservation(updates, "sunat")
 	case models.SupervisorMailboxTypeSunafil:
 		updates["sunafil_attachment_id"] = att.ID
 		updates["sunafil_status"] = models.SupervisorMailboxStatusCargado
@@ -1159,6 +1182,11 @@ func (s *SupervisorService) UploadMailboxCapture(
 		updates["sunafil_uploaded_at"] = now
 		updates["sunafil_verified_by_user_id"] = nil
 		updates["sunafil_verified_at"] = nil
+		clearMailboxObservation(updates, "sunafil")
+	}
+	if currentStatus == models.SupervisorMailboxStatusObservado {
+		// Subir la captura corregida levanta la observación: vuelve a "cargado", pendiente de verificación.
+		s.LogChange("mailbox_capture_slot", slot.ID, mailboxType+"_status", models.SupervisorMailboxStatusObservado, models.SupervisorMailboxStatusCargado+" (observación levantada)", userID)
 	}
 	// Omit(Associations): `slot` trae SunatAttachment/SunafilAttachment precargados (el adjunto
 	// VIEJO). Sin el Omit, GORM re-escribe la FK desde ese struct asociado y pisa el
@@ -1221,6 +1249,77 @@ func (s *SupervisorService) VerifyMailboxCapture(slotID uint, mailboxType string
 		return nil, err
 	}
 	s.LogChange("mailbox_capture_slot", slot.ID, field+"_status", models.SupervisorMailboxStatusCargado, models.SupervisorMailboxStatusVerificado, approverID)
+
+	if err := database.DB.
+		Preload("SunatAttachment").
+		Preload("SunafilAttachment").
+		First(slot, slot.ID).Error; err != nil {
+		return nil, err
+	}
+	timelinessCtx := mailboxTimelinessCtxFromSlot(slot, mailboxCapturesPerWeekFromConfig())
+	dto := enrichSunatInboxCaptureSlotTimeliness(captureSlotDTO(slot, slot.SlotIndex), timelinessCtx)
+	return &dto, nil
+}
+
+// clearMailboxObservation limpia la observación vigente de un buzón en un mapa de actualización.
+func clearMailboxObservation(updates map[string]interface{}, field string) {
+	updates[field+"_observation"] = ""
+	updates[field+"_observed_by_user_id"] = nil
+	updates[field+"_observed_by_name"] = ""
+	updates[field+"_observed_at"] = nil
+}
+
+// ObserveMailboxCapture devuelve al asistente una captura ya cargada, con el motivo (supervisor). La
+// captura pasa a "observado" hasta que el asistente suba la corregida (UploadMailboxCapture), que la
+// devuelve a "cargado" para una nueva verificación.
+func (s *SupervisorService) ObserveMailboxCapture(slotID uint, mailboxType, observation string, approverID uint, allowed []uint) (*SunatInboxCaptureSlot, error) {
+	mailboxType, err := normalizeMailboxType(mailboxType)
+	if err != nil {
+		return nil, err
+	}
+	observation = strings.TrimSpace(observation)
+	if len([]rune(observation)) < 3 {
+		return nil, errors.New("escribe el motivo de la observación")
+	}
+	if r := []rune(observation); len(r) > 500 {
+		observation = string(r[:500])
+	}
+	slot, err := s.getMailboxSlotForAccess(slotID, allowed)
+	if err != nil {
+		return nil, err
+	}
+	currentStatus := slot.SunatStatus
+	if mailboxType == models.SupervisorMailboxTypeSunafil {
+		currentStatus = slot.SunafilStatus
+	}
+	if currentStatus != models.SupervisorMailboxStatusCargado {
+		return nil, errors.New("solo se puede observar un buzón en estado cargado")
+	}
+
+	var approver models.User
+	approverName := ""
+	if err := database.DB.Select("id", "name", "username").First(&approver, approverID).Error; err == nil {
+		approverName = strings.TrimSpace(approver.Name)
+		if approverName == "" {
+			approverName = strings.TrimSpace(approver.Username)
+		}
+	}
+	now := time.Now()
+	field := mailboxType
+	updates := map[string]interface{}{
+		field + "_status":              models.SupervisorMailboxStatusObservado,
+		field + "_observation":         observation,
+		field + "_observed_by_user_id": approverID,
+		field + "_observed_by_name":    approverName,
+		field + "_observed_at":         now,
+		// Ya no está "verificado": el visto bueno anterior (si lo hubo) se descarta.
+		field + "_verified_by_user_id": nil,
+		field + "_verified_at":         nil,
+	}
+	if err := database.DB.Model(slot).Omit(clause.Associations).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	s.LogChange("mailbox_capture_slot", slot.ID, field+"_status", models.SupervisorMailboxStatusCargado, models.SupervisorMailboxStatusObservado+": "+observation, approverID)
 
 	if err := database.DB.
 		Preload("SunatAttachment").

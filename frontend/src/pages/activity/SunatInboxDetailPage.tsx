@@ -129,6 +129,13 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
     }
   };
 
+  const handleObserve = async (slotId: number, mailboxType: MailboxType, observation: string) => {
+    const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
+    patchSlot(slot);
+    setError('');
+    setMsg('Captura observada: el asistente verá el motivo.');
+  };
+
   if (loading) {
     return (
       <div className={`${PAGE_WORKSPACE_CLASS} text-center text-slate-500 py-12`}>
@@ -232,6 +239,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
                 uploadKey={`detail-${companyId}-${weekStart}`}
                 onUpload={handleUpload}
                 onVerify={handleVerify}
+                onObserve={handleObserve}
               />
             </div>
           ))}

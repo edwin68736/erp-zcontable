@@ -152,11 +152,11 @@ const HomeRail = () => {
     }
     if (mode === 'work' && work) {
       return work.work.slice(0, 5).map((w) => ({
-        key: `${w.module_key}-${w.company_id}-${w.slot ?? 0}`,
-        label: `${workModuleLabel(w.module_label, w.slot)} — ${w.company}`,
+        key: `${w.module_key}-${w.company_id}-${w.slot ?? 0}-${w.week_start ?? ''}-${w.detail ?? ''}`,
+        label: `${workModuleLabel(w.module_label, w.slot, w.detail)} — ${w.company}`,
         right: dueRight(w.state, w.days_left),
         color: STATE_COLOR[w.state] ?? '#2563eb',
-        to: MODULE_SLUG[w.module_key] ? `${actBase}/${MODULE_SLUG[w.module_key]}/${w.company_id}${w.slot ? `/${w.slot}` : ''}${q}` : '/assistant',
+        to: MODULE_SLUG[w.module_key] ? `${actBase}/${MODULE_SLUG[w.module_key]}/${w.company_id}${w.slot ? `/${w.slot}` : ''}${q}${w.week_start ? `&week_start=${w.week_start}` : ''}` : '/assistant',
       }));
     }
     return [];

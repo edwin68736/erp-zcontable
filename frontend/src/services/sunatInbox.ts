@@ -9,6 +9,10 @@ export interface SunatInboxMailboxSide {
   file_url?: string;
   uploaded_at?: string;
   verified_at?: string;
+  /** Motivo vigente cuando el supervisor observó la captura (estado `observado`). */
+  observation?: string;
+  observed_by?: string;
+  observed_at?: string;
   timeliness?: {
     timeliness: string;
     due_at?: string;
@@ -163,6 +167,15 @@ export const sunatInboxService = {
     const res = await client.post<{ data: SunatInboxCaptureSlot }>(
       `/supervisors/activity-modules/sunat-inbox/slots/${slotId}/verify`,
       { mailbox_type: mailboxType },
+    );
+    return res.data.data;
+  },
+
+  /** El supervisor devuelve una captura cargada con un motivo; el asistente la levanta subiendo la corregida. */
+  async observeCapture(slotId: number, mailboxType: MailboxType, observation: string): Promise<SunatInboxCaptureSlot> {
+    const res = await client.post<{ data: SunatInboxCaptureSlot }>(
+      `/supervisors/activity-modules/sunat-inbox/slots/${slotId}/observe`,
+      { mailbox_type: mailboxType, observation },
     );
     return res.data.data;
   },

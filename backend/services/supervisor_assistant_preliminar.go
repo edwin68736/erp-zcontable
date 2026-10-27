@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"miappfiber/database"
@@ -160,5 +162,57 @@ func moduleRowPreliminarVentas(slots []preliminarSlotWork) DashboardModuleRow {
 		}
 	}
 	out.SinCompleta = out.Pendiente + out.Observado + out.Vencido
+	return out
+}
+
+// assistantObservedMailboxes capturas de Buzón SOL que el supervisor observó: una tarea "observada" por
+// buzón (SUNAT / SUNAFIL) con su motivo, hasta que el asistente suba la captura corregida.
+func (s *SupervisorService) assistantObservedMailboxes(companies []models.Company, periodYM string) []AssistantWorkItem {
+	if len(companies) == 0 {
+		return nil
+	}
+	byID := make(map[uint]models.Company, len(companies))
+	ids := make([]uint, 0, len(companies))
+	for _, c := range companies {
+		byID[c.ID] = c
+		ids = append(ids, c.ID)
+	}
+	var slots []models.SupervisorMailboxCaptureSlot
+	if err := database.DB.
+		Joins("JOIN supervisor_monthly_controls c ON c.id = supervisor_mailbox_capture_slots.monthly_control_id AND c.deleted_at IS NULL").
+		Where("c.period_ym = ? AND c.company_id IN ? AND c.suspendida = ?", periodYM, ids, false).
+		Where("supervisor_mailbox_capture_slots.sunat_status = ? OR supervisor_mailbox_capture_slots.sunafil_status = ?",
+			models.SupervisorMailboxStatusObservado, models.SupervisorMailboxStatusObservado).
+		Preload("MonthlyControl").
+		Find(&slots).Error; err != nil {
+		return nil
+	}
+	out := []AssistantWorkItem{}
+	for _, sl := range slots {
+		if sl.MonthlyControl == nil {
+			continue
+		}
+		co, ok := byID[sl.MonthlyControl.CompanyID]
+		if !ok {
+			continue
+		}
+		for _, side := range []struct {
+			label, status, note, by string
+		}{
+			{"SUNAT", sl.SunatStatus, sl.SunatObservation, sl.SunatObservedByName},
+			{"SUNAFIL", sl.SunafilStatus, sl.SunafilObservation, sl.SunafilObservedByName},
+		} {
+			if side.status != models.SupervisorMailboxStatusObservado {
+				continue
+			}
+			out = append(out, AssistantWorkItem{
+				CompanyID: co.ID, Company: strings.TrimSpace(co.BusinessName), RUC: co.RUC,
+				ModuleKey: models.SupervisorDeclSunatInbox, ModuleLabel: "Buzón SOL", State: "observada",
+				Detail:    fmt.Sprintf("%s · carga %d · semana del %s", side.label, sl.SlotIndex, sl.WeekStart.Format("02/01")),
+				WeekStart: sl.WeekStart.Format("2006-01-02"),
+				Note:      strings.TrimSpace(side.note), NoteBy: side.by,
+			})
+		}
+	}
 	return out
 }

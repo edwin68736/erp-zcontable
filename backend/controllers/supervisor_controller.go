@@ -1773,6 +1773,35 @@ func (ctrl *SupervisorController) SunatInboxVerifySlotAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// SunatInboxObserveSlotAPI POST /api/supervisors/activity-modules/sunat-inbox/slots/:slotId/observe
+// El supervisor devuelve una captura cargada con un motivo; el asistente la levanta subiendo la corregida.
+func (ctrl *SupervisorController) SunatInboxObserveSlotAPI(c fiber.Ctx) error {
+	slotID, err := strconv.ParseUint(c.Params("slotId"), 10, 32)
+	if err != nil || slotID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "slot inválido"})
+	}
+	var body struct {
+		MailboxType string `json:"mailbox_type"`
+		Observation string `json:"observation"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		return fiberErrorJSON(c, err)
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	row, err := ctrl.svc.ObserveMailboxCapture(uint(slotID), body.MailboxType, body.Observation, uid, allowed)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": row})
+}
+
 // Pdt601ListAPI GET /api/supervisors/activity-modules/pdt-601
 func (ctrl *SupervisorController) Pdt601ListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)

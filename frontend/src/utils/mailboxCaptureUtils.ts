@@ -5,6 +5,8 @@ export type MailboxWeekProgress = {
   pendiente: number;
   cargado: number;
   verificado: number;
+  /** Capturas que el supervisor observó y el asistente aún no levanta. */
+  observado: number;
   /** Capturas pendientes que NO son obligación real (cargas de más de la grilla); van aparte de `pendiente`. */
   opcional: number;
 };
@@ -54,12 +56,13 @@ export function summarizeMailboxSlots(slots: SunatInboxCaptureSlot[]): string {
 }
 
 export function countMailboxWeekProgress(slots: SunatInboxCaptureSlot[]): MailboxWeekProgress {
-  const out: MailboxWeekProgress = { total: 0, pendiente: 0, cargado: 0, verificado: 0, opcional: 0 };
+  const out: MailboxWeekProgress = { total: 0, pendiente: 0, cargado: 0, verificado: 0, observado: 0, opcional: 0 };
   for (const sl of slots) {
     for (const side of [sl.sunat, sl.sunafil]) {
       out.total += 1;
       if (side.status === 'verificado') out.verificado += 1;
       else if (side.status === 'cargado') out.cargado += 1;
+      else if (side.status === 'observado') out.observado += 1;
       else if (side.timeliness?.optional) out.opcional += 1;
       else out.pendiente += 1;
     }
@@ -72,6 +75,8 @@ export function matchesMailboxListFilter(slots: SunatInboxCaptureSlot[], filter:
   if (!f) return true;
   const { anyPendiente, anyCargado, anyVerificado, allVerificado } = analyzeSlots(slots);
   switch (f) {
+    case 'observado':
+      return slots.some((sl) => sl.sunat.status === 'observado' || sl.sunafil.status === 'observado');
     case 'pendiente':
       return anyPendiente;
     case 'cargado':

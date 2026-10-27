@@ -23,6 +23,9 @@ type AssistantWorkItem struct {
 	RUC         string `json:"ruc"`
 	ModuleKey   string `json:"module_key"`
 	ModuleLabel string `json:"module_label"`
+	// Detail y WeekStart ubican una captura de buzón observada (qué buzón, qué carga y de qué semana).
+	Detail    string `json:"detail,omitempty"`
+	WeekStart string `json:"week_start,omitempty"`
 	// Slot entrega del mes (1 o 2) cuando el módulo se envía más de una vez por período (Preliminar de ventas).
 	Slot          int  `json:"slot,omitempty"`
 	DeclarationID uint `json:"declaration_id,omitempty"`
@@ -266,6 +269,8 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 		add(w.Company.ID, w.Company.BusinessName, w.Company.RUC, models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", nil, state, w.Timeliness.DueAt)
 		items[len(items)-1].Slot = w.SlotIndex
 	}
+
+	items = append(items, s.assistantObservedMailboxes(companies, p.PeriodYM)...)
 
 	s.attachWorkNotes(items)
 

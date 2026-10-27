@@ -7,6 +7,7 @@ export const MAILBOX_CAPTURE_STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
   { value: 'cargado', label: 'Cargado' },
   { value: 'verificado', label: 'Verificado' },
+  { value: 'observado', label: 'Observado' },
 ] as const;
 
 /** Resumen semanal por empresa (fila). */
@@ -24,6 +25,7 @@ export const MAILBOX_LIST_STATUS_FILTER = [
   { value: 'parcial', label: 'Avance parcial' },
   { value: 'cargado', label: 'Por verificar (supervisor)' },
   { value: 'verificado', label: 'Semana verificada' },
+  { value: 'observado', label: 'Con observaciones' },
 ] as const;
 
 const MAILBOX_BADGE: Record<string, string> = {
@@ -31,6 +33,7 @@ const MAILBOX_BADGE: Record<string, string> = {
   parcial: 'bg-amber-100 text-amber-900',
   cargado: 'bg-blue-100 text-blue-800',
   verificado: 'bg-primary-100 text-primary-800',
+  observado: 'bg-orange-100 text-orange-900',
 };
 
 const SUMMARY_LABEL: Record<string, string> = {

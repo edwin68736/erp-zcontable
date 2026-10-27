@@ -10,6 +10,7 @@ export const MODULE_SLUG: Record<string, string> = {
 };
 
 /** Rótulo de un ítem de trabajo: los módulos con varias entregas por mes indican cuál ("1.ª entrega"). */
-export function workModuleLabel(label: string, slot?: number): string {
+export function workModuleLabel(label: string, slot?: number, detail?: string): string {
+  if (detail) return `${label} · ${detail}`;
   return slot ? `${label} · ${slot}.ª entrega` : label;
 }

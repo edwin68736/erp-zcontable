@@ -108,13 +108,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       : weekContextLabel;
 
   const weekProgress = useMemo(() => {
-    const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0, opcional: 0 };
+    const acc = { total: 0, pendiente: 0, cargado: 0, verificado: 0, observado: 0, opcional: 0 };
     const addSlots = (slots: SunatInboxCaptureSlot[]) => {
       const p = countMailboxWeekProgress(slots);
       acc.total += p.total;
       acc.pendiente += p.pendiente;
       acc.cargado += p.cargado;
       acc.verificado += p.verificado;
+      acc.observado += p.observado;
       acc.opcional += p.opcional;
     };
     if (scope === 'month') {
@@ -242,6 +243,13 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     }
   };
 
+  const handleObserve = async (companyId: number, slotId: number, mailboxType: MailboxType, observation: string) => {
+    const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
+    patchRowSlot(companyId, slot.slot_index, slot);
+    setVerifyError('');
+    setMsg('Captura observada: el asistente verá el motivo.');
+  };
+
   // Vista "Mes completo": cada celda pertenece a una semana distinta, así que a diferencia de
   // handleUpload/handleVerify (que usan el `weekStart` único de la página), estos reciben la semana
   // de la columna concreta que se editó.
@@ -293,6 +301,13 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       setVerifyError(text);
       setMsg('');
     }
+  };
+
+  const handleMonthObserve = async (companyId: number, weekStartKey: string, slotId: number, mailboxType: MailboxType, observation: string) => {
+    const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
+    patchMonthRowSlot(companyId, weekStartKey, slot.slot_index, slot);
+    setVerifyError('');
+    setMsg('Captura observada: el asistente verá el motivo.');
   };
 
   const handleExportExcel = async () => {
@@ -422,6 +437,12 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
               <span className="text-blue-700">{weekProgress.cargado} por verif.</span>
               {' · '}
               <span className="text-slate-600">{weekProgress.pendiente} pend.</span>
+              {weekProgress.observado > 0 ? (
+                <span className="text-orange-700">
+                  {' · '}
+                  {weekProgress.observado} obs.
+                </span>
+              ) : null}
               {weekProgress.opcional > 0 ? (
                 <span
                   className="text-slate-400"
@@ -562,6 +583,9 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                                 onVerify={(slotId, mailboxType) =>
                                   handleVerify(row.company_id, slotId, mailboxType)
                                 }
+                                onObserve={(slotId, mailboxType, observation) =>
+                                  handleObserve(row.company_id, slotId, mailboxType, observation)
+                                }
                               />
                             </td>
                           );
@@ -673,6 +697,9 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                                     }
                                     onVerify={(slotId, mailboxType) =>
                                       handleMonthVerify(row.company_id, w.week_start, slotId, mailboxType)
+                                    }
+                                    onObserve={(slotId, mailboxType, observation) =>
+                                      handleMonthObserve(row.company_id, w.week_start, slotId, mailboxType, observation)
                                     }
                                   />
                                 </td>

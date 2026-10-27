@@ -11,6 +11,9 @@ const (
 	SupervisorMailboxStatusPendiente  = "pendiente"
 	SupervisorMailboxStatusCargado    = "cargado"
 	SupervisorMailboxStatusVerificado = "verificado"
+	// Observado: el supervisor revisó la captura y la devolvió con un motivo; el asistente la levanta
+	// subiendo la captura corregida (vuelve a "cargado", pendiente de verificación).
+	SupervisorMailboxStatusObservado = "observado"
 	SupervisorMailboxStatusParcial    = "parcial"
 )
 
@@ -42,6 +45,17 @@ type SupervisorMailboxCaptureSlot struct {
 	SunatVerifiedAt         *time.Time `json:"sunat_verified_at,omitempty"`
 	SunafilVerifiedByUserID *uint      `gorm:"index" json:"sunafil_verified_by_user_id,omitempty"`
 	SunafilVerifiedAt       *time.Time `json:"sunafil_verified_at,omitempty"`
+
+	// Observación vigente del supervisor por buzón (vacía si no está observado). El historial queda en el
+	// registro de cambios (SupervisorChangeLog).
+	SunatObservation         string     `gorm:"type:text" json:"sunat_observation,omitempty"`
+	SunatObservedByUserID    *uint      `gorm:"index" json:"sunat_observed_by_user_id,omitempty"`
+	SunatObservedByName      string     `gorm:"size:160" json:"sunat_observed_by_name,omitempty"`
+	SunatObservedAt          *time.Time `json:"sunat_observed_at,omitempty"`
+	SunafilObservation       string     `gorm:"type:text" json:"sunafil_observation,omitempty"`
+	SunafilObservedByUserID  *uint      `gorm:"index" json:"sunafil_observed_by_user_id,omitempty"`
+	SunafilObservedByName    string     `gorm:"size:160" json:"sunafil_observed_by_name,omitempty"`
+	SunafilObservedAt        *time.Time `json:"sunafil_observed_at,omitempty"`
 
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
