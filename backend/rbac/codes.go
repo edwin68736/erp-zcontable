@@ -154,6 +154,9 @@ const (
 	// usuario). Sin este permiso el servidor ni siquiera envía esos dos datos: el usuario solo usa el
 	// acceso directo a SUNAT, que el servidor genera con la clave guardada.
 	CompanyCredentialsSolView = "finance.company_credentials_sol_view"
+	// CompanyCredentialsInactiveView filtro "Solo empresas inactivas" de Claves SOL. Por defecto solo el Super
+	// usuario; el resto de roles lo recibe desde la matriz de permisos (Roles).
+	CompanyCredentialsInactiveView = "finance.company_credentials_inactive_view"
 
 	FinanceSunatDueDatesView   = "finance.sunat_due_dates_view"
 	FinanceSunatDueDatesManage = "finance.sunat_due_dates_manage"

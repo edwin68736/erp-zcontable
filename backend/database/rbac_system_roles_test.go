@@ -121,3 +121,19 @@ func TestAsistenteHasKeyPermissions(t *testing.T) {
 		}
 	}
 }
+
+// TestCompanyCredentialsInactiveViewIsSuperusuarioOnly: el filtro "Solo empresas inactivas" de Claves SOL
+// es por permiso; por defecto solo lo tiene super_usuario y el resto lo recibe desde la matriz de roles.
+func TestCompanyCredentialsInactiveViewIsSuperusuarioOnly(t *testing.T) {
+	for _, roleCode := range rbac.SystemRoleCodes() {
+		has := false
+		for _, c := range rbac.RolePermissionCodes(roleCode) {
+			if c == rbac.CompanyCredentialsInactiveView {
+				has = true
+			}
+		}
+		if want := roleCode == rbac.RoleSuperusuario; has != want {
+			t.Fatalf("rol %s: tiene permiso de empresas inactivas = %v, esperado %v", roleCode, has, want)
+		}
+	}
+}

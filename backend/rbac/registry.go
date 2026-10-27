@@ -43,6 +43,7 @@ var registryDefs = []PermDef{
 	{CompanyCredentialsManage, ModRecursos, "Claves de acceso", "Editar claves de acceso por empresa"},
 	{CompanyCredentialsImport, ModRecursos, "Claves de acceso", "Importar claves de acceso desde Excel"},
 	{CompanyCredentialsSolView, ModRecursos, "Claves de acceso", "Ver usuario y clave SOL"},
+	{CompanyCredentialsInactiveView, ModRecursos, "Claves de acceso", "Ver claves de empresas inactivas (filtro Solo inactivas)"},
 	{FinanceSunatDueDatesView, ModRecursos, "Vencimientos SUNAT", "Ver cronograma de vencimientos SUNAT"},
 	{FinanceSunatDueDatesManage, ModRecursos, "Vencimientos SUNAT", "Editar cronograma de vencimientos SUNAT"},
 
@@ -221,6 +222,7 @@ var supervisorDeny = []string{
 	SettingsFirmView, SettingsFirmUpdate, SettingsFirmUploadLogo, SettingsFirmUploadBankLogo, SettingsFirmUploadPaymentQR,
 	CompaniesDelete, SubscriptionPlansDelete, PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided,
 	FinanceCalendarManage, CompanyCredentialsManage, CompanyCredentialsImport,
+	CompanyCredentialsInactiveView,
 	SupervisorsDeclarationsReopen,
 }
 
@@ -235,7 +237,7 @@ var contadorDeny = []string{
 	SubscriptionPlansCreate, SubscriptionPlansUpdate, SubscriptionPlansTiers, SubscriptionPlansDelete,
 	PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided, ProductsDelete,
 	FinanceSunatDueDatesManage,
-	CompanyCredentialsSolView,
+	CompanyCredentialsSolView, CompanyCredentialsInactiveView,
 }
 
 // asistenteCodes lista cerrada del rol Asistente.

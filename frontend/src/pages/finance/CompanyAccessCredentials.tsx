@@ -233,8 +233,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const showAssistantCol = !isAsistente;
   const solGroupCols = 2 + (canSeeSol ? 2 : 0) + (showAssistantCol ? 1 : 0) + 1;
   const totalCols = 3 + solGroupCols + 1 + 3 + 2 + 1 + 3 + 1;
-  // Solo el administrador (alcance de estudio) puede ver las claves de empresas INACTIVAS.
-  const canSeeInactive = useMemo(() => !isAssistantView && auth.hasPermission(P.accessStudio), [isAssistantView]);
+  // Ver las claves de empresas INACTIVAS requiere un permiso propio (por defecto solo el Super usuario; se asigna por rol).
+  const canSeeInactive = useMemo(() => !isAssistantView && auth.hasPermission(P.companyCredentialsInactiveView), [isAssistantView]);
   const [onlyInactive, setOnlyInactive] = useState(false);
   // Las empresas inactivas se consultan en solo lectura: no se editan credenciales ni se entra a SUNAT con ellas.
   const canManage = useMemo(
@@ -660,7 +660,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           />
         </div>
         {canSeeInactive ? (
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none shrink-0" title="Solo administrador: muestra únicamente las empresas inactivas">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none shrink-0" title="Muestra únicamente las empresas inactivas (requiere el permiso 'Ver claves de empresas inactivas')">
             <input
               type="checkbox"
               checked={onlyInactive}

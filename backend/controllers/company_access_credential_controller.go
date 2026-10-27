@@ -52,14 +52,16 @@ func (ctrl *CompanyAccessCredentialController) redactSol(c fiber.Ctx, rows []ser
 	}
 }
 
-// inactiveOnlyFromQuery lee ?status=inactivo: ver las claves de empresas inactivas es solo del administrador
-// (alcance de estudio); cualquier otro usuario recibe un error en vez de datos que no le corresponden.
+// inactiveOnlyFromQuery lee ?status=inactivo: ver las claves de empresas inactivas requiere el permiso
+// finance.company_credentials_inactive_view (por defecto solo el Super usuario, asignable por rol); cualquier otro
+// usuario recibe un error en vez de datos que no le corresponden.
 func inactiveOnlyFromQuery(c fiber.Ctx) (bool, error) {
 	if strings.ToLower(strings.TrimSpace(c.Query("status", ""))) != "inactivo" {
 		return false, nil
 	}
-	if !hasStudioScope(c) {
-		return false, errors.New("solo el administrador puede ver las empresas inactivas")
+	uid, err := getUserID(c)
+	if err != nil || !services.Authz().HasPermission(uid, rbac.CompanyCredentialsInactiveView) {
+		return false, errors.New("no tiene permiso para ver las empresas inactivas")
 	}
 	return true, nil
 }
