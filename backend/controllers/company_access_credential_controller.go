@@ -52,6 +52,18 @@ func (ctrl *CompanyAccessCredentialController) redactSol(c fiber.Ctx, rows []ser
 	}
 }
 
+// inactiveOnlyFromQuery lee ?status=inactivo: ver las claves de empresas inactivas es solo del administrador
+// (alcance de estudio); cualquier otro usuario recibe un error en vez de datos que no le corresponden.
+func inactiveOnlyFromQuery(c fiber.Ctx) (bool, error) {
+	if strings.ToLower(strings.TrimSpace(c.Query("status", ""))) != "inactivo" {
+		return false, nil
+	}
+	if !hasStudioScope(c) {
+		return false, errors.New("solo el administrador puede ver las empresas inactivas")
+	}
+	return true, nil
+}
+
 func (ctrl *CompanyAccessCredentialController) ListAPI(c fiber.Ctx) error {
 	allowed, err := ctrl.allowedCompanyIDs(c)
 	if err != nil {
@@ -67,6 +79,11 @@ func (ctrl *CompanyAccessCredentialController) ListAPI(c fiber.Ctx) error {
 	assistantID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("assistant_user_id", "")), 10, 64)
 	supervisorID, _ := strconv.ParseUint(strings.TrimSpace(c.Query("supervisor_user_id", "")), 10, 64)
 
+	inactiveOnly, ferr := inactiveOnlyFromQuery(c)
+	if ferr != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": ferr.Error()})
+	}
+
 	out, err := ctrl.svc.List(services.CompanyAccessCredentialListParams{
 		Q:                 c.Query("q", ""),
 		Page:              page,
@@ -75,6 +92,7 @@ func (ctrl *CompanyAccessCredentialController) ListAPI(c fiber.Ctx) error {
 		AssistantUserID:   uint(assistantID),
 		SupervisorUserID:  uint(supervisorID),
 		Dig:               c.Query("dig", ""),
+		InactiveOnly:      inactiveOnly,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -97,7 +115,11 @@ func (ctrl *CompanyAccessCredentialController) FilterFacetsAPI(c fiber.Ctx) erro
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 	}
-	out, err := ctrl.svc.FilterFacets(allowed)
+	inactiveOnly, ferr := inactiveOnlyFromQuery(c)
+	if ferr != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": ferr.Error()})
+	}
+	out, err := ctrl.svc.FilterFacets(allowed, inactiveOnly)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

@@ -282,6 +282,8 @@ func Setup(app *fiber.App) {
 	// subir el PDF (lo puede hacer tanto el asistente como el supervisor, igual que el checkbox viejo
 	// de PDT 601 antes de este cambio).
 	sup.Put("/activity-modules/detracciones/companies/:companyId/suspendida", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesSetSuspendidaAPI)
+	// Suspender desde cualquier módulo de actividades (misma marca global del control mensual).
+	sup.Put("/activity-modules/companies/:companyId/suspendida", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.CompanySetSuspendidaAPI)
 	sup.Post("/activity-modules/detracciones/companies/:companyId/upload", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesUploadAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/verify", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesVerifyAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/validate", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesValidateAPI)

@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
 import Pdt621ObservacionButton from '../../components/activity/Pdt621ObservacionButton';
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
@@ -481,6 +482,13 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                                 <i className="fas fa-lock text-xs" aria-hidden />
                               </span>
                             ) : null}
+                            <SuspendCompanyAction
+                              companyId={row.company_id}
+                              companyName={row.business_name}
+                              periodYm={periodYm}
+                              suspendida={!!row.suspendida}
+                              onChanged={() => void load()}
+                            />
                           </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver

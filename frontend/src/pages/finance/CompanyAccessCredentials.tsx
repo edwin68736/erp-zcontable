@@ -233,9 +233,13 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const showAssistantCol = !isAsistente;
   const solGroupCols = 2 + (canSeeSol ? 2 : 0) + (showAssistantCol ? 1 : 0) + 1;
   const totalCols = 3 + solGroupCols + 1 + 3 + 2 + 1 + 3 + 1;
+  // Solo el administrador (alcance de estudio) puede ver las claves de empresas INACTIVAS.
+  const canSeeInactive = useMemo(() => !isAssistantView && auth.hasPermission(P.accessStudio), [isAssistantView]);
+  const [onlyInactive, setOnlyInactive] = useState(false);
+  // Las empresas inactivas se consultan en solo lectura: no se editan credenciales ni se entra a SUNAT con ellas.
   const canManage = useMemo(
-    () => !isAssistantView && auth.hasPermission(P.companyCredentialsManage),
-    [isAssistantView],
+    () => !isAssistantView && !onlyInactive && auth.hasPermission(P.companyCredentialsManage),
+    [isAssistantView, onlyInactive],
   );
   const canImport = useMemo(
     () => !isAssistantView && auth.hasPermission(P.companyCredentialsImport),
@@ -302,7 +306,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const loadFacets = useCallback(async () => {
     try {
       setFacetsLoading(true);
-      const data = await companyAccessCredentialsService.filterFacets();
+      const data = await companyAccessCredentialsService.filterFacets(onlyInactive ? 'inactivo' : undefined);
       setFacets(data);
       setDigColorMap(parseDigColorMap(data.claves_sol_dig_colors_json));
     } catch (e) {
@@ -310,7 +314,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     } finally {
       setFacetsLoading(false);
     }
-  }, []);
+  }, [onlyInactive]);
 
   const load = useCallback(async (opts?: { page?: number }) => {
     const targetPage = opts?.page ?? page;
@@ -324,6 +328,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
         assistant_user_id: filterAssistantId ?? undefined,
         supervisor_user_id: filterSupervisorId ?? undefined,
         dig: filterDig ?? undefined,
+        status: onlyInactive ? 'inactivo' : undefined,
       });
       setRows(res.data ?? []);
       setTotal(res.total ?? 0);
@@ -333,7 +338,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     } finally {
       setLoading(false);
     }
-  }, [q, page, perPage, filterAssistantId, filterSupervisorId, filterDig]);
+  }, [q, page, perPage, filterAssistantId, filterSupervisorId, filterDig, onlyInactive]);
 
   const clearFilters = () => {
     if (!isAssistantView) {
@@ -654,6 +659,22 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
             placeholder="RUC o razón social (mín. 2 caracteres)…"
           />
         </div>
+        {canSeeInactive ? (
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none shrink-0" title="Solo administrador: muestra únicamente las empresas inactivas">
+            <input
+              type="checkbox"
+              checked={onlyInactive}
+              onChange={(e) => {
+                setOnlyInactive(e.target.checked);
+                setFilterAssistantId(null);
+                setFilterSupervisorId(null);
+                setPage(1);
+              }}
+              className="rounded border-slate-300 text-primary-600"
+            />
+            Solo empresas inactivas
+          </label>
+        ) : null}
         <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none shrink-0">
           <input
             type="checkbox"

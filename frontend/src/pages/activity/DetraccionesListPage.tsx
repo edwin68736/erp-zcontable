@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import DetraccionesRowActions from '../../components/activity/DetraccionesRowActions';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   formatStoredAt,
@@ -399,7 +400,16 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                     </td>
                     <td className={`${TD} whitespace-nowrap text-slate-600`}>{formatStoredAt(row.last_stored_at)}</td>
                     <td className={TD}>
-                      <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Ver" />
+                      <div className="flex items-center gap-1.5">
+                        <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Ver" />
+                        <SuspendCompanyAction
+                          companyId={row.company_id}
+                          companyName={row.business_name}
+                          periodYm={periodYm}
+                          suspendida={!!row.suspendida}
+                          onChanged={() => void load()}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))

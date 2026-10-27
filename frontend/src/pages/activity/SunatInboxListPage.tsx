@@ -7,6 +7,7 @@ import {
   MailboxCaptureSlotHeader,
 } from '../../components/activity/MailboxCaptureSlotCell';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import {
   mailboxStatusBadgeClass,
   mailboxStatusLabel,
@@ -566,7 +567,16 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           </span>
                         </td>
                         <td className={TD}>
-                          <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                          <div className="flex items-center gap-1.5">
+                            <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                            <SuspendCompanyAction
+                              companyId={row.company_id}
+                              companyName={row.business_name}
+                              periodYm={periodYm}
+                              suspendida={!!row.suspendida}
+                              onChanged={() => void load()}
+                            />
+                          </div>
                         </td>
                         {slotIndices.map((idx) => {
                           const slot = row.slots.find((s) => s.slot_index === idx) ?? EMPTY_SLOT_FALLBACK(idx);
@@ -676,7 +686,16 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                             </span>
                           </td>
                           <td className={TD}>
-                            <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                            <div className="flex items-center gap-1.5">
+                              <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Detalle" />
+                              <SuspendCompanyAction
+                                companyId={row.company_id}
+                                companyName={row.business_name}
+                                periodYm={periodYm}
+                                suspendida={!!row.suspendida}
+                                onChanged={() => void load()}
+                              />
+                            </div>
                           </td>
                           {weekOptions.flatMap((w) => {
                             const weekSlots = row.weeks[w.week_start] ?? [];

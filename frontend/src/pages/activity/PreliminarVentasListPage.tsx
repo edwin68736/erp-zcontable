@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   PRELIMINAR_VENTAS_LATE_CELL_CLASS,
@@ -286,6 +287,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                 <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH}>{formatDueDate(slot1DueDate)}</th>
                 <th className={TH}>{formatDueDate(slot2DueDate)}</th>
+                <th className={TH}>Suspender</th>
               </tr>
             </thead>
             <tbody>
@@ -298,7 +300,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
                     No hay empresas para mostrar.
                   </td>
                 </tr>
@@ -336,6 +338,15 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                     </td>
                     <td className={`${TD} ${slotCellClass(row.slot2, row.suspendida)}`}>
                       <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} suspendida={row.suspendida} />
+                    </td>
+                    <td className={TD}>
+                      <SuspendCompanyAction
+                        companyId={row.company_id}
+                        companyName={row.business_name}
+                        periodYm={periodYm}
+                        suspendida={!!row.suspendida}
+                        onChanged={() => void load()}
+                      />
                     </td>
                   </tr>
                 ))

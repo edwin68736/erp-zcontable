@@ -105,9 +105,10 @@ export const companyAccessCredentialsService = {
     }
   },
 
-  async filterFacets(): Promise<CompanyAccessCredentialFilterFacets> {
+  async filterFacets(status?: 'inactivo'): Promise<CompanyAccessCredentialFilterFacets> {
     const res = await client.get<{ data: CompanyAccessCredentialFilterFacets }>(
       '/finance/company-credentials/filter-facets',
+      { params: status ? { status } : undefined },
     );
     return res.data.data;
   },
@@ -119,6 +120,8 @@ export const companyAccessCredentialsService = {
     assistant_user_id?: number;
     supervisor_user_id?: number;
     dig?: string;
+    /** Solo el administrador: 'inactivo' lista las empresas inactivas (por defecto, las activas). */
+    status?: 'inactivo';
   }): Promise<CompanyAccessCredentialListResponse> {
     const res = await client.get<CompanyAccessCredentialListResponse>('/finance/company-credentials/', { params });
     return res.data;

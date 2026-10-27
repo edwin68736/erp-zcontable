@@ -1366,6 +1366,45 @@ func (ctrl *SupervisorController) DetraccionesSetSuspendidaAPI(c fiber.Ctx) erro
 	return c.JSON(fiber.Map{"data": row})
 }
 
+// CompanySetSuspendidaAPI PUT /api/supervisors/activity-modules/companies/:companyId/suspendida?period_ym=
+// Marca/desmarca a una empresa como suspendida en el período desde CUALQUIER módulo de actividades (Buzón
+// SOL, Preliminar, Detracciones, PDT 601/621…): la marca es global del control mensual, así que queda
+// igual en todos. Mismo permiso y mismo control de acceso a la empresa que el endpoint de Detracciones.
+func (ctrl *SupervisorController) CompanySetSuspendidaAPI(c fiber.Ctx) error {
+	companyID, err := strconv.ParseUint(c.Params("companyId"), 10, 32)
+	if err != nil || companyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empresa inválida"})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	if periodYM == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "period_ym requerido"})
+	}
+	uid, uerr := getUserID(c)
+	if uerr != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	if !hasStudioScope(c) {
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, uint(companyID), false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	var body struct {
+		Suspendida bool `json:"suspendida"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	suspendida, err := ctrl.svc.SetCompanySuspendida(uint(companyID), periodYM, body.Suspendida, uid)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"company_id": companyID, "period_ym": periodYM, "suspendida": suspendida}})
+}
+
 // DetraccionesSuspensionCarryOverStatusAPI GET /api/supervisors/activity-modules/detracciones/suspension-carry-over
 // Modal de arrastre de suspensión entre períodos (docs/diseno-limpieza-control-detail-2026-09-16.md
 // §5.9.9) — sin restricción de permiso más allá de poder ver Detracciones (§5.9.9.3, confirmado con

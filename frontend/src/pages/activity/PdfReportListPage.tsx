@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import {
   PDF_REPORT_MODULES,
   PDF_REPORT_STATUS_FILTER,
@@ -328,6 +329,13 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                             label={workspace === 'supervisor' ? 'Ver / revisar' : 'Cargar'}
                           />
                         )}
+                        <SuspendCompanyAction
+                          companyId={row.company_id}
+                          companyName={row.business_name}
+                          periodYm={periodYm}
+                          suspendida={!!row.suspendida}
+                          onChanged={() => void load()}
+                        />
                       </td>
                       <td className={`${TD} whitespace-nowrap`}>{formatDateOnly(row.due_date)}</td>
                       <td className={`${TD} whitespace-nowrap`}>{row.suspendida ? '—' : formatDateOnly(row.fecha_entrega)}</td>

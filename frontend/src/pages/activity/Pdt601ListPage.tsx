@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import {
   pdt601StatusLabel,
   pdt601DisplayStatus,
@@ -486,6 +487,13 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                         ) : (
                           <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
                         )}
+                        <SuspendCompanyAction
+                          companyId={row.company_id}
+                          companyName={row.business_name}
+                          periodYm={periodYm}
+                          suspendida={!!row.suspendida}
+                          onChanged={() => void load()}
+                        />
                       </td>
                       {blocked ? (
                         // "Sin planilla"/"suspendida" ya se indican en la columna Estado — acá solo

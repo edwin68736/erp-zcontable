@@ -60,6 +60,9 @@ type CompanyAccessCredentialListParams struct {
 	AssistantUserID   uint
 	SupervisorUserID  uint
 	Dig               string
+	// InactiveOnly lista solo empresas INACTIVAS (por defecto, solo activas). Solo el administrador puede pedirlo
+	// (lo valida el controlador); las eliminadas nunca se listan.
+	InactiveOnly bool
 }
 
 // CredentialFilterUserOption usuario para filtros de asistente/supervisor.
@@ -163,7 +166,7 @@ func (s *CompanyAccessCredentialService) List(p CompanyAccessCredentialListParam
 	}
 
 	q := database.DB.Model(&models.Company{}).
-		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo").
+		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, credentialListStatus(p.InactiveOnly)).
 		Preload("Assistant").
 		Preload("Supervisor")
 
@@ -257,9 +260,17 @@ func normalizeCredentialDigFilter(d string) string {
 	return ""
 }
 
-func (s *CompanyAccessCredentialService) FilterFacets(allowed []uint) (*CompanyAccessCredentialFilterFacets, error) {
+// credentialListStatus estado de las empresas que lista Claves SOL: activas, o inactivas si se pide esa vista.
+func credentialListStatus(inactiveOnly bool) string {
+	if inactiveOnly {
+		return "inactivo"
+	}
+	return "activo"
+}
+
+func (s *CompanyAccessCredentialService) FilterFacets(allowed []uint, inactiveOnly bool) (*CompanyAccessCredentialFilterFacets, error) {
 	q := database.DB.Model(&models.Company{}).
-		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo")
+		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, credentialListStatus(inactiveOnly))
 	if allowed != nil {
 		if len(allowed) == 0 {
 			return &CompanyAccessCredentialFilterFacets{
