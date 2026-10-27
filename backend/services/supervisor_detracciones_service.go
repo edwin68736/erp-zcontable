@@ -16,6 +16,9 @@ type DetraccionesListParams struct {
 	PeriodYM          string
 	Status            string
 	Q                 string
+	// AssistantUserID / SupervisorUserID filtran por el asistente y el supervisor asignados a la empresa (0 = todos).
+	AssistantUserID   uint
+	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
@@ -192,6 +195,7 @@ func detraccionesFilteredCompaniesQuery(p DetraccionesListParams) *gorm.DB {
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
 	}
+	q = applyCompanyOwnerFilters(q, "companies", p.AssistantUserID, p.SupervisorUserID)
 
 	term := strings.TrimSpace(p.Q)
 	if len(term) >= 2 {

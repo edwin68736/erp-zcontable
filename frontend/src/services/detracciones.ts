@@ -82,6 +82,8 @@ export const detraccionesService = {
     period_ym: string;
     q?: string;
     status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<DetraccionesListResponse> {
@@ -91,7 +93,13 @@ export const detraccionesService = {
 
   // fetchExportData trae TODAS las empresas que matchean los filtros, sin paginar — para el
   // reporte Excel (mismo patrón que pdt621Service.fetchExportData).
-  async fetchExportData(params: { period_ym: string; q?: string; status?: string }): Promise<DetraccionesListRow[]> {
+  async fetchExportData(params: {
+    period_ym: string;
+    q?: string;
+    status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<DetraccionesListRow[]> {
     const res = await client.get<{ data: DetraccionesListRow[] }>('/supervisors/activity-modules/detracciones/export', {
       params,
     });

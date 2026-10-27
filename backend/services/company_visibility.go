@@ -39,6 +39,20 @@ func scopeVisibleCompanies(q *gorm.DB, alias string) *gorm.DB {
 	return q.Where(companyStudioVisibleSQL(alias))
 }
 
+// applyCompanyOwnerFilters filtra una consulta de empresas por el asistente y/o el supervisor asignados a la
+// empresa (companies.assistant_user_id / companies.supervisor_user_id). Id 0 = sin filtrar. Lo usan todos los
+// listados de actividades (PDT 601/621, Detracciones, Buzón SOL, Preliminar, informes) para que el administrador
+// filtre por supervisor y asistente, y el supervisor por asistente; siempre dentro del alcance ya aplicado.
+func applyCompanyOwnerFilters(q *gorm.DB, alias string, assistantUserID, supervisorUserID uint) *gorm.DB {
+	if assistantUserID > 0 {
+		q = q.Where(alias+".assistant_user_id = ?", assistantUserID)
+	}
+	if supervisorUserID > 0 {
+		q = q.Where(alias+".supervisor_user_id = ?", supervisorUserID)
+	}
+	return q
+}
+
 // visibleStudioCompanyIDs subconsulta con los ids de las empresas visibles del estudio, para filtrar
 // tablas que solo guardan company_id sin unirse a companies (Model(&Company{}) ya excluye eliminadas).
 func visibleStudioCompanyIDs() *gorm.DB {

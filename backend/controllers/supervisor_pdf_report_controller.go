@@ -48,6 +48,7 @@ func pdfReportListParams(c fiber.Ctx, allowed []uint) services.PdfReportListPara
 		Q:                 c.Query("q", ""),
 		Dig:               c.Query("dig", ""),
 		AssistantUserID:   uint(assistantID),
+		SupervisorUserID:  queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 	}
 }

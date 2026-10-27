@@ -446,3 +446,53 @@ func TestListPreliminarVentas_OnlyVisibleCompanies(t *testing.T) {
 		t.Fatalf("empresas permitidas = %v, want solo %d", allowed, active.ID)
 	}
 }
+
+// Los listados de actividades se filtran por el asistente y/o el supervisor asignados a la empresa.
+func TestListPreliminarVentas_FilterByAssistantAndSupervisor(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	mkUser := func(name string) models.User {
+		u := models.User{Name: name, Username: name}
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatal(err)
+		}
+		return u
+	}
+	sup1, sup2, ana, hugo := mkUser("sup1"), mkUser("sup2"), mkUser("ana"), mkUser("hugo")
+	mk := func(code string, sup, as *models.User) models.Company {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "Empresa " + code, InternalCode: code,
+			ClientType: models.CompanyClientTypeEstudio, Status: "activo", SupervisorUserID: &sup.ID, AssistantUserID: &as.ID}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatal(err)
+		}
+		return co
+	}
+	a1, a2, a3 := mk("F001", &sup1, &ana), mk("F002", &sup1, &hugo), mk("F003", &sup2, &ana)
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatal(err)
+	}
+	ids := func(p PreliminarVentasListParams) map[uint]bool {
+		p.PeriodYM, p.PerPage = "2026-07", 50
+		rows, _, err := svc.ListPreliminarVentas(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[uint]bool{}
+		for _, r := range rows {
+			out[r.CompanyID] = true
+		}
+		return out
+	}
+	if got := ids(PreliminarVentasListParams{}); len(got) != 3 {
+		t.Fatalf("sin filtro = %v, want 3", got)
+	}
+	if got := ids(PreliminarVentasListParams{SupervisorUserID: sup1.ID}); len(got) != 2 || !got[a1.ID] || !got[a2.ID] {
+		t.Fatalf("supervisor 1 = %v, want F001 y F002", got)
+	}
+	if got := ids(PreliminarVentasListParams{AssistantUserID: ana.ID}); len(got) != 2 || !got[a1.ID] || !got[a3.ID] {
+		t.Fatalf("asistente Ana = %v, want F001 y F003", got)
+	}
+	if got := ids(PreliminarVentasListParams{SupervisorUserID: sup1.ID, AssistantUserID: ana.ID}); len(got) != 1 || !got[a1.ID] {
+		t.Fatalf("supervisor 1 + Ana = %v, want solo F001", got)
+	}
+}

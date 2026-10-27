@@ -64,6 +64,7 @@ export interface PdfReportFilters {
   status?: string;
   dig?: string;
   assistant_user_id?: number;
+  supervisor_user_id?: number;
 }
 
 export const pdfReportService = {

@@ -25,6 +25,9 @@ type PreliminarVentasListParams struct {
 	// Status matches si CUALQUIERA de las 2 entregas tiene este estado (o PreliminarVentasSinRegistro
 	// si NINGUNA de las 2 tiene registro).
 	Status            string
+	// AssistantUserID / SupervisorUserID filtran por el asistente y el supervisor asignados a la empresa (0 = todos).
+	AssistantUserID   uint
+	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
@@ -850,6 +853,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		Joins("LEFT JOIN supervisor_preliminar_ventas_records s2 ON s2.monthly_control_id = c.id AND s2.slot_index = 2 AND s2.deleted_at IS NULL").
 		Joins("LEFT JOIN users au ON au.id = comp.assistant_user_id").
 		Where(companyStudioVisibleSQL("comp"))
+	q = applyCompanyOwnerFilters(q, "comp", p.AssistantUserID, p.SupervisorUserID)
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("comp.id IN ?", p.AllowedCompanyIDs)

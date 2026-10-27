@@ -1049,6 +1049,8 @@ func (ctrl *SupervisorController) PreliminarVentasListAPI(c fiber.Ctx) error {
 		PeriodYM:          c.Query("period_ym", ""),
 		Q:                 c.Query("q", ""),
 		Status:            c.Query("status", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1082,6 +1084,8 @@ func (ctrl *SupervisorController) PreliminarVentasExportAPI(c fiber.Ctx) error {
 		PeriodYM:          c.Query("period_ym", ""),
 		Q:                 c.Query("q", ""),
 		Status:            c.Query("status", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		All:               true,
 	})
@@ -1254,6 +1258,8 @@ func (ctrl *SupervisorController) DetraccionesListAPI(c fiber.Ctx) error {
 		PeriodYM:          c.Query("period_ym", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1287,6 +1293,8 @@ func (ctrl *SupervisorController) DetraccionesExportAPI(c fiber.Ctx) error {
 		PeriodYM:          c.Query("period_ym", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 	})
 	if err != nil {
@@ -1607,6 +1615,8 @@ func (ctrl *SupervisorController) SunatInboxListAPI(c fiber.Ctx) error {
 		WeekStart:         c.Query("week_start", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1642,6 +1652,8 @@ func (ctrl *SupervisorController) SunatInboxExportAPI(c fiber.Ctx) error {
 		WeekStart:         c.Query("week_start", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Scope:             c.Query("scope", ""),
 	})
@@ -1673,6 +1685,8 @@ func (ctrl *SupervisorController) SunatInboxMonthListAPI(c fiber.Ctx) error {
 		PeriodYM:          c.Query("period_ym", ""),
 		Status:            c.Query("status", ""),
 		Q:                 c.Query("q", ""),
+		AssistantUserID:  queryUserID(c, "assistant_user_id"),
+		SupervisorUserID: queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1858,6 +1872,7 @@ func (ctrl *SupervisorController) Pdt601ListAPI(c fiber.Ctx) error {
 		Q:                 c.Query("q", ""),
 		Dig:               c.Query("dig", ""),
 		AssistantUserID:   uint(assistantID),
+		SupervisorUserID:  queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -1894,6 +1909,7 @@ func (ctrl *SupervisorController) Pdt601ExportAPI(c fiber.Ctx) error {
 		Q:                 c.Query("q", ""),
 		Dig:               c.Query("dig", ""),
 		AssistantUserID:   uint(assistantID),
+		SupervisorUserID:  queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 	})
 	if err != nil {
@@ -2018,6 +2034,7 @@ func (ctrl *SupervisorController) Pdt621ExportAPI(c fiber.Ctx) error {
 		Q:                 c.Query("q", ""),
 		Dig:               c.Query("dig", ""),
 		AssistantUserID:   uint(assistantID),
+		SupervisorUserID:  queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 	})
 	if err != nil {
@@ -2046,6 +2063,7 @@ func (ctrl *SupervisorController) Pdt621ListAPI(c fiber.Ctx) error {
 		Q:                 c.Query("q", ""),
 		Dig:               c.Query("dig", ""),
 		AssistantUserID:   uint(assistantID),
+		SupervisorUserID:  queryUserID(c, "supervisor_user_id"),
 		AllowedCompanyIDs: allowed,
 		Page:              page,
 		PerPage:           perPage,
@@ -2390,4 +2408,10 @@ func (ctrl *SupervisorController) DashboardIndicatorsAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"data": data})
+}
+
+// queryUserID lee un id de usuario de la query (assistant_user_id / supervisor_user_id); 0 si falta o no es válido.
+func queryUserID(c fiber.Ctx, name string) uint {
+	id, _ := strconv.ParseUint(strings.TrimSpace(c.Query(name, "")), 10, 64)
+	return uint(id)
 }

@@ -7,6 +7,7 @@ import {
   MailboxCaptureSlotHeader,
 } from '../../components/activity/MailboxCaptureSlotCell';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import {
   mailboxStatusBadgeClass,
@@ -84,6 +85,8 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
   const [statusFilter, setStatusFilter] = useState('');
+  const [filterAssistantId, setFilterAssistantId] = useState<number | null>(null);
+  const [filterSupervisorId, setFilterSupervisorId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [rows, setRows] = useState<SunatInboxListRow[]>([]);
@@ -157,6 +160,8 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           period_ym: periodYm,
           q: qParam,
           status: statusFilter || undefined,
+          assistant_user_id: filterAssistantId ?? undefined,
+          supervisor_user_id: filterSupervisorId ?? undefined,
           page,
           per_page: perPage,
         });
@@ -170,6 +175,8 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           week_start: weekStart,
           q: qParam,
           status: statusFilter || undefined,
+          assistant_user_id: filterAssistantId ?? undefined,
+          supervisor_user_id: filterSupervisorId ?? undefined,
           page,
           per_page: perPage,
         });
@@ -190,7 +197,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     } finally {
       setLoading(false);
     }
-  }, [scope, periodYm, weekStart, debouncedQ, statusFilter, page, perPage]);
+  }, [scope, periodYm, weekStart, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId, page, perPage]);
 
   useEffect(() => {
     void load();
@@ -198,7 +205,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
   useEffect(() => {
     setPage(1);
-  }, [periodYm, weekStart, debouncedQ, statusFilter, scope]);
+  }, [periodYm, weekStart, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId, scope]);
 
   const detailLink = (companyId: number) => {
     const path = `${activityModulePath(workspace, 'sunat-inbox')}/${companyId}`;
@@ -322,6 +329,8 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         week_start: scope === 'week' ? weekStart : undefined,
         q: qParam,
         status: statusFilter || undefined,
+        assistant_user_id: filterAssistantId ?? undefined,
+        supervisor_user_id: filterSupervisorId ?? undefined,
         scope,
       });
       await exportSunatInboxReportExcel({
@@ -415,6 +424,12 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+        <ActivityOwnerFilters
+          assistantId={filterAssistantId}
+          supervisorId={filterSupervisorId}
+          onAssistantChange={setFilterAssistantId}
+          onSupervisorChange={setFilterSupervisorId}
+        />
         <div className="min-w-[12rem]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Filtrar empresas</label>
           <select

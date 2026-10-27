@@ -21,6 +21,8 @@ type Pdt621ListParams struct {
 	Q                 string
 	Dig               string
 	AssistantUserID   uint
+	// SupervisorUserID filtra por el supervisor asignado a la empresa (0 = todos).
+	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
@@ -730,9 +732,7 @@ func pdt621FilteredCompaniesQuery(p Pdt621ListParams) *gorm.DB {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
 	}
 
-	if p.AssistantUserID > 0 {
-		q = q.Where("companies.assistant_user_id = ?", p.AssistantUserID)
-	}
+	q = applyCompanyOwnerFilters(q, "companies", p.AssistantUserID, p.SupervisorUserID)
 
 	if dig := strings.TrimSpace(p.Dig); dig != "" {
 		q = q.Where(`EXISTS (

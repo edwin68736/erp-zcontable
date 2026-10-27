@@ -124,6 +124,7 @@ export const pdt601Service = {
     status?: string;
     dig?: string;
     assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<Pdt601ListResponse> {
@@ -168,6 +169,7 @@ export const pdt601Service = {
     status?: string;
     dig?: string;
     assistant_user_id?: number;
+    supervisor_user_id?: number;
   }): Promise<Pdt601ListRow[]> {
     const res = await client.get<{ data: Pdt601ListRow[] }>('/supervisors/activity-modules/pdt-601/export', {
       params,

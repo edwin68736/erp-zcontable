@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
 import Pdt621ObservacionButton from '../../components/activity/Pdt621ObservacionButton';
@@ -22,7 +23,6 @@ import {
 import { pdt621Service, type Pdt621ListRow } from '../../services/pdt621';
 import {
   companyAccessCredentialsService,
-  type CredentialFilterUserOption,
 } from '../../services/companyAccessCredentials';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
@@ -122,7 +122,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
   const [statusFilter, setStatusFilter] = useState('');
   const [filterDig, setFilterDig] = useState<string | null>(null);
   const [filterAssistantId, setFilterAssistantId] = useState<number | null>(null);
-  const [assistants, setAssistants] = useState<CredentialFilterUserOption[]>([]);
+  const [filterSupervisorId, setFilterSupervisorId] = useState<number | null>(null);
   const [digColorsJson, setDigColorsJson] = useState<string | null>(null);
   const [facetsLoading, setFacetsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -144,10 +144,8 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
       setFacetsLoading(true);
       const data = await companyAccessCredentialsService.filterFacets();
       setDigColorsJson(data.claves_sol_dig_colors_json ?? null);
-      setAssistants(data.assistants ?? []);
     } catch {
       setDigColorsJson(null);
-      setAssistants([]);
     } finally {
       setFacetsLoading(false);
     }
@@ -178,6 +176,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
         status: statusFilter || undefined,
         dig: filterDig ?? undefined,
         assistant_user_id: filterAssistantId ?? undefined,
+        supervisor_user_id: filterSupervisorId ?? undefined,
         page,
         per_page: perPage,
       });
@@ -191,7 +190,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
     } finally {
       setLoading(false);
     }
-  }, [periodYm, debouncedQ, statusFilter, filterDig, filterAssistantId, page, perPage]);
+  }, [periodYm, debouncedQ, statusFilter, filterDig, filterAssistantId, filterSupervisorId, page, perPage]);
 
   useEffect(() => {
     void load();
@@ -199,7 +198,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
 
   useEffect(() => {
     setPage(1);
-  }, [periodYm, debouncedQ, statusFilter, filterDig, filterAssistantId]);
+  }, [periodYm, debouncedQ, statusFilter, filterDig, filterAssistantId, filterSupervisorId]);
 
   const detailLink = (companyId: number) => {
     const path = `${activityModulePath(workspace, 'pdt-621')}/${companyId}`;
@@ -218,6 +217,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
         status: statusFilter || undefined,
         dig: filterDig ?? undefined,
         assistant_user_id: filterAssistantId ?? undefined,
+        supervisor_user_id: filterSupervisorId ?? undefined,
       });
       await exportPdt621ReportExcel({ periodYm, rows: exportRows, workspace });
       setMsg('Excel generado correctamente.');
@@ -261,21 +261,12 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <div className="min-w-[10rem]">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Asistente</label>
-          <select
-            value={filterAssistantId ?? ''}
-            onChange={(e) => setFilterAssistantId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Todos</option>
-            {assistants.map((a) => (
-              <option key={a.user_id} value={a.user_id}>
-                {a.username}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ActivityOwnerFilters
+          assistantId={filterAssistantId}
+          supervisorId={filterSupervisorId}
+          onAssistantChange={setFilterAssistantId}
+          onSupervisorChange={setFilterSupervisorId}
+        />
         <div className="min-w-[10rem]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
           <select

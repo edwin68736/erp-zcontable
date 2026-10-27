@@ -33,6 +33,9 @@ type SunatInboxListParams struct {
 	WeekStart         string
 	Status            string
 	Q                 string
+	// AssistantUserID / SupervisorUserID filtran por el asistente y el supervisor asignados a la empresa (0 = todos).
+	AssistantUserID   uint
+	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
 	Page              int
 	PerPage           int
@@ -653,6 +656,7 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 	q := database.DB.Model(&models.Company{}).
 		Where("companies.client_type = ? AND companies.status = ?", models.CompanyClientTypeEstudio, "activo").
 		Preload("Assistant")
+	q = applyCompanyOwnerFilters(q, "companies", p.AssistantUserID, p.SupervisorUserID)
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)
@@ -861,6 +865,7 @@ func resolveExportWeeks(p SunatInboxListParams, allWeeks []SunatInboxWeekOption)
 func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, weeks []SunatInboxWeekOption, slotsPerWeek int) ([]SunatInboxExportRow, error) {
 	q := database.DB.Model(&models.Company{}).
 		Where("companies.client_type = ? AND companies.status = ?", models.CompanyClientTypeEstudio, "activo")
+	q = applyCompanyOwnerFilters(q, "companies", p.AssistantUserID, p.SupervisorUserID)
 
 	if len(p.AllowedCompanyIDs) > 0 {
 		q = q.Where("companies.id IN ?", p.AllowedCompanyIDs)

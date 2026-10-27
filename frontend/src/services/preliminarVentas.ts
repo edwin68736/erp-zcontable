@@ -141,6 +141,8 @@ export const preliminarVentasService = {
     period_ym: string;
     q?: string;
     status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<PreliminarVentasListResponse> {
@@ -152,7 +154,13 @@ export const preliminarVentasService = {
   },
 
   /** Todas las empresas que matchean los filtros (sin paginar) — para el reporte Excel. */
-  async fetchExportData(params: { period_ym: string; q?: string; status?: string }): Promise<PreliminarVentasListRow[]> {
+  async fetchExportData(params: {
+    period_ym: string;
+    q?: string;
+    status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
+  }): Promise<PreliminarVentasListRow[]> {
     const res = await client.get<{ data: PreliminarVentasListRow[] }>(
       '/supervisors/activity-modules/preliminar-ventas/export',
       { params },

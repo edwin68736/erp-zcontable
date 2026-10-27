@@ -126,6 +126,8 @@ export const sunatInboxService = {
     week_start?: string;
     q?: string;
     status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<SunatInboxListResponse> {
@@ -191,6 +193,8 @@ export const sunatInboxService = {
     week_start?: string;
     q?: string;
     status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
     scope?: SunatInboxScope;
   }): Promise<SunatInboxExportResponse> {
     const res = await client.get<SunatInboxExportResponse>('/supervisors/activity-modules/sunat-inbox/export', {
@@ -204,6 +208,8 @@ export const sunatInboxService = {
     period_ym: string;
     q?: string;
     status?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<SunatInboxMonthListResponse> {

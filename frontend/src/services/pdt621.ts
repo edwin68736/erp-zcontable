@@ -131,6 +131,7 @@ export const pdt621Service = {
     status?: string;
     dig?: string;
     assistant_user_id?: number;
+    supervisor_user_id?: number;
     page?: number;
     per_page?: number;
   }): Promise<Pdt621ListResponse> {
@@ -190,6 +191,7 @@ export const pdt621Service = {
     status?: string;
     dig?: string;
     assistant_user_id?: number;
+    supervisor_user_id?: number;
   }): Promise<Pdt621ListRow[]> {
     const res = await client.get<{ data: Pdt621ListRow[] }>('/supervisors/activity-modules/pdt-621/export', {
       params,

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
 import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
+import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
@@ -65,6 +66,8 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
   const [statusFilter, setStatusFilter] = useState('');
+  const [filterAssistantId, setFilterAssistantId] = useState<number | null>(null);
+  const [filterSupervisorId, setFilterSupervisorId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [rows, setRows] = useState<PreliminarVentasListRow[]>([]);
@@ -100,6 +103,8 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         period_ym: periodYm,
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
         status: statusFilter || undefined,
+        assistant_user_id: filterAssistantId ?? undefined,
+        supervisor_user_id: filterSupervisorId ?? undefined,
         page,
         per_page: perPage,
       });
@@ -113,7 +118,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     } finally {
       setLoading(false);
     }
-  }, [periodYm, debouncedQ, statusFilter, page, perPage]);
+  }, [periodYm, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId, page, perPage]);
 
   useEffect(() => {
     void load();
@@ -121,7 +126,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
 
   useEffect(() => {
     setPage(1);
-  }, [periodYm, debouncedQ, statusFilter]);
+  }, [periodYm, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId]);
 
   // Al entrar (o cambiar de período), se consulta si hay un arrastre de suspensión sin resolver —
   // si el usuario cierra el modal sin decidir, no se recuerda acá: la próxima vez que se entre a
@@ -177,6 +182,8 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         period_ym: periodYm,
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
         status: statusFilter || undefined,
+        assistant_user_id: filterAssistantId ?? undefined,
+        supervisor_user_id: filterSupervisorId ?? undefined,
       });
       await exportPreliminarVentasReportExcel({
         periodYm,
@@ -227,6 +234,12 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+        <ActivityOwnerFilters
+          assistantId={filterAssistantId}
+          supervisorId={filterSupervisorId}
+          onAssistantChange={setFilterAssistantId}
+          onSupervisorChange={setFilterSupervisorId}
+        />
         <div className="min-w-[10rem]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Estado (cualquier entrega)</label>
           <select
