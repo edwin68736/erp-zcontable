@@ -12,13 +12,13 @@
  * originalUrl/lang/state fijos del Menú SOL.
  */
 
-const SUNAT_SOL_CLIENT_ID = '4f3b88b3-d9d6-402a-b85d-6a0bc857746a';
+const SUNAT_SOL_CLIENT_ID = '085b176d-2437-44cd-8c3e-e9a83b705921';
 const SUNAT_SOL_LOGIN_ACTION = `https://api-seguridad.sunat.gob.pe/v1/clientessol/${SUNAT_SOL_CLIENT_ID}/oauth2/j_security_check`;
-const SUNAT_SOL_ORIGINAL_URL = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/AutenticaMenuInternet.htm';
+const SUNAT_SOL_ORIGINAL_URL = 'https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm';
 const SUNAT_SOL_LANG = 'es-PE';
-/** `state` del Menú SOL (mapa serializado que identifica a dónde volver tras el login). */
+/** Menú SOL tal como lo abre la otra aplicación del estudio (cabina): cliente, originalUrl y state idénticos a su URL. `state` = mapa serializado que identifica a dónde volver tras el login. */
 const SUNAT_SOL_STATE =
-  'rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAADZXhlcHQABnBhcmFtc3QASyomKiYvY2wtdGktaXRtZW51L01lbnVJbnRlcm5ldC5odG0mYjY0ZDI2YThiNWFmMDkxOTIzYjIzYjY0MDdhMWMxZGI0MWU3MzNhNnQABGV4ZWNweA==';
+  'rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAAEZXhlY3B0AAZwYXJhbXN0AFEqJiomL2NsLXRpLWl0bWVudWNhYmluYS9NZW51SW50ZXJuZXQuaHRtJjBlMWY4NDg5ZmVlYWJmOTMxNmI5ODUwNTYyMjA5MTE4ZjkxZTJjMmN0AANleGVweA==';
 
 export type SunatSolCredentials = {
   ruc?: string | null;
