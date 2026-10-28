@@ -35,6 +35,9 @@ const (
 	sunatSolLang     = "es-PE"
 	// Cookie con el id de sesión que usa la pantalla de método de SUNAT (la lee su JavaScript).
 	sunatSolSessionCookie = "SessionID"
+	// Cookie con el RUC y header homónimo que el JavaScript de SUNAT agrega a TODAS sus peticiones a la API
+	// (sin él, redireccion-sin-codigo responde 500).
+	sunatSolRucCookie = "numRuc"
 
 	sunatSolUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 	sunatSolMaxHops   = 8
@@ -254,6 +257,20 @@ var (
 	reMenuURLInBody   = regexp.MustCompile(`https://e-menu\.sunat\.gob\.pe/[^\s"'<>\\]+`)
 )
 
+// cookieValue valor de una cookie del portal de seguridad ('' si no está).
+func cookieValue(jar http.CookieJar, base, name string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	for _, c := range jar.Cookies(u) {
+		if c.Name == name {
+			return c.Value
+		}
+	}
+	return ""
+}
+
 // sessionCookie valor de la cookie "SessionID" que SUNAT deja tras el login (solo dígitos/letras: va en una ruta).
 func sessionCookie(jar http.CookieJar, base string) string {
 	u, err := url.Parse(base)
@@ -414,11 +431,18 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 			strings.Join(trail, " → ")+" | cookies: "+cookieNames(jar, base))
 	}
 
+	// El JavaScript de SUNAT manda el RUC (cookie numRuc) en un header a cada petición de la API.
+	numRucHeader := cookieValue(jar, base, sunatSolRucCookie)
+	if numRucHeader == "" {
+		numRucHeader = ruc
+	}
+
 	// 3b) Lo primero que hace la pantalla de SUNAT: validar la sesión. Si la autenticación está bloqueada
 	// (código 1106) no tiene sentido seguir y conviene decirlo claro; cualquier otra respuesta no frena el flujo.
 	vreq, _ := http.NewRequest(http.MethodGet, base+"/valida-session/"+url.PathEscape(sessionID), nil)
 	vreq.Header.Set("Accept", "application/json, text/plain, */*")
 	vreq.Header.Set("X-Requested-With", "XMLHttpRequest")
+	vreq.Header.Set("numRuc", numRucHeader)
 	if lastPage != nil {
 		vreq.Header.Set("Referer", lastPage.String())
 	}
@@ -441,6 +465,7 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 	nreq, _ := http.NewRequest(http.MethodGet, base+"/redireccion-sin-codigo/"+sessionID, nil)
 	nreq.Header.Set("Accept", "application/json, text/plain, */*")
 	nreq.Header.Set("X-Requested-With", "XMLHttpRequest")
+	nreq.Header.Set("numRuc", numRucHeader)
 	if lastPage != nil {
 		nreq.Header.Set("Referer", lastPage.String())
 	}

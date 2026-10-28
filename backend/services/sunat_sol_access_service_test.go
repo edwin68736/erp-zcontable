@@ -20,6 +20,9 @@ type fakeSunat struct {
 	validaStatus     int
 	validaBody       string
 	sinCodigoStatus  int
+	// requireNumRuc: como SUNAT, responde 500 si la petición no trae el header numRuc.
+	requireNumRuc bool
+	numRucSeen    string
 	sinCodigoHits int
 }
 
@@ -63,6 +66,11 @@ func newFakeSunat(t *testing.T, loginRedirect string, methodBody string, sinCodi
 	})
 	mux.HandleFunc("/redireccion-sin-codigo/123456789012", func(w http.ResponseWriter, r *http.Request) {
 		f.sinCodigoHits++
+		f.numRucSeen = r.Header.Get("numRuc")
+		if f.requireNumRuc && f.numRucSeen == "" {
+			http.Error(w, `{"cod":"500","msg":"Error interno"}`, http.StatusInternalServerError)
+			return
+		}
 		if c, err := r.Cookie("TS01"); err == nil && c.Value == "abc" {
 			f.cookieOnSinCd = true
 		}
@@ -282,5 +290,20 @@ func TestSunatLogin_RechazoMuestraElMotivoDeSunat(t *testing.T) {
 	}
 	if !strings.Contains(ae.Detail, "1101") || !strings.Contains(ae.Detail, "Sesión no válida") {
 		t.Errorf("el detalle debe traer el motivo de SUNAT: %q", ae.Detail)
+	}
+}
+
+func TestSunatLogin_EnviaElHeaderNumRuc(t *testing.T) {
+	// El JavaScript de SUNAT manda el RUC en el header numRuc; sin él, "continuar sin código" da 500.
+	f := newFakeSunat(t, "/proceso-seguridad", `<html>Método</html>`,
+		`{"estado":"ok","url":"https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm?code=N1"}`)
+	f.sessionCookie = "123456789012"
+	f.requireNumRuc = true
+	svc := newTestSunatService(f.srv.URL)
+	if _, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave"); err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	if f.numRucSeen != "20123456789" {
+		t.Errorf("header numRuc = %q, quiero el RUC de la empresa", f.numRucSeen)
 	}
 }
