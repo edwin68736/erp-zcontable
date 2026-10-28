@@ -33,6 +33,8 @@ import (
 const (
 	sunatSolBaseHost = "https://api-seguridad.sunat.gob.pe/v1/clientessol"
 	sunatSolLang     = "es-PE"
+	// Cookie con el id de sesión que usa la pantalla de método de SUNAT (la lee su JavaScript).
+	sunatSolSessionCookie = "SessionID"
 
 	sunatSolUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 	sunatSolMaxHops   = 8
@@ -246,8 +248,40 @@ func credKey(companyID uint, parts ...string) string {
 var (
 	reSessionIDInPath = regexp.MustCompile(`/(\d{8,})(?:[/?#]|$)`)
 	reSessionIDInBody = regexp.MustCompile(`redireccion-sin-codigo/(\d{8,})`)
+	// reSessionCookieValue valor aceptable del id de sesión (se inserta en la ruta de la petición).
+	reSessionCookieValue = regexp.MustCompile(`^[A-Za-z0-9_-]{6,64}$`)
 	reMenuURLInBody   = regexp.MustCompile(`https://e-menu\.sunat\.gob\.pe/[^\s"'<>\\]+`)
 )
+
+// sessionCookie valor de la cookie "SessionID" que SUNAT deja tras el login (solo dígitos/letras: va en una ruta).
+func sessionCookie(jar http.CookieJar, base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	for _, c := range jar.Cookies(u) {
+		if c.Name == sunatSolSessionCookie && reSessionCookieValue.MatchString(c.Value) {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+// cookieNames solo los NOMBRES de las cookies (nunca los valores) para el detalle técnico del error.
+func cookieNames(jar http.CookieJar, base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return "-"
+	}
+	names := []string{}
+	for _, c := range jar.Cookies(u) {
+		names = append(names, c.Name)
+	}
+	if len(names) == 0 {
+		return "ninguna"
+	}
+	return strings.Join(names, ",")
+}
 
 // safeURL: host + ruta, sin parámetros (los parámetros pueden llevar tokens).
 func safeURL(u *url.URL) string {
@@ -361,6 +395,11 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 	if strings.Contains(body, `name="LoginForm"`) {
 		return "", fail(SunatAccessCaptcha, "SUNAT no aceptó el ingreso (clave incorrecta o pide captcha por varios intentos fallidos). Ingrese una vez a mano en SUNAT para destrabarlo.")
 	}
+	// La pantalla de método de SUNAT toma el id de sesión de la cookie "SessionID" (no de la ruta): es la fuente
+	// autoritativa; la ruta y el cuerpo quedan como respaldo.
+	if c := sessionCookie(jar, base); c != "" {
+		sessionID = c
+	}
 	if sessionID == "" {
 		if m := reSessionIDInBody.FindStringSubmatch(body); m != nil {
 			sessionID = m[1]
@@ -370,7 +409,8 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 		if m := target.findURLInText(strings.ReplaceAll(body, `\/`, `/`)); m != "" {
 			return m, nil
 		}
-		return "", fail(SunatAccessUnexpected, "No se encontró el paso de método de autenticación en la respuesta de SUNAT.")
+		return "", accessErr(SunatAccessUnexpected, "No se encontró el paso de método de autenticación en la respuesta de SUNAT.",
+			strings.Join(trail, " → ")+" | cookies: "+cookieNames(jar, base))
 	}
 
 	// 4) "Continuar sin código": la misma petición que hace el botón de SUNAT; responde con el enlace de un solo uso.

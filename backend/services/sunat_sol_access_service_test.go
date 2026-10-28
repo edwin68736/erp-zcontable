@@ -14,6 +14,8 @@ type fakeSunat struct {
 	srv           *httptest.Server
 	postedForm    map[string]string
 	cookieOnSinCd bool
+	// sessionCookie: si no está vacío, el login deja la cookie SessionID (como SUNAT) con ese valor.
+	sessionCookie string
 	sinCodigoHits int
 }
 
@@ -23,6 +25,9 @@ func newFakeSunat(t *testing.T, loginRedirect string, methodBody string, sinCodi
 	mux := http.NewServeMux()
 	mux.HandleFunc("/loginMenuSol", func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "TS01", Value: "abc", Path: "/"})
+		if f.sessionCookie != "" {
+			http.SetCookie(w, &http.Cookie{Name: "SessionID", Value: f.sessionCookie, Path: "/"})
+		}
 		_, _ = w.Write([]byte(`<form name="LoginForm" action="j_security_check" method="POST"></form>`))
 	})
 	mux.HandleFunc("/j_security_check", func(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +41,9 @@ func newFakeSunat(t *testing.T, loginRedirect string, methodBody string, sinCodi
 			loc = f.srv.URL + loc
 		}
 		http.Redirect(w, r, loc, http.StatusFound)
+	})
+	mux.HandleFunc("/proceso-seguridad", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(methodBody))
 	})
 	mux.HandleFunc("/metodo/123456789012", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(methodBody))
@@ -199,5 +207,33 @@ func TestSunatSolTargets_UrlsPorCliente(t *testing.T) {
 		if got != "https://api-seguridad.sunat.gob.pe/v1/clientessol/"+client+"/oauth2" {
 			t.Errorf("%s: base = %s", name, got)
 		}
+	}
+}
+
+func TestSunatLogin_IdDeSesionDesdeLaCookie(t *testing.T) {
+	// SUNAT no siempre pone el id en la ruta: la pantalla de método lo lee de la cookie SessionID.
+	f := newFakeSunat(t, "/proceso-seguridad", `<html>Método de Autenticación</html>`,
+		`{"estado":"ok","url":"https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm?code=C1"}`)
+	f.sessionCookie = "123456789012"
+	svc := newTestSunatService(f.srv.URL)
+	got, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	if got != "https://e-menu.sunat.gob.pe/cl-ti-itmenucabina/AutenticaMenuInternet.htm?code=C1" || f.sinCodigoHits != 1 {
+		t.Errorf("enlace = %q, hits = %d", got, f.sinCodigoHits)
+	}
+}
+
+func TestSunatLogin_SinIdDeSesionListaSoloNombresDeCookies(t *testing.T) {
+	f := newFakeSunat(t, "/proceso-seguridad", `<html>Método de Autenticación</html>`, "")
+	svc := newTestSunatService(f.srv.URL)
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
+	var ae *SunatSolAccessError
+	if !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected {
+		t.Fatalf("se esperaba respuesta_inesperada, llegó %v", err)
+	}
+	if !strings.Contains(ae.Detail, "cookies: TS01") || strings.Contains(ae.Detail, "abc") {
+		t.Errorf("el detalle debe listar nombres de cookies y no sus valores: %q", ae.Detail)
 	}
 }
