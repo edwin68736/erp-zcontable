@@ -16,6 +16,10 @@ type fakeSunat struct {
 	cookieOnSinCd bool
 	// sessionCookie: si no está vacío, el login deja la cookie SessionID (como SUNAT) con ese valor.
 	sessionCookie string
+	// validaStatus/validaBody: respuesta de valida-session (0 = no existe la ruta); sinCodigoStatus: estado de sin-código (0 = 200).
+	validaStatus     int
+	validaBody       string
+	sinCodigoStatus  int
 	sinCodigoHits int
 }
 
@@ -45,6 +49,15 @@ func newFakeSunat(t *testing.T, loginRedirect string, methodBody string, sinCodi
 	mux.HandleFunc("/proceso-seguridad", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(methodBody))
 	})
+	mux.HandleFunc("/valida-session/123456789012", func(w http.ResponseWriter, r *http.Request) {
+		if f.validaStatus == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(f.validaStatus)
+		_, _ = w.Write([]byte(f.validaBody))
+	})
 	mux.HandleFunc("/metodo/123456789012", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(methodBody))
 	})
@@ -54,6 +67,9 @@ func newFakeSunat(t *testing.T, loginRedirect string, methodBody string, sinCodi
 			f.cookieOnSinCd = true
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if f.sinCodigoStatus != 0 {
+			w.WriteHeader(f.sinCodigoStatus)
+		}
 		_, _ = w.Write([]byte(sinCodigoBody))
 	})
 	f.srv = httptest.NewServer(mux)
@@ -235,5 +251,36 @@ func TestSunatLogin_SinIdDeSesionListaSoloNombresDeCookies(t *testing.T) {
 	}
 	if !strings.Contains(ae.Detail, "cookies: TS01") || strings.Contains(ae.Detail, "abc") {
 		t.Errorf("el detalle debe listar nombres de cookies y no sus valores: %q", ae.Detail)
+	}
+}
+
+func TestSunatLogin_AutenticacionBloqueada(t *testing.T) {
+	f := newFakeSunat(t, "/proceso-seguridad", `<html>Método</html>`, "")
+	f.sessionCookie = "123456789012"
+	f.validaStatus = http.StatusUnprocessableEntity
+	f.validaBody = `{"cod":"422","errors":[{"cod":"1106","msg":"Autenticación bloqueada"}]}`
+	svc := newTestSunatService(f.srv.URL)
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
+	var ae *SunatSolAccessError
+	if !errors.As(err, &ae) || ae.Code != SunatAccessLocked {
+		t.Fatalf("se esperaba autenticacion_bloqueada, llegó %v", err)
+	}
+	if f.sinCodigoHits != 0 {
+		t.Errorf("no debe pedir 'continuar sin código' con la autenticación bloqueada")
+	}
+}
+
+func TestSunatLogin_RechazoMuestraElMotivoDeSunat(t *testing.T) {
+	f := newFakeSunat(t, "/proceso-seguridad", `<html>Método</html>`, `{"cod":"422","errors":[{"cod":"1101","msg":"Sesión no válida"}]}`)
+	f.sessionCookie = "123456789012"
+	f.sinCodigoStatus = http.StatusUnprocessableEntity
+	svc := newTestSunatService(f.srv.URL)
+	_, err := svc.login(sunatSolTargets[sunatAccessTargetSunat], "20123456789", "USUARIO1", "clave")
+	var ae *SunatSolAccessError
+	if !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected {
+		t.Fatalf("se esperaba respuesta_inesperada, llegó %v", err)
+	}
+	if !strings.Contains(ae.Detail, "1101") || !strings.Contains(ae.Detail, "Sesión no válida") {
+		t.Errorf("el detalle debe traer el motivo de SUNAT: %q", ae.Detail)
 	}
 }

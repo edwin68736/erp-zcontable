@@ -94,6 +94,7 @@ const (
 	SunatAccessBadCreds     = "credenciales_rechazadas"
 	SunatAccessCooldown     = "credenciales_en_pausa"
 	SunatAccessCaptcha      = "captcha"
+	SunatAccessLocked       = "autenticacion_bloqueada"
 	SunatAccessUnexpected   = "respuesta_inesperada"
 	SunatAccessUnavailable  = "sunat_no_disponible"
 	SunatAccessInProgress   = "en_curso"
@@ -210,7 +211,7 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 	link, err := s.login(target, ruc, usuario, clave)
 	if err != nil {
 		var ae *SunatSolAccessError
-		if errors.As(err, &ae) && (ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha) {
+		if errors.As(err, &ae) && (ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha || ae.Code == SunatAccessLocked) {
 			s.mu.Lock()
 			s.badUntil[key] = time.Now().Add(sunatSolBadCredsCooldown)
 			s.mu.Unlock()
@@ -413,6 +414,29 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 			strings.Join(trail, " → ")+" | cookies: "+cookieNames(jar, base))
 	}
 
+	// 3b) Lo primero que hace la pantalla de SUNAT: validar la sesión. Si la autenticación está bloqueada
+	// (código 1106) no tiene sentido seguir y conviene decirlo claro; cualquier otra respuesta no frena el flujo.
+	vreq, _ := http.NewRequest(http.MethodGet, base+"/valida-session/"+url.PathEscape(sessionID), nil)
+	vreq.Header.Set("Accept", "application/json, text/plain, */*")
+	vreq.Header.Set("X-Requested-With", "XMLHttpRequest")
+	if lastPage != nil {
+		vreq.Header.Set("Referer", lastPage.String())
+	}
+	if vresp, verr := do(vreq); verr == nil {
+		note(vresp.StatusCode, vresp.Request.URL)
+		vb, _ := io.ReadAll(io.LimitReader(vresp.Body, 1<<20))
+		vresp.Body.Close()
+		if vresp.StatusCode != http.StatusOK {
+			info := sunatErrorSummary(vb)
+			if strings.Contains(info, "1106") {
+				return "", accessErr(SunatAccessLocked,
+					"SUNAT tiene bloqueada temporalmente la autenticación de esta empresa (demasiados intentos). Espere unos minutos o ingrese una vez a mano en SUNAT.",
+					strings.Join(trail, " → ")+" | SUNAT: "+info)
+			}
+			trail = append(trail, "valida-session: "+info)
+		}
+	}
+
 	// 4) "Continuar sin código": la misma petición que hace el botón de SUNAT; responde con el enlace de un solo uso.
 	nreq, _ := http.NewRequest(http.MethodGet, base+"/redireccion-sin-codigo/"+sessionID, nil)
 	nreq.Header.Set("Accept", "application/json, text/plain, */*")
@@ -436,7 +460,8 @@ func (s *SunatSolAccessService) login(target sunatSolTarget, ruc, usuario, clave
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fail(SunatAccessUnexpected, "SUNAT rechazó el paso de continuar sin código.")
+		return "", accessErr(SunatAccessUnexpected, "SUNAT rechazó el paso de continuar sin código.",
+			strings.Join(trail, " → ")+" | SUNAT: "+sunatErrorSummary(b)+" | cookies: "+cookieNames(jar, base))
 	}
 	if link := extractAccessURL(b, target); link != "" {
 		return link, nil
@@ -493,6 +518,34 @@ func extractAccessURL(b []byte, target sunatSolTarget) string {
 		}
 	}
 	return target.findURLInText(strings.ReplaceAll(string(b), `\/`, `/`))
+}
+
+// sunatErrorSummary código y mensaje con que SUNAT explica un rechazo ({cod, msg, errors:[{cod, msg}]}); son
+// textos de SUNAT, nunca datos de la empresa. Si la respuesta no es ese JSON, solo informa el tamaño.
+func sunatErrorSummary(b []byte) string {
+	var v struct {
+		Cod    any    `json:"cod"`
+		Msg    string `json:"msg"`
+		Errors []struct {
+			Cod any    `json:"cod"`
+			Msg string `json:"msg"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return fmt.Sprintf("respuesta no JSON (%d bytes)", len(b))
+	}
+	parts := []string{fmt.Sprintf("cod=%v", v.Cod)}
+	if v.Msg != "" {
+		parts = append(parts, "msg="+v.Msg)
+	}
+	for _, e := range v.Errors {
+		parts = append(parts, fmt.Sprintf("error %v: %s", e.Cod, e.Msg))
+	}
+	out := strings.Join(parts, "; ")
+	if len(out) > 400 {
+		out = out[:400] + "…"
+	}
+	return out
 }
 
 // jsonKeysSummary solo los NOMBRES de los campos (nunca los valores, que pueden llevar tokens).

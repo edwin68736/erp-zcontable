@@ -20,7 +20,7 @@ type Phase =
   | { kind: 'error'; error: SunatAccessError };
 
 /** Errores tras los cuales reintentar enseguida no sirve (o empeora: puede bloquear la clave). */
-const NO_RETRY_CODES = new Set(['faltan_datos', 'credenciales_rechazadas', 'credenciales_en_pausa', 'captcha', 'sin_acceso']);
+const NO_RETRY_CODES = new Set(['faltan_datos', 'credenciales_rechazadas', 'credenciales_en_pausa', 'captcha', 'autenticacion_bloqueada', 'sin_acceso']);
 
 /**
  * Ventana de "Acceso a SUNAT / Pagos / SUNAFIL": el servidor inicia sesión por detrás con las credenciales de la empresa
