@@ -26,6 +26,11 @@ export interface CompanyAccessCredentialRow {
   /** Hay usuario y clave SOL cargados. Llega siempre, aunque usuario/clave vengan vacíos porque el
    * usuario no tiene permiso de verlos (finance.company_credentials_sol_view). */
   sol_configurado?: boolean;
+  /** Credenciales de API SUNAT del SIRE (Menú SOL → Credenciales de API SUNAT). Vacías si el usuario no puede verlas. */
+  sire_client_id: string;
+  sire_client_secret: string;
+  /** Hay Client ID y Secret de la API SIRE cargados. Llega siempre, aunque los datos vengan vacíos. */
+  sire_configurado?: boolean;
   bnl_cuenta: string;
   bnl_dni: string;
   bnl_clave_detracciones: string;

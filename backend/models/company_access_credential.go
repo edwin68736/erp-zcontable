@@ -11,6 +11,11 @@ type CompanyAccessCredential struct {
 	SolUsuario string `gorm:"size:120" json:"sol_usuario"`
 	SolClave   string `gorm:"size:255" json:"sol_clave"`
 
+	// Credenciales de API SUNAT para el SIRE (Menú SOL → Credenciales de API SUNAT → "MIGE RCE y RVIE - SIRE").
+	// Se usan junto con el usuario y la clave SOL para pedir el token de api-sire.sunat.gob.pe.
+	SireClientID     string `gorm:"size:120" json:"sire_client_id"`
+	SireClientSecret string `gorm:"size:255" json:"sire_client_secret"`
+
 	BnlCuenta            string `gorm:"size:80" json:"bnl_cuenta"`
 	BnlDNI               string `gorm:"size:20" json:"bnl_dni"`
 	BnlClaveDetracciones string `gorm:"size:255" json:"bnl_clave_detracciones"`

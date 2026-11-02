@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { P } from '../rbac/codes';
 import { OPERATIONAL_MODULES } from './sidebarConfig';
 import { TOOLS, findTool, toolPath } from './toolsConfig';
 
@@ -22,14 +23,23 @@ describe('módulo Herramientas', () => {
     expect(findTool('inexistente')).toBeUndefined();
   });
 
-  it('el sidebar los lista sin permisos (visibles para cualquier usuario autenticado)', () => {
+  it('el sidebar las lista; solo SIRE exige permiso (ver Claves SOL), el resto son públicas', () => {
     const mod = OPERATIONAL_MODULES.find((m) => m.id === 'tools');
     expect(mod?.label).toBe('Herramientas');
     const group = mod?.entries[0];
     expect(group?.type).toBe('group');
     const items = group && group.type === 'group' ? group.items : [];
     expect(items.map((i) => i.to)).toEqual(TOOLS.map((t) => toolPath(t.slug)));
-    expect(items.every((i) => i.public === true && !i.permission)).toBe(true);
+    for (const [i, t] of TOOLS.entries()) {
+      if (t.permission) {
+        expect(items[i].permission).toBe(t.permission);
+        expect(items[i].public).toBeUndefined();
+      } else {
+        expect(items[i].public).toBe(true);
+      }
+    }
+    expect(findTool('sire')?.permission).toBe(P.companyCredentialsView);
+    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire']);
     expect(mod?.moduleGatePermission).toBeUndefined();
   });
 });

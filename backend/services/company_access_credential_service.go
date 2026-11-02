@@ -36,6 +36,12 @@ type CompanyAccessCredentialRow struct {
 	// vacíos por falta de permiso) para que el botón de acceso directo sepa si puede intentarlo.
 	SolConfigurado bool `json:"sol_configurado"`
 
+	// Credenciales de API SUNAT del SIRE. Igual que la clave SOL: salen vacías si el usuario no puede verlas;
+	// SireConfigurado indica (siempre) si la empresa ya tiene client_id y client_secret cargados.
+	SireClientID     string `json:"sire_client_id"`
+	SireClientSecret string `json:"sire_client_secret"`
+	SireConfigurado  bool   `json:"sire_configurado"`
+
 	BnlCuenta            string `json:"bnl_cuenta"`
 	BnlDNI               string `json:"bnl_dni"`
 	BnlClaveDetracciones string `json:"bnl_clave_detracciones"`
@@ -91,6 +97,8 @@ type CompanyAccessCredentialUpdateInput struct {
 	Dig                  string `json:"dig"`
 	SolUsuario           string `json:"sol_usuario"`
 	SolClave             string `json:"sol_clave"`
+	SireClientID         string `json:"sire_client_id"`
+	SireClientSecret     string `json:"sire_client_secret"`
 	BnlCuenta            string `json:"bnl_cuenta"`
 	BnlDNI               string `json:"bnl_dni"`
 	BnlClaveDetracciones string `json:"bnl_clave_detracciones"`
@@ -137,6 +145,9 @@ func (s *CompanyAccessCredentialService) rowFrom(company models.Company, cred *m
 		row.SolUsuario = cred.SolUsuario
 		row.SolClave = cred.SolClave
 		row.SolConfigurado = strings.TrimSpace(cred.SolUsuario) != "" && strings.TrimSpace(cred.SolClave) != ""
+		row.SireClientID = cred.SireClientID
+		row.SireClientSecret = cred.SireClientSecret
+		row.SireConfigurado = strings.TrimSpace(cred.SireClientID) != "" && strings.TrimSpace(cred.SireClientSecret) != ""
 		row.BnlCuenta = cred.BnlCuenta
 		row.BnlDNI = cred.BnlDNI
 		row.BnlClaveDetracciones = cred.BnlClaveDetracciones
@@ -368,6 +379,8 @@ func applyCredentialInput(row *models.CompanyAccessCredential, in CompanyAccessC
 	row.Dig = strings.TrimSpace(in.Dig)
 	row.SolUsuario = strings.TrimSpace(in.SolUsuario)
 	row.SolClave = strings.TrimSpace(in.SolClave)
+	row.SireClientID = strings.TrimSpace(in.SireClientID)
+	row.SireClientSecret = strings.TrimSpace(in.SireClientSecret)
 	row.BnlCuenta = strings.TrimSpace(in.BnlCuenta)
 	row.BnlDNI = strings.TrimSpace(in.BnlDNI)
 	row.BnlClaveDetracciones = strings.TrimSpace(in.BnlClaveDetracciones)

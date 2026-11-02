@@ -366,7 +366,12 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
       {
         type: 'group',
         label: 'Herramientas',
-        items: TOOLS.map((t) => ({ to: toolPath(t.slug), icon: t.icon, label: t.label, public: true })),
+        items: TOOLS.map((t) => ({
+          to: toolPath(t.slug),
+          icon: t.icon,
+          label: t.label,
+          ...(t.permission ? { permission: t.permission } : { public: true }),
+        })),
       },
     ],
   },

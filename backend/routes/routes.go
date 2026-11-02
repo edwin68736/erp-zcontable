@@ -35,6 +35,7 @@ func Setup(app *fiber.App) {
 	calendarCtrl := controllers.NewFinanceCalendarController()
 	activityTplCtrl := controllers.NewActivityTemplateController()
 	credCtrl := controllers.NewCompanyAccessCredentialController()
+	sireCtrl := controllers.NewSireController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -345,6 +346,22 @@ func Setup(app *fiber.App) {
 	creds.Get("/import/template", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportTemplateAPI)
 	creds.Post("/import", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportAPI)
 	creds.Put("/:companyId", middleware.RequirePermission(rbac.CompanyCredentialsManage), credCtrl.UpdateAPI)
+
+	// Herramientas → SIRE: consulta y descarga del RVIE/RCE de cada empresa con sus credenciales de API (solo lectura).
+	sire := api.Group("/tools/sire", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	sire.Get("/catalog", sireCtrl.CatalogAPI)
+	sire.Post("/:companyId/test", sireCtrl.TestAPI)
+	sire.Get("/:companyId/periods", sireCtrl.PeriodsAPI)
+	sire.Get("/:companyId/tickets", sireCtrl.TicketsAPI)
+	sire.Get("/:companyId/tickets/file", sireCtrl.TicketFileAPI)
+	sire.Post("/:companyId/reports/request", sireCtrl.RequestReportAPI)
+	sire.Get("/:companyId/reports/direct", sireCtrl.DirectReportAPI)
+	sire.Get("/:companyId/summary", sireCtrl.SummaryAPI)
+	sire.Get("/:companyId/inconsistencies", sireCtrl.InconsistenciesAPI)
+	sire.Get("/:companyId/preliminares", sireCtrl.PreliminaresAPI)
+	sire.Get("/:companyId/fv0621", sireCtrl.FV0621API)
+	sire.Get("/:companyId/ajustes", sireCtrl.AjustesAPI)
+	sire.Get("/:companyId/constancia", sireCtrl.ConstanciaAPI)
 
 	// Cronograma de vencimientos SUNAT (referencia del estudio; solo se edita, nunca se crea)
 	api.Get("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatDueDateCtrl.ListAPI)

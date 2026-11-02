@@ -110,6 +110,8 @@ function emptyForm(): CompanyAccessCredentialUpdateInput {
     dig: '',
     sol_usuario: '',
     sol_clave: '',
+    sire_client_id: '',
+    sire_client_secret: '',
     bnl_cuenta: '',
     bnl_dni: '',
     bnl_clave_detracciones: '',
@@ -127,6 +129,8 @@ function rowToForm(row: CompanyAccessCredentialRow): CompanyAccessCredentialUpda
     dig: row.dig ?? '',
     sol_usuario: row.sol_usuario ?? '',
     sol_clave: row.sol_clave ?? '',
+    sire_client_id: row.sire_client_id ?? '',
+    sire_client_secret: row.sire_client_secret ?? '',
     bnl_cuenta: row.bnl_cuenta ?? '',
     bnl_dni: row.bnl_dni ?? '',
     bnl_clave_detracciones: row.bnl_clave_detracciones ?? '',
@@ -978,6 +982,35 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                       value={form.sol_clave}
                       onChange={(e) => setForm((f) => ({ ...f, sol_clave: e.target.value }))}
                       className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-50"
+                    />
+                  </label>
+                  <p className="sm:col-span-2 mt-1 text-xs font-semibold uppercase text-slate-500">
+                    API SUNAT · SIRE (Herramientas → SIRE)
+                  </p>
+                  <p className="sm:col-span-2 -mt-2 text-xs text-slate-500">
+                    Se generan en SOL: Empresas → Credenciales de API SUNAT → Gestión Credenciales de API SUNAT, marcando
+                    «MIGE RCE y RVIE - SIRE» con alcance Web.
+                  </p>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className="text-slate-600">Client ID (API SIRE)</span>
+                    <input
+                      type="text"
+                      disabled={!canManage}
+                      autoComplete="off"
+                      value={form.sire_client_id}
+                      onChange={(e) => setForm((f) => ({ ...f, sire_client_id: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono disabled:bg-slate-50"
+                    />
+                  </label>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className="text-slate-600">Client Secret (API SIRE)</span>
+                    <input
+                      type={showSecrets ? 'text' : 'password'}
+                      disabled={!canManage}
+                      autoComplete="off"
+                      value={form.sire_client_secret}
+                      onChange={(e) => setForm((f) => ({ ...f, sire_client_secret: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono disabled:bg-slate-50"
                     />
                   </label>
                 </div>

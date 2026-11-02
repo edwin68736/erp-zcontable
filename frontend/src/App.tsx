@@ -35,6 +35,8 @@ import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
 import ModuleComingSoon from './pages/ModuleComingSoon';
 import ToolUnderConstruction from './pages/tools/ToolUnderConstruction';
+import SireCompanies from './pages/tools/sire/SireCompanies';
+import SireCompany from './pages/tools/sire/SireCompany';
 import SupervisorDashboard from './pages/supervisors/SupervisorDashboard';
 import SupervisorPeriods from './pages/supervisors/SupervisorPeriods';
 import SupervisorCompaniesPage from './pages/supervisors/SupervisorCompaniesPage';
@@ -116,6 +118,8 @@ function App() {
             <Route path="dashboard" element={guard(P.dashboardView, <Dashboard />)} />
             <Route path="m/:slug" element={<ModuleComingSoon />} />
             {/* Herramientas: sin permisos por ahora; cada una muestra "En construcción". */}
+            <Route path="tools/sire" element={guard(P.companyCredentialsView, <SireCompanies />)} />
+            <Route path="tools/sire/:companyId" element={guard(P.companyCredentialsView, <SireCompany />)} />
             <Route path="tools/:slug" element={<ToolUnderConstruction />} />
             <Route path="companies" element={guard(P.companiesView, <Companies />)} />
             <Route path="companies/external" element={guard([P.companiesExternalView, P.accessStudio], <ExternalClients />)} />

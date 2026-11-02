@@ -49,6 +49,8 @@ func (ctrl *CompanyAccessCredentialController) redactSol(c fiber.Ctx, rows []ser
 	for i := range rows {
 		rows[i].SolUsuario = ""
 		rows[i].SolClave = ""
+		rows[i].SireClientID = ""
+		rows[i].SireClientSecret = ""
 	}
 }
 
@@ -176,6 +178,7 @@ func (ctrl *CompanyAccessCredentialController) UpdateAPI(c fiber.Ctx) error {
 	if uid, uerr := getUserID(c); uerr != nil || !services.Authz().HasPermission(uid, rbac.CompanyCredentialsSolView) {
 		if cur, cerr := ctrl.svc.GetByCompanyID(uint(companyID), allowed); cerr == nil && cur != nil {
 			body.SolUsuario, body.SolClave = cur.SolUsuario, cur.SolClave
+			body.SireClientID, body.SireClientSecret = cur.SireClientID, cur.SireClientSecret
 		}
 	}
 	row, err := ctrl.svc.Upsert(uint(companyID), body, allowed)
