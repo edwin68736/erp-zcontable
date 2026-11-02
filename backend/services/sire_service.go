@@ -69,7 +69,9 @@ type SireError struct {
 
 func (e *SireError) Error() string { return e.Message }
 
-func sireErr(code, msg, detail string) *SireError { return &SireError{Code: code, Message: msg, Detail: detail} }
+func sireErr(code, msg, detail string) *SireError {
+	return &SireError{Code: code, Message: msg, Detail: detail}
+}
 
 // SireCreds datos necesarios para hablar con la API SIRE de una empresa.
 type SireCreds struct {
@@ -119,10 +121,11 @@ type SireService struct {
 
 	tokenBase string // inyectables para pruebas
 	apiBase   string
+	cpeBase   string // api-cpe (plataforma de confirmación del RHE)
 	http      *http.Client
 
 	mu       sync.Mutex
-	tokens   map[uint]sireToken
+	tokens   map[string]sireToken
 	badUntil map[string]time.Time
 	locks    map[uint]*sync.Mutex
 	files    map[string]sireCachedFile
@@ -133,8 +136,9 @@ func NewSireService() *SireService {
 		creds:     NewCompanyAccessCredentialService(),
 		tokenBase: sireTokenBase,
 		apiBase:   sireAPIBase,
+		cpeBase:   cpeAPIBase,
 		http:      &http.Client{Timeout: 2 * time.Minute},
-		tokens:    map[uint]sireToken{},
+		tokens:    map[string]sireToken{},
 		badUntil:  map[string]time.Time{},
 		locks:     map[uint]*sync.Mutex{},
 		files:     map[string]sireCachedFile{},
@@ -175,6 +179,11 @@ func (s *SireService) SessionFromCreds(c SireCreds) (*SireSession, error) {
 
 // LogAccess deja en la bitácora quién consultó el SIRE de qué empresa (nunca claves ni datos).
 func (s *SireService) LogAccess(companyID, userID uint, err error) {
+	s.LogAccessTarget(sireAccessTarget, companyID, userID, err)
+}
+
+// LogAccessTarget igual que LogAccess pero para otra herramienta que usa estas credenciales (p. ej. "rhe").
+func (s *SireService) LogAccessTarget(target string, companyID, userID uint, err error) {
 	status, code := sunatAccessStatusOK, ""
 	if err != nil {
 		status = sunatAccessStatusErr
@@ -186,7 +195,7 @@ func (s *SireService) LogAccess(companyID, userID uint, err error) {
 		}
 	}
 	if dbErr := database.DB.Create(&models.CompanyAccessLog{
-		CompanyID: companyID, UserID: userID, Target: sireAccessTarget, Status: status, ErrorCode: code,
+		CompanyID: companyID, UserID: userID, Target: target, Status: status, ErrorCode: code,
 	}).Error; dbErr != nil {
 		log.Printf("sire: no se pudo registrar la bitácora: %v", dbErr)
 	}
@@ -205,23 +214,30 @@ func (s *SireService) lockFor(companyID uint) *sync.Mutex {
 	return l
 }
 
-func (s *SireService) invalidateToken(companyID uint) {
+func tokenKey(companyID uint, scope string) string { return fmt.Sprintf("%d|%s", companyID, scope) }
+
+func (s *SireService) invalidateToken(companyID uint, scope string) {
 	s.mu.Lock()
-	delete(s.tokens, companyID)
+	delete(s.tokens, tokenKey(companyID, scope))
 	s.mu.Unlock()
 }
 
-// token devuelve un token vigente (en caché mientras no venza o cambien las credenciales).
-func (ss *SireSession) token() (string, error) {
+// token devuelve un token vigente para la API SIRE.
+func (ss *SireSession) token() (string, error) { return ss.tokenFor(sireScope) }
+
+// tokenFor devuelve un token vigente para el alcance pedido (en caché mientras no venza o cambien las credenciales).
+// El mismo Client ID/Secret sirve para varias APIs de SUNAT; solo cambia el alcance (scope).
+func (ss *SireSession) tokenFor(scope string) (string, error) {
 	s, c := ss.svc, ss.creds
-	fp := c.fingerprint()
+	fp := c.fingerprint() + "|" + scope
+	key := tokenKey(c.CompanyID, scope)
 
 	lock := s.lockFor(c.CompanyID)
 	lock.Lock()
 	defer lock.Unlock()
 
 	s.mu.Lock()
-	if t, ok := s.tokens[c.CompanyID]; ok && t.finger == fp && time.Now().Before(t.expires) {
+	if t, ok := s.tokens[key]; ok && t.finger == fp && time.Now().Before(t.expires) {
 		s.mu.Unlock()
 		return t.value, nil
 	}
@@ -234,7 +250,7 @@ func (ss *SireSession) token() (string, error) {
 
 	form := url.Values{
 		"grant_type":    {"password"},
-		"scope":         {sireScope},
+		"scope":         {scope},
 		"client_id":     {c.ClientID},
 		"client_secret": {c.ClientSecret},
 		"username":      {c.RUC + c.SolUsuario},
@@ -258,7 +274,7 @@ func (ss *SireSession) token() (string, error) {
 			s.badUntil[fp] = time.Now().Add(sireBadCredsCooldown)
 			s.mu.Unlock()
 			return "", sireErr(SireErrBadCreds,
-				"SUNAT no aceptó las credenciales de la API SIRE de esta empresa (Client ID/Secret, usuario o clave SOL). Revíselas en Claves SOL (Editar).",
+				"SUNAT no aceptó las credenciales de API de esta empresa (Client ID/Secret, usuario o clave SOL). Revíselas en Claves SOL (Editar).",
 				fmt.Sprintf("HTTP %d %s", resp.StatusCode, detail))
 		}
 		return "", sireErr(SireErrUnavailable, "SUNAT no pudo entregar el token en este momento. Intente de nuevo en unos minutos.",
@@ -279,7 +295,7 @@ func (ss *SireSession) token() (string, error) {
 		ttl = time.Duration(secs) * time.Second / 2
 	}
 	s.mu.Lock()
-	s.tokens[c.CompanyID] = sireToken{value: tr.AccessToken, expires: time.Now().Add(ttl), finger: fp}
+	s.tokens[key] = sireToken{value: tr.AccessToken, expires: time.Now().Add(ttl), finger: fp}
 	s.mu.Unlock()
 	return tr.AccessToken, nil
 }
@@ -337,12 +353,17 @@ type SireResponse struct {
 
 // call hace una petición autenticada. path va relativo a /v1/contribuyente/migeigv/libros/.
 func (ss *SireSession) call(method, path string, query url.Values) (*SireResponse, error) {
+	return ss.doCall(sireScope, ss.svc.apiBase+sireLibroPath+path, method, query)
+}
+
+// doCall hace una petición autenticada con el token del alcance indicado a la URL completa (sin query).
+func (ss *SireSession) doCall(scope, endpoint, method string, query url.Values) (*SireResponse, error) {
 	for attempt := 0; attempt < 2; attempt++ {
-		tok, err := ss.token()
+		tok, err := ss.tokenFor(scope)
 		if err != nil {
 			return nil, err
 		}
-		u := ss.svc.apiBase + sireLibroPath + path
+		u := endpoint
 		if len(query) > 0 {
 			u += "?" + query.Encode()
 		}
@@ -359,7 +380,7 @@ func (ss *SireSession) call(method, path string, query url.Values) (*SireRespons
 			return nil, sireErr(SireErrUnavailable, "Se interrumpió la descarga desde SUNAT. Intente de nuevo.", errSummary(rerr))
 		}
 		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
-			ss.svc.invalidateToken(ss.creds.CompanyID) // token vencido: se pide otro una vez
+			ss.svc.invalidateToken(ss.creds.CompanyID, scope) // token vencido: se pide otro una vez
 			continue
 		}
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
@@ -369,6 +390,9 @@ func (ss *SireSession) call(method, path string, query url.Values) (*SireRespons
 				Disposition: resp.Header.Get("Content-Disposition"),
 				Body:        body,
 			}, nil
+		}
+		if scope == cpeScope {
+			return nil, cpeHTTPError(resp.StatusCode, body)
 		}
 		return nil, sireHTTPError(resp.StatusCode, body)
 	}

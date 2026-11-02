@@ -363,6 +363,10 @@ func Setup(app *fiber.App) {
 	sire.Get("/:companyId/ajustes", sireCtrl.AjustesAPI)
 	sire.Get("/:companyId/constancia", sireCtrl.ConstanciaAPI)
 
+	// RH: plataforma de confirmación del RHE y de la FE (mismas credenciales de API que el SIRE).
+	rh := api.Group("/tools/rh", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	rh.Get("/:companyId/comprobantes", sireCtrl.RheListAPI)
+
 	// Cronograma de vencimientos SUNAT (referencia del estudio; solo se edita, nunca se crea)
 	api.Get("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatDueDateCtrl.ListAPI)
 	api.Put("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesManage), sunatDueDateCtrl.UpdateAPI)

@@ -11,7 +11,25 @@ const PER_PAGE = 20;
  * Herramientas → SIRE: lista de empresas del estudio. Desde cada una se abre su SIRE (ventas y compras) para
  * consultar y descargar la información de SUNAT. Las credenciales de API se cargan en Claves SOL (Editar).
  */
-const SireCompanies = () => {
+interface Props {
+  title?: string;
+  subtitle?: string;
+  /** Ruta base de la herramienta: cada fila enlaza a `<basePath>/<empresa>`. */
+  basePath?: string;
+  openLabel?: string;
+  openIcon?: string;
+  /** Texto de la columna de estado de las credenciales de API. */
+  apiLabel?: string;
+}
+
+const SireCompanies = ({
+  title = 'SIRE',
+  subtitle = 'Registro de Ventas e Ingresos (RVIE) y Registro de Compras (RCE) de SUNAT: elija una empresa para consultar y descargar su información.',
+  basePath = '/tools/sire',
+  openLabel = 'Abrir SIRE',
+  openIcon = 'fas fa-file-invoice',
+  apiLabel = 'API SIRE',
+}: Props) => {
   const [q, setQ] = useState('');
   const [qInput, setQInput] = useState('');
   const [page, setPage] = useState(1);
@@ -53,10 +71,8 @@ const SireCompanies = () => {
     <div className="space-y-5 pt-2">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
-        <PageHeading className="mt-1">SIRE</PageHeading>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Registro de Ventas e Ingresos (RVIE) y Registro de Compras (RCE) de SUNAT: elija una empresa para consultar y descargar su información.
-        </p>
+        <PageHeading className="mt-1">{title}</PageHeading>
+        <p className="mt-1 text-sm font-medium text-slate-500">{subtitle}</p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -96,7 +112,7 @@ const SireCompanies = () => {
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="bg-blue-900 text-xs uppercase text-white">
-                {['Cod', 'Razón social', 'RUC', 'Asistente', 'Supervisor', 'API SIRE', ''].map((h, i) => (
+                {['Cod', 'Razón social', 'RUC', 'Asistente', 'Supervisor', apiLabel, ''].map((h, i) => (
                   <th key={`${h}-${i}`} className="px-3 py-2.5 font-semibold">
                     {h}
                   </th>
@@ -126,11 +142,11 @@ const SireCompanies = () => {
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Link
-                        to={`/tools/sire/${r.company_id}`}
+                        to={`${basePath}/${r.company_id}`}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
                       >
-                        <i className="fas fa-file-invoice" aria-hidden />
-                        Abrir SIRE
+                        <i className={openIcon} aria-hidden />
+                        {openLabel}
                       </Link>
                     </td>
                   </tr>
