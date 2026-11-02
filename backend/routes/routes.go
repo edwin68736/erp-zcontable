@@ -363,6 +363,12 @@ func Setup(app *fiber.App) {
 	sire.Get("/:companyId/fv0621", sireCtrl.FV0621API)
 	sire.Get("/:companyId/ajustes", sireCtrl.AjustesAPI)
 	sire.Get("/:companyId/constancia", sireCtrl.ConstanciaAPI)
+	// Historial de descargas (consultas procesadas en segundo plano, con su Excel guardado).
+	sire.Get("/:companyId/downloads", sireCtrl.DownloadsListAPI)
+	sire.Post("/:companyId/downloads", sireCtrl.DownloadsCreateAPI)
+	sire.Delete("/:companyId/downloads", sireCtrl.DownloadsClearAPI)
+	sire.Get("/:companyId/downloads/:downloadId/file", sireCtrl.DownloadFileAPI)
+	sire.Delete("/:companyId/downloads/:downloadId", sireCtrl.DownloadDeleteAPI)
 
 	// RH: plataforma de confirmación del RHE y de la FE (mismas credenciales de API que el SIRE).
 	rh := api.Group("/tools/rh", middleware.RequirePermission(rbac.CompanyCredentialsView))

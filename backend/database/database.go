@@ -93,6 +93,7 @@ func AutoMigrate() error {
 		&models.CompanyAccessLog{},
 		&models.SunatBuzonMessage{},
 		&models.SunatBuzonSync{},
+		&models.SireDownload{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

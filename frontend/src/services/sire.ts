@@ -27,28 +27,26 @@ export interface SirePeriodYear {
   lisPeriodos: SirePeriod[];
 }
 
-interface SireTicketFile {
-  codTipoAchivoReporte?: string | null;
-  codTipoArchivoReporte?: string | null;
-  nomArchivoReporte: string;
-}
+export type SireDownloadMode = 'sin_glosas';
+export type SireDownloadStatus = 'en_proceso' | 'listo' | 'sin_datos' | 'error';
 
-interface SireTicketRecord {
-  numTicket: string;
-  perTributario: string;
-  codProceso?: string;
-  desEstadoProceso?: string;
-  codEstadoProceso?: string;
-  archivoReporte?: SireTicketFile[];
-}
-
-interface SireTicketsResponse {
-  registros?: SireTicketRecord[];
-}
-
-/** Ticket que ya no cambia: terminado, concluido o con errores. */
-function ticketFinished(code?: string): boolean {
-  return code === '06' || code === '04' || code === '03';
+/** Una consulta del historial: el período pedido y su resultado. */
+export interface SireDownloadItem {
+  id: number;
+  company_id: number;
+  libro: SireLibro;
+  period: string;
+  mode: SireDownloadMode;
+  status: SireDownloadStatus;
+  /** Mientras está en proceso: solicitando | esperando | generando. */
+  step?: 'solicitando' | 'esperando' | 'generando';
+  rows: number;
+  size: number;
+  error_code?: string;
+  error_message?: string;
+  error_detail?: string;
+  created_at: string;
+  finished_at?: string;
 }
 
 function toError(err: unknown, fallback: string): SireApiError {
@@ -75,19 +73,12 @@ async function toBlobError(err: unknown, fallback: string): Promise<SireApiError
 
 const base = (companyId: number) => `/tools/sire/${companyId}`;
 const LONG = { timeout: 120000 };
-
-/** Cada cuánto se pregunta a SUNAT si el archivo ya está listo, y cuánto se espera como máximo. */
-const POLL_MS = 4000;
-const POLL_MAX_MS = 5 * 60 * 1000;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+const SHORT = { timeout: 60000 };
 
 /** Nombre del Excel de la propuesta: «<RUC>-<AAAAMM>-SIREV-Propuesta.xlsx» (ventas) o «-SIREC-» (compras). */
 export function sirePropuestaFileName(ruc: string, period: string, libro: SireLibro): string {
   return `${ruc}-${period}-${libro === 'ventas' ? 'SIREV' : 'SIREC'}-Propuesta.xlsx`;
 }
-
-export type SireDownloadStep = 'solicitando' | 'esperando' | 'generando';
 
 /** Formato AAAAMM → "09/2026". */
 export function formatSirePeriod(p: string | undefined): string {
@@ -126,84 +117,50 @@ export const sireService = {
     }
   },
 
-  /** Descarga el Excel de la propuesta y lo guarda en el navegador. */
-  async downloadPropuestaExcel(
-    companyId: number,
-    p: { libro: SireLibro; period: string; ruc: string },
-    onStep?: (step: SireDownloadStep) => void,
-  ): Promise<void> {
-    saveBlobAs(await sireService.fetchPropuestaExcel(companyId, p, onStep), sirePropuestaFileName(p.ruc, p.period, p.libro));
+  /** Historial de consultas de la empresa (lo más reciente primero). */
+  async downloads(companyId: number): Promise<SireDownloadItem[]> {
+    try {
+      const res = await client.get<{ data: SireDownloadItem[] }>(`${base(companyId)}/downloads`, SHORT);
+      return res.data.data ?? [];
+    } catch (err) {
+      throw toError(err, 'No se pudo leer el historial.');
+    }
   },
 
-  /**
-   * Pide a SUNAT la propuesta de comprobantes del libro y período (la prepara por ticket), espera a que esté
-   * lista y la convierte a un .xlsx válido en el servidor. Devuelve el archivo sin guardarlo.
-   */
-  async fetchPropuestaExcel(
-    companyId: number,
-    p: { libro: SireLibro; period: string; ruc: string },
-    onStep?: (step: SireDownloadStep) => void,
-  ): Promise<Blob> {
-    onStep?.('solicitando');
-    let ticket: string;
+  /** Registra una consulta por período; SUNAT la procesa en segundo plano y aparece en el historial. */
+  async startDownloads(companyId: number, p: { libro: SireLibro; periods: string[]; mode: SireDownloadMode }): Promise<SireDownloadItem[]> {
     try {
-      const res = await client.post<{ data: { ticket: string } }>(
-        `${base(companyId)}/reports/request`,
-        { libro: p.libro, report: 'propuesta', period: p.period, params: {} },
-        LONG,
-      );
-      ticket = res.data.data.ticket;
+      const res = await client.post<{ data: SireDownloadItem[] }>(`${base(companyId)}/downloads`, p, SHORT);
+      return res.data.data ?? [];
     } catch (err) {
-      throw toError(err, 'No se pudo solicitar la propuesta a SUNAT.');
+      throw toError(err, 'No se pudo iniciar la consulta.');
     }
+  },
 
-    onStep?.('esperando');
-    const started = Date.now();
-    let record: SireTicketRecord | undefined;
-    for (;;) {
-      await sleep(POLL_MS);
-      try {
-        const res = await client.get<{ data: SireTicketsResponse }>(`${base(companyId)}/tickets`, {
-          params: { libro: p.libro, per_ini: p.period, per_fin: p.period, page: 1, per_page: 5, ticket },
-          ...LONG,
-        });
-        const list = res.data.data?.registros ?? [];
-        record = list.find((r) => r.numTicket === ticket) ?? list[0];
-      } catch (err) {
-        throw toError(err, 'No se pudo consultar el estado del archivo en SUNAT.');
-      }
-      if (ticketFinished(record?.codEstadoProceso)) break;
-      if (Date.now() - started > POLL_MAX_MS) {
-        throw { message: 'SUNAT tarda en preparar el archivo. Intente de nuevo en unos minutos.', code: 'timeout' } satisfies SireApiError;
-      }
-    }
-
-    if (record?.codEstadoProceso === '03') {
-      throw { message: 'SUNAT no pudo generar la propuesta de este período (terminó con errores).', code: 'ticket_con_errores' } satisfies SireApiError;
-    }
-    const file = (record?.archivoReporte ?? []).find((a) => a.nomArchivoReporte);
-    if (!file) {
-      throw { message: 'SUNAT no tiene comprobantes en la propuesta de este período.', code: 'sin_datos' } satisfies SireApiError;
-    }
-
-    onStep?.('generando');
+  /** El Excel de una consulta ya lista (sin volver a consultar a SUNAT). */
+  async downloadBlob(companyId: number, id: number): Promise<Blob> {
     try {
-      const res = await client.get<Blob>(`${base(companyId)}/tickets/file`, {
-        params: {
-          libro: p.libro,
-          name: file.nomArchivoReporte,
-          type: file.codTipoAchivoReporte ?? file.codTipoArchivoReporte ?? '',
-          period: p.period,
-          proceso: record?.codProceso ?? '',
-          ticket,
-          mode: 'excel',
-        },
-        responseType: 'blob',
-        ...LONG,
-      });
+      const res = await client.get<Blob>(`${base(companyId)}/downloads/${id}/file`, { responseType: 'blob', ...SHORT });
       return res.data;
     } catch (err) {
-      throw await toBlobError(err, 'No se pudo generar el Excel.');
+      throw await toBlobError(err, 'No se pudo bajar el Excel.');
+    }
+  },
+
+  async removeDownload(companyId: number, id: number): Promise<void> {
+    try {
+      await client.delete(`${base(companyId)}/downloads/${id}`, SHORT);
+    } catch (err) {
+      throw toError(err, 'No se pudo quitar del historial.');
+    }
+  },
+
+  /** Limpia el historial (menos lo que sigue en proceso). */
+  async clearDownloads(companyId: number): Promise<void> {
+    try {
+      await client.delete(`${base(companyId)}/downloads`, SHORT);
+    } catch (err) {
+      throw toError(err, 'No se pudo limpiar el historial.');
     }
   },
 };
