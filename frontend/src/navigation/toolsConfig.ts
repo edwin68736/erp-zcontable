@@ -43,7 +43,14 @@ export const TOOLS: ToolConfig[] = [
   { slug: 'tipo-de-cambio', label: 'Tipo de cambio', icon: 'fas fa-dollar-sign', description: 'Tipo de cambio SUNAT por fecha.' },
   { slug: 'consulta-detracciones', label: 'Consulta de detracciones', icon: 'fas fa-magnifying-glass-dollar', description: 'Consulta de depósitos y pendientes de detracciones.' },
   { slug: 'consulta-dam', label: 'Consulta DAM', icon: 'fas fa-box-open', description: 'Consulta de Declaraciones Aduaneras de Mercancías.' },
-  { slug: 'notificaciones-sunat', label: 'Notificaciones SUNAT', icon: 'fas fa-envelope-open-text', description: 'Notificaciones y mensajes del buzón de SUNAT.' },
+  {
+    slug: 'notificaciones-sunat',
+    label: 'Notificaciones SUNAT',
+    icon: 'fas fa-envelope-open-text',
+    description: 'Notificaciones y mensajes del buzón electrónico de SUNAT, sincronizados cada noche.',
+    permission: P.companyCredentialsView,
+    ready: true,
+  },
 ];
 
 export const toolPath = (slug: string): string => `${TOOLS_BASE_PATH}/${slug}`;

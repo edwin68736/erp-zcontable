@@ -39,7 +39,7 @@ describe('módulo Herramientas', () => {
       }
     }
     expect(findTool('sire')?.permission).toBe(P.companyCredentialsView);
-    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh']);
+    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh', 'notificaciones-sunat']);
     expect(mod?.moduleGatePermission).toBeUndefined();
   });
 });

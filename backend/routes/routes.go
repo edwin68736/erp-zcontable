@@ -36,6 +36,7 @@ func Setup(app *fiber.App) {
 	activityTplCtrl := controllers.NewActivityTemplateController()
 	credCtrl := controllers.NewCompanyAccessCredentialController()
 	sireCtrl := controllers.NewSireController()
+	buzonCtrl := controllers.NewSunatBuzonController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -366,6 +367,13 @@ func Setup(app *fiber.App) {
 	// RH: plataforma de confirmación del RHE y de la FE (mismas credenciales de API que el SIRE).
 	rh := api.Group("/tools/rh", middleware.RequirePermission(rbac.CompanyCredentialsView))
 	rh.Get("/:companyId/comprobantes", sireCtrl.RheListAPI)
+
+	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
+	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	buzon.Get("/summary", buzonCtrl.SummaryAPI)
+	buzon.Get("/:companyId", buzonCtrl.GetAPI)
+	buzon.Post("/:companyId/sync", buzonCtrl.SyncAPI)
+	buzon.Post("/:companyId/seen", buzonCtrl.SeenAPI)
 
 	// Cronograma de vencimientos SUNAT (referencia del estudio; solo se edita, nunca se crea)
 	api.Get("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatDueDateCtrl.ListAPI)

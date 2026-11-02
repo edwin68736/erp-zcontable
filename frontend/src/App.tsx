@@ -39,6 +39,8 @@ import SireCompanies from './pages/tools/sire/SireCompanies';
 import SireCompany from './pages/tools/sire/SireCompany';
 import RhCompanies from './pages/tools/rh/RhCompanies';
 import RhCompany from './pages/tools/rh/RhCompany';
+import BuzonCompanies from './pages/tools/buzon/BuzonCompanies';
+import BuzonCompany from './pages/tools/buzon/BuzonCompany';
 import SupervisorDashboard from './pages/supervisors/SupervisorDashboard';
 import SupervisorPeriods from './pages/supervisors/SupervisorPeriods';
 import SupervisorCompaniesPage from './pages/supervisors/SupervisorCompaniesPage';
@@ -124,6 +126,8 @@ function App() {
             <Route path="tools/sire/:companyId" element={guard(P.companyCredentialsView, <SireCompany />)} />
             <Route path="tools/rh" element={guard(P.companyCredentialsView, <RhCompanies />)} />
             <Route path="tools/rh/:companyId" element={guard(P.companyCredentialsView, <RhCompany />)} />
+            <Route path="tools/notificaciones-sunat" element={guard(P.companyCredentialsView, <BuzonCompanies />)} />
+            <Route path="tools/notificaciones-sunat/:companyId" element={guard(P.companyCredentialsView, <BuzonCompany />)} />
             <Route path="tools/:slug" element={<ToolUnderConstruction />} />
             <Route path="companies" element={guard(P.companiesView, <Companies />)} />
             <Route path="companies/external" element={guard([P.companiesExternalView, P.accessStudio], <ExternalClients />)} />

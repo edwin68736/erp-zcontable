@@ -99,6 +99,7 @@ func main() {
 	routes.Setup(app)
 
 	services.StartSupervisorAutomationLoop()
+	services.StartSunatBuzonNightlySync()
 
 	addr := ":" + config.AppConfig.ServerPort
 	log.Printf("Servidor en http://localhost%s", addr)

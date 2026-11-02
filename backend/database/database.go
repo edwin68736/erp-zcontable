@@ -91,6 +91,8 @@ func AutoMigrate() error {
 		&models.ActivityParamAudit{},
 		&models.CompanyAccessCredential{},
 		&models.CompanyAccessLog{},
+		&models.SunatBuzonMessage{},
+		&models.SunatBuzonSync{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},
