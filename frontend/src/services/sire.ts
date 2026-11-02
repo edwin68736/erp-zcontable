@@ -15,6 +15,18 @@ export interface SireApiError {
   detail?: string;
 }
 
+export interface SirePeriod {
+  perTributario: string;
+  codEstado?: string;
+  desEstado?: string;
+}
+
+export interface SirePeriodYear {
+  numEjercicio: string;
+  desEstado?: string;
+  lisPeriodos: SirePeriod[];
+}
+
 interface SireTicketFile {
   codTipoAchivoReporte?: string | null;
   codTipoArchivoReporte?: string | null;
@@ -77,16 +89,61 @@ export function sirePropuestaFileName(ruc: string, period: string, libro: SireLi
 
 export type SireDownloadStep = 'solicitando' | 'esperando' | 'generando';
 
+/** Formato AAAAMM → "09/2026". */
+export function formatSirePeriod(p: string | undefined): string {
+  return p && /^\d{6}$/.test(p) ? `${p.slice(4)}/${p.slice(0, 4)}` : p ?? '';
+}
+
+/** Guarda un archivo en el navegador del usuario. */
+export function saveBlobAs(blob: Blob, name: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export const sireService = {
-  /**
-   * Descarga en Excel la propuesta de comprobantes del libro y período: pide el archivo a SUNAT (que lo prepara
-   * por ticket), espera a que esté listo y lo convierte a un .xlsx válido en el servidor.
-   */
+  /** Comprueba las credenciales de API de la empresa (token + consulta de períodos). */
+  async test(companyId: number): Promise<void> {
+    try {
+      await client.post(`${base(companyId)}/test`, undefined, LONG);
+    } catch (err) {
+      throw toError(err, 'No se pudo probar la conexión con SUNAT.');
+    }
+  },
+
+  /** Períodos que SUNAT tiene habilitados para el libro, agrupados por año. */
+  async periods(companyId: number, libro: SireLibro): Promise<SirePeriodYear[]> {
+    try {
+      const res = await client.get<{ data: SirePeriodYear[] | null }>(`${base(companyId)}/periods`, { params: { libro }, ...LONG });
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    } catch (err) {
+      throw toError(err, 'No se pudieron consultar los períodos en SUNAT.');
+    }
+  },
+
+  /** Descarga el Excel de la propuesta y lo guarda en el navegador. */
   async downloadPropuestaExcel(
     companyId: number,
     p: { libro: SireLibro; period: string; ruc: string },
     onStep?: (step: SireDownloadStep) => void,
   ): Promise<void> {
+    saveBlobAs(await sireService.fetchPropuestaExcel(companyId, p, onStep), sirePropuestaFileName(p.ruc, p.period, p.libro));
+  },
+
+  /**
+   * Pide a SUNAT la propuesta de comprobantes del libro y período (la prepara por ticket), espera a que esté
+   * lista y la convierte a un .xlsx válido en el servidor. Devuelve el archivo sin guardarlo.
+   */
+  async fetchPropuestaExcel(
+    companyId: number,
+    p: { libro: SireLibro; period: string; ruc: string },
+    onStep?: (step: SireDownloadStep) => void,
+  ): Promise<Blob> {
     onStep?.('solicitando');
     let ticket: string;
     try {
@@ -130,7 +187,6 @@ export const sireService = {
     }
 
     onStep?.('generando');
-    const fallbackName = sirePropuestaFileName(p.ruc, p.period, p.libro);
     try {
       const res = await client.get<Blob>(`${base(companyId)}/tickets/file`, {
         params: {
@@ -145,14 +201,7 @@ export const sireService = {
         responseType: 'blob',
         ...LONG,
       });
-      const url = window.URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fallbackName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      return res.data;
     } catch (err) {
       throw await toBlobError(err, 'No se pudo generar el Excel.');
     }
