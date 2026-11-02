@@ -16,7 +16,7 @@ import {
 } from '../../../services/sire';
 import { timeAgo } from '../buzon/buzonUi';
 import { mergePeriodExcels, periodsBetween } from './sireExcel';
-import { SireErrorBox, Spinner } from './SireShared';
+import { Card, SireErrorBox, Spinner } from './SireShared';
 import { SELECT_CLS, sireMissing } from './sireUi';
 
 const MAX_RANGE = 12;
@@ -33,28 +33,25 @@ const TABS: { value: SireLibro; label: string; icon: string }[] = [
   { value: 'ventas', label: 'SIRE Ventas', icon: 'fas fa-dollar-sign' },
 ];
 
+/** Selector segmentado del sistema (mismo estilo que el resto de las herramientas). */
+const segBtn = (active: boolean) => `px-4 py-2 text-sm font-semibold ${active ? 'bg-blue-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`;
+
 /** Todos los períodos AAAAMM del listado de SUNAT, sin repetir y en orden (el listado viene agrupado por año). */
 function allPeriods(years: SirePeriodYear[]): string[] {
   return Array.from(new Set(years.flatMap((y) => (y.lisPeriodos ?? []).map((p) => p.perTributario)).filter(Boolean))).sort();
 }
 
-/** «202610» → «2026-10» (como se muestra en el historial). */
-function periodLabel(p: string): string {
-  return /^\d{6}$/.test(p) ? `${p.slice(0, 4)}-${p.slice(4)}` : p;
-}
+/** «202610» → «10/2026». */
+const periodLabel = formatSirePeriod;
 
 function HistoryItem({
   item,
-  ruc,
-  companyName,
   onExcel,
   onRemove,
   onRetry,
   busy,
 }: {
   item: SireDownloadItem;
-  ruc: string;
-  companyName: string;
   onExcel: (it: SireDownloadItem) => void;
   onRemove: (it: SireDownloadItem) => void;
   onRetry: (it: SireDownloadItem) => void;
@@ -62,69 +59,69 @@ function HistoryItem({
 }) {
   const [detail, setDetail] = useState(false);
   return (
-    <li className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <li className="rounded-xl border border-slate-200 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-slate-900" title={`${ruc} - ${companyName}`}>
-            {ruc} - {companyName}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="font-semibold text-slate-700">Período: {periodLabel(item.period)}</span>
-            <span className={`rounded px-1.5 py-0.5 font-bold uppercase ${item.libro === 'compras' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{item.libro}</span>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold uppercase text-slate-600">Sin glosas</span>
-            <span className="text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold text-slate-800">
+              {item.libro === 'compras' ? 'Compras' : 'Ventas'} · {periodLabel(item.period)}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Sin glosas</span>
+            {item.status === 'en_proceso' ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">En proceso</span> : null}
+            {item.status === 'listo' ? <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Listo</span> : null}
+            {item.status === 'sin_datos' ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Sin movimientos</span> : null}
+            {item.status === 'error' ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Error</span> : null}
+            <span className="text-xs text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
               {timeAgo(item.created_at)}
             </span>
           </div>
-          <div className="mt-1 text-sm">
+          <p className="text-xs text-slate-500">
             {item.status === 'en_proceso' ? (
-              <span className="text-slate-500" role="status">
+              <span role="status">
+                <i className="fas fa-spinner fa-spin mr-1.5" aria-hidden />
                 {STEP_LABEL[item.step ?? 'solicitando']}
               </span>
             ) : item.status === 'listo' ? (
-              <span className="font-medium text-green-600">
-                ¡Descarga exitosa! <span className="font-normal text-slate-500">({item.rows} {item.rows === 1 ? 'comprobante' : 'comprobantes'})</span>
-              </span>
+              `${item.rows} ${item.rows === 1 ? 'comprobante' : 'comprobantes'} · listo para descargar`
             ) : item.status === 'sin_datos' ? (
-              <span className="text-slate-500">Sin movimientos en SUNAT</span>
+              'SUNAT no tiene comprobantes en la propuesta de este período.'
             ) : (
-              <span className="text-red-600">
+              <span className="text-red-700">
                 {item.error_message || 'No se pudo completar la consulta.'}
                 {item.error_detail ? (
-                  <button type="button" onClick={() => setDetail((v) => !v)} className="ml-2 text-xs text-red-700 underline">
-                    {detail ? 'Ocultar detalle' : 'Ver detalle técnico'}
+                  <button type="button" onClick={() => setDetail((v) => !v)} className="ml-2 underline">
+                    {detail ? 'Ocultar detalle técnico' : 'Ver detalle técnico'}
                   </button>
                 ) : null}
               </span>
             )}
-          </div>
-          {detail && item.error_detail ? <p className="mt-1 break-words rounded-md bg-slate-50 px-2 py-1.5 font-mono text-2xs text-slate-700">{item.error_code ? `[${item.error_code}] ` : ''}{item.error_detail}</p> : null}
+          </p>
+          {detail && item.error_detail ? (
+            <p className="break-words rounded-md bg-slate-50 px-2 py-1.5 font-mono text-2xs text-slate-700">
+              {item.error_code ? `[${item.error_code}] ` : ''}
+              {item.error_detail}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {item.status === 'en_proceso' ? <i className="fas fa-spinner fa-spin text-blue-500" aria-label="En proceso" /> : null}
           {item.status === 'listo' ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onExcel(item)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 hover:bg-green-100 disabled:opacity-50"
-            >
-              <i className="fas fa-file-excel" aria-hidden />
+            <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={busy} onClick={() => onExcel(item)}>
+              <i className="fas fa-file-excel mr-1.5 text-green-700" aria-hidden />
               Excel
-            </button>
+            </Button>
           ) : null}
           {item.status === 'error' ? (
-            <button type="button" disabled={busy} onClick={() => onRetry(item)} className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">
-              <i className="fas fa-rotate-right mr-1" aria-hidden />
+            <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={busy} onClick={() => onRetry(item)}>
+              <i className="fas fa-rotate-right mr-1.5" aria-hidden />
               Reintentar
-            </button>
+            </Button>
           ) : null}
           <button
             type="button"
             onClick={() => onRemove(item)}
             title="Quitar del historial"
             aria-label="Quitar del historial"
-            className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+            className="rounded-lg px-2 py-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
           >
             <i className="fas fa-trash-can" aria-hidden />
           </button>
@@ -318,6 +315,7 @@ const SireCompany = () => {
   }
 
   const tabLabel = SIRE_LIBROS.find((l) => l.value === libro)?.short ?? '';
+  const submitDisabled = busy || periodsLoading || (rangeOpen ? !!rangeError || rangePeriods.length === 0 : !period);
 
   return (
     <div className="space-y-5 pt-2">
@@ -358,178 +356,157 @@ const SireCompany = () => {
 
       {company && !missing ? (
         <>
-          <div className="inline-flex gap-1 rounded-2xl bg-slate-100 p-1.5" role="tablist" aria-label="Libro">
+          <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="tablist" aria-label="Libro">
             {TABS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                role="tab"
-                aria-selected={libro === t.value}
-                onClick={() => setLibro(t.value)}
-                className={`rounded-xl px-5 py-2.5 text-sm font-bold ${libro === t.value ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-              >
-                <i className={`${t.icon} mr-2`} aria-hidden />
+              <button key={t.value} type="button" role="tab" aria-selected={libro === t.value} onClick={() => setLibro(t.value)} className={segBtn(libro === t.value)}>
+                <i className={`${t.icon} mr-1.5`} aria-hidden />
                 {t.label}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-            <section className="rounded-3xl border border-slate-200 border-t-4 border-t-blue-500 bg-white p-6 shadow-sm">
-              <h2 className="mb-5 flex items-center gap-2 text-xl font-extrabold text-slate-900">
-                <i className="fas fa-file-arrow-down text-blue-600" aria-hidden />
-                Descarga individual ({tabLabel})
-              </h2>
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
+            <Card title={`Descarga individual (${tabLabel})`} subtitle="Elija el período y SUNAT preparará el Excel; el resultado queda en el historial.">
+              <div className="space-y-3">
+                <div>
+                  <span className="mb-0.5 block text-xs text-slate-600">Empresa</span>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                    <span className="font-medium">{company.business_name}</span>
+                    <span className="ml-2 font-mono text-xs text-slate-500">{company.ruc}</span>
+                  </div>
+                </div>
 
-              <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">1. Empresa seleccionada</p>
-              <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
-                <span className="font-semibold">{company.business_name}</span>
-                <span className="ml-2 font-mono text-xs text-slate-500">{company.ruc}</span>
-              </div>
+                {!rangeOpen ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs text-slate-600">
+                      <span className="mb-0.5 block">Año</span>
+                      <select
+                        value={year}
+                        disabled={periodsLoading || years.length === 0}
+                        onChange={(e) => {
+                          const last = periodList.filter((p) => p.startsWith(e.target.value)).pop();
+                          if (last) setPeriod(last);
+                        }}
+                        className={`${SELECT_CLS} w-full`}
+                      >
+                        {years.map((y) => (
+                          <option key={y.numEjercicio} value={y.numEjercicio}>
+                            {y.numEjercicio}
+                            {y.desEstado ? ` — ${y.desEstado}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      <span className="mb-0.5 block">Período</span>
+                      <select value={period} disabled={periodsLoading || monthsOfYear.length === 0} onChange={(e) => setPeriod(e.target.value)} className={`${SELECT_CLS} w-full`}>
+                        {monthsOfYear.map((p) => (
+                          <option key={p} value={p}>
+                            {formatSirePeriod(p)}
+                            {periodMeta.get(p) ? ` — ${periodMeta.get(p)}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs text-slate-600">
+                      <span className="mb-0.5 block">Desde</span>
+                      <select value={desde} disabled={periodsLoading || rangeOptions.length === 0} onChange={(e) => setDesde(e.target.value)} className={`${SELECT_CLS} w-full`}>
+                        {rangeOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      <span className="mb-0.5 block">Hasta</span>
+                      <select value={hasta} disabled={periodsLoading || rangeOptions.length === 0} onChange={(e) => setHasta(e.target.value)} className={`${SELECT_CLS} w-full`}>
+                        {rangeOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
 
-              {!rangeOpen ? (
-                <div className="mb-5 grid grid-cols-2 gap-3">
-                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <span className="mb-1.5 block">2. Año tributario</span>
-                    <select
-                      value={year}
-                      disabled={periodsLoading || years.length === 0}
-                      onChange={(e) => {
-                        const last = periodList.filter((p) => p.startsWith(e.target.value)).pop();
-                        if (last) setPeriod(last);
-                      }}
-                      className={`${SELECT_CLS} w-full font-normal normal-case`}
+                <div>
+                  <span className="mb-0.5 block text-xs text-slate-600">Modo de descarga</span>
+                  <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Modo de descarga">
+                    <button type="button" aria-pressed="true" className={segBtn(true)}>
+                      Sin glosas
+                    </button>
+                    <button
+                      type="button"
+                      disabled
+                      title="Aún no disponible: el SIRE de SUNAT no entrega glosas por su API."
+                      className="cursor-not-allowed bg-white px-4 py-2 text-sm font-semibold text-slate-400"
                     >
-                      {years.map((y) => (
-                        <option key={y.numEjercicio} value={y.numEjercicio}>
-                          {y.numEjercicio}
-                          {y.desEstado ? ` — ${y.desEstado}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <span className="mb-1.5 block">3. Mes</span>
-                    <select value={period} disabled={periodsLoading || monthsOfYear.length === 0} onChange={(e) => setPeriod(e.target.value)} className={`${SELECT_CLS} w-full font-normal normal-case`}>
-                      {monthsOfYear.map((p) => (
-                        <option key={p} value={p}>
-                          {formatSirePeriod(p)}
-                          {periodMeta.get(p) ? ` — ${periodMeta.get(p)}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      Con glosas
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="mb-5 grid grid-cols-2 gap-3">
-                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <span className="mb-1.5 block">2. Desde</span>
-                    <select value={desde} disabled={periodsLoading || rangeOptions.length === 0} onChange={(e) => setDesde(e.target.value)} className={`${SELECT_CLS} w-full font-normal normal-case`}>
-                      {rangeOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <span className="mb-1.5 block">3. Hasta</span>
-                    <select value={hasta} disabled={periodsLoading || rangeOptions.length === 0} onChange={(e) => setHasta(e.target.value)} className={`${SELECT_CLS} w-full font-normal normal-case`}>
-                      {rangeOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-              {rangeError ? <p className="-mt-3 mb-4 text-xs text-amber-700">{rangeError}</p> : null}
 
-              <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">4. Modo de descarga</p>
-              <div className="mb-5 grid grid-cols-2 gap-3">
-                <button type="button" aria-pressed="true" className="rounded-xl border-2 border-blue-500 bg-blue-50 px-3 py-2.5 text-sm font-bold uppercase text-blue-700">
-                  <i className="fas fa-file-excel mr-1.5" aria-hidden />
-                  Sin glosas
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  title="Aún no disponible: el SIRE de SUNAT no entrega glosas por su API."
-                  className="cursor-not-allowed rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-sm font-bold uppercase text-slate-400"
-                >
-                  <i className="fas fa-magnifying-glass-plus mr-1.5" aria-hidden />
-                  Con glosas
-                </button>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <Button disabled={submitDisabled} onClick={() => void start(libro, rangeOpen ? rangePeriods : [period])}>
+                    <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-download'} mr-1.5`} aria-hidden />
+                    {rangeOpen ? `Consultar ${rangePeriods.length || ''} ${rangePeriods.length === 1 ? 'período' : 'períodos'}` : 'Consultar y descargar'}
+                  </Button>
+                  <button type="button" onClick={() => setRangeOpen((v) => !v)} className="text-xs font-semibold text-primary-700 hover:underline">
+                    {rangeOpen ? 'Volver a un solo período' : 'Consultar un rango de períodos'}
+                  </button>
+                </div>
+
+                {periodsLoading ? <Spinner label="Consultando períodos en SUNAT…" /> : null}
+                {periodsError ? <SireErrorBox error={periodsError} onRetry={() => void loadPeriods()} /> : null}
               </div>
+            </Card>
 
-              <button
-                type="button"
-                disabled={busy || periodsLoading || (rangeOpen ? !!rangeError || rangePeriods.length === 0 : !period)}
-                onClick={() => void start(libro, rangeOpen ? rangePeriods : [period])}
-                className="w-full rounded-2xl bg-gradient-to-r from-blue-800 to-blue-500 px-4 py-3.5 text-base font-extrabold text-white shadow-md transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
-              >
-                <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-file-excel'} mr-2`} aria-hidden />
-                {rangeOpen ? `Consultar ${rangePeriods.length || ''} ${rangePeriods.length === 1 ? 'período' : 'períodos'}` : 'Consultar y descargar'}
-              </button>
-              <button type="button" onClick={() => setRangeOpen((v) => !v)} className="mt-3 w-full text-center text-xs font-semibold text-blue-700 hover:underline">
-                {rangeOpen ? 'Volver a un solo período' : 'Consultar un rango de períodos'}
-              </button>
-
-              {periodsLoading ? <div className="mt-3"><Spinner label="Consultando períodos en SUNAT…" /></div> : null}
-              {periodsError ? <div className="mt-3"><SireErrorBox error={periodsError} onRetry={() => void loadPeriods()} /></div> : null}
-            </section>
-
-            <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-                  <i className="fas fa-list-check text-slate-500" aria-hidden />
-                  Descargas activas
-                  <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">{items.length}</span>
-                </h2>
+            <Card
+              title="Descargas activas"
+              subtitle="Historial de consultas de esta empresa. Si ya está lista, solo baje el Excel."
+              actions={
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{items.length}</span>
                   {readyOfTab.length >= 2 ? (
-                    <Button variant="secondary" className="!py-1.5 text-xs" disabled={merging} onClick={() => void mergeReady()} title="Junta los Excel listos de esta pestaña en un solo archivo, con una hoja por período">
+                    <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={merging} onClick={() => void mergeReady()} title="Junta los Excel listos de esta pestaña en un solo archivo, con una hoja por período">
                       <i className={`fas ${merging ? 'fa-spinner fa-spin' : 'fa-object-group'} mr-1.5`} aria-hidden />
                       Unir {tabLabel.toLowerCase()} en un Excel
                     </Button>
                   ) : null}
-                  <button
-                    type="button"
-                    disabled={items.every((i) => i.status === 'en_proceso')}
-                    onClick={() => void clearAll()}
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
-                  >
+                  <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={items.every((i) => i.status === 'en_proceso')} onClick={() => void clearAll()}>
                     <i className="fas fa-broom mr-1.5" aria-hidden />
                     Limpiar historial
-                  </button>
+                  </Button>
                 </div>
-              </div>
-
-              {actionError ? <div className="mb-3"><SireErrorBox error={actionError} /></div> : null}
-              {historyError ? <div className="mb-3"><SireErrorBox error={historyError} onRetry={() => void loadHistory()} /></div> : null}
+              }
+            >
+              {actionError ? (
+                <div className="mb-3">
+                  <SireErrorBox error={actionError} />
+                </div>
+              ) : null}
+              {historyError ? (
+                <div className="mb-3">
+                  <SireErrorBox error={historyError} onRetry={() => void loadHistory()} />
+                </div>
+              ) : null}
 
               {items.length === 0 ? (
-                <p className="py-12 text-center text-sm text-slate-400">
-                  Aún no hay consultas. Elija el período y pulse «Consultar y descargar»: aquí quedará el resultado para bajar el Excel cuando quiera.
-                </p>
+                <p className="py-10 text-center text-sm text-slate-500">Aún no hay consultas. Elija el período y pulse «Consultar y descargar»: aquí quedará el resultado.</p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-2">
                   {items.map((it) => (
-                    <HistoryItem
-                      key={it.id}
-                      item={it}
-                      ruc={company.ruc}
-                      companyName={company.business_name}
-                      busy={busy}
-                      onExcel={(x) => void downloadExcel(x)}
-                      onRemove={(x) => void remove(x)}
-                      onRetry={(x) => void start(x.libro, [x.period])}
-                    />
+                    <HistoryItem key={it.id} item={it} busy={busy} onExcel={(x) => void downloadExcel(x)} onRemove={(x) => void remove(x)} onRetry={(x) => void start(x.libro, [x.period])} />
                   ))}
                 </ul>
               )}
-            </aside>
+            </Card>
           </div>
         </>
       ) : null}
