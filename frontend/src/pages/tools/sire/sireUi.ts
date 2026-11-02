@@ -10,13 +10,3 @@ export function sireMissing(row: CompanyAccessCredentialRow): string {
   if (!row.sire_configurado) return 'credenciales de API SIRE (Client ID y Secret)';
   return '';
 }
-
-/** Saca de la respuesta de SUNAT la lista de registros (`registros`, `data` o el arreglo directo). */
-export function pickRecords(v: unknown): unknown[] | null {
-  if (Array.isArray(v)) return v;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    for (const k of ['registros', 'data', 'lista', 'items']) if (Array.isArray(o[k])) return o[k] as unknown[];
-  }
-  return null;
-}

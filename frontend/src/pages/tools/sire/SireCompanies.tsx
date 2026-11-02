@@ -24,10 +24,10 @@ interface Props {
 
 const SireCompanies = ({
   title = 'SIRE',
-  subtitle = 'Registro de Ventas e Ingresos (RVIE) y Registro de Compras (RCE) de SUNAT: elija una empresa para consultar y descargar su información.',
+  subtitle = 'Elija una empresa para descargar en Excel sus ventas y compras (propuesta del SIRE de SUNAT) de un período.',
   basePath = '/tools/sire',
-  openLabel = 'Abrir SIRE',
-  openIcon = 'fas fa-file-invoice',
+  openLabel = 'Descargar',
+  openIcon = 'fas fa-file-excel',
   apiLabel = 'API SIRE',
 }: Props) => {
   const [q, setQ] = useState('');

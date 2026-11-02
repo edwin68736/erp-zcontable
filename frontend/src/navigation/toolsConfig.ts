@@ -27,7 +27,7 @@ export const TOOLS: ToolConfig[] = [
     slug: 'sire',
     label: 'SIRE',
     icon: 'fas fa-file-invoice',
-    description: 'Registro de Ventas e Ingresos y de Compras electrónico de SUNAT.',
+    description: 'Descarga en Excel de las ventas y compras (propuesta del SIRE) de cada empresa.',
     permission: P.companyCredentialsView,
     ready: true,
   },

@@ -318,11 +318,14 @@ func (ctrl *SireController) TicketFileAPI(c fiber.Ctx) error {
 		Proceso:  c.Query("proceso"),
 		Ticket:   c.Query("ticket"),
 	})
-	if c.Query("mode") == "download" {
+	if m := c.Query("mode"); m == "download" || m == "excel" {
 		ctrl.logAccess(c, id, ferr)
 	}
 	if ferr != nil {
 		return ctrl.fail(c, ferr)
+	}
+	if c.Query("mode") == "excel" {
+		return ctrl.sendExcel(c, sess, data, name)
 	}
 	if c.Query("mode") == "download" {
 		ct := http.DetectContentType(data)
@@ -332,4 +335,21 @@ func (ctrl *SireController) TicketFileAPI(c fiber.Ctx) error {
 		return sendSireFile(c, name, ct, data)
 	}
 	return ctrl.previewTables(c, data, name)
+}
+
+// sendExcel convierte el archivo del ticket (TXT/CSV de SUNAT) en un Excel válido y lo envía.
+func (ctrl *SireController) sendExcel(c fiber.Ctx, sess *services.SireSession, data []byte, name string) error {
+	tables, err := services.ParseSireArchive(data, name)
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "No se pudo leer el archivo que entregó SUNAT.", "code": services.SireErrUnexpected, "detail": err.Error()})
+	}
+	libro, period := libroFrom(c), strings.TrimSpace(c.Query("period"))
+	xlsx, rows, err := services.SireExcelFromTables(tables, libro)
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "No se pudo generar el Excel con lo que entregó SUNAT.", "code": services.SireErrUnexpected, "detail": err.Error()})
+	}
+	if rows == 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "SUNAT no tiene comprobantes en la propuesta de este período.", "code": "sin_datos"})
+	}
+	return sendSireFile(c, services.SireExcelFileName(sess.RUC(), period, libro), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx)
 }

@@ -1,48 +1,44 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
-import { SIRE_LIBROS, formatSirePeriod, sireService, type SireApiError, type SireLibro, type SirePeriodYear } from '../../../services/sire';
-import SireOtherPanel from './SireOtherPanel';
-import SireReportsPanel from './SireReportsPanel';
-import { SireErrorBox, Spinner } from './SireShared';
-import { SELECT_CLS, sireMissing } from './sireUi';
-import SireSummaryPanel from './SireSummaryPanel';
-import SireTicketsPanel from './SireTicketsPanel';
+import { SIRE_LIBROS, sirePropuestaFileName, sireService, type SireApiError, type SireDownloadStep, type SireLibro } from '../../../services/sire';
+import { SireErrorBox } from './SireShared';
+import { INPUT_CLS, sireMissing } from './sireUi';
 
-type Tab = 'resumen' | 'reportes' | 'tickets' | 'otros';
+type Progress = { state: 'idle' } | { state: 'running'; step: SireDownloadStep } | { state: 'done' } | { state: 'error'; error: SireApiError };
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'resumen', label: 'Resumen', icon: 'fas fa-chart-pie' },
-  { id: 'reportes', label: 'Propuesta y reportes', icon: 'fas fa-file-arrow-down' },
-  { id: 'tickets', label: 'Tickets', icon: 'fas fa-ticket' },
-  { id: 'otros', label: 'Otras consultas', icon: 'fas fa-ellipsis' },
-];
+const STEP_LABEL: Record<SireDownloadStep, string> = {
+  solicitando: 'Solicitando la propuesta a SUNAT…',
+  esperando: 'SUNAT está preparando el archivo…',
+  generando: 'Generando el Excel…',
+};
 
-/** Último período del listado (los años/meses vienen ordenados de forma distinta según el libro). */
-function latestPeriod(years: SirePeriodYear[]): string {
-  const all = years.flatMap((y) => (y.lisPeriodos ?? []).map((p) => p.perTributario)).filter(Boolean);
-  const sorted = all.sort();
-  return sorted[sorted.length - 1] ?? '';
+/** Mes anterior en formato AAAA-MM (es el período que normalmente se descarga). */
+function previousMonth(): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
- * Herramientas → SIRE → una empresa: elige libro (ventas/compras) y período, y ofrece todo lo que SUNAT entrega por
- * API: resumen e inconsistencias, propuesta y reportes (por ticket), historial de tickets y otras consultas.
+ * Herramientas → SIRE → una empresa: elegir el período y descargar en Excel la propuesta de ventas (RVIE) y de
+ * compras (RCE) que tiene SUNAT.
  */
 const SireCompany = () => {
   const { companyId: rawId } = useParams();
   const companyId = Number(rawId);
   const [company, setCompany] = useState<CompanyAccessCredentialRow | null>(null);
   const [companyError, setCompanyError] = useState('');
-  const [libro, setLibro] = useState<SireLibro>('ventas');
-  const [tab, setTab] = useState<Tab>('resumen');
-  const [years, setYears] = useState<SirePeriodYear[]>([]);
-  const [period, setPeriod] = useState('');
-  const [periodsLoading, setPeriodsLoading] = useState(false);
-  const [periodsError, setPeriodsError] = useState<SireApiError | null>(null);
-  const [testState, setTestState] = useState<'idle' | 'running' | 'ok' | SireApiError>('idle');
+  const [month, setMonth] = useState(previousMonth());
+  const [progress, setProgress] = useState<Record<SireLibro, Progress>>({ ventas: { state: 'idle' }, compras: { state: 'idle' } });
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -61,40 +57,24 @@ const SireCompany = () => {
   }, [companyId]);
 
   const missing = company ? sireMissing(company) : '';
+  const period = month.replace('-', '');
+  const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
+  const busy = progress.ventas.state === 'running' || progress.compras.state === 'running';
 
-  const loadPeriods = useCallback(async () => {
-    setPeriodsLoading(true);
-    setPeriodsError(null);
+  const download = async (libro: SireLibro) => {
+    if (!company) return;
+    setProgress((p) => ({ ...p, [libro]: { state: 'running', step: 'solicitando' } }));
     try {
-      const ys = await sireService.periods(companyId, libro);
-      setYears(ys);
-      setPeriod((cur) => (cur && ys.some((y) => y.lisPeriodos?.some((p) => p.perTributario === cur)) ? cur : latestPeriod(ys)));
+      await sireService.downloadPropuestaExcel(companyId, { libro, period, ruc: company.ruc }, (step) =>
+        setProgress((p) => ({ ...p, [libro]: { state: 'running', step } })),
+      );
+      setProgress((p) => ({ ...p, [libro]: { state: 'done' } }));
     } catch (e) {
-      setYears([]);
-      setPeriod('');
-      setPeriodsError(e as SireApiError);
-    } finally {
-      setPeriodsLoading(false);
-    }
-  }, [companyId, libro]);
-
-  useEffect(() => {
-    if (!company || missing) return;
-    void loadPeriods();
-  }, [company, missing, loadPeriods]);
-
-  const year = period.slice(0, 4);
-  const monthsOfYear = useMemo(() => years.find((y) => y.numEjercicio === year)?.lisPeriodos ?? [], [years, year]);
-
-  const runTest = async () => {
-    setTestState('running');
-    try {
-      await sireService.test(companyId);
-      setTestState('ok');
-    } catch (e) {
-      setTestState(e as SireApiError);
+      setProgress((p) => ({ ...p, [libro]: { state: 'error', error: e as SireApiError } }));
     }
   };
+
+  const fileHint = useMemo(() => (company && validMonth ? sirePropuestaFileName(company.ruc, period, 'ventas') : ''), [company, validMonth, period]);
 
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return <p className="pt-4 text-sm text-red-700">Empresa no válida.</p>;
@@ -121,103 +101,65 @@ const SireCompany = () => {
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
-          (botón Editar de la empresa) para poder consultar el SIRE.
+          (botón Editar de la empresa) para poder descargar del SIRE.
         </div>
       ) : null}
 
       {company && !missing ? (
         <>
           <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Libro">
-              {SIRE_LIBROS.map((l) => (
-                <button
-                  key={l.value}
-                  type="button"
-                  onClick={() => setLibro(l.value)}
-                  aria-pressed={libro === l.value}
-                  className={`px-4 py-2 text-sm font-semibold ${libro === l.value ? 'bg-blue-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-
-            <label className="text-xs text-slate-600">
-              <span className="mb-0.5 block">Año</span>
-              <select
-                value={year}
-                disabled={periodsLoading || years.length === 0}
-                onChange={(e) => {
-                  const ys = years.find((y) => y.numEjercicio === e.target.value);
-                  const sortedP = (ys?.lisPeriodos ?? []).map((p) => p.perTributario).sort();
-                  const last = sortedP[sortedP.length - 1];
-                  if (last) setPeriod(last);
-                }}
-                className={SELECT_CLS}
-              >
-                {years.map((y) => (
-                  <option key={y.numEjercicio} value={y.numEjercicio}>
-                    {y.numEjercicio}
-                    {y.desEstado ? ` — ${y.desEstado}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="text-xs text-slate-600">
               <span className="mb-0.5 block">Período</span>
-              <select value={period} disabled={periodsLoading || monthsOfYear.length === 0} onChange={(e) => setPeriod(e.target.value)} className={SELECT_CLS}>
-                {[...monthsOfYear]
-                  .sort((a, b) => a.perTributario.localeCompare(b.perTributario))
-                  .map((p) => (
-                    <option key={p.perTributario} value={p.perTributario}>
-                      {formatSirePeriod(p.perTributario)}
-                      {p.desEstado ? ` — ${p.desEstado}` : ''}
-                    </option>
-                  ))}
-              </select>
+              <input type="month" value={month} max={currentMonth()} onChange={(e) => setMonth(e.target.value)} className={INPUT_CLS} />
             </label>
-
-            <Button variant="secondary" onClick={() => void runTest()} disabled={testState === 'running'} className="ml-auto">
-              <i className={`fas ${testState === 'running' ? 'fa-spinner fa-spin' : 'fa-plug'} mr-1.5`} aria-hidden />
-              Probar conexión
+            <Button
+              className="ml-auto"
+              disabled={busy || !validMonth}
+              onClick={() => {
+                void download('ventas');
+                void download('compras');
+              }}
+            >
+              <i className="fas fa-file-excel mr-1.5" aria-hidden />
+              Descargar ventas y compras
             </Button>
           </div>
-
-          {testState === 'ok' ? (
-            <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">Conexión correcta: SUNAT aceptó las credenciales de API de esta empresa.</p>
-          ) : typeof testState === 'object' ? (
-            <SireErrorBox error={testState} />
+          {fileHint ? (
+            <p className="-mt-3 text-xs text-slate-500">
+              Cada descarga es un Excel con la propuesta de comprobantes que tiene SUNAT para el período, por ejemplo <span className="font-mono">{fileHint}</span>.
+            </p>
           ) : null}
 
-          {periodsLoading ? <Spinner label="Consultando períodos en SUNAT…" /> : null}
-          {periodsError ? <SireErrorBox error={periodsError} onRetry={() => void loadPeriods()} /> : null}
-
-          {period && !periodsError ? (
-            <>
-              <div className="flex flex-wrap gap-1 border-b border-slate-200" role="tablist">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${
-                      tab === t.id ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <i className={`${t.icon} mr-1.5`} aria-hidden />
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {tab === 'resumen' ? <SireSummaryPanel companyId={companyId} libro={libro} period={period} /> : null}
-              {tab === 'reportes' ? <SireReportsPanel companyId={companyId} libro={libro} period={period} /> : null}
-              {tab === 'tickets' ? <SireTicketsPanel companyId={companyId} libro={libro} period={period} /> : null}
-              {tab === 'otros' ? <SireOtherPanel companyId={companyId} libro={libro} period={period} /> : null}
-            </>
-          ) : null}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {SIRE_LIBROS.map((l) => {
+              const pr = progress[l.value];
+              return (
+                <section key={l.value} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">{l.label}</h3>
+                    <p className="text-xs text-slate-500">Propuesta de comprobantes del período, en Excel.</p>
+                  </div>
+                  <Button className="self-start" disabled={busy || !validMonth} onClick={() => void download(l.value)}>
+                    <i className={`fas ${pr.state === 'running' ? 'fa-spinner fa-spin' : 'fa-download'} mr-1.5`} aria-hidden />
+                    Descargar {l.short.toLowerCase()}
+                  </Button>
+                  {pr.state === 'running' ? (
+                    <p className="text-sm text-slate-500" role="status">
+                      {STEP_LABEL[pr.step]}
+                    </p>
+                  ) : null}
+                  {pr.state === 'done' ? <p className="text-sm text-green-700">Excel descargado.</p> : null}
+                  {pr.state === 'error' ? (
+                    pr.error.code === 'sin_datos' ? (
+                      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{pr.error.message}</p>
+                    ) : (
+                      <SireErrorBox error={pr.error} onRetry={() => void download(l.value)} />
+                    )
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
         </>
       ) : null}
     </div>
