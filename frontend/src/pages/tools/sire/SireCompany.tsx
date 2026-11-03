@@ -224,14 +224,9 @@ const SireCompany = () => {
   }, [hasRunning, loadHistory]);
 
   const periodList = useMemo(() => allPeriods(years), [years]);
-  const periodMeta = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const y of years) for (const p of y.lisPeriodos ?? []) m.set(p.perTributario, p.desEstado ?? '');
-    return m;
-  }, [years]);
   const year = period.slice(0, 4);
   const monthsOfYear = useMemo(() => periodList.filter((p) => p.startsWith(year)), [periodList, year]);
-  const rangeOptions = useMemo(() => periodList.map((p) => ({ value: p, label: `${formatSirePeriod(p)}${periodMeta.get(p) ? ` — ${periodMeta.get(p)}` : ''}` })), [periodList, periodMeta]);
+  const rangeOptions = useMemo(() => periodList.map((p) => ({ value: p, label: formatSirePeriod(p) })), [periodList]);
   const rangePeriods = useMemo(() => (desde && hasta ? periodsBetween(desde, hasta) : []), [desde, hasta]);
   const rangeError = !rangeOpen || !desde || !hasta ? '' : rangePeriods.length === 0 ? 'El período «desde» no puede ser posterior a «hasta».' : rangePeriods.length > MAX_RANGE ? `El rango máximo es de ${MAX_RANGE} períodos.` : '';
 
@@ -392,7 +387,6 @@ const SireCompany = () => {
                         {years.map((y) => (
                           <option key={y.numEjercicio} value={y.numEjercicio}>
                             {y.numEjercicio}
-                            {y.desEstado ? ` — ${y.desEstado}` : ''}
                           </option>
                         ))}
                       </select>
@@ -403,7 +397,6 @@ const SireCompany = () => {
                         {monthsOfYear.map((p) => (
                           <option key={p} value={p}>
                             {formatSirePeriod(p)}
-                            {periodMeta.get(p) ? ` — ${periodMeta.get(p)}` : ''}
                           </option>
                         ))}
                       </select>
