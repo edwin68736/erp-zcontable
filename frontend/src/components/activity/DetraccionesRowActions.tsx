@@ -4,7 +4,7 @@ import { downloadRemoteFile } from '../../utils/downloadFile';
 import FilePreviewModal from '../FilePreviewModal';
 import {
   detraccionesAllowsUpload,
-  detraccionesSupervisorCanSetManualStatus,
+  detraccionesShowStatusEdit,
   detraccionesStatusBadgeClass,
   detraccionesStatusLabel,
   normalizeDetraccionesStatus,
@@ -69,8 +69,7 @@ const DetraccionesRowActions = ({
   const showUpload = canUpload && workspace === 'assistant' && detraccionesAllowsUpload(status) && !row.suspendida;
   const showVerify =
     canVerify && workspace === 'supervisor' && status === 'cargado' && Boolean(row.declaration_id) && !row.suspendida;
-  const showStatusEdit =
-    canSetStatus && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status) && !row.suspendida;
+  const showStatusEdit = detraccionesShowStatusEdit(canSetStatus, status, Boolean(row.suspendida));
 
   const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,7 +138,7 @@ const DetraccionesRowActions = ({
               type="button"
               onClick={() => setStatusModalOpen(true)}
               className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-primary-300 ${displayBadgeClass}`}
-              title="Cambiar estado (supervisor)"
+              title="Marcar «Sin clave» o «No corresponde»"
             >
               {displayLabel}
               <i className="fas fa-pen ml-1 text-3xs opacity-70" aria-hidden />

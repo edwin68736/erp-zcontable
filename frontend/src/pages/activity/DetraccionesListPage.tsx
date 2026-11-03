@@ -63,7 +63,8 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     () => workspace === 'supervisor' && auth.hasPermission(P.supervisorsDeclarationsApprove),
     [workspace],
   );
-  const canSetStatus = canVerify;
+  // «Sin clave» / «No corresponde»: permiso propio, lo pueden tener el asistente y el supervisor (no depende de la pantalla).
+  const canSetStatus = useMemo(() => auth.hasPermission(P.supervisorsDetraccionesMarkStatus), []);
 
   const [periodYm, setPeriodYm] = useState(initialPeriod);
   const [q, setQ] = useState('');

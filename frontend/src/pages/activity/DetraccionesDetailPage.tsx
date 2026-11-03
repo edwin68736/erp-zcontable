@@ -7,7 +7,7 @@ import {
   detraccionesAllowsUpload,
   detraccionesStatusBadgeClass,
   detraccionesStatusLabel,
-  detraccionesSupervisorCanSetManualStatus,
+  detraccionesShowStatusEdit,
   normalizeDetraccionesStatus,
 } from '../../components/activity/detraccionesConfig';
 import {
@@ -52,6 +52,8 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     () => workspace === 'supervisor' && auth.hasPermission(P.supervisorsDeclarationsApprove),
     [workspace],
   );
+  // «Sin clave» / «No corresponde»: permiso propio, lo pueden tener el asistente y el supervisor (no depende de la pantalla).
+  const canSetStatus = useMemo(() => auth.hasPermission(P.supervisorsDetraccionesMarkStatus), []);
   // "Suspendida" (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7): Control de Detracciones
   // es el ÚNICO módulo de todo el sistema que la marca/desmarca — PDT 601/621 y Buzón SOL solo la
   // leen. Mismo permiso que subir el PDF (lo puede marcar tanto el asistente como el supervisor,
@@ -209,8 +211,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
   // 2026-09-16.md §5.9.7.3 punto 5, mismo criterio "una sola puerta" que PDT 601/621).
   const showUpload = canUpload && detraccionesAllowsUpload(status) && !detail.suspendida;
   const showVerify = canVerify && workspace === 'supervisor' && status === 'cargado' && !detail.suspendida;
-  const showStatusEdit =
-    canVerify && workspace === 'supervisor' && detraccionesSupervisorCanSetManualStatus(status) && !detail.suspendida;
+  const showStatusEdit = detraccionesShowStatusEdit(canSetStatus, status, Boolean(detail.suspendida));
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -305,9 +306,9 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
           </label>
         </div>
 
-        {workspace === 'supervisor' && (showVerify || showStatusEdit) ? (
+        {showVerify || showStatusEdit ? (
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-            <h2 className="text-sm font-semibold text-slate-800">Revisión supervisor</h2>
+            <h2 className="text-sm font-semibold text-slate-800">{showVerify ? 'Revisión supervisor' : 'Estado del registro'}</h2>
             {showVerify ? (
               <button
                 type="button"

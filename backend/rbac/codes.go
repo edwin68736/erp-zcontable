@@ -119,7 +119,10 @@ const (
 	SupervisorsDeclarationsUpdate  = "supervisors.declarations_update"
 	SupervisorsDeclarationsDelete  = "supervisors.declarations_delete"
 	SupervisorsDeclarationsApprove = "supervisors.declarations_approve"
-	SupervisorsDeclarationsObserve = "supervisors.declarations_observe"
+	// SupervisorsDetraccionesMarkStatus marcar un registro de Control de Detracciones como «Sin clave» o «No corresponde».
+	// Permiso propio (antes colgaba de «Aprobar declaración», que el asistente no tiene): lo usan el asistente y el supervisor.
+	SupervisorsDetraccionesMarkStatus = "supervisors.detracciones_mark_status"
+	SupervisorsDeclarationsObserve    = "supervisors.declarations_observe"
 	// SupervisorsDeclarationsReopen (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7): revertir una
 	// declaración pdt_601/pdt_621 ya "entregada" de vuelta a "por_revisar". Permiso dedicado y separado
 	// de Update/Approve/Observe, asignado únicamente a Super usuario — mismo criterio ya usado para

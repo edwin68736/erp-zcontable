@@ -84,4 +84,13 @@ export function detraccionesSupervisorCanSetManualStatus(status: string): boolea
   return s === 'pendiente' || s === 'cargado';
 }
 
+/**
+ * ¿Se muestra el control para marcar «Sin clave» / «No corresponde»? Depende solo del permiso del usuario
+ * (supervisors.detracciones_mark_status), del estado del registro y de que la empresa no esté suspendida:
+ * NO de la pantalla (asistente o supervisor) desde la que se mira.
+ */
+export function detraccionesShowStatusEdit(canSetStatus: boolean, status: string, suspendida: boolean): boolean {
+  return canSetStatus && detraccionesSupervisorCanSetManualStatus(status) && !suspendida;
+}
+
 export { formatStoredAt };

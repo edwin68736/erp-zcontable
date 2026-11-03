@@ -289,7 +289,7 @@ func Setup(app *fiber.App) {
 	sup.Post("/activity-modules/detracciones/companies/:companyId/upload", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesUploadAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/verify", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesVerifyAPI)
 	sup.Post("/activity-modules/detracciones/declarations/:declarationId/validate", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesValidateAPI)
-	sup.Put("/activity-modules/detracciones/declarations/:declarationId/status", middleware.RequirePermission(rbac.SupervisorsDeclarationsApprove), supervisorCtrl.DetraccionesSetStatusAPI)
+	sup.Put("/activity-modules/detracciones/declarations/:declarationId/status", middleware.RequirePermission(rbac.SupervisorsDetraccionesMarkStatus), supervisorCtrl.DetraccionesSetStatusAPI)
 	// Alias legacy F4 (deprecar en próxima versión)
 	sup.Get("/activity-modules/distractions", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesListAPI)
 	sup.Get("/activity-modules/distractions/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesDetailAPI)

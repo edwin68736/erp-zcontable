@@ -155,3 +155,61 @@ func TestSeedRBAC_respectsAdminEdits(t *testing.T) {
 		t.Fatal("vínculo de permiso huérfano no eliminado")
 	}
 }
+
+// TestDetraccionesMarkStatus_asistenteYQuienYaPodia: «Marcar Sin clave / No corresponde» es un permiso propio. En una
+// instalación existente (roles ya configurados) se reparte una sola vez a quienes ya podían hacerlo (los que tienen
+// «Aprobar declaración») y al Asistente, y no se vuelve a poner si el administrador lo quita después.
+func TestDetraccionesMarkStatus_asistenteYQuienYaPodia(t *testing.T) {
+	db := setupRBACTestDB(t)
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 1: %v", err)
+	}
+	has := func(role string) bool {
+		_, ok := roleCodes(t, db, role)[rbac.SupervisorsDetraccionesMarkStatus]
+		return ok
+	}
+	// Instalación nueva: lo traen el Asistente y el Supervisor desde la matriz canónica; el Contador no.
+	if !has(rbac.RoleAsistente) || !has(rbac.RoleSupervisor) || has(rbac.RoleContador) {
+		t.Fatalf("matriz canónica: asistente=%v supervisor=%v contador=%v", has(rbac.RoleAsistente), has(rbac.RoleSupervisor), has(rbac.RoleContador))
+	}
+
+	// Simula una instalación anterior: el permiso nuevo no estaba en ningún rol y la migración no se había corrido.
+	var perm, approve models.Permission
+	db.Where("code = ?", rbac.SupervisorsDetraccionesMarkStatus).First(&perm)
+	db.Where("code = ?", rbac.SupervisorsDeclarationsApprove).First(&approve)
+	db.Where("permission_id = ?", perm.ID).Delete(&models.RolePermission{})
+	db.Where("name = ?", "rbac_detracciones_mark_status_v1").Delete(&models.SchemaMigration{})
+	// Un rol creado por el administrador que ya podía aprobar (y por tanto marcar el estado).
+	custom := models.Role{Code: "revisor_custom", Name: "Revisor", IsSystem: false}
+	if err := db.Create(&custom).Error; err != nil {
+		t.Fatalf("rol: %v", err)
+	}
+	db.Create(&models.RolePermission{RoleID: custom.ID, PermissionID: approve.ID})
+
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 2: %v", err)
+	}
+	if !has(rbac.RoleAsistente) {
+		t.Fatal("el Asistente debía recibir el permiso nuevo")
+	}
+	if !has(rbac.RoleSupervisor) {
+		t.Fatal("el Supervisor (ya podía aprobar) no debía perderlo")
+	}
+	if _, ok := roleCodes(t, db, "revisor_custom")[rbac.SupervisorsDetraccionesMarkStatus]; !ok {
+		t.Fatal("un rol propio con «Aprobar declaración» no debía perder la capacidad de marcar el estado")
+	}
+	if has(rbac.RoleContador) {
+		t.Fatal("el Contador no debía recibirlo")
+	}
+
+	// El administrador se lo quita al Asistente: no vuelve en el siguiente arranque.
+	var asistente models.Role
+	db.Where("code = ?", rbac.RoleAsistente).First(&asistente)
+	db.Where("role_id = ? AND permission_id = ?", asistente.ID, perm.ID).Delete(&models.RolePermission{})
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 3: %v", err)
+	}
+	if has(rbac.RoleAsistente) {
+		t.Fatal("el permiso quitado por el administrador se volvió a poner solo")
+	}
+}

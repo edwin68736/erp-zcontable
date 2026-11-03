@@ -114,6 +114,7 @@ func TestAsistenteHasKeyPermissions(t *testing.T) {
 	for _, required := range []string{
 		rbac.SupervisorsControlsView,
 		rbac.SupervisorsNotificationsView,
+		rbac.SupervisorsDetraccionesMarkStatus,
 		rbac.CompanyCredentialsView,
 	} {
 		if _, ok := have[required]; !ok {

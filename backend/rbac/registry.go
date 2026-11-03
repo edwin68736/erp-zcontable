@@ -143,6 +143,7 @@ var registryDefs = []PermDef{
 	{SupervisorsDeclarationsUpdate, ModSupervisores, "Declaraciones", "Editar declaración"},
 	{SupervisorsDeclarationsDelete, ModSupervisores, "Declaraciones", "Eliminar declaración"},
 	{SupervisorsDeclarationsApprove, ModSupervisores, "Declaraciones", "Aprobar declaración"},
+	{SupervisorsDetraccionesMarkStatus, ModSupervisores, "Declaraciones", "Marcar «Sin clave» / «No corresponde» en Control de Detracciones"},
 	{SupervisorsDeclarationsObserve, ModSupervisores, "Declaraciones", "Observar declaración"},
 	{SupervisorsDeclarationsReopen, ModSupervisores, "Declaraciones", "Reabrir declaración entregada (PDT 601/621)"},
 	{SupervisorsPdt621ReceiveAny, ModSupervisores, "Declaraciones", "Recepcionar archivador PDT 621 de cualquier empresa"},
@@ -258,6 +259,7 @@ var asistenteCodes = []string{
 	SupervisorsLiquidationsView, SupervisorsLiquidationsUpdate,
 	SupervisorsObservationsView, SupervisorsObservationsCreate,
 	SupervisorsHistoryView, SupervisorsAttachmentsUpload, SupervisorsNotificationsView,
+	SupervisorsDetraccionesMarkStatus,
 	// Membrete del estudio (sin tokens Tukifac) — necesario para generar el PDF de Preliminar de
 	// Ventas desde el módulo del asistente.
 	SettingsFirmBrandingView,

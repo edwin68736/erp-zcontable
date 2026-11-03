@@ -42,6 +42,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillRolePermission(db, rbac.RoleAdministrador, rbac.SupervisorsPdt621ReceiveAny); err != nil {
 		return err
 	}
+	if err := backfillDetraccionesMarkStatus(db); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
@@ -382,4 +385,41 @@ func ensureAdminSuperusuarioUser(db *gorm.DB) error {
 		return fmt.Errorf("usuario admin: sync roles: %w", err)
 	}
 	return nil
+}
+
+// backfillDetraccionesMarkStatus (una sola vez) reparte el permiso nuevo «Marcar Sin clave / No corresponde» en
+// Control de Detracciones: lo reciben todos los roles que hoy pueden hacerlo (los que tienen «Aprobar declaración»,
+// de sistema o creados por el administrador) para que nadie lo pierda, y el rol Asistente, que es quien lo necesitaba.
+// Al ser una sola vez, si el administrador lo quita después de un rol, no se vuelve a poner en el siguiente arranque.
+func backfillDetraccionesMarkStatus(db *gorm.DB) error {
+	return applyMigrationOnce(db, "rbac_detracciones_mark_status_v1", func(tx *gorm.DB) error {
+		var newPerm, approve models.Permission
+		if err := tx.Where("code = ?", rbac.SupervisorsDetraccionesMarkStatus).First(&newPerm).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		roleIDs := map[uint]bool{}
+		if err := tx.Where("code = ?", rbac.SupervisorsDeclarationsApprove).First(&approve).Error; err == nil {
+			var links []models.RolePermission
+			if err := tx.Where("permission_id = ?", approve.ID).Find(&links).Error; err != nil {
+				return err
+			}
+			for _, l := range links {
+				roleIDs[l.RoleID] = true
+			}
+		}
+		var asistente models.Role
+		if err := tx.Where("code = ? AND is_system = ?", rbac.RoleAsistente, true).First(&asistente).Error; err == nil {
+			roleIDs[asistente.ID] = true
+		}
+		for id := range roleIDs {
+			link := models.RolePermission{RoleID: id, PermissionID: newPerm.ID}
+			if err := tx.Where(link).FirstOrCreate(&link).Error; err != nil {
+				return fmt.Errorf("permiso detracciones_mark_status → rol %d: %w", id, err)
+			}
+		}
+		return nil
+	})
 }
