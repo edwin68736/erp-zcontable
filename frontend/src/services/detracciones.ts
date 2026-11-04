@@ -49,10 +49,14 @@ export interface DetraccionesDetail {
   // suspendida: ver comentario en DetraccionesListRow — acá SÍ es editable (checkbox "Marcar como
   // suspendida", único lugar del sistema que la modifica).
   suspendida: boolean;
+  /** El período ya terminó y admite registros (el mes en curso y los futuros solo se pueden mirar). */
+  period_enabled?: boolean;
 }
 
 export interface DetraccionesListResponse {
   data: DetraccionesListRow[];
+  /** El período consultado ya terminó y admite registros. */
+  period_enabled?: boolean;
   pagination: {
     page: number;
     per_page: number;

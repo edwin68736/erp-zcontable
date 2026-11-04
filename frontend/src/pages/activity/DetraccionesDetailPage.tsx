@@ -22,7 +22,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import { supervisorsService, type SupervisorAttachment, type SupervisorDeclaration } from '../../services/supervisors';
 import { detraccionesService, type DetraccionesDetail } from '../../services/detracciones';
-import { currentPeriodYM } from '../../utils/supervisorLabels';
+import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 
@@ -41,7 +41,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
   const { companyId: companyIdParam } = useParams();
   const companyId = Number(companyIdParam);
   const [searchParams] = useSearchParams();
-  const periodYm = searchParams.get('period_ym') || currentPeriodYM();
+  const periodYm = searchParams.get('period_ym') || previousMonthPeriodYM();
   const listPath = `${activityModulePath(workspace, 'detracciones')}?period_ym=${encodeURIComponent(periodYm)}`;
 
   const canUpload = useMemo(
@@ -209,9 +209,11 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
 
   // Suspendida bloquea CUALQUIER otro registro en este módulo (docs/diseno-limpieza-control-detail-
   // 2026-09-16.md §5.9.7.3 punto 5, mismo criterio "una sola puerta" que PDT 601/621).
-  const showUpload = canUpload && detraccionesAllowsUpload(status) && !detail.suspendida;
-  const showVerify = canVerify && workspace === 'supervisor' && status === 'cargado' && !detail.suspendida;
-  const showStatusEdit = detraccionesShowStatusEdit(canSetStatus, status, Boolean(detail.suspendida));
+  // El mes en curso y los futuros se pueden mirar pero no cargar, marcar ni verificar nada.
+  const periodEnabled = detail.period_enabled !== false;
+  const showUpload = periodEnabled && canUpload && detraccionesAllowsUpload(status) && !detail.suspendida;
+  const showVerify = periodEnabled && canVerify && workspace === 'supervisor' && status === 'cargado' && !detail.suspendida;
+  const showStatusEdit = periodEnabled && detraccionesShowStatusEdit(canSetStatus, status, Boolean(detail.suspendida));
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -228,6 +230,13 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
+
+      {!periodEnabled ? (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm" role="status">
+          <strong>Período {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
+          verificar información de períodos ya terminados. Este período se muestra únicamente para consulta.
+        </div>
+      ) : null}
 
       {msg ? (
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{msg}</div>
@@ -291,7 +300,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
           >
             <input
               type="checkbox"
-              disabled={!canSuspend || actionLoading}
+              disabled={!canSuspend || !periodEnabled || actionLoading}
               checked={detail.suspendida}
               onChange={(e) => void handleToggleSuspendida(e.target.checked)}
               className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"

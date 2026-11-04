@@ -1271,7 +1271,8 @@ func (ctrl *SupervisorController) DetraccionesListAPI(c fiber.Ctx) error {
 		out.Rows = []services.DetraccionesListRow{}
 	}
 	return c.JSON(fiber.Map{
-		"data": out.Rows,
+		"data":           out.Rows,
+		"period_enabled": services.ActivityPeriodEnabled(strings.TrimSpace(c.Query("period_ym", ""))),
 		"pagination": fiber.Map{
 			"page": out.Page, "per_page": out.PerPage, "total": out.Total, "total_pages": out.TotalPages,
 		},
@@ -1366,6 +1367,9 @@ func (ctrl *SupervisorController) DetraccionesSetSuspendidaAPI(c fiber.Ctx) erro
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	if !services.ActivityPeriodEnabled(periodYM) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(periodYM).Error()})
 	}
 	row, err := ctrl.svc.SetDetraccionesSuspendida(uint(companyID), periodYM, body.Suspendida)
 	if err != nil {
@@ -1478,6 +1482,9 @@ func (ctrl *SupervisorController) DetraccionesValidateAPI(c fiber.Ctx) error {
 	if err := ctrl.svc.EnsureDetraccionesDeclarationType(uint(declarationID)); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	if ym, perr := ctrl.svc.DeclarationPeriodYM(uint(declarationID)); perr == nil && !services.ActivityPeriodEnabled(ym) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(ym).Error()})
+	}
 	uid, err := getUserID(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
@@ -1535,6 +1542,9 @@ func (ctrl *SupervisorController) DetraccionesUploadAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
+	if !services.ActivityPeriodEnabled(periodYM) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(periodYM).Error()})
+	}
 	row, err := ctrl.svc.UploadDetraccionesPDF(uint(companyID), periodYM, fh.Filename, data, uid)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -1556,6 +1566,9 @@ func (ctrl *SupervisorController) DetraccionesVerifyAPI(c fiber.Ctx) error {
 	}
 	if err := ctrl.svc.EnsureDetraccionesDeclarationType(uint(declarationID)); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ym, perr := ctrl.svc.DeclarationPeriodYM(uint(declarationID)); perr == nil && !services.ActivityPeriodEnabled(ym) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(ym).Error()})
 	}
 	uid, err := getUserID(c)
 	if err != nil {
@@ -1582,6 +1595,9 @@ func (ctrl *SupervisorController) DetraccionesSetStatusAPI(c fiber.Ctx) error {
 	}
 	if err := ctrl.svc.EnsureDetraccionesDeclarationType(uint(declarationID)); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ym, perr := ctrl.svc.DeclarationPeriodYM(uint(declarationID)); perr == nil && !services.ActivityPeriodEnabled(ym) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(ym).Error()})
 	}
 	var body struct {
 		Status string `json:"status"`

@@ -61,6 +61,8 @@ type DetraccionesDetail struct {
 	// Suspendida: ver comentario en DetraccionesListRow.Suspendida — acá SÍ es editable (checkbox
 	// "Marcar como suspendida" en DetraccionesDetailPage.tsx, único lugar del sistema que la marca).
 	Suspendida bool `json:"suspendida"`
+	// PeriodEnabled el período ya terminó y admite registros (el mes en curso y los futuros solo se pueden mirar).
+	PeriodEnabled bool `json:"period_enabled"`
 }
 
 type detraccionesListResult struct {
@@ -147,6 +149,7 @@ func (s *SupervisorService) EnsureDetracciones(companyID uint, periodYM string) 
 		AssistantUsername: assistantUsername(company.Assistant),
 		ControlID:         ctrl.ID,
 		Suspendida:        ctrl.Suspendida,
+		PeriodEnabled:     ActivityPeriodEnabled(periodYM),
 		Declaration:       decl,
 	}
 	enrichDetraccionesDetail(detail, s.detraccionesLatestStoredAt(decl.ID))

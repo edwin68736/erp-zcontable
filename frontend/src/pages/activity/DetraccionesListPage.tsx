@@ -29,7 +29,7 @@ import {
   type DetraccionesListRow,
   type SuspensionCarryOverRow,
 } from '../../services/detracciones';
-import { currentPeriodYM } from '../../utils/supervisorLabels';
+import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportDetraccionesReportExcel } from '../../utils/detraccionesExcelExport';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
@@ -53,7 +53,8 @@ const TD = 'px-4 py-3 text-sm text-slate-700 border-t border-slate-100';
 const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const homePath = workspaceHomePath(workspace);
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialPeriod = searchParams.get('period_ym') || currentPeriodYM();
+  // Las detracciones se registran "pasando el mes": en noviembre se trabaja octubre.
+  const initialPeriod = searchParams.get('period_ym') || previousMonthPeriodYM();
 
   const canUpload = useMemo(
     () => workspace === 'assistant' && auth.hasPermission(P.supervisorsAttachmentsUpload),
@@ -75,6 +76,8 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [rows, setRows] = useState<DetraccionesListRow[]>([]);
+  // El mes en curso y los futuros se pueden mirar pero no cargar, marcar ni verificar nada.
+  const [periodEnabled, setPeriodEnabled] = useState(true);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -114,6 +117,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         per_page: perPage,
       });
       setRows(res.data ?? []);
+      setPeriodEnabled(res.period_enabled !== false);
       setTotal(res.pagination?.total ?? 0);
     } catch (err) {
       console.error(err);
@@ -318,6 +322,12 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
       {actionError ? (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">{actionError}</div>
       ) : null}
+      {!periodEnabled ? (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm" role="status">
+          <strong>Período {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
+          verificar información de períodos ya terminados. Este período se muestra únicamente para consulta.
+        </div>
+      ) : null}
 
       {/*
         La tabla es su PROPIO panel de scroll (alto acotado + overflow-auto), en vez de dejar
@@ -391,9 +401,9 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                         row={row}
                         periodYm={periodYm}
                         workspace={workspace}
-                        canUpload={canUpload}
-                        canVerify={canVerify}
-                        canSetStatus={canSetStatus}
+                        canUpload={canUpload && periodEnabled}
+                        canVerify={canVerify && periodEnabled}
+                        canSetStatus={canSetStatus && periodEnabled}
                         onUpdated={() => void load()}
                         onUpload={handleUpload}
                         onVerify={handleVerify}
@@ -416,13 +426,15 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                     <td className={TD}>
                       <div className="flex items-center gap-1.5">
                         <RowActionLink to={detailLink(row.company_id)} icon="fa-eye" label="Ver" />
-                        <SuspendCompanyAction
-                          companyId={row.company_id}
-                          companyName={row.business_name}
-                          periodYm={periodYm}
-                          suspendida={!!row.suspendida}
-                          onChanged={() => void load()}
-                        />
+                        {periodEnabled ? (
+                          <SuspendCompanyAction
+                            companyId={row.company_id}
+                            companyName={row.business_name}
+                            periodYm={periodYm}
+                            suspendida={!!row.suspendida}
+                            onChanged={() => void load()}
+                          />
+                        ) : null}
                       </div>
                     </td>
                   </tr>
