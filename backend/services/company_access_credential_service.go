@@ -392,6 +392,42 @@ func applyCredentialInput(row *models.CompanyAccessCredential, in CompanyAccessC
 	row.FacturadorContrasena = strings.TrimSpace(in.FacturadorContrasena)
 }
 
+// SetSireCredentials guarda SOLO el Client ID y el Client Secret de la API SIRE de la empresa (no toca nada más) y
+// avisa si quedó configurada. No devuelve el secreto.
+func (s *CompanyAccessCredentialService) SetSireCredentials(companyID uint, clientID, clientSecret string, allowed []uint) error {
+	if err := s.companyInScope(companyID, allowed); err != nil {
+		return err
+	}
+	clientID, clientSecret = strings.TrimSpace(clientID), strings.TrimSpace(clientSecret)
+	switch {
+	case clientID == "":
+		return fmt.Errorf("indique el Client ID")
+	case clientSecret == "":
+		return fmt.Errorf("indique el Client Secret")
+	case len(clientID) > 120:
+		return fmt.Errorf("el Client ID es demasiado largo (máximo 120 caracteres)")
+	case len(clientSecret) > 255:
+		return fmt.Errorf("el Client Secret es demasiado largo (máximo 255 caracteres)")
+	}
+	var n int64
+	if err := database.DB.Model(&models.Company{}).
+		Where("id = ? AND client_type = ? AND status = ?", companyID, models.CompanyClientTypeEstudio, "activo").Count(&n).Error; err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("empresa no encontrada")
+	}
+	var cred models.CompanyAccessCredential
+	err := database.DB.Where("company_id = ?", companyID).First(&cred).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return database.DB.Create(&models.CompanyAccessCredential{CompanyID: companyID, SireClientID: clientID, SireClientSecret: clientSecret}).Error
+	}
+	if err != nil {
+		return err
+	}
+	return database.DB.Model(&cred).Updates(map[string]any{"sire_client_id": clientID, "sire_client_secret": clientSecret}).Error
+}
+
 func (s *CompanyAccessCredentialService) Upsert(companyID uint, in CompanyAccessCredentialUpdateInput, allowed []uint) (*CompanyAccessCredentialRow, error) {
 	if err := s.companyInScope(companyID, allowed); err != nil {
 		return nil, err

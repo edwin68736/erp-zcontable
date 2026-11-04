@@ -44,6 +44,7 @@ var registryDefs = []PermDef{
 	{CompanyCredentialsImport, ModRecursos, "Claves de acceso", "Importar claves de acceso desde Excel"},
 	{CompanyCredentialsSolView, ModRecursos, "Claves de acceso", "Ver usuario y clave SOL"},
 	{CompanyCredentialsInactiveView, ModRecursos, "Claves de acceso", "Ver claves de empresas inactivas (filtro Solo inactivas)"},
+	{CompanyCredentialsSireEdit, ModRecursos, "Claves de acceso", "Registrar credenciales de API SIRE (solo Client ID y Secret)"},
 	{FinanceSunatDueDatesView, ModRecursos, "Vencimientos SUNAT", "Ver cronograma de vencimientos SUNAT"},
 	{FinanceSunatDueDatesManage, ModRecursos, "Vencimientos SUNAT", "Editar cronograma de vencimientos SUNAT"},
 
@@ -252,7 +253,7 @@ var asistenteCodes = []string{
 	FiscalSeriesView, FiscalReceiptsList, FiscalReceiptsCreatePayment, FiscalReceiptsLinkPayment,
 	FiscalReceiptsPatchTax, FiscalReceiptsDiscard,
 	TaxSettlementsPreview, TaxSettlementsList, TaxSettlementsView, TaxSettlementsPaymentSuggestions,
-	FinanceCalendarView, CompanyCredentialsView, FinanceSunatDueDatesView,
+	FinanceCalendarView, CompanyCredentialsView, CompanyCredentialsSireEdit, FinanceSunatDueDatesView,
 	SupervisorsDashboardView, SupervisorsPeriodsView,
 	SupervisorsControlsView, SupervisorsControlsUpdate,
 	SupervisorsDeclarationsView, SupervisorsDeclarationsUpdate,

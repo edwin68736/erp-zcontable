@@ -107,6 +107,15 @@ export const sireService = {
     }
   },
 
+  /** Registra solo el Client ID y el Client Secret de la API SIRE de la empresa (el secreto no vuelve del servidor). */
+  async saveCredentials(companyId: number, p: { client_id: string; client_secret: string }): Promise<void> {
+    try {
+      await client.put(`${base(companyId)}/credentials`, p, SHORT);
+    } catch (err) {
+      throw toError(err, 'No se pudieron guardar las credenciales.');
+    }
+  },
+
   /** Períodos que SUNAT tiene habilitados para el libro, agrupados por año. */
   async periods(companyId: number, libro: SireLibro): Promise<SirePeriodYear[]> {
     try {

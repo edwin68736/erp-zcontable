@@ -45,6 +45,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillDetraccionesMarkStatus(db); err != nil {
 		return err
 	}
+	if err := backfillCompanyCredentialsSireEdit(db); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
@@ -387,39 +390,59 @@ func ensureAdminSuperusuarioUser(db *gorm.DB) error {
 	return nil
 }
 
-// backfillDetraccionesMarkStatus (una sola vez) reparte el permiso nuevo «Marcar Sin clave / No corresponde» en
-// Control de Detracciones: lo reciben todos los roles que hoy pueden hacerlo (los que tienen «Aprobar declaración»,
-// de sistema o creados por el administrador) para que nadie lo pierda, y el rol Asistente, que es quien lo necesitaba.
-// Al ser una sola vez, si el administrador lo quita después de un rol, no se vuelve a poner en el siguiente arranque.
-func backfillDetraccionesMarkStatus(db *gorm.DB) error {
-	return applyMigrationOnce(db, "rbac_detracciones_mark_status_v1", func(tx *gorm.DB) error {
-		var newPerm, approve models.Permission
-		if err := tx.Where("code = ?", rbac.SupervisorsDetraccionesMarkStatus).First(&newPerm).Error; err != nil {
+// backfillPermissionOnce (una sola vez, registrada en schema_migrations) reparte un permiso NUEVO en instalaciones
+// que ya tienen los roles configurados: lo reciben los roles —de sistema o creados por el administrador— que ya tenían
+// alguno de los permisos de `sinceCodes` (para que nadie pierda lo que ya podía hacer) y los roles de sistema de
+// `roleCodes`. Al ser una sola vez, si el administrador lo quita después de un rol, no se vuelve a poner al reiniciar.
+func backfillPermissionOnce(db *gorm.DB, migrationName, newCode string, sinceCodes, roleCodes []string) error {
+	return applyMigrationOnce(db, migrationName, func(tx *gorm.DB) error {
+		var newPerm models.Permission
+		if err := tx.Where("code = ?", newCode).First(&newPerm).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
 			return err
 		}
 		roleIDs := map[uint]bool{}
-		if err := tx.Where("code = ?", rbac.SupervisorsDeclarationsApprove).First(&approve).Error; err == nil {
+		for _, since := range sinceCodes {
+			var p models.Permission
+			if err := tx.Where("code = ?", since).First(&p).Error; err != nil {
+				continue
+			}
 			var links []models.RolePermission
-			if err := tx.Where("permission_id = ?", approve.ID).Find(&links).Error; err != nil {
+			if err := tx.Where("permission_id = ?", p.ID).Find(&links).Error; err != nil {
 				return err
 			}
 			for _, l := range links {
 				roleIDs[l.RoleID] = true
 			}
 		}
-		var asistente models.Role
-		if err := tx.Where("code = ? AND is_system = ?", rbac.RoleAsistente, true).First(&asistente).Error; err == nil {
-			roleIDs[asistente.ID] = true
+		for _, rc := range roleCodes {
+			var r models.Role
+			if err := tx.Where("code = ? AND is_system = ?", rc, true).First(&r).Error; err == nil {
+				roleIDs[r.ID] = true
+			}
 		}
 		for id := range roleIDs {
 			link := models.RolePermission{RoleID: id, PermissionID: newPerm.ID}
 			if err := tx.Where(link).FirstOrCreate(&link).Error; err != nil {
-				return fmt.Errorf("permiso detracciones_mark_status → rol %d: %w", id, err)
+				return fmt.Errorf("permiso %s → rol %d: %w", newCode, id, err)
 			}
 		}
 		return nil
 	})
+}
+
+// backfillDetraccionesMarkStatus «Marcar Sin clave / No corresponde» en Control de Detracciones: lo reciben los roles
+// que ya podían hacerlo («Aprobar declaración») y el Asistente.
+func backfillDetraccionesMarkStatus(db *gorm.DB) error {
+	return backfillPermissionOnce(db, "rbac_detracciones_mark_status_v1", rbac.SupervisorsDetraccionesMarkStatus,
+		[]string{rbac.SupervisorsDeclarationsApprove}, []string{rbac.RoleAsistente})
+}
+
+// backfillCompanyCredentialsSireEdit «Registrar credenciales de API SIRE»: lo reciben los roles que ya podían editar
+// las claves de la empresa (editar claves o ver usuario/clave SOL) y el Asistente.
+func backfillCompanyCredentialsSireEdit(db *gorm.DB) error {
+	return backfillPermissionOnce(db, "rbac_company_credentials_sire_edit_v1", rbac.CompanyCredentialsSireEdit,
+		[]string{rbac.CompanyCredentialsManage, rbac.CompanyCredentialsSolView}, []string{rbac.RoleAsistente})
 }

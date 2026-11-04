@@ -369,6 +369,8 @@ func Setup(app *fiber.App) {
 	sire.Delete("/:companyId/downloads", sireCtrl.DownloadsClearAPI)
 	sire.Get("/:companyId/downloads/:downloadId/file", sireCtrl.DownloadFileAPI)
 	sire.Delete("/:companyId/downloads/:downloadId", sireCtrl.DownloadDeleteAPI)
+	// Registrar solo el Client ID/Secret de la API SIRE (permiso propio: lo tiene el asistente).
+	sire.Put("/:companyId/credentials", middleware.RequirePermission(rbac.CompanyCredentialsSireEdit), sireCtrl.SaveCredentialsAPI)
 
 	// RH: plataforma de confirmación del RHE y de la FE (mismas credenciales de API que el SIRE).
 	rh := api.Group("/tools/rh", middleware.RequirePermission(rbac.CompanyCredentialsView))

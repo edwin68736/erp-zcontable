@@ -127,3 +127,28 @@ func (ctrl *SireController) DownloadsClearAPI(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": fiber.Map{"removed": n}})
 }
+
+// SaveCredentialsAPI PUT /tools/sire/:companyId/credentials — {"client_id":"…","client_secret":"…"}.
+// Guarda solo las credenciales de API SIRE de la empresa; no devuelve el secreto.
+func (ctrl *SireController) SaveCredentialsAPI(c fiber.Ctx) error {
+	id, _, err := ctrl.scoped(c)
+	if id == 0 {
+		return err
+	}
+	allowed, aerr := ctrl.allowedCompanyIDs(c)
+	if aerr != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "No tiene acceso"})
+	}
+	var body struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+	}
+	if berr := c.Bind().Body(&body); berr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	uid, _ := getUserID(c)
+	if serr := ctrl.svc.SaveCredentials(id, uid, allowed, body.ClientID, body.ClientSecret); serr != nil {
+		return ctrl.fail(c, serr)
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"sire_configurado": true}})
+}

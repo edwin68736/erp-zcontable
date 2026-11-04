@@ -270,3 +270,14 @@ func (s *SireService) CompanyRUC(companyID uint, allowed []uint) (string, error)
 	}
 	return strings.TrimSpace(row.RUC), nil
 }
+
+// SaveCredentials registra el Client ID y el Client Secret de la API SIRE de la empresa (solo esos dos datos) y deja
+// constancia en la bitácora de quién lo hizo. Los errores de validación se devuelven como parámetros inválidos.
+func (s *SireService) SaveCredentials(companyID, userID uint, allowed []uint, clientID, clientSecret string) error {
+	err := s.creds.SetSireCredentials(companyID, clientID, clientSecret, allowed)
+	if err != nil {
+		return sireErr(SireErrInvalidParams, err.Error(), "")
+	}
+	s.LogAccessTarget("sire_credenciales", companyID, userID, nil)
+	return nil
+}

@@ -160,6 +160,10 @@ const (
 	// CompanyCredentialsInactiveView filtro "Solo empresas inactivas" de Claves SOL. Por defecto solo el Super
 	// usuario; el resto de roles lo recibe desde la matriz de permisos (Roles).
 	CompanyCredentialsInactiveView = "finance.company_credentials_inactive_view"
+	// CompanyCredentialsSireEdit registrar solo el Client ID y el Client Secret de la API SIRE de una empresa (desde
+	// Herramientas → SIRE / RH). Es de escritura: nadie recibe de vuelta el secreto. El asistente lo tiene para dejar lista
+	// la empresa sin necesitar editar el resto de las claves.
+	CompanyCredentialsSireEdit = "finance.company_credentials_sire_edit"
 
 	FinanceSunatDueDatesView   = "finance.sunat_due_dates_view"
 	FinanceSunatDueDatesManage = "finance.sunat_due_dates_manage"

@@ -213,3 +213,57 @@ func TestDetraccionesMarkStatus_asistenteYQuienYaPodia(t *testing.T) {
 		t.Fatal("el permiso quitado por el administrador se volvió a poner solo")
 	}
 }
+
+// TestCompanyCredentialsSireEdit_repartoUnaVez: «Registrar credenciales de API SIRE» lo traen el Asistente, los roles
+// privilegiados y el Contador (que ya edita todas las claves), no el Analista; en una instalación existente se reparte una sola vez a quienes ya podían editar claves.
+func TestCompanyCredentialsSireEdit_repartoUnaVez(t *testing.T) {
+	db := setupRBACTestDB(t)
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 1: %v", err)
+	}
+	has := func(role string) bool {
+		_, ok := roleCodes(t, db, role)[rbac.CompanyCredentialsSireEdit]
+		return ok
+	}
+	for _, r := range []string{rbac.RoleAsistente, rbac.RoleSupervisor, rbac.RoleAdministrador, rbac.RoleSuperusuario, rbac.RoleContador} {
+		if !has(r) {
+			t.Fatalf("el rol %s debía traer el permiso", r)
+		}
+	}
+	if has(rbac.RoleAnalista) {
+		t.Fatal("el Analista no lo trae")
+	}
+
+	// Instalación anterior: el permiso no estaba en ningún rol y la migración no se había corrido.
+	var perm, manage models.Permission
+	db.Where("code = ?", rbac.CompanyCredentialsSireEdit).First(&perm)
+	db.Where("code = ?", rbac.CompanyCredentialsManage).First(&manage)
+	db.Where("permission_id = ?", perm.ID).Delete(&models.RolePermission{})
+	db.Where("name = ?", "rbac_company_credentials_sire_edit_v1").Delete(&models.SchemaMigration{})
+	custom := models.Role{Code: "claves_custom", Name: "Claves", IsSystem: false}
+	db.Create(&custom)
+	db.Create(&models.RolePermission{RoleID: custom.ID, PermissionID: manage.ID})
+
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 2: %v", err)
+	}
+	if !has(rbac.RoleAsistente) {
+		t.Fatal("el Asistente debía recibirlo")
+	}
+	if _, ok := roleCodes(t, db, "claves_custom")[rbac.CompanyCredentialsSireEdit]; !ok {
+		t.Fatal("un rol propio que ya editaba claves no debía perder la capacidad")
+	}
+	if has(rbac.RoleAnalista) {
+		t.Fatal("el Analista no debía recibirlo")
+	}
+
+	var asistente models.Role
+	db.Where("code = ?", rbac.RoleAsistente).First(&asistente)
+	db.Where("role_id = ? AND permission_id = ?", asistente.ID, perm.ID).Delete(&models.RolePermission{})
+	if err := SeedRBAC(db); err != nil {
+		t.Fatalf("SeedRBAC 3: %v", err)
+	}
+	if has(rbac.RoleAsistente) {
+		t.Fatal("lo quitado por el administrador se volvió a poner solo")
+	}
+}

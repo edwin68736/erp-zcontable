@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
+import { P } from '../../../rbac/codes';
+import { auth } from '../../../services/auth';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
 import {
   SIRE_LIBROS,
@@ -16,6 +18,7 @@ import {
 } from '../../../services/sire';
 import { timeAgo } from '../buzon/buzonUi';
 import { mergePeriodExcels, periodsBetween } from './sireExcel';
+import SireCredentialsModal from './SireCredentialsModal';
 import { Card, SireErrorBox, Spinner } from './SireShared';
 import { SELECT_CLS, sireMissing } from './sireUi';
 
@@ -150,6 +153,10 @@ const SireCompany = () => {
   const [periodsLoading, setPeriodsLoading] = useState(false);
   const [periodsError, setPeriodsError] = useState<SireApiError | null>(null);
   const [testState, setTestState] = useState<'idle' | 'running' | 'ok' | SireApiError>('idle');
+  // Quien tiene este permiso puede registrar el Client ID/Secret de la empresa si aún no los tiene.
+  const canEditCreds = useMemo(() => auth.hasPermission(P.companyCredentialsSireEdit), []);
+  const [credOpen, setCredOpen] = useState(false);
+  const [companyNonce, setCompanyNonce] = useState(0);
   const [items, setItems] = useState<SireDownloadItem[]>([]);
   const [historyError, setHistoryError] = useState<SireApiError | null>(null);
   const [actionError, setActionError] = useState<SireApiError | null>(null);
@@ -170,7 +177,7 @@ const SireCompany = () => {
     return () => {
       alive = false;
     };
-  }, [companyId]);
+  }, [companyId, companyNonce]);
 
   const missing = company ? sireMissing(company) : '';
 
@@ -340,7 +347,19 @@ const SireCompany = () => {
             Claves SOL
           </Link>{' '}
           (botón Editar de la empresa) para poder descargar del SIRE.
+          {canEditCreds && !company.sire_configurado ? (
+            <div className="mt-2">
+              <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setCredOpen(true)}>
+                <i className="fas fa-pen mr-1.5" aria-hidden />
+                Registrar credenciales de API (Client ID y Secret)
+              </Button>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      {company && credOpen ? (
+        <SireCredentialsModal open companyId={companyId} companyName={company.business_name} onClose={() => setCredOpen(false)} onSaved={() => setCompanyNonce((n) => n + 1)} />
       ) : null}
 
       {testState === 'ok' ? (
