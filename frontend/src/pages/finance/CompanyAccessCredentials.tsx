@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type InputHTMLAttributes, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
@@ -28,6 +28,34 @@ function maskSecret(value: string): string {
   return '••••••';
 }
 
+/**
+ * Campo de clave con ojito para ver lo que se está escribiendo. Arranca oculto; `showAll` es el interruptor general de
+ * la lista (Mostrar claves), que lo deja visible.
+ */
+function SecretInput({
+  showAll = false,
+  className = '',
+  ...rest
+}: { showAll?: boolean } & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false);
+  const shown = visible || showAll;
+  return (
+    <div className="relative mt-1">
+      <input {...rest} type={shown ? 'text' : 'password'} className={`${className.replace(/\bmt-1\b/, '').trim()} pr-10`} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        disabled={showAll}
+        aria-label={shown ? 'Ocultar clave' : 'Mostrar clave'}
+        title={shown ? 'Ocultar clave' : 'Mostrar clave'}
+        className="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-700 disabled:opacity-40"
+      >
+        <i className={`fas ${shown ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 /** Celda con valor copiable al portapapeles (clic). */
 function CopyableCredentialCell({
   value,
@@ -36,7 +64,10 @@ function CopyableCredentialCell({
   showSecrets = false,
   mono = false,
   linkStyle = false,
+  hint,
 }: {
+  /** Texto al pasar el mouse (por defecto «Clic para copiar»). */
+  hint?: string;
   value: string;
   cellClass: string;
   secret?: boolean;
@@ -75,7 +106,7 @@ function CopyableCredentialCell({
       <button
         type="button"
         onClick={(e) => void handleCopy(e)}
-        title="Clic para copiar"
+        title={hint ?? 'Clic para copiar'}
         className={`group/copy inline-flex max-w-full items-center gap-1 rounded px-0.5 -mx-0.5 text-left transition-colors hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 ${
           mono ? 'font-mono' : ''
         } ${linkStyle ? 'text-indigo-700' : 'text-slate-700'}`}
@@ -808,9 +839,11 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                     <td className={`${TD} text-center text-slate-500 tabular-nums w-10`}>{rowNum}</td>
                     <td className={`${TD} font-mono`}>{row.code || '—'}</td>
                     <td className={TD}>{row.dig || '—'}</td>
-                    <td className={`${TD} max-w-[12rem] font-medium`} title={row.business_name}>
-                      {row.business_name || '—'}
-                    </td>
+                    <CopyableCredentialCell
+                      value={row.business_name}
+                      cellClass={`${TD} max-w-[12rem] font-medium`}
+                      hint={`Clic para copiar la razón social: ${row.business_name}`}
+                    />
                     <CopyableCredentialCell value={row.ruc} cellClass={`${TD} whitespace-nowrap`} mono />
                     {canSeeSol ? (
                       <>
@@ -976,8 +1009,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   </label>
                   <label className="block text-sm sm:col-span-2">
                     <span className="text-slate-600">Clave SOL</span>
-                    <input
-                      type={showSecrets ? 'text' : 'password'}
+                    <SecretInput
+                      showAll={showSecrets}
                       disabled={!canManage}
                       value={form.sol_clave}
                       onChange={(e) => setForm((f) => ({ ...f, sol_clave: e.target.value }))}
@@ -1004,8 +1037,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   </label>
                   <label className="block text-sm sm:col-span-2">
                     <span className="text-slate-600">Client Secret (API SIRE)</span>
-                    <input
-                      type={showSecrets ? 'text' : 'password'}
+                    <SecretInput
+                      showAll={showSecrets}
                       disabled={!canManage}
                       autoComplete="off"
                       value={form.sire_client_secret}
@@ -1047,8 +1080,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   </label>
                   <label className="block text-sm sm:col-span-2">
                     <span className="text-slate-600">Clave detracciones</span>
-                    <input
-                      type={showSecrets ? 'text' : 'password'}
+                    <SecretInput
+                      showAll={showSecrets}
                       disabled={!canManage}
                       value={form.bnl_clave_detracciones}
                       onChange={(e) => setForm((f) => ({ ...f, bnl_clave_detracciones: e.target.value }))}
@@ -1073,8 +1106,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   </label>
                   <label className="block text-sm">
                     <span className="text-slate-600">Clave AFP</span>
-                    <input
-                      type={showSecrets ? 'text' : 'password'}
+                    <SecretInput
+                      showAll={showSecrets}
                       disabled={!canManage}
                       value={form.afp_clave}
                       onChange={(e) => setForm((f) => ({ ...f, afp_clave: e.target.value }))}
@@ -1088,8 +1121,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <legend className="text-xs font-bold uppercase text-slate-500">RNP</legend>
                 <label className="block text-sm">
                   <span className="text-slate-600">Clave RNP</span>
-                  <input
-                    type={showSecrets ? 'text' : 'password'}
+                  <SecretInput
+                    showAll={showSecrets}
                     disabled={!canManage}
                     value={form.rnp_clave}
                     onChange={(e) => setForm((f) => ({ ...f, rnp_clave: e.target.value }))}
@@ -1123,8 +1156,8 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   </label>
                   <label className="block text-sm">
                     <span className="text-slate-600">Contraseña</span>
-                    <input
-                      type={showSecrets ? 'text' : 'password'}
+                    <SecretInput
+                      showAll={showSecrets}
                       disabled={!canManage}
                       value={form.facturador_contrasena}
                       onChange={(e) => setForm((f) => ({ ...f, facturador_contrasena: e.target.value }))}
