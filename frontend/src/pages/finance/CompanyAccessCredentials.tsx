@@ -951,7 +951,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                           const busy = apiBusy[row.company_id];
                           const validated = Boolean(row.sol_validada);
                           const base =
-                            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-1 text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40';
+                            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-1 text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-60';
                           return (
                             <>
                               <button
@@ -966,27 +966,40 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                                       : 'Validar la clave SOL con SUNAT'
                                 }
                                 aria-label={`Validar la clave SOL de ${row.business_name || 'la empresa'}`}
-                                className={`${base} ${validated ? 'bg-primary-50 text-primary-700 ring-primary-300' : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'}`}
+                                className={`${base} ${validated ? 'bg-emerald-50 text-emerald-700 ring-emerald-300 hover:bg-emerald-100' : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'}`}
                               >
                                 <i className={`fas ${busy === 'validate' ? 'fa-spinner fa-spin' : 'fa-key'}`} aria-hidden />
                               </button>
                               {canGenerateApi ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleGenerateApi(row)}
-                                  disabled={!validated || Boolean(busy)}
-                                  title={
-                                    !validated
-                                      ? 'Primero valide la clave SOL (botón de la llave)'
-                                      : row.sire_configurado
-                                        ? 'Volver a leer las credenciales de API SUNAT de la empresa'
-                                        : 'Generar las credenciales de API SUNAT de la empresa'
-                                  }
-                                  aria-label={`Generar credenciales de API de ${row.business_name || 'la empresa'}`}
-                                  className={`${base} ${validated ? 'bg-primary-600 text-white ring-primary-600 hover:bg-primary-700' : 'bg-white text-slate-400 ring-slate-200'}`}
-                                >
-                                  <i className={`fas ${busy === 'generate' ? 'fa-spinner fa-spin' : 'fa-plug'}`} aria-hidden />
-                                </button>
+                                (() => {
+                                  // Gris: falta validar la clave SOL. Ámbar: validada pero aún sin credenciales de API.
+                                  // Verde: la empresa ya tiene sus credenciales de API guardadas (conectada).
+                                  const connected = Boolean(row.sire_configurado);
+                                  const plugClass = connected
+                                    ? 'bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600'
+                                    : validated
+                                      ? 'bg-amber-400 text-white ring-amber-400 hover:bg-amber-500'
+                                      : 'bg-white text-slate-400 ring-slate-200';
+                                  const plugTitle = !validated
+                                    ? connected
+                                      ? 'Conectada: ya tiene credenciales de API. Valide la clave SOL (llave) para volver a leerlas'
+                                      : 'Primero valide la clave SOL (botón de la llave)'
+                                    : connected
+                                      ? 'Conectada: ya tiene credenciales de API SUNAT (clic para volver a leerlas)'
+                                      : 'Falta conectar: clic para generar las credenciales de API SUNAT';
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleGenerateApi(row)}
+                                      disabled={!validated || Boolean(busy)}
+                                      title={plugTitle}
+                                      aria-label={`${connected ? 'Credenciales de API conectadas' : 'Generar credenciales de API'} de ${row.business_name || 'la empresa'}`}
+                                      className={`${base} ${plugClass}`}
+                                    >
+                                      <i className={`fas ${busy === 'generate' ? 'fa-spinner fa-spin' : 'fa-plug'}`} aria-hidden />
+                                    </button>
+                                  );
+                                })()
                               ) : null}
                             </>
                           );
