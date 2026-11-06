@@ -1,10 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
 	"miappfiber/models"
+
+	"github.com/xuri/excelize/v2"
 )
 
 func TestSetSireCredentials_soloEsosDosCamposYValida(t *testing.T) {
@@ -52,5 +55,44 @@ func TestSetSireCredentials_soloEsosDosCamposYValida(t *testing.T) {
 	}
 	if err := svc.SetSireCredentials(9999, "a", "b", nil); err == nil {
 		t.Error("empresa inexistente")
+	}
+}
+
+// Importar el Excel de Claves SOL no debe borrar el Client ID/Secret de SIRE (la plantilla no los trae).
+func TestImportClavesSol_conservaCredencialesSire(t *testing.T) {
+	db := setupCompanyRucTestDB(t)
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}); err != nil {
+		t.Fatal(err)
+	}
+	co := models.Company{RUC: "20111111111", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}
+	db.Create(&co)
+	db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, SireClientID: "cid", SireClientSecret: "secreto", SolUsuario: "VIEJO"})
+
+	f := excelize.NewFile()
+	_ = f.SetSheetName("Sheet1", credImportSheetMain)
+	for i, h := range []string{"ruc", "sol_usuario", "sol_clave"} {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		_ = f.SetCellStr(credImportSheetMain, cell, h)
+	}
+	for i, v := range []string{"20111111111", "NUEVO", "clave"} {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 2)
+		_ = f.SetCellStr(credImportSheetMain, cell, v)
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, _, valErrs, err := CompanyAccessCredentialImportCommit(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil || len(valErrs) > 0 || updated != 1 {
+		t.Fatalf("import: updated=%d errs=%v err=%v", updated, valErrs, err)
+	}
+	var cred models.CompanyAccessCredential
+	db.Where("company_id = ?", co.ID).First(&cred)
+	if cred.SolUsuario != "NUEVO" {
+		t.Errorf("el import debía actualizar la clave SOL: %+v", cred)
+	}
+	if cred.SireClientID != "cid" || cred.SireClientSecret != "secreto" {
+		t.Errorf("el import borró las credenciales SIRE: %+v", cred)
 	}
 }

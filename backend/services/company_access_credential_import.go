@@ -290,6 +290,13 @@ func CompanyAccessCredentialImportCommit(r io.Reader, size int64) (updated int, 
 			continue
 		}
 
+		// La plantilla no trae las credenciales API de SIRE: se conservan las que ya tenga la empresa
+		// (si no, cada importación las dejaría en blanco).
+		var prev models.CompanyAccessCredential
+		if err := database.DB.Where("company_id = ?", company.ID).First(&prev).Error; err == nil {
+			pr.fields.SireClientID, pr.fields.SireClientSecret = prev.SireClientID, prev.SireClientSecret
+		}
+
 		if _, err := svc.Upsert(company.ID, pr.fields, nil); err != nil {
 			valErrs = append(valErrs, CompanyAccessCredentialImportRowError{Row: pr.excelRow, Message: err.Error()})
 			continue
