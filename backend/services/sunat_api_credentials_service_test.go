@@ -272,8 +272,8 @@ func TestMergeAppURL(t *testing.T) {
 		{"", "https://zcontables.net", "https://zcontables.net", true},
 		{"https://zcontables.net", "https://zcontables.net", "https://zcontables.net", false},
 		{"http://www.zcontables.net/", "https://zcontables.net", "http://www.zcontables.net/", false},
-		{"https://datamart.cl", "https://zcontables.net", "https://datamart.cl, https://zcontables.net", true},
-		{"https://datamart.cl, https://zcontables.net", "https://zcontables.net", "https://datamart.cl, https://zcontables.net", false},
+		{"https://datamart.cl", "https://zcontables.net", "https://datamart.cl , https://zcontables.net", true},
+		{"https://datamart.cl , https://zcontables.net", "https://zcontables.net", "https://datamart.cl , https://zcontables.net", false},
 	}
 	for _, c := range cases {
 		got, changed := mergeAppURL(c.existing, c.ours)

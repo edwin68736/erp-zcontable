@@ -272,7 +272,7 @@ func mergeAppURL(existing, ours string) (string, bool) {
 			return existing, false
 		}
 	}
-	return existing + ", " + ours, true
+	return existing + " , " + ours, true
 }
 
 type sunatAPISession struct {
