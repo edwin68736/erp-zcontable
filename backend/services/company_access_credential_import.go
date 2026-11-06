@@ -186,6 +186,21 @@ func parseCredentialImportSheet(f *excelize.File) ([]companyAccessCredentialImpo
 	return parsed, errs, nil
 }
 
+// keepLeadingZeros devuelve el valor guardado cuando el del Excel es el mismo número sin los ceros a la izquierda
+// (06766848 vs 6766848): así reimportar no corrompe usuarios que empiezan con 0.
+func keepLeadingZeros(imported, stored string) string {
+	imported, stored = strings.TrimSpace(imported), strings.TrimSpace(stored)
+	if imported == "" || imported == stored || !credImportDigits.MatchString(imported) || !credImportDigits.MatchString(stored) {
+		return imported
+	}
+	if strings.TrimLeft(imported, "0") == strings.TrimLeft(stored, "0") {
+		return stored
+	}
+	return imported
+}
+
+var credImportDigits = regexp.MustCompile(`^[0-9]+$`)
+
 func rowEmpty(row []string) bool {
 	for _, c := range row {
 		if strings.TrimSpace(c) != "" {
@@ -295,6 +310,10 @@ func CompanyAccessCredentialImportCommit(r io.Reader, size int64) (updated int, 
 		var prev models.CompanyAccessCredential
 		if err := database.DB.Where("company_id = ?", company.ID).First(&prev).Error; err == nil {
 			pr.fields.SireClientID, pr.fields.SireClientSecret = prev.SireClientID, prev.SireClientSecret
+			// Excel guarda como número los valores solo-dígitos y les quita los ceros a la izquierda (06766848 -> 6766848).
+			pr.fields.SolUsuario = keepLeadingZeros(pr.fields.SolUsuario, prev.SolUsuario)
+			pr.fields.BnlCuenta = keepLeadingZeros(pr.fields.BnlCuenta, prev.BnlCuenta)
+			pr.fields.BnlDNI = keepLeadingZeros(pr.fields.BnlDNI, prev.BnlDNI)
 		}
 
 		if _, err := svc.Upsert(company.ID, pr.fields, nil); err != nil {

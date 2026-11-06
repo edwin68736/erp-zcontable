@@ -96,3 +96,38 @@ func TestImportClavesSol_conservaCredencialesSire(t *testing.T) {
 		t.Errorf("el import borró las credenciales SIRE: %+v", cred)
 	}
 }
+
+// Excel convierte en número los valores solo-dígitos y pierde los ceros iniciales: reimportar no debe dañar
+// usuarios SOL / DNI que empiezan con 0.
+func TestImportClavesSol_conservaCerosIniciales(t *testing.T) {
+	db := setupCompanyRucTestDB(t)
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}); err != nil {
+		t.Fatal(err)
+	}
+	co := models.Company{RUC: "20111111111", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}
+	db.Create(&co)
+	db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, SolUsuario: "06766848", BnlDNI: "04712345"})
+
+	f := excelize.NewFile()
+	_ = f.SetSheetName("Sheet1", credImportSheetMain)
+	for i, h := range []string{"ruc", "sol_usuario", "bnl_dni"} {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		_ = f.SetCellStr(credImportSheetMain, cell, h)
+	}
+	_ = f.SetCellStr(credImportSheetMain, "A2", "20111111111")
+	_ = f.SetCellInt(credImportSheetMain, "B2", 6766848) // número: sin el cero inicial
+	_ = f.SetCellInt(credImportSheetMain, "C2", 99887766) // DNI realmente distinto
+	buf, _ := f.WriteToBuffer()
+
+	if n, _, errs, err := CompanyAccessCredentialImportCommit(bytes.NewReader(buf.Bytes()), int64(buf.Len())); err != nil || len(errs) > 0 || n != 1 {
+		t.Fatalf("import: %d %v %v", n, errs, err)
+	}
+	var cred models.CompanyAccessCredential
+	db.Where("company_id = ?", co.ID).First(&cred)
+	if cred.SolUsuario != "06766848" {
+		t.Errorf("perdió el cero inicial del usuario: %q", cred.SolUsuario)
+	}
+	if cred.BnlDNI != "99887766" {
+		t.Errorf("un valor distinto sí debe actualizarse: %q", cred.BnlDNI)
+	}
+}
