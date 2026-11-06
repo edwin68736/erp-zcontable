@@ -31,6 +31,8 @@ export interface CompanyAccessCredentialRow {
   sire_client_secret: string;
   /** Hay Client ID y Secret de la API SIRE cargados. Llega siempre, aunque los datos vengan vacíos. */
   sire_configurado?: boolean;
+  /** SUNAT aceptó el usuario y la clave SOL actuales (botón de la llave). Se pierde si cambian. */
+  sol_validada?: boolean;
   bnl_cuenta: string;
   bnl_dni: string;
   bnl_clave_detracciones: string;
@@ -91,7 +93,43 @@ export interface SunatAccessResult {
   expires_hint_seconds: number;
 }
 
+/** Lo que se hizo al generar las credenciales de API SUNAT de una empresa (nunca incluye el ID ni la clave). */
+export interface SunatApiCredentialsResult {
+  created: boolean;
+  updated: boolean;
+  url_added: boolean;
+  warnings?: string[];
+}
+
+function toSunatAccessError(err: unknown, fallback: string): SunatAccessError {
+  const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string; attempts_left?: number } } }).response?.data;
+  return { message: data?.error || fallback, code: data?.code, detail: data?.detail, attempts_left: data?.attempts_left };
+}
+
 export const companyAccessCredentialsService = {
+  /** Botón de la llave: prueba el usuario y la clave SOL de la empresa contra SUNAT. */
+  async validateSol(companyId: number): Promise<void> {
+    try {
+      await client.post(`/finance/company-credentials/${companyId}/validate-sol`, {}, { timeout: 45000 });
+    } catch (err) {
+      throw toSunatAccessError(err, 'No se pudo validar la clave SOL. Intente de nuevo.');
+    }
+  },
+
+  /** Botón del enchufe: crea o completa la aplicación de API SUNAT de la empresa y guarda su Client ID y Secret. */
+  async generateApiCredentials(companyId: number): Promise<SunatApiCredentialsResult> {
+    try {
+      const res = await client.post<{ data: SunatApiCredentialsResult }>(
+        `/finance/company-credentials/${companyId}/sunat-api-credentials`,
+        {},
+        { timeout: 90000 },
+      );
+      return res.data.data;
+    } catch (err) {
+      throw toSunatAccessError(err, 'No se pudieron generar las credenciales de API. Intente de nuevo.');
+    }
+  },
+
   /** El servidor inicia sesión con las credenciales de la empresa (SUNAT, Pagos o SUNAFIL) y devuelve un enlace de un solo uso. */
   async sunatAccess(companyId: number, target: 'sunat' | 'pagos' | 'sunafil' = 'sunat'): Promise<SunatAccessResult> {
     try {

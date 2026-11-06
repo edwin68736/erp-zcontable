@@ -15,16 +15,18 @@ import (
 )
 
 type CompanyAccessCredentialController struct {
-	svc    *services.CompanyAccessCredentialService
-	access *services.AccessService
-	sunat  *services.SunatSolAccessService
+	svc      *services.CompanyAccessCredentialService
+	access   *services.AccessService
+	sunat    *services.SunatSolAccessService
+	apiCreds *services.SunatApiCredentialsService
 }
 
 func NewCompanyAccessCredentialController() *CompanyAccessCredentialController {
 	return &CompanyAccessCredentialController{
-		svc:    services.NewCompanyAccessCredentialService(),
-		access: services.NewAccessService(),
-		sunat:  services.NewSunatSolAccessService(),
+		svc:      services.NewCompanyAccessCredentialService(),
+		access:   services.NewAccessService(),
+		sunat:    services.NewSunatSolAccessService(),
+		apiCreds: services.NewSunatApiCredentialsService(),
 	}
 }
 
@@ -305,6 +307,75 @@ func (ctrl *CompanyAccessCredentialController) SunatAccessAPI(c fiber.Ctx) error
 			return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail, "attempts_left": ae.AttemptsLeft})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo generar el acceso"})
+	}
+	return c.JSON(fiber.Map{"data": res})
+}
+
+// sunatErrorResponse traduce un error de los servicios que hablan con SUNAT a la respuesta JSON de la API.
+func sunatErrorResponse(c fiber.Ctx, err error, fallback string) error {
+	var ae *services.SunatSolAccessError
+	if errors.As(err, &ae) {
+		status := fiber.StatusUnprocessableEntity
+		switch ae.Code {
+		case services.SunatAccessOutOfScope:
+			status = fiber.StatusForbidden
+		case services.SunatAccessInProgress:
+			status = fiber.StatusConflict
+		case services.SunatAccessUnavailable:
+			status = fiber.StatusBadGateway
+		}
+		return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail, "attempts_left": ae.AttemptsLeft})
+	}
+	if strings.Contains(err.Error(), "no encontrada") || strings.Contains(err.Error(), "alcance") {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fallback})
+}
+
+// companyIDAndAccess valida alcance, empresa y usuario de las acciones por empresa que llaman a SUNAT.
+func (ctrl *CompanyAccessCredentialController) companyIDAndAccess(c fiber.Ctx) (companyID uint, allowed []uint, userID uint, resp error) {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if fe, ok := err.(*fiber.Error); ok {
+			return 0, nil, 0, c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+		}
+		return 0, nil, 0, c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+	}
+	id, err := strconv.ParseUint(c.Params("companyId"), 10, 64)
+	if err != nil || id == 0 {
+		return 0, nil, 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID de empresa inválido"})
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return 0, nil, 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	return uint(id), allowed, uid, nil
+}
+
+// ValidateSolAPI POST /finance/company-credentials/:companyId/validate-sol
+// Prueba el usuario y la clave SOL de la empresa contra SUNAT (botón de la llave). No abre ninguna sesión visible.
+func (ctrl *CompanyAccessCredentialController) ValidateSolAPI(c fiber.Ctx) error {
+	companyID, allowed, uid, resp := ctrl.companyIDAndAccess(c)
+	if resp != nil {
+		return resp
+	}
+	if err := ctrl.apiCreds.ValidateSol(companyID, allowed, uid); err != nil {
+		return sunatErrorResponse(c, err, "No se pudo validar la clave SOL")
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"sol_validada": true}})
+}
+
+// GenerateApiCredentialsAPI POST /finance/company-credentials/:companyId/sunat-api-credentials
+// Entra a SOL con la clave de la empresa, crea o completa su aplicación de «Credenciales de API SUNAT» y guarda el
+// Client ID y el Client Secret. Ver services/sunat_api_credentials_service.go.
+func (ctrl *CompanyAccessCredentialController) GenerateApiCredentialsAPI(c fiber.Ctx) error {
+	companyID, allowed, uid, resp := ctrl.companyIDAndAccess(c)
+	if resp != nil {
+		return resp
+	}
+	res, err := ctrl.apiCreds.Provision(companyID, allowed, uid)
+	if err != nil {
+		return sunatErrorResponse(c, err, "No se pudieron generar las credenciales de API")
 	}
 	return c.JSON(fiber.Map{"data": res})
 }

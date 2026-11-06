@@ -16,6 +16,11 @@ type CompanyAccessCredential struct {
 	SireClientID     string `gorm:"size:120" json:"sire_client_id"`
 	SireClientSecret string `gorm:"size:255" json:"sire_client_secret"`
 
+	// SolValidatedAt / SolValidatedFP: última vez que SUNAT aceptó el usuario y la clave SOL, y la huella de ese par.
+	// Si el usuario o la clave cambian, la huella ya no coincide y la validación deja de valer.
+	SolValidatedAt *time.Time `json:"sol_validated_at"`
+	SolValidatedFP string     `gorm:"size:64" json:"-"`
+
 	BnlCuenta            string `gorm:"size:80" json:"bnl_cuenta"`
 	BnlDNI               string `gorm:"size:20" json:"bnl_dni"`
 	BnlClaveDetracciones string `gorm:"size:255" json:"bnl_clave_detracciones"`

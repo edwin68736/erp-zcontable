@@ -319,6 +319,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const [importCommitLoading, setImportCommitLoading] = useState(false);
   const [listNotice, setListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [sunatModal, setSunatModal] = useState<{ row: CompanyAccessCredentialRow; target: SunatAccessTarget } | null>(null);
+  // Llave (validar clave SOL) y enchufe (generar credenciales de API) en curso, por empresa.
+  const [apiBusy, setApiBusy] = useState<Record<number, 'validate' | 'generate'>>({});
+  const canGenerateApi = useMemo(() => auth.hasPermission(P.companyCredentialsSireEdit), []);
 
   /** Ingreso directo a SUNAT, Pagos o SUNAFIL con la clave SOL de la fila (pestaña nueva, ver utils/sunatSol.ts). */
   const handleOpenSunat = (row: CompanyAccessCredentialRow, target: SunatAccessTarget = 'sunat') => {
@@ -329,6 +332,62 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     }
     setListNotice(null);
     setSunatModal({ row, target });
+  };
+
+  const setBusy = (id: number, kind: 'validate' | 'generate' | null) =>
+    setApiBusy((prev) => {
+      const next = { ...prev };
+      if (kind) next[id] = kind;
+      else delete next[id];
+      return next;
+    });
+
+  const apiErrorMessage = (row: CompanyAccessCredentialRow, e: unknown) => {
+    const err = e as { message?: string; attempts_left?: number };
+    const left = typeof err.attempts_left === 'number' && err.attempts_left > 0 ? ` Quedan ${err.attempts_left} intento(s) automático(s).` : '';
+    return `${row.business_name || 'La empresa'}: ${err.message || 'No se pudo completar la acción.'}${left}`;
+  };
+
+  /** Llave: prueba la clave SOL con SUNAT. Si la acepta, la fila queda validada y se habilita el enchufe. */
+  const handleValidateSol = async (row: CompanyAccessCredentialRow) => {
+    const missing = solMissing(row);
+    if (missing) {
+      setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
+      return;
+    }
+    setListNotice(null);
+    setBusy(row.company_id, 'validate');
+    try {
+      await companyAccessCredentialsService.validateSol(row.company_id);
+      setRows((prev) => prev.map((r) => (r.company_id === row.company_id ? { ...r, sol_validada: true } : r)));
+      setListNotice({ kind: 'success', message: `${row.business_name || 'La empresa'}: SUNAT aceptó la clave SOL. Ya puede generar sus credenciales de API.` });
+    } catch (e) {
+      setRows((prev) => prev.map((r) => (r.company_id === row.company_id ? { ...r, sol_validada: false } : r)));
+      setListNotice({ kind: 'error', message: apiErrorMessage(row, e) });
+    } finally {
+      setBusy(row.company_id, null);
+    }
+  };
+
+  /** Enchufe: el servidor entra a SOL, crea o completa la aplicación de API SUNAT y guarda el ID y la clave. */
+  const handleGenerateApi = async (row: CompanyAccessCredentialRow) => {
+    setListNotice(null);
+    setBusy(row.company_id, 'generate');
+    try {
+      const res = await companyAccessCredentialsService.generateApiCredentials(row.company_id);
+      const what = res.created
+        ? 'Se creó la aplicación de API en SUNAT'
+        : res.updated
+          ? 'Se completó la aplicación de API existente en SUNAT'
+          : 'La aplicación de API ya estaba completa en SUNAT';
+      const warn = res.warnings?.length ? ` Aviso: ${res.warnings.join(' ')}` : '';
+      setListNotice({ kind: 'success', message: `${row.business_name || 'La empresa'}: ${what} y se guardó su Client ID y Secret.${warn}` });
+      void load();
+    } catch (e) {
+      setListNotice({ kind: 'error', message: apiErrorMessage(row, e) });
+    } finally {
+      setBusy(row.company_id, null);
+    }
   };
 
   const importBannerClass =
@@ -887,6 +946,51 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                             </button>
                           );
                         })}
+                        {(() => {
+                          const missing = solMissing(row);
+                          const busy = apiBusy[row.company_id];
+                          const validated = Boolean(row.sol_validada);
+                          const base =
+                            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-1 text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40';
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleValidateSol(row)}
+                                disabled={Boolean(missing) || Boolean(busy)}
+                                title={
+                                  missing
+                                    ? `Falta ${missing}: complételo con "Editar"`
+                                    : validated
+                                      ? 'La clave SOL ya fue aceptada por SUNAT (clic para volver a probar)'
+                                      : 'Validar la clave SOL con SUNAT'
+                                }
+                                aria-label={`Validar la clave SOL de ${row.business_name || 'la empresa'}`}
+                                className={`${base} ${validated ? 'bg-primary-50 text-primary-700 ring-primary-300' : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'}`}
+                              >
+                                <i className={`fas ${busy === 'validate' ? 'fa-spinner fa-spin' : 'fa-key'}`} aria-hidden />
+                              </button>
+                              {canGenerateApi ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleGenerateApi(row)}
+                                  disabled={!validated || Boolean(busy)}
+                                  title={
+                                    !validated
+                                      ? 'Primero valide la clave SOL (botón de la llave)'
+                                      : row.sire_configurado
+                                        ? 'Volver a leer las credenciales de API SUNAT de la empresa'
+                                        : 'Generar las credenciales de API SUNAT de la empresa'
+                                  }
+                                  aria-label={`Generar credenciales de API de ${row.business_name || 'la empresa'}`}
+                                  className={`${base} ${validated ? 'bg-primary-600 text-white ring-primary-600 hover:bg-primary-700' : 'bg-white text-slate-400 ring-slate-200'}`}
+                                >
+                                  <i className={`fas ${busy === 'generate' ? 'fa-spinner fa-spin' : 'fa-plug'}`} aria-hidden />
+                                </button>
+                              ) : null}
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                     <CopyableCredentialCell value={row.bnl_cuenta} cellClass={TD} mono />

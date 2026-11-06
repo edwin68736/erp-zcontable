@@ -344,6 +344,8 @@ func Setup(app *fiber.App) {
 	creds.Get("/filter-facets", credCtrl.FilterFacetsAPI)
 	creds.Get("/:companyId", credCtrl.GetAPI)
 	creds.Post("/:companyId/sunat-access", middleware.RequirePermission(rbac.CompanyCredentialsView), credCtrl.SunatAccessAPI)
+	creds.Post("/:companyId/validate-sol", middleware.RequirePermission(rbac.CompanyCredentialsView), credCtrl.ValidateSolAPI)
+	creds.Post("/:companyId/sunat-api-credentials", middleware.RequirePermission(rbac.CompanyCredentialsSireEdit), credCtrl.GenerateApiCredentialsAPI)
 	creds.Get("/import/template", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportTemplateAPI)
 	creds.Post("/import", middleware.RequirePermission(rbac.CompanyCredentialsImport), credCtrl.ImportAPI)
 	creds.Put("/:companyId", middleware.RequirePermission(rbac.CompanyCredentialsManage), credCtrl.UpdateAPI)

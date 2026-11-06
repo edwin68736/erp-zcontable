@@ -41,6 +41,8 @@ type CompanyAccessCredentialRow struct {
 	SireClientID     string `json:"sire_client_id"`
 	SireClientSecret string `json:"sire_client_secret"`
 	SireConfigurado  bool   `json:"sire_configurado"`
+	// SolValidada: SUNAT aceptó el usuario y la clave SOL actuales (botón de la llave).
+	SolValidada bool `json:"sol_validada"`
 
 	BnlCuenta            string `json:"bnl_cuenta"`
 	BnlDNI               string `json:"bnl_dni"`
@@ -145,6 +147,7 @@ func (s *CompanyAccessCredentialService) rowFrom(company models.Company, cred *m
 		row.SolUsuario = cred.SolUsuario
 		row.SolClave = cred.SolClave
 		row.SolConfigurado = strings.TrimSpace(cred.SolUsuario) != "" && strings.TrimSpace(cred.SolClave) != ""
+		row.SolValidada = cred.SolValidatedFP != "" && cred.SolValidatedFP == solFingerprint(cred.SolUsuario, cred.SolClave)
 		row.SireClientID = cred.SireClientID
 		row.SireClientSecret = cred.SireClientSecret
 		row.SireConfigurado = strings.TrimSpace(cred.SireClientID) != "" && strings.TrimSpace(cred.SireClientSecret) != ""
