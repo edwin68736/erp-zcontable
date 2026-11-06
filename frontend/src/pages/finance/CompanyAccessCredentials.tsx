@@ -22,6 +22,9 @@ import {
   type ClavesSolPaletteId,
 } from '../../utils/clavesSolDigColors';
 
+/** Mostrar las columnas Usuario SOL y Clave SOL en la lista (ocultas a propósito; ver showSolColumns). */
+const SHOW_SOL_COLUMNS = false;
+
 function maskSecret(value: string): string {
   const v = (value ?? '').trim();
   if (!v) return '—';
@@ -258,6 +261,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   // Usuario y Clave SOL: solo Administrador, Supervisor y Super usuario. Sin el permiso, el servidor
   // ni siquiera los envía (llegan vacíos); el usuario entra a SUNAT con el acceso directo.
   const canSeeSol = useMemo(() => auth.hasPermission(P.companyCredentialsSolView), []);
+  // Las columnas Usuario/Clave SOL de la lista están ocultas: el acceso directo ya funciona y, si falla, su ventana muestra
+  // las claves (con copiar y el login de SUNAT) a quien tiene permiso de verlas. Se siguen viendo y editando en el formulario.
+  const showSolColumns = SHOW_SOL_COLUMNS && canSeeSol;
   // Asistente: solo ve sus propias empresas, así que la columna "Asistente" sería siempre él mismo.
   // Se reconoce por permisos (en el frontend no está el rol): puede figurar como asistente de una
   // empresa pero no como supervisor.
@@ -266,7 +272,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
     [],
   );
   const showAssistantCol = !isAsistente;
-  const solGroupCols = 2 + (canSeeSol ? 2 : 0) + (showAssistantCol ? 1 : 0) + 1;
+  const solGroupCols = 2 + (showSolColumns ? 2 : 0) + (showAssistantCol ? 1 : 0) + 1;
   const totalCols = 3 + solGroupCols + 1 + 3 + 2 + 1 + 3 + 1;
   // Ver las claves de empresas INACTIVAS requiere un permiso propio (por defecto solo el Super usuario; se asigna por rol).
   const canSeeInactive = useMemo(() => !isAssistantView && auth.hasPermission(P.companyCredentialsInactiveView), [isAssistantView]);
@@ -797,7 +803,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 <th className={TH_COL}>Dig</th>
                 <th className={TH_COL}>Razón social</th>
                 <th className={TH_COL}>RUC</th>
-                {canSeeSol ? (
+                {showSolColumns ? (
                   <>
                     <th className={TH_COL}>Usuario</th>
                     <th className={TH_COL}>Clave</th>
@@ -845,7 +851,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                       hint={`Clic para copiar la razón social: ${row.business_name}`}
                     />
                     <CopyableCredentialCell value={row.ruc} cellClass={`${TD} whitespace-nowrap`} mono />
-                    {canSeeSol ? (
+                    {showSolColumns ? (
                       <>
                         <CopyableCredentialCell value={row.sol_usuario} cellClass={TD} />
                         <CopyableCredentialCell

@@ -302,7 +302,7 @@ func (ctrl *CompanyAccessCredentialController) SunatAccessAPI(c fiber.Ctx) error
 			case services.SunatAccessUnavailable:
 				status = fiber.StatusBadGateway
 			}
-			return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail})
+			return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail, "attempts_left": ae.AttemptsLeft})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo generar el acceso"})
 	}

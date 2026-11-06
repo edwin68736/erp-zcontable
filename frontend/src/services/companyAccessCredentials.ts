@@ -82,6 +82,8 @@ export interface SunatAccessError {
   message: string;
   code?: string;
   detail?: string;
+  /** Intentos automáticos que quedan antes de pasar al ingreso manual (lo cuenta el servidor). */
+  attempts_left?: number;
 }
 
 export interface SunatAccessResult {
@@ -100,11 +102,12 @@ export const companyAccessCredentialsService = {
       );
       return res.data.data;
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string } } }).response?.data;
+      const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string; attempts_left?: number } } }).response?.data;
       const e: SunatAccessError = {
         message: data?.error || 'No se pudo generar el acceso. Intente de nuevo.',
         code: data?.code,
         detail: data?.detail,
+        attempts_left: data?.attempts_left,
       };
       throw e;
     }

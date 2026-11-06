@@ -5,7 +5,7 @@ import {
   type CompanyAccessCredentialRow,
   type SunatAccessError,
 } from '../../services/companyAccessCredentials';
-import { openSunatAccessUrl, openSunatSolLogin, SUNAT_TARGETS, type SunatAccessTarget } from '../../utils/sunatSol';
+import { openSunatAccessUrl, openSunatLoginPage, sunatAccessFallback, SUNAT_TARGETS, type SunatAccessTarget } from '../../utils/sunatSol';
 
 type Props = {
   row: CompanyAccessCredentialRow;
@@ -19,14 +19,103 @@ type Phase =
   | { kind: 'ready'; url: string }
   | { kind: 'error'; error: SunatAccessError };
 
-/** Errores tras los cuales reintentar enseguida no sirve (o empeora: puede bloquear la clave). */
-const NO_RETRY_CODES = new Set(['faltan_datos', 'credenciales_rechazadas', 'credenciales_en_pausa', 'captcha', 'autenticacion_bloqueada', 'sin_acceso']);
+/** Una fila del ingreso manual: valor con botón de copiar (y ojito si es la clave). */
+function CredentialRow({ label, value, secret = false, mono = true }: { label: string; value: string; secret?: boolean; mono?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* sin portapapeles: el campo es seleccionable */
+    }
+  };
+  return (
+    <div>
+      <span className="mb-0.5 block text-2xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          readOnly
+          type={secret && !visible ? 'password' : 'text'}
+          value={value}
+          aria-label={label}
+          onFocus={(e) => e.currentTarget.select()}
+          className={`min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 ${mono ? 'font-mono' : ''}`}
+        />
+        {secret ? (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? 'Ocultar clave' : 'Mostrar clave'}
+            title={visible ? 'Ocultar clave' : 'Mostrar clave'}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+          >
+            <i className={`fas ${visible ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void copy()}
+          aria-label={`Copiar ${label}`}
+          title="Copiar"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+        >
+          <i className={`fas ${copied ? 'fa-check text-green-600' : 'fa-copy'}`} aria-hidden />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ingreso manual cuando el acceso directo falla o se agotaron sus intentos: RUC, usuario y clave SOL de la empresa con
+ * botones de copiar y un botón que abre la pantalla de login de SUNAT. Las claves solo las ve quien tiene permiso
+ * de verlas (sin él llegan vacías del servidor).
+ */
+function ManualAccessPanel({ row, target, label, error }: { row: CompanyAccessCredentialRow; target: SunatAccessTarget; label: string; error: SunatAccessError }) {
+  const hasCreds = Boolean(row.sol_usuario && row.sol_clave);
+  const why =
+    error.code === 'intentos_agotados' || error.attempts_left === 0
+      ? 'Se agotaron los intentos automáticos para no bloquear la clave de la empresa.'
+      : error.code === 'captcha' || error.code === 'autenticacion_bloqueada'
+        ? 'SUNAT pidió verificación o bloqueó los intentos.'
+        : 'SUNAT no aceptó el acceso automático.';
+  return (
+    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+      <p className="text-sm font-semibold text-slate-800">Inicie sesión en {label} con la clave de la empresa</p>
+      <p className="mt-0.5 text-xs text-slate-600">{why} Copie los datos, abra el login de SUNAT y péguelos allí.</p>
+      {hasCreds ? (
+        <div className="mt-3 space-y-2">
+          <CredentialRow label="RUC" value={row.ruc} />
+          <CredentialRow label="Usuario SOL" value={row.sol_usuario} />
+          <CredentialRow label="Clave SOL" value={row.sol_clave} secret />
+          <button
+            type="button"
+            onClick={() => openSunatLoginPage(target)}
+            className="mt-1 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            <i className="fas fa-arrow-up-right-from-square mr-2" aria-hidden />
+            Iniciar sesión en {label}
+          </button>
+          <p className="text-2xs text-slate-500">En el login de SUNAT elija «RUC», pegue el RUC, el usuario y la clave, y pulse Iniciar sesión.</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+          Su rol no puede ver el usuario y la clave SOL de esta empresa. Pida a un supervisor que inicie sesión o le comparta los datos.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Ventana de "Acceso a SUNAT / Pagos / SUNAFIL": el servidor inicia sesión por detrás con las credenciales de la empresa
  * (unos segundos) y entrega un enlace de un solo uso; cuando está listo se habilita "Ir a SUNAT", que lo
- * abre en una pestaña nueva y entra directo al panel. Si el servidor no puede (SUNAT cambió algo, pide
- * captcha…), ofrece el ingreso con formulario como alternativa.
+ * abre en una pestaña nueva y entra directo al panel. Si falla, el servidor permite un par de reintentos (uno menos que
+ * el límite de SUNAT para no bloquear la clave) y después la ventana muestra las claves SOL con botones de copiar y el
+ * acceso al login de SUNAT para entrar a mano.
  */
 const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
   const label = SUNAT_TARGETS[target].label;
@@ -94,6 +183,7 @@ const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
   };
 
   const title = row.business_name || 'la empresa';
+  const fallback = phase.kind === 'error' ? sunatAccessFallback(phase.error) : 'none';
 
   return createPortal(
     <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
@@ -102,7 +192,7 @@ const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="sunat-access-title"
-        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+        className="relative max-h-[95vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
       >
         <div className="flex items-start gap-3">
           <span
@@ -179,34 +269,18 @@ const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
           </div>
         ) : null}
 
+        {phase.kind === 'error' && fallback === 'manual' ? <ManualAccessPanel row={row} target={target} label={label} error={phase.error} /> : null}
+
         <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
-          {phase.kind === 'error' ? (
-            <>
-              {/* Plan B en el navegador: necesita usuario y clave SOL, que no llegan a quien no tiene
-                  permiso de verlos — para esos usuarios no se ofrece. */}
-              {phase.error.code !== 'faltan_datos' && phase.error.code !== 'sin_acceso' && row.sol_usuario && row.sol_clave ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    openSunatSolLogin({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave }, target);
-                    onClose();
-                  }}
-                  title="Abre SUNAT enviando el formulario de login desde su navegador (puede pedirle elegir 'Continuar sin código')"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Ingresar con formulario
-                </button>
-              ) : null}
-              {!NO_RETRY_CODES.has(phase.error.code ?? '') ? (
-                <button
-                  type="button"
-                  onClick={() => setAttempt((n) => n + 1)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Reintentar
-                </button>
-              ) : null}
-            </>
+          {phase.kind === 'error' && fallback === 'retry' ? (
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reintentar
+              {typeof phase.error.attempts_left === 'number' ? ` (${phase.error.attempts_left} ${phase.error.attempts_left === 1 ? 'intento' : 'intentos'} más)` : ''}
+            </button>
           ) : null}
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100">
             Cerrar

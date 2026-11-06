@@ -1,15 +1,9 @@
 /**
- * Ingreso automático a SUNAT Operaciones en Línea (Clave SOL) con las credenciales de la empresa.
+ * Acceso a SUNAT Operaciones en Línea (Clave SOL), SUNAFIL y Pagos con las credenciales de la empresa.
  *
- * Cómo funciona: la página de login de SUNAT (api-seguridad.sunat.gob.pe …/oauth2/loginMenuSol) arma por
- * JavaScript un formulario oculto y lo envía por POST a `j_security_check`; acá se envía ese MISMO
- * formulario directo, en una pestaña nueva, con los datos ya puestos — SUNAT autentica y redirige al
- * Menú SOL. Las credenciales viajan por POST a SUNAT (https), nunca van en la URL, y el formulario
- * se elimina del DOM apenas se envía.
- *
- * Campos que SUNAT espera (copiados de su login): tipo=2 (RUC), custom_ruc=<RUC>, j_username=<usuario
- * SOL>, j_password=<clave SOL>, dni vacío, captcha vacío (solo lo pide tras 3 intentos fallidos),
- * originalUrl/lang/state fijos de cada destino (SUNAT, Pagos, SUNAFIL; ver SUNAT_TARGETS).
+ * El acceso directo lo genera el servidor (inicia sesión por detrás y entrega un enlace de un solo uso: ver
+ * SunatAccessModal). Si falla, la pantalla muestra las claves SOL y manda a la pantalla de login de SUNAT para entrar a
+ * mano; este archivo guarda los datos de cada destino, la limpieza de la sesión anterior y esas direcciones.
  */
 
 const SUNAT_SOL_LANG = 'es-PE';
@@ -66,10 +60,6 @@ export const SUNAT_TARGETS: Record<SunatAccessTarget, SunatTargetConfig> = {
   },
 };
 
-function loginAction(t: SunatTargetConfig): string {
-  return `https://api-seguridad.sunat.gob.pe/v1/clientessol/${t.clientId}/oauth2/j_security_check`;
-}
-
 export type SunatSolCredentials = {
   ruc?: string | null;
   usuario?: string | null;
@@ -82,42 +72,6 @@ export function sunatSolMissingField(c: SunatSolCredentials): string {
   if (!(c.usuario ?? '').trim()) return 'usuario SOL';
   if (!(c.clave ?? '').trim()) return 'clave SOL';
   return '';
-}
-
-function submitSunatSolForm(c: SunatSolCredentials, target: SunatAccessTarget): void {
-  const cfg = SUNAT_TARGETS[target];
-  const fields: Record<string, string> = {
-    tipo: '2',
-    dni: '',
-    custom_ruc: (c.ruc ?? '').trim(),
-    j_username: (c.usuario ?? '').trim(),
-    j_password: c.clave ?? '',
-    captcha: '',
-    originalUrl: cfg.originalUrl,
-    lang: SUNAT_SOL_LANG,
-    state: cfg.state,
-  };
-
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = loginAction(cfg);
-  form.target = '_blank';
-  form.rel = 'noopener noreferrer';
-  form.style.display = 'none';
-  form.autocomplete = 'off';
-  for (const [name, value] of Object.entries(fields)) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-  document.body.appendChild(form);
-  try {
-    form.submit();
-  } finally {
-    form.remove();
-  }
 }
 
 /**
@@ -165,23 +119,35 @@ export function openSunatAccessUrl(url: string, target: SunatAccessTarget = 'sun
   }, SUNAT_CLEANUP_WAIT_MS);
 }
 
-/** Abre el destino en una pestaña nueva ya autenticada, con el formulario de login. En el Menú SOL cierra antes la sesión anterior. Debe llamarse desde un clic. */
-export function openSunatSolLogin(c: SunatSolCredentials, target: SunatAccessTarget = 'sunat'): void {
-  if (!SUNAT_TARGETS[target].menuSol) {
-    submitSunatSolForm(c, target);
-    return;
-  }
-  const w = openCleanupWindow();
-  if (!w) {
-    submitSunatSolForm(c, target);
-    return;
-  }
-  window.setTimeout(() => {
-    try {
-      w.close();
-    } catch {
-      /* ya cerrada */
-    }
-    submitSunatSolForm(c, target);
-  }, SUNAT_CLEANUP_WAIT_MS);
+/** Dirección de la pantalla de login de SUNAT (Clave SOL) del destino: ahí se inicia sesión a mano con las claves de la empresa. */
+export function sunatLoginPageUrl(target: SunatAccessTarget = 'sunat'): string {
+  const t = SUNAT_TARGETS[target];
+  const q = new URLSearchParams({ lang: SUNAT_SOL_LANG, showDni: 'true', showLanguages: 'false', originalUrl: t.originalUrl, state: t.state });
+  return `https://api-seguridad.sunat.gob.pe/v1/clientessol/${t.clientId}/oauth2/loginMenuSol?${q.toString()}`;
+}
+
+/** Abre el login de SUNAT en una pestaña nueva; en el Menú SOL cierra antes la sesión anterior de este navegador. Debe llamarse desde un clic. */
+export function openSunatLoginPage(target: SunatAccessTarget = 'sunat'): void {
+  openSunatAccessUrl(sunatLoginPageUrl(target), target);
+}
+
+/**
+ * Qué hacer cuando el acceso directo falla:
+ * - `retry`: se puede reintentar (todavía quedan intentos automáticos);
+ * - `manual`: ya no conviene insistir (SUNAT rechazó la clave, pide captcha o bloqueó, o se agotaron los intentos):
+ *   se muestran las claves SOL para iniciar sesión a mano en SUNAT;
+ * - `none`: falta un dato o el permiso; no hay nada que reintentar ni claves que mostrar.
+ * El servidor es quien cuenta los intentos (uno menos que el límite de SUNAT) y los informa en `attempts_left`.
+ */
+export type SunatAccessFallback = 'retry' | 'manual' | 'none';
+
+const MANUAL_NOW_CODES = new Set(['credenciales_rechazadas', 'credenciales_en_pausa', 'captcha', 'autenticacion_bloqueada', 'intentos_agotados']);
+const NO_FALLBACK_CODES = new Set(['faltan_datos', 'sin_acceso']);
+
+export function sunatAccessFallback(error: { code?: string; attempts_left?: number }): SunatAccessFallback {
+  const code = error.code ?? '';
+  if (NO_FALLBACK_CODES.has(code)) return 'none';
+  if (MANUAL_NOW_CODES.has(code)) return 'manual';
+  if (code === 'en_curso') return 'retry'; // ya hay una generación en marcha: esperar y reintentar no gasta intentos
+  return (error.attempts_left ?? 1) > 0 ? 'retry' : 'manual';
 }

@@ -46,6 +46,14 @@ const (
 	// Tras un rechazo de credenciales no se reintenta con las MISMAS credenciales durante este tiempo:
 	// SUNAT pide captcha al 3er intento fallido y bloquearía el acceso manual también.
 	sunatSolBadCredsCooldown = 10 * time.Minute
+
+	// SUNAT pide captcha al 3.er intento fallido de login y luego bloquea la autenticación (código 1106). El acceso
+	// directo reintenta UN intento menos que ese límite; agotados, la pantalla muestra las claves SOL para que la
+	// persona inicie sesión a mano (y no gaste el último intento de SUNAT). Si el límite de SUNAT cambia, se ajusta acá.
+	sunatSolFailedLoginLimit = 3
+	sunatSolMaxAttempts      = sunatSolFailedLoginLimit - 1
+	// Los intentos fallidos se olvidan pasado este tiempo sin nuevos fallos.
+	sunatSolAttemptsWindow = 30 * time.Minute
 )
 
 // Destino del ingreso directo: el mismo login SOL con distinto "cliente", originalUrl y state, que son los que
@@ -93,19 +101,21 @@ var sunatSolTargets = map[string]sunatSolTarget{
 
 // Códigos de error estables (el frontend decide el mensaje y las acciones según el código).
 const (
-	SunatAccessMissingData  = "faltan_datos"
-	SunatAccessBadCreds     = "credenciales_rechazadas"
-	SunatAccessCooldown     = "credenciales_en_pausa"
-	SunatAccessCaptcha      = "captcha"
-	SunatAccessLocked       = "autenticacion_bloqueada"
-	SunatAccessUnexpected   = "respuesta_inesperada"
-	SunatAccessUnavailable  = "sunat_no_disponible"
-	SunatAccessInProgress   = "en_curso"
-	SunatAccessOutOfScope   = "sin_acceso"
-	sunatAccessStatusOK     = "ok"
-	sunatAccessStatusErr    = "error"
-	sunatAccessTargetSunat  = "sunat"
-	sunatAccessDetailMaxLen = 600
+	SunatAccessMissingData = "faltan_datos"
+	SunatAccessBadCreds    = "credenciales_rechazadas"
+	SunatAccessCooldown    = "credenciales_en_pausa"
+	SunatAccessCaptcha     = "captcha"
+	SunatAccessLocked      = "autenticacion_bloqueada"
+	SunatAccessUnexpected  = "respuesta_inesperada"
+	SunatAccessUnavailable = "sunat_no_disponible"
+	// SunatAccessAttemptsExhausted se alcanzó el máximo de intentos automáticos: no se llama a SUNAT; hay que entrar a mano.
+	SunatAccessAttemptsExhausted = "intentos_agotados"
+	SunatAccessInProgress        = "en_curso"
+	SunatAccessOutOfScope        = "sin_acceso"
+	sunatAccessStatusOK          = "ok"
+	sunatAccessStatusErr         = "error"
+	sunatAccessTargetSunat       = "sunat"
+	sunatAccessDetailMaxLen      = 600
 )
 
 // SunatSolAccessError error con código estable y detalle técnico seguro (sin credenciales ni tokens).
@@ -113,6 +123,8 @@ type SunatSolAccessError struct {
 	Code    string
 	Message string
 	Detail  string
+	// AttemptsLeft intentos automáticos que quedan antes de pasar al ingreso manual (0 = ya no se reintenta).
+	AttemptsLeft int
 }
 
 func (e *SunatSolAccessError) Error() string { return e.Message }
@@ -138,6 +150,31 @@ type SunatSolAccessService struct {
 	mu       sync.Mutex
 	inFlight map[uint]bool
 	badUntil map[string]time.Time
+	// attempts intentos fallidos del acceso directo por empresa, destino y credenciales (se reinician al acertar,
+	// al cambiar la clave o pasada la ventana). Es del servidor: vale para todos los usuarios y navegadores.
+	attempts map[string]sunatAttemptState
+}
+
+type sunatAttemptState struct {
+	n    int
+	last time.Time
+}
+
+// attemptsUsed intentos fallidos vigentes de la clave (debe llamarse con s.mu tomado).
+func (s *SunatSolAccessService) attemptsUsed(key string) int {
+	st, ok := s.attempts[key]
+	if !ok || time.Since(st.last) > sunatSolAttemptsWindow {
+		delete(s.attempts, key)
+		return 0
+	}
+	return st.n
+}
+
+func attemptsLeft(used int) int {
+	if left := sunatSolMaxAttempts - used; left > 0 {
+		return left
+	}
+	return 0
 }
 
 func NewSunatSolAccessService() *SunatSolAccessService {
@@ -145,6 +182,7 @@ func NewSunatSolAccessService() *SunatSolAccessService {
 		creds:    NewCompanyAccessCredentialService(),
 		inFlight: map[uint]bool{},
 		badUntil: map[string]time.Time{},
+		attempts: map[string]sunatAttemptState{},
 	}
 }
 
@@ -193,11 +231,20 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 
 	// Pausa tras un rechazo previo con las mismas credenciales.
 	key := credKey(companyID, ruc, usuario, clave)
+	attemptsKey := credKey(companyID, ruc, usuario, clave, target.Name)
 	s.mu.Lock()
+	used := s.attemptsUsed(attemptsKey)
 	if until, ok := s.badUntil[key]; ok && time.Now().Before(until) {
 		s.mu.Unlock()
-		return nil, accessErr(SunatAccessCooldown,
-			"SUNAT rechazó estas credenciales hace poco. Se pausó el reintento para no bloquear la clave: corrija el usuario o la clave SOL (botón Editar) o espere unos minutos.", "")
+		ae := accessErr(SunatAccessCooldown,
+			"SUNAT rechazó estas credenciales hace poco. Se pausó el reintento para no bloquear la clave: corrija el usuario o la clave SOL (botón Editar), inicie sesión a mano o espere unos minutos.", "")
+		ae.AttemptsLeft = 0
+		return nil, ae
+	}
+	if used >= sunatSolMaxAttempts {
+		s.mu.Unlock()
+		return nil, accessErr(SunatAccessAttemptsExhausted,
+			"Se alcanzó el máximo de intentos automáticos para no bloquear la clave SOL (SUNAT bloquea al superar su límite). Inicie sesión en SUNAT con la clave de la empresa.", "")
 	}
 	if s.inFlight[companyID] {
 		s.mu.Unlock()
@@ -214,13 +261,27 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 	link, err := s.login(target, ruc, usuario, clave)
 	if err != nil {
 		var ae *SunatSolAccessError
-		if errors.As(err, &ae) && (ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha || ae.Code == SunatAccessLocked) {
+		if errors.As(err, &ae) {
 			s.mu.Lock()
-			s.badUntil[key] = time.Now().Add(sunatSolBadCredsCooldown)
+			if ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha || ae.Code == SunatAccessLocked {
+				s.badUntil[key] = time.Now().Add(sunatSolBadCredsCooldown)
+			}
+			// Cuentan los fallos que llegaron a SUNAT (no una caída de red: ahí SUNAT no vio ningún intento).
+			if ae.Code != SunatAccessUnavailable {
+				if s.attempts == nil {
+					s.attempts = map[string]sunatAttemptState{}
+				}
+				used++
+				s.attempts[attemptsKey] = sunatAttemptState{n: used, last: time.Now()}
+			}
+			ae.AttemptsLeft = attemptsLeft(used)
 			s.mu.Unlock()
 		}
 		return nil, err
 	}
+	s.mu.Lock()
+	delete(s.attempts, attemptsKey) // acertó: el conteo vuelve a cero
+	s.mu.Unlock()
 	return &SunatSolAccessResult{URL: link, ExpiresHintSeconds: 300}, nil
 }
 
@@ -254,10 +315,10 @@ var (
 	reSessionIDInBody = regexp.MustCompile(`redireccion-sin-codigo/(\d{8,})`)
 	// reSessionCookieValue valor aceptable del id de sesión (se inserta en la ruta de la petición).
 	reSessionCookieValue = regexp.MustCompile(`^[A-Za-z0-9_-]{6,64}$`)
-	reMenuURLInBody   = regexp.MustCompile(`https://e-menu\.sunat\.gob\.pe/[^\s"'<>\\]+`)
+	reMenuURLInBody      = regexp.MustCompile(`https://e-menu\.sunat\.gob\.pe/[^\s"'<>\\]+`)
 )
 
-// cookieValue valor de una cookie del portal de seguridad ('' si no está).
+// cookieValue valor de una cookie del portal de seguridad (” si no está).
 func cookieValue(jar http.CookieJar, base, name string) string {
 	u, err := url.Parse(base)
 	if err != nil {

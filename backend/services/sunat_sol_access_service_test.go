@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"miappfiber/models"
 )
 
 // fakeSunat simula el portal de seguridad de SUNAT: login → pantalla de método → "continuar sin código".
@@ -305,5 +307,79 @@ func TestSunatLogin_EnviaElHeaderNumRuc(t *testing.T) {
 	}
 	if f.numRucSeen != "20123456789" {
 		t.Errorf("header numRuc = %q, quiero el RUC de la empresa", f.numRucSeen)
+	}
+}
+
+// TestSunatGenerate_IntentosAutomaticosAgotados: el acceso directo reintenta un intento menos que el límite de SUNAT y,
+// agotados, ya no llama a SUNAT (hay que entrar a mano); al acertar el conteo vuelve a cero.
+func TestSunatGenerate_IntentosAutomaticosAgotados(t *testing.T) {
+	db := setupCompanyRucTestDB(t)
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}); err != nil {
+		t.Fatal(err)
+	}
+	co := models.Company{RUC: "20123456789", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}
+	db.Create(&co)
+	db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, SolUsuario: "USUARIO1", SolClave: "clave"})
+
+	f := newFakeSunat(t, "/metodo/123456789012", `<html>Método de Autenticación</html>`, `{"estado":"error"}`)
+	f.sinCodigoStatus = http.StatusInternalServerError // SUNAT responde algo inesperado: cuenta como intento fallido
+	svc := newTestSunatService(f.srv.URL)
+	svc.creds = NewCompanyAccessCredentialService()
+
+	if sunatSolMaxAttempts != sunatSolFailedLoginLimit-1 {
+		t.Fatalf("el máximo de intentos debe ser el límite de SUNAT menos uno")
+	}
+	wantLeft := sunatSolMaxAttempts
+	for i := 1; i <= sunatSolMaxAttempts; i++ {
+		_, err := svc.Generate(co.ID, nil, 1, "")
+		var ae *SunatSolAccessError
+		if !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected {
+			t.Fatalf("intento %d: %v", i, err)
+		}
+		wantLeft--
+		if ae.AttemptsLeft != wantLeft {
+			t.Errorf("intento %d: quedan %d, quiero %d", i, ae.AttemptsLeft, wantLeft)
+		}
+	}
+	hits := f.sinCodigoHits
+
+	// Agotados: ya no se llama a SUNAT.
+	_, err := svc.Generate(co.ID, nil, 1, "")
+	var ae *SunatSolAccessError
+	if !errors.As(err, &ae) || ae.Code != SunatAccessAttemptsExhausted || ae.AttemptsLeft != 0 {
+		t.Fatalf("debía quedar agotado: %v", err)
+	}
+	if f.sinCodigoHits != hits {
+		t.Errorf("agotados los intentos no debe llamar a SUNAT (%d → %d)", hits, f.sinCodigoHits)
+	}
+
+	// Otro destino tiene su propio conteo.
+	if _, err := svc.Generate(co.ID, nil, 1, "pagos"); err == nil || errors.As(err, &ae) && ae.Code == SunatAccessAttemptsExhausted {
+		t.Errorf("el conteo es por destino: %v", err)
+	}
+
+	// Cambiar la clave reinicia el conteo (otra credencial = otra clave de conteo).
+	db.Model(&models.CompanyAccessCredential{}).Where("company_id = ?", co.ID).Update("sol_clave", "clave-nueva")
+	f.sinCodigoStatus = 0
+	f.sessionCookie = "123456789012"
+	if _, err := svc.Generate(co.ID, nil, 1, ""); err != nil && errors.As(err, &ae) && ae.Code == SunatAccessAttemptsExhausted {
+		t.Errorf("con otra clave no debe seguir agotado: %v", err)
+	}
+}
+
+func TestSunatGenerate_ElConteoSeReiniciaPasadaLaVentana(t *testing.T) {
+	svc := newTestSunatService("http://invalido")
+	svc.attempts = map[string]sunatAttemptState{"k": {n: sunatSolMaxAttempts, last: time.Now().Add(-2 * sunatSolAttemptsWindow)}}
+	svc.mu.Lock()
+	used := svc.attemptsUsed("k")
+	svc.mu.Unlock()
+	if used != 0 {
+		t.Errorf("pasada la ventana debe volver a cero: %d", used)
+	}
+	if got := attemptsLeft(0); got != sunatSolMaxAttempts {
+		t.Errorf("attemptsLeft(0) = %d", got)
+	}
+	if got := attemptsLeft(sunatSolMaxAttempts + 3); got != 0 {
+		t.Errorf("attemptsLeft no baja de 0: %d", got)
 	}
 }
