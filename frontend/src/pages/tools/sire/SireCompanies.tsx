@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ActivityOwnerFilters from '../../../components/activity/ActivityOwnerFilters';
 import PageHeading from '../../../components/ui/PageHeading';
-import { P } from '../../../rbac/codes';
-import { auth } from '../../../services/auth';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
-import SireCredentialsModal from './SireCredentialsModal';
-import { INPUT_CLS, sireMissing } from './sireUi';
+import { INPUT_CLS } from './sireUi';
 
 const PER_PAGE = 20;
 
 /**
  * Herramientas → SIRE: lista de empresas del estudio. Desde cada una se abre su SIRE (ventas y compras) para
- * consultar y descargar la información de SUNAT. Las credenciales de API se cargan en Claves SOL (Editar).
+ * consultar y descargar la información de SUNAT. Las credenciales de API se generan en Claves SOL (llave y enchufe).
  */
 interface Props {
   title?: string;
@@ -21,8 +18,6 @@ interface Props {
   basePath?: string;
   openLabel?: string;
   openIcon?: string;
-  /** Texto de la columna de estado de las credenciales de API. */
-  apiLabel?: string;
 }
 
 const SireCompanies = ({
@@ -31,7 +26,6 @@ const SireCompanies = ({
   basePath = '/tools/sire',
   openLabel = 'Abrir SIRE',
   openIcon = 'fas fa-file-invoice',
-  apiLabel = 'API SIRE',
 }: Props) => {
   const [q, setQ] = useState('');
   const [qInput, setQInput] = useState('');
@@ -43,9 +37,6 @@ const SireCompanies = ({
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  // Quien tiene este permiso puede registrar el Client ID/Secret de una empresa que aún no los tiene (lápiz en la fila).
-  const canEditCreds = useMemo(() => auth.hasPermission(P.companyCredentialsSireEdit), []);
-  const [credCompany, setCredCompany] = useState<CompanyAccessCredentialRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,7 +109,7 @@ const SireCompanies = ({
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="bg-blue-900 text-xs uppercase text-white">
-                {['Cod', 'Razón social', 'RUC', 'Asistente', 'Supervisor', apiLabel, ''].map((h, i) => (
+                {['Cod', 'Razón social', 'RUC', 'Asistente', 'Supervisor', ''].map((h, i) => (
                   <th key={`${h}-${i}`} className="px-3 py-2.5 font-semibold">
                     {h}
                   </th>
@@ -127,7 +118,6 @@ const SireCompanies = ({
             </thead>
             <tbody className={loading ? 'opacity-60' : undefined}>
               {rows.map((r) => {
-                const missing = sireMissing(r);
                 return (
                   <tr key={r.company_id} className="border-b border-slate-100 hover:bg-slate-50/70">
                     <td className="px-3 py-2 text-slate-600">{r.code}</td>
@@ -137,28 +127,6 @@ const SireCompanies = ({
                     <td className="px-3 py-2 font-mono text-slate-600">{r.ruc}</td>
                     <td className="px-3 py-2 text-slate-600">{r.assistant_username || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">{r.supervisor_username || '—'}</td>
-                    <td className="px-3 py-2">
-                      {missing ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" title={`Falta: ${missing}`}>
-                            Falta configurar
-                          </span>
-                          {canEditCreds && !r.sire_configurado ? (
-                            <button
-                              type="button"
-                              onClick={() => setCredCompany(r)}
-                              title="Registrar credenciales de API (Client ID y Secret)"
-                              aria-label={`Registrar credenciales de API de ${r.business_name}`}
-                              className="rounded-lg px-1.5 py-1 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                            >
-                              <i className="fas fa-pen" aria-hidden />
-                            </button>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Configurada</span>
-                      )}
-                    </td>
                     <td className="px-3 py-2 text-right">
                       <Link
                         to={`${basePath}/${r.company_id}`}
@@ -173,7 +141,7 @@ const SireCompanies = ({
               })}
               {!loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-10 text-center text-slate-500">
                     No hay empresas para mostrar.
                   </td>
                 </tr>
@@ -181,15 +149,6 @@ const SireCompanies = ({
             </tbody>
           </table>
         </div>
-        {credCompany ? (
-          <SireCredentialsModal
-            open
-            companyId={credCompany.company_id}
-            companyName={credCompany.business_name}
-            onClose={() => setCredCompany(null)}
-            onSaved={() => void load()}
-          />
-        ) : null}
         {totalPages > 1 ? (
           <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2 text-xs text-slate-600">
             <span>

@@ -8,7 +8,6 @@ const RhCompanies = () => (
     basePath="/tools/rh"
     openLabel="Abrir RH"
     openIcon="fas fa-file-signature"
-    apiLabel="API SUNAT"
   />
 );
 
