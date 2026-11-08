@@ -23,7 +23,7 @@ describe('módulo Herramientas', () => {
     expect(findTool('inexistente')).toBeUndefined();
   });
 
-  it('el sidebar las lista; solo SIRE exige permiso (ver Claves SOL), el resto son públicas', () => {
+  it('el sidebar las lista; las herramientas listas exigen permiso (ver Claves SOL), el resto son públicas', () => {
     const mod = OPERATIONAL_MODULES.find((m) => m.id === 'tools');
     expect(mod?.label).toBe('Herramientas');
     const group = mod?.entries[0];
@@ -39,7 +39,7 @@ describe('módulo Herramientas', () => {
       }
     }
     expect(findTool('sire')?.permission).toBe(P.companyCredentialsView);
-    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh', 'notificaciones-sunat']);
+    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh', 'consulta-itf', 'notificaciones-sunat']);
     expect(mod?.moduleGatePermission).toBeUndefined();
   });
 });

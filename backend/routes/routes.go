@@ -37,6 +37,7 @@ func Setup(app *fiber.App) {
 	credCtrl := controllers.NewCompanyAccessCredentialController()
 	sireCtrl := controllers.NewSireController()
 	buzonCtrl := controllers.NewSunatBuzonController()
+	itfCtrl := controllers.NewItfController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -382,6 +383,14 @@ func Setup(app *fiber.App) {
 	rh.Delete("/:companyId/history", sireCtrl.RheHistoryClearAPI)
 	rh.Get("/:companyId/history/:historyId", sireCtrl.RheHistoryGetAPI)
 	rh.Delete("/:companyId/history/:historyId", sireCtrl.RheHistoryDeleteAPI)
+
+	// Consulta de ITF (Impuesto a las Transacciones Financieras): se lee en SOL con la clave de la empresa; el historial queda guardado.
+	itf := api.Group("/tools/itf", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	itf.Get("/:companyId/consulta", itfCtrl.QueryAPI)
+	itf.Get("/:companyId/history", itfCtrl.HistoryListAPI)
+	itf.Delete("/:companyId/history", itfCtrl.HistoryClearAPI)
+	itf.Get("/:companyId/history/:historyId", itfCtrl.HistoryGetAPI)
+	itf.Delete("/:companyId/history/:historyId", itfCtrl.HistoryDeleteAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

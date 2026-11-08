@@ -323,6 +323,8 @@ func sunatErrorResponse(c fiber.Ctx, err error, fallback string) error {
 			status = fiber.StatusConflict
 		case services.SunatAccessUnavailable:
 			status = fiber.StatusBadGateway
+		case services.SunatAccessInvalidParams:
+			status = fiber.StatusBadRequest
 		}
 		return c.Status(status).JSON(fiber.Map{"error": ae.Message, "code": ae.Code, "detail": ae.Detail, "attempts_left": ae.AttemptsLeft})
 	}
@@ -378,4 +380,10 @@ func (ctrl *CompanyAccessCredentialController) GenerateApiCredentialsAPI(c fiber
 		return sunatErrorResponse(c, err, "No se pudieron generar las credenciales de API")
 	}
 	return c.JSON(fiber.Map{"data": res})
+}
+
+// isInvalidParams ¿el error es de datos inválidos de la consulta (no se llegó a SUNAT)?
+func isInvalidParams(err error) bool {
+	var ae *services.SunatSolAccessError
+	return errors.As(err, &ae) && ae.Code == services.SunatAccessInvalidParams
 }
