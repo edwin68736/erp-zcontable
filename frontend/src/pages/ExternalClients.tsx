@@ -83,10 +83,7 @@ const ExternalClients = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <PageHeading>Clientes externos (POS)</PageHeading>
-          <p className="text-sm text-slate-600 mt-1">
-            Registrados desde ventas rápidas. No llevan contabilidad hasta convertirlos en cliente del estudio.
-          </p>
+          <PageHeading hint="Registrados desde ventas rápidas. No llevan contabilidad hasta convertirlos en cliente del estudio.">Clientes externos (POS)</PageHeading>
         </div>
         <Link
           to="/pos"

@@ -285,7 +285,7 @@ const Payments = () => {
   const { blobUrl: previewPdfBlobUrl, error: previewPdfError } = usePdfObjectUrl(previewUrl, isPreviewPdf);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {previewUrl ? (
         createPortal(
           <div className="fixed inset-0 z-dialog flex items-center justify-center p-4">
@@ -337,8 +337,7 @@ const Payments = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <PageHeading>Pagos</PageHeading>
-          <p className="text-sm text-slate-500">Registro de pagos realizados por las empresas.</p>
+          <PageHeading hint="Registro de pagos realizados por las empresas.">Pagos</PageHeading>
         </div>
         <div className="flex items-center gap-2">
         {canViewVoided ? (

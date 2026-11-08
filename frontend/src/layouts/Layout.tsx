@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
+import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref';
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
 import ReauthDialog from '../components/ReauthDialog';
 import { auth } from '../services/auth';
@@ -18,12 +19,15 @@ type ToastItem = {
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Solo manda lo que la persona eligió con el botón; si nunca eligió, en pantallas angostas arranca colapsado.
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    let stored: string | null = null;
     try {
-      return window.localStorage.getItem('sidebarCollapsed') === '1';
+      stored = window.localStorage.getItem(SIDEBAR_PREF_KEY);
     } catch {
-      return false;
+      stored = null;
     }
+    return initialSidebarCollapsed(stored, window.innerWidth);
   });
   // En Inicio el menú arranca colapsado (la escena ocupa todo el ancho); el botón de la cabecera
   // lo expande solo mientras se siga en Inicio y no toca la preferencia guardada para el resto.
@@ -34,8 +38,19 @@ const Layout = () => {
     if (isHome) setHomeSidebarExpanded(false);
   }, [isHome]);
   const sidebarCollapsed = isHome ? !homeSidebarExpanded : isSidebarCollapsed;
-  const toggleSidebarCollapse = () =>
-    isHome ? setHomeSidebarExpanded((v) => !v) : setIsSidebarCollapsed((v) => !v);
+  const toggleSidebarCollapse = () => {
+    if (isHome) {
+      setHomeSidebarExpanded((v) => !v);
+      return;
+    }
+    const next = !isSidebarCollapsed;
+    setIsSidebarCollapsed(next);
+    try {
+      window.localStorage.setItem(SIDEBAR_PREF_KEY, next ? '1' : '0');
+    } catch {
+      /* sin almacenamiento: no se recuerda la elección */
+    }
+  };
   const [layoutThemeBg, setLayoutThemeBg] = useState(() => {
     try {
       return window.localStorage.getItem('layoutThemeBg') ?? '';
@@ -64,14 +79,6 @@ const Layout = () => {
     if (auth.hasStoredPermissions()) return;
     void auth.refreshPermissions().catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('sidebarCollapsed', isSidebarCollapsed ? '1' : '0');
-    } catch {
-      return;
-    }
-  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     try {
@@ -183,7 +190,7 @@ const Layout = () => {
         })}
       </div>
 
-      <div className="flex h-full p-4 lg:p-4 gap-4">
+      <div className="flex h-full p-2 lg:p-3 gap-3">
         <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
@@ -201,7 +208,7 @@ const Layout = () => {
           
           <main className="relative z-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pr-1">
             <div
-              className={`min-h-full pb-6 rounded-2xl shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] border px-2 md:px-6 py-4 ${
+              className={`min-h-full rounded-2xl shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] border px-2 md:px-5 pt-3 pb-4 ${
                 hasThemeBg
                   ? 'bg-gradient-to-b from-white/40 to-white/20 backdrop-blur-sm border-slate-200/50'
                   : 'bg-gradient-to-b from-white/70 to-white/40 backdrop-blur border-slate-200/60'

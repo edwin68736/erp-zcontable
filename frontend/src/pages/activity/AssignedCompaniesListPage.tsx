@@ -18,6 +18,7 @@ import {
 import { extractApiErrorMessage } from '../../utils/apiError';
 import type { ActivityWorkspace } from '../../navigation/activityRoutes';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -83,8 +84,7 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Empresas</h1>
-        <p className="text-slate-500 mt-1 text-sm">{subtitle}</p>
+        <PageHeading hint={subtitle}>Empresas</PageHeading>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">

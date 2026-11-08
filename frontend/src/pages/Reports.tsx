@@ -462,7 +462,7 @@ const Reports = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <PageHeading>Reportes financieros</PageHeading>

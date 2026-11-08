@@ -211,10 +211,7 @@ const ActivityConfigurationSettings = () => {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-10">
       <div>
-        <PageHeading>Parametrización de actividades</PageHeading>
-        <p className="text-sm text-slate-500 mt-1">
-          Reglas reutilizables de cumplimiento y su asignación a plantillas del calendario financiero.
-        </p>
+        <PageHeading hint="Reglas reutilizables de cumplimiento y su asignación a plantillas del calendario financiero.">Parametrización de actividades</PageHeading>
       </div>
 
       {error ? (

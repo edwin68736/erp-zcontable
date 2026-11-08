@@ -121,13 +121,10 @@ const Products = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <PageHeading>Productos y servicios</PageHeading>
-          <p className="text-sm text-slate-500">
-            Catálogo local con campos SUNAT para facturas, boletas, notas de venta y el punto de venta.
-          </p>
+          <PageHeading hint="Catálogo local con campos SUNAT para facturas, boletas, notas de venta y el punto de venta.">Productos y servicios</PageHeading>
         </div>
         <div className="flex flex-wrap gap-2">
           {canUpsert ? (

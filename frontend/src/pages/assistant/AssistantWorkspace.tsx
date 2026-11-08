@@ -170,7 +170,7 @@ const AssistantWorkspace = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
         <div className="min-w-[280px] flex-1">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-tight text-slate-900">{firstName ? `Hola, ${firstName}` : 'Mi panel'}</h1>
+          <h1 className="m-0 text-xl font-bold tracking-tight text-slate-900">{firstName ? `Hola, ${firstName}` : 'Mi panel'}</h1>
           <p className="mt-1 text-[13px] text-slate-600">
             {data ? (
               <>

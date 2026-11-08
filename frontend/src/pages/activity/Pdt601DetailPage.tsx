@@ -491,7 +491,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
       </Link>
 
       <div className="mt-2">
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-7">
           Control Planillas PDT 601 — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">

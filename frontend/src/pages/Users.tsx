@@ -60,11 +60,10 @@ const Users = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <PageHeading>Usuarios</PageHeading>
-          <p className="text-sm text-slate-500">Gestión de usuarios y roles del sistema.</p>
+          <PageHeading hint="Gestión de usuarios y roles del sistema.">Usuarios</PageHeading>
         </div>
         <Link
           to="/users/new"

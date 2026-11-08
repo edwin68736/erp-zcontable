@@ -274,7 +274,7 @@ const DamCompany = () => {
   }
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
         <Link to="/tools/consulta-dam" className="text-xs font-semibold text-primary-700 hover:underline">
           <i className="fas fa-arrow-left mr-1" aria-hidden />

@@ -119,7 +119,7 @@ const SubscriptionPlanForm = () => {
   if (loading) return <div className="p-6 text-sm text-slate-500">Cargando…</div>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <PageHeading>{editId ? 'Editar plan' : 'Nuevo plan'}</PageHeading>
         <Link to="/subscription-plans" className="text-sm text-slate-600">

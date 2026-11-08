@@ -20,6 +20,7 @@ import {
   settlementStatusBadgeClass,
   settlementStatusLabel,
 } from '../../utils/liquidationPeriod';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -130,7 +131,7 @@ const SupervisorLiquidacionesListPage = () => {
   if (!canView) {
     return (
       <div className={PAGE_WORKSPACE_CLASS}>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Liquidaciones</h1>
+        <PageHeading>Liquidaciones</PageHeading>
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
           No tiene permiso para consultar liquidaciones de supervisores.
         </div>
@@ -141,12 +142,7 @@ const SupervisorLiquidacionesListPage = () => {
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Liquidaciones</h1>
-        <p className="text-slate-500 mt-1 text-sm max-w-3xl leading-relaxed">
-          Inicie liquidaciones por empresa y periodo mensual (AAAA-MM). Por defecto se muestra el mes calendario
-          anterior. Si ya existe liquidación en borrador puede editarla; si fue emitida solo podrá visualizarla. En
-          periodos sin liquidación puede crear una nueva.
-        </p>
+        <PageHeading hint="Inicie liquidaciones por empresa y periodo mensual (AAAA-MM). Por defecto se muestra el mes calendario anterior. Si ya existe liquidación en borrador puede editarla; si fue emitida solo podrá visualizarla. En periodos sin liquidación puede crear una nueva.">Liquidaciones</PageHeading>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">

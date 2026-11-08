@@ -75,8 +75,7 @@ const PosHistory = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <PageHeading>Mis comprobantes</PageHeading>
-          <p className="text-sm text-slate-500">Ventas emitidas desde el punto de venta</p>
+          <PageHeading hint="Ventas emitidas desde el punto de venta">Mis comprobantes</PageHeading>
         </div>
         <Link
           to="/pos"

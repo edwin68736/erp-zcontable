@@ -19,11 +19,10 @@ const PlanCategories = () => {
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <PageHeading>Categorías de planes</PageHeading>
-          <p className="text-sm text-slate-500">Agrupadores comerciales (ej. clientes legacy, nuevos).</p>
+          <PageHeading hint="Agrupadores comerciales (ej. clientes legacy, nuevos).">Categorías de planes</PageHeading>
         </div>
         {canEdit ? (
           <Link

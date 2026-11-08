@@ -47,10 +47,9 @@ const SecurityCenter = () => {
   }, [canManage, loadPending]);
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
-        <PageHeading>Seguridad</PageHeading>
-        <p className="mt-1 text-sm text-slate-500">Accesos al sistema, equipos de confianza y verificación en dos pasos.</p>
+        <PageHeading hint="Accesos al sistema, equipos de confianza y verificación en dos pasos.">Seguridad</PageHeading>
       </div>
 
       <div className="flex flex-wrap gap-1 border-b border-slate-200" role="tablist">

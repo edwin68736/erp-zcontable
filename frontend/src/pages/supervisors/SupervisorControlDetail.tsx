@@ -246,7 +246,7 @@ const SupervisorControlDetail = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-3">
       <div>
         <Link to={activitiesHub} className="text-sm text-primary-700">
           ← Volver al hub de actividades

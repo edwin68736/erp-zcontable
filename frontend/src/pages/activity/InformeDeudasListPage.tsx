@@ -7,6 +7,7 @@ import { workspaceHomePath, type ActivityWorkspace } from '../../navigation/acti
 import { informeDeudasService, type InformeDeudasListRow } from '../../services/informeDeudas';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -89,10 +90,7 @@ const InformeDeudasListPage = ({ workspace }: InformeDeudasListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Informe deudas</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Empresas del alcance operativo. Columnas y acciones propias del módulo se agregarán más adelante.
-          </p>
+          <PageHeading hint="Empresas del alcance operativo. Columnas y acciones propias del módulo se agregarán más adelante.">Informe deudas</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

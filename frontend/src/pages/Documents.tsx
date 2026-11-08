@@ -920,7 +920,7 @@ const Documents = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <DocumentDebtDetailModal open={debtDetailOpen} doc={debtDetailDoc} onClose={closeDebtDetailModal} />
       <TukifacIssueLinksDialog
         open={Boolean(tukifacPostPayLinks)}
@@ -939,10 +939,7 @@ const Documents = () => {
       />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <PageHeading>Deudas</PageHeading>
-          <p className="text-sm text-slate-500">
-            Cargos en cuentas por cobrar (nota de venta, recibo interno, planes). Al registrar un pago puede emitir boleta, factura o nota de venta en el mismo sistema.
-          </p>
+          <PageHeading hint="Cargos en cuentas por cobrar (nota de venta, recibo interno, planes). Al registrar un pago puede emitir boleta, factura o nota de venta en el mismo sistema.">Deudas</PageHeading>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           {canUpsert ? (

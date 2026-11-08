@@ -12,7 +12,7 @@ const ToolUnderConstruction = () => {
   if (!tool) return <Navigate to={toolPath(TOOLS[0].slug)} replace />;
 
   return (
-    <div className="space-y-6 pt-2">
+    <div className="space-y-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
         <PageHeading className="mt-1">{tool.label}</PageHeading>

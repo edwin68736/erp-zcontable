@@ -16,7 +16,7 @@ const ModuleComingSoon = () => {
   const copy = PLACEHOLDER_PAGE_COPY[slug];
 
   return (
-    <div className="space-y-6 pt-2">
+    <div className="space-y-3">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Módulo en preparación</p>

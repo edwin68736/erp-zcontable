@@ -349,11 +349,10 @@ const SupervisorReports = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <PageHeading>Reportes supervisores</PageHeading>
-          <p className="text-sm text-slate-500">Vistas por tipo de cumplimiento y productividad.</p>
+          <PageHeading hint="Vistas por tipo de cumplimiento y productividad.">Reportes supervisores</PageHeading>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-slate-600 flex items-center gap-2">

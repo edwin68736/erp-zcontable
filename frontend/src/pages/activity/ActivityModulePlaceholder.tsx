@@ -18,7 +18,7 @@ const ActivityModulePlaceholder = () => {
   const phase = item?.phaseLabel ?? 'Próximamente';
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-3">
       <div>
         <Link to={homePath} className="text-sm text-primary-700 hover:underline">
           ← Volver

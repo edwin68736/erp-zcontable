@@ -36,6 +36,7 @@ import {
   frozenBodyCellStyle,
   frozenHeadCellStyle,
 } from '../../components/activity/stickyTable';
+import PageHeading from '../../components/ui/PageHeading';
 
 /**
  * Columnas congeladas de ESTA tabla únicamente: se agrega "Régimen" entre RUC y Asistente. No se
@@ -237,10 +238,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control Planillas PDT 601</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Seguimiento manual de planillas PDT 601 por empresa y período. Sin integración con SUNAT.
-          </p>
+          <PageHeading hint="Seguimiento manual de planillas PDT 601 por empresa y período. Sin integración con SUNAT.">Control Planillas PDT 601</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

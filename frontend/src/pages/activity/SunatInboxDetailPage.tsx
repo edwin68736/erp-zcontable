@@ -170,7 +170,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
 
       <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-7">
             Buzón SOL — {detail.business_name}
           </h1>
           <p className="text-slate-500 mt-1 text-sm">

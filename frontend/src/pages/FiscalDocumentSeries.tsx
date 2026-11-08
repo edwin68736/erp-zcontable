@@ -142,13 +142,10 @@ const FiscalDocumentSeries = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <PageHeading>Series y correlativos</PageHeading>
-          <p className="text-sm text-slate-500">
-            Control local de numeración. El siguiente comprobante usará el correlativo indicado como próximo.
-          </p>
+          <PageHeading hint="Control local de numeración. El siguiente comprobante usará el correlativo indicado como próximo.">Series y correlativos</PageHeading>
         </div>
         {canManage ? (
           <Button onClick={openCreate} className="inline-flex items-center gap-2">

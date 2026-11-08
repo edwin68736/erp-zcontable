@@ -33,6 +33,7 @@ import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportDetraccionesReportExcel } from '../../utils/detraccionesExcelExport';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -253,10 +254,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Control de Detracciones SUNAT</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Carga de comprobante PDF por el asistente y verificación por el supervisor.
-          </p>
+          <PageHeading hint="Carga de comprobante PDF por el asistente y verificación por el supervisor.">Control de Detracciones SUNAT</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

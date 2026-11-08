@@ -101,14 +101,10 @@ const PaymentsVoided = () => {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <PageHeading>Pagos anulados</PageHeading>
-          <p className="text-sm text-slate-500">
-            Vía de auditoría de solo lectura. Estos pagos NO participan en ningún cálculo financiero ni
-            aparecen en el listado normal de pagos.
-          </p>
+          <PageHeading hint="Vía de auditoría de solo lectura. Estos pagos NO participan en ningún cálculo financiero ni aparecen en el listado normal de pagos.">Pagos anulados</PageHeading>
         </div>
         <Link
           to="/payments"

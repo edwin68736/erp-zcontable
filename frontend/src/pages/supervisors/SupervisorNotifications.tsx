@@ -45,11 +45,10 @@ const SupervisorNotifications = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <PageHeading>Notificaciones</PageHeading>
-          <p className="text-sm text-slate-500">Alertas automáticas del módulo de supervisores.</p>
+          <PageHeading hint="Alertas automáticas del módulo de supervisores.">Notificaciones</PageHeading>
         </div>
         <label className="text-sm text-slate-600 flex items-center gap-2">
           <input

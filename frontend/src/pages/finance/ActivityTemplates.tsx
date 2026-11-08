@@ -148,10 +148,7 @@ const ActivityTemplates = () => {
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <PageHeading>Catálogo de actividades</PageHeading>
-          <p className="text-sm text-slate-500">
-            Plantillas reutilizables para el calendario contable (código, tipo, prioridad y apariencia).
-          </p>
+          <PageHeading hint="Plantillas reutilizables para el calendario contable (código, tipo, prioridad y apariencia).">Catálogo de actividades</PageHeading>
         </div>
         {canManage ? (
           <Link

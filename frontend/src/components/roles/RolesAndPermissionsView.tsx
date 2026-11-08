@@ -6,6 +6,7 @@ import { rolesService, type ModuleRow, type RoleCreateInput, type RoleRow, type 
 import { P } from '../../rbac/codes';
 import ConfirmDialog from '../ConfirmDialog';
 import RoleCrudModal from './RoleCrudModal';
+import PageHeading from '../../components/ui/PageHeading';
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -353,13 +354,10 @@ const RolesAndPermissionsView = () => {
   }
 
   return (
-    <div className="space-y-4 pt-1 max-w-[1400px] mx-auto w-full px-1 sm:px-0">
+    <div className="space-y-3 pt-1 max-w-[1400px] mx-auto w-full px-1 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Roles y permisos</h1>
-          <p className="text-slate-500 text-sm mt-1 max-w-2xl">
-            Administre roles del estudio y la matriz de permisos por módulo. Los cambios en permisos aplican al instante en la API.
-          </p>
+          <PageHeading hint="Administre roles del estudio y la matriz de permisos por módulo. Los cambios en permisos aplican al instante en la API.">Roles y permisos</PageHeading>
         </div>
         <Link to="/users" className="text-sm font-medium text-primary-800 hover:underline shrink-0">
           <i className="fas fa-arrow-left mr-1" /> Volver a usuarios

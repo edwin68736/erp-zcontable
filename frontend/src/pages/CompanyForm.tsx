@@ -518,7 +518,7 @@ const CompanyForm = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <PageHeading>

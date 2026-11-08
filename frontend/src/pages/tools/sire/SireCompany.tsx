@@ -320,7 +320,7 @@ const SireCompany = () => {
   const submitDisabled = busy || periodsLoading || (rangeOpen ? !!rangeError || rangePeriods.length === 0 : !period);
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link to="/tools/sire" className="text-xs font-semibold text-primary-700 hover:underline">

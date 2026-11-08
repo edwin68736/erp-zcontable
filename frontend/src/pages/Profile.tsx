@@ -145,8 +145,7 @@ const Profile = () => {
   return (
     <div className="space-y-5 pt-2">
       <div>
-        <PageHeading>Mi cuenta</PageHeading>
-        <p className="mt-1 text-sm text-slate-500">Sus datos de acceso y su contraseña.</p>
+        <PageHeading hint="Sus datos de acceso y su contraseña.">Mi cuenta</PageHeading>
       </div>
 
       {forced ? (

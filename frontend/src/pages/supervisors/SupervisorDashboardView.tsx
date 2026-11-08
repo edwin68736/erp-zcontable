@@ -336,7 +336,7 @@ const SupervisorDashboardView = () => {
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
         <div className="min-w-[280px] flex-1">
           <div className="flex flex-wrap items-center gap-[10px]">
-            <h1 className="m-0 text-[26px] font-extrabold tracking-tight text-slate-900">Dashboard Supervisores</h1>
+            <h1 className="m-0 text-xl font-bold tracking-tight text-slate-900">Dashboard Supervisores</h1>
             {studioView ? (
               <span className="rounded-full border border-[#BFE5CF] bg-[#E3F5EA] px-[10px] py-[2px] text-[11.5px] font-bold text-[#0A5A3A]">Vista del estudio</span>
             ) : (

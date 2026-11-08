@@ -385,7 +385,7 @@ const FinanceCalendar = () => {
       };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 pb-10 print:max-w-none">
+    <div className="max-w-7xl mx-auto space-y-3 pb-10 print:max-w-none">
       <CalendarHeader
         periodYm={periodYm}
         canManage={canManage}

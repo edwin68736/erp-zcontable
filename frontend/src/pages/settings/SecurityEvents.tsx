@@ -50,8 +50,7 @@ const SecurityEvents = ({ embedded = false }: { embedded?: boolean }) => {
         <p className="text-sm text-slate-500">Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.</p>
       ) : (
         <div>
-          <PageHeading>Bitácora de seguridad</PageHeading>
-          <p className="mt-1 text-sm text-slate-500">Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.</p>
+          <PageHeading hint="Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.">Bitácora de seguridad</PageHeading>
         </div>
       )}
 

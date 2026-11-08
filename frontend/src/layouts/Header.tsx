@@ -168,7 +168,7 @@ const Header = ({
   const notificationsCount = financeNotificationsCount + (canSupervisorNotif ? supervisorUnreadCount : 0);
 
   return (
-    <header className="relative z-50 bg-white/70 backdrop-blur rounded-2xl shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] border border-slate-200/60 px-6 py-2 flex items-center justify-between mb-3 flex-shrink-0">
+    <header className="relative z-50 bg-white/70 backdrop-blur rounded-2xl shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] border border-slate-200/60 px-4 py-1.5 flex items-center justify-between mb-2 flex-shrink-0">
       <div className="flex items-center gap-4 lg:hidden">
         <button 
           type="button" 
@@ -185,7 +185,7 @@ const Header = ({
           <button
             type="button"
             onClick={onToggleSidebarCollapse}
-            className="hidden lg:flex w-11 h-11 rounded-full bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-colors items-center justify-center"
+            className="hidden lg:flex w-9 h-9 rounded-full bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-colors items-center justify-center"
             aria-label={isSidebarCollapsed ? 'Expandir sidebar' : 'Minimizar sidebar'}
             title={isSidebarCollapsed ? 'Expandir sidebar' : 'Minimizar sidebar'}
           >
@@ -194,13 +194,13 @@ const Header = ({
 
           {canSearchCompanies ? (
           <div className="relative group flex-1" ref={searchContainerRef}>
-            <span className="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-primary-600 transition-colors">
+            <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-400 group-focus-within:text-primary-600 transition-colors">
               <i className="fas fa-search"></i>
             </span>
             <input
               type="text"
               placeholder="Buscar cliente..."
-              className="w-full pl-11 pr-4 py-3.5 rounded-full bg-white/80 border border-slate-200/70 text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white transition-all shadow-inner"
+              className="w-full pl-10 pr-4 py-2 rounded-full bg-white/80 border border-slate-200/70 text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white transition-all shadow-inner"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => searchTerm.trim().length > 3 && searchResults.length > 0 && setShowResults(true)}
@@ -251,7 +251,7 @@ const Header = ({
           <div>
             <button
               type="button"
-              className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-primary-600 transition-all flex items-center justify-center border border-transparent hover:border-slate-100 hover:shadow-sm relative"
+              className="w-9 h-9 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-primary-600 transition-all flex items-center justify-center border border-transparent hover:border-slate-100 hover:shadow-sm relative"
               aria-expanded={isNotificationsOpen}
               aria-haspopup="menu"
               onClick={() => {
@@ -465,7 +465,7 @@ const Header = ({
                    {userName}
                  </p>
               </div>
-              <div className="w-11 h-11 rounded-full bg-primary-100 p-0.5 shadow-sm cursor-pointer group-hover:shadow-md transition-all ring-2 ring-transparent group-hover:ring-primary-100">
+              <div className="w-9 h-9 rounded-full bg-primary-100 p-0.5 shadow-sm cursor-pointer group-hover:shadow-md transition-all ring-2 ring-transparent group-hover:ring-primary-100">
                  <img
                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'U')}&background=064e3b&color=fff`}
                    alt=""

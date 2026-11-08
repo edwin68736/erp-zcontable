@@ -85,7 +85,7 @@ const CompanyContacts = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>

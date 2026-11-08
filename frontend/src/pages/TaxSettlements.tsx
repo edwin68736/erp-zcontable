@@ -282,13 +282,10 @@ const TaxSettlements = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <PageHeading>Liquidaciones de impuestos</PageHeading>
-          <p className="text-sm text-slate-500 mt-1">
-            Agrupan cargos pendientes por cliente para presentación. Los honorarios siguen en Deudas; los pagos se registran en Pagos con imputación manual o FIFO.
-          </p>
+          <PageHeading hint="Agrupan cargos pendientes por cliente para presentación. Los honorarios siguen en Deudas; los pagos se registran en Pagos con imputación manual o FIFO.">Liquidaciones de impuestos</PageHeading>
         </div>
         {canCreate ? (
           <Link

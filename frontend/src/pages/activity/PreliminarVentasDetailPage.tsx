@@ -30,6 +30,7 @@ import {
   parseLiquidationRentaRegime,
   type LiquidationRentaRegime,
 } from '../../utils/companyTaxRegime';
+import PageHeading from '../../components/ui/PageHeading';
 
 /** Fecha de corte por defecto: HOY (hora del navegador). La fecha de corte debe caer dentro del mes
  * del período (el servidor lo exige), así que si el período es otro mes se usa el último día de un
@@ -479,8 +480,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     <div className={PAGE_WORKSPACE_CLASS} ref={formRef} onKeyDown={handleEnterNext}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Preliminar de ventas · Entrega {slotIndex}</h1>
-          <p className="text-slate-500 mt-1 text-sm">Período {periodYm}</p>
+          <PageHeading hint={`Período ${periodYm}`}>Preliminar de ventas · Entrega {slotIndex}</PageHeading>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button

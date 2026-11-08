@@ -521,7 +521,7 @@ const TaxSettlementNew = () => {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-4 sm:space-y-6">
+    <div className="w-full min-w-0 max-w-full space-y-3 sm:space-y-6">
       <div>
         <Link
           to={isEdit ? `/tax-settlements/${editId}` : '/tax-settlements'}

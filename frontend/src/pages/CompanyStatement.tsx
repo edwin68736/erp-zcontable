@@ -304,7 +304,7 @@ function BankStatementView({
   const periodLineLabel = isRangeLedger ? 'PERÍODO' : 'MES';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div>

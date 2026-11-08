@@ -223,7 +223,7 @@ const UserForm = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto w-full space-y-6">
+    <div className="max-w-5xl mx-auto w-full space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <PageHeading>{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</PageHeading>

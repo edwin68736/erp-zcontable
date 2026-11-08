@@ -125,10 +125,9 @@ const SupervisorPeriods = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-3">
       <div>
-        <PageHeading>Períodos contables</PageHeading>
-        <p className="text-sm text-slate-500">Apertura y cierre mensual del módulo supervisores.</p>
+        <PageHeading hint="Apertura y cierre mensual del módulo supervisores.">Períodos contables</PageHeading>
       </div>
 
       {msg ? (

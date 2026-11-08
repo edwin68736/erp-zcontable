@@ -9,6 +9,7 @@ import {
 } from '../../services/sunatDueDates';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import Button from '../../components/ui/Button';
+import PageHeading from '../../components/ui/PageHeading';
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -117,12 +118,7 @@ const SunatDueDatesCalendar = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Vencimientos SUNAT</h1>
-          <p className="text-slate-500 mt-1 text-sm max-w-2xl">
-            Cronograma de obligaciones tributarias mensuales de SUNAT: para cada periodo, la fecha
-            límite según el último dígito del RUC. Referencia del estudio — se edita cuando SUNAT
-            publica el cronograma del nuevo año; no se crean calendarios nuevos.
-          </p>
+          <PageHeading hint="Cronograma de obligaciones tributarias mensuales de SUNAT: para cada periodo, la fecha límite según el último dígito del RUC. Referencia del estudio — se edita cuando SUNAT publica el cronograma del nuevo año; no se crean calendarios nuevos.">Vencimientos SUNAT</PageHeading>
         </div>
         {canManage ? (
           editing ? (

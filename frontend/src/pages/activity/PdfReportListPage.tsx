@@ -24,6 +24,7 @@ import {
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPdfReportExcel } from '../../utils/pdfReportExcelExport';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -161,8 +162,7 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{mod.title}</h1>
-          <p className="text-slate-500 mt-1 text-sm">{mod.description}</p>
+          <PageHeading hint={mod.description}>{mod.title}</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

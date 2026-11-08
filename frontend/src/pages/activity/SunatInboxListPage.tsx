@@ -38,6 +38,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportSunatInboxReportExcel } from '../../utils/sunatInboxExcelExport';
 import { useElementHeight } from '../../hooks/useElementHeight';
 import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
+import PageHeading from '../../components/ui/PageHeading';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -362,11 +363,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Buzón SOL SUNAT – SUNAFIL</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Capturas por semana laborable (lun–sáb). Configuración actual: {capturesPerWeek} carga
-            {capturesPerWeek === 1 ? '' : 's'} por semana en Ajustes.
-          </p>
+          <PageHeading hint={`Capturas por semana laborable (lun–sáb). Configuración actual: ${capturesPerWeek} carga ${capturesPerWeek === 1 ? '' : 's'} por semana en Ajustes.`}>Buzón SOL SUNAT – SUNAFIL</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

@@ -62,7 +62,7 @@ const BuzonCompanies = () => {
   }, [load]);
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
         <PageHeading className="mt-1">Notificaciones SUNAT</PageHeading>

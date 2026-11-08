@@ -115,7 +115,7 @@ const SupervisorControls = ({
       : 'Hub de supervisión y listado de controles mensuales por empresa.';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <PageHeading>{pageTitle}</PageHeading>

@@ -72,7 +72,7 @@ const PlanCategoryForm = () => {
   if (loading) return <div className="p-6 text-sm text-slate-500">Cargando…</div>;
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <PageHeading>{editId ? 'Editar categoría' : 'Nueva categoría'}</PageHeading>
         <Link to="/plan-categories" className="text-sm text-slate-600">

@@ -456,7 +456,7 @@ const TaxSettlementDetail = () => {
     'inline-flex w-auto max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-center text-2xs font-medium leading-tight transition-colors sm:px-3.5 sm:py-2 sm:text-sm';
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-4 sm:space-y-6">
+    <div className="w-full min-w-0 max-w-full space-y-3 sm:space-y-6">
       <header className="min-w-0 space-y-4 border-b border-slate-200/80 pb-4">
         <div className="min-w-0 pr-1">
           <Link

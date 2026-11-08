@@ -589,9 +589,7 @@ const PosSale = () => {
 
         <div>
 
-          <PageHeading>Nueva venta</PageHeading>
-
-          <p className="text-sm text-slate-500">Emisión rápida de comprobantes</p>
+          <PageHeading hint="Emisión rápida de comprobantes">Nueva venta</PageHeading>
 
         </div>
 

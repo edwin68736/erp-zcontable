@@ -597,7 +597,7 @@ const SupervisorLiquidacionCreatePage = () => {
         <Link to={listBackTo} className="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Volver al listado
         </Link>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight mt-2">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-7 mt-2">
           {isView ? 'Ver liquidación' : isEdit ? 'Editar liquidación' : 'Crear liquidación'}
         </h1>
         <p className="text-slate-500 mt-1 text-sm max-w-3xl">

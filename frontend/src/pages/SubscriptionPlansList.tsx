@@ -42,11 +42,10 @@ const SubscriptionPlansList = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <PageHeading>Planes de suscripción</PageHeading>
-          <p className="text-sm text-slate-500">Planes con tramos por facturación y precio mensual.</p>
+          <PageHeading hint="Planes con tramos por facturación y precio mensual.">Planes de suscripción</PageHeading>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {canLiquidate ? (

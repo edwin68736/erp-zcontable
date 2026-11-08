@@ -29,6 +29,7 @@ import { detraccionesService, type SuspensionCarryOverRow } from '../../services
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPreliminarVentasReportExcel } from '../../utils/preliminarVentasExcelExport';
+import PageHeading from '../../components/ui/PageHeading';
 
 function formatDueDate(iso?: string): string {
   if (!iso) return 'Sin fecha configurada';
@@ -212,10 +213,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Preliminar de ventas</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Resumen de ventas del mes que se envía al cliente antes del cierre, para prever el pago de impuestos.
-          </p>
+          <PageHeading hint="Resumen de ventas del mes que se envía al cliente antes del cierre, para prever el pago de impuestos.">Preliminar de ventas</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

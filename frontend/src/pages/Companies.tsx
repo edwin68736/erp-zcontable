@@ -462,11 +462,10 @@ const Companies = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
-          <PageHeading>Empresas</PageHeading>
-          <p className="text-sm text-slate-500">Gestión de clientes del estudio contable.</p>
+          <PageHeading hint="Gestión de clientes del estudio contable.">Empresas</PageHeading>
         </div>
         {canUpsert ? (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">

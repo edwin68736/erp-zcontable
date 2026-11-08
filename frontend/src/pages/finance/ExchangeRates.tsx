@@ -81,11 +81,10 @@ const ExchangeRates = () => {
   const monthDays = (data?.days ?? []).slice().reverse();
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Recursos</p>
-        <PageHeading className="mt-0.5">Tipo de cambio</PageHeading>
-        <p className="mt-1 text-sm text-slate-500">Compra y venta de SUNAT por día (dólar americano). El valor de cada fecha es el cierre de la SBS del día hábil anterior.</p>
+        <PageHeading className="mt-0.5" hint="Compra y venta de SUNAT por día (dólar americano). El valor de cada fecha es el cierre de la SBS del día hábil anterior.">Tipo de cambio</PageHeading>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

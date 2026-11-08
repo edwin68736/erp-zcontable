@@ -228,10 +228,9 @@ const Settings = () => {
   }, [config?.name]);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-3">
       <div>
-        <PageHeading>Perfil del estudio</PageHeading>
-        <p className="text-sm text-slate-500">Datos generales utilizados en reportes y encabezados.</p>
+        <PageHeading hint="Datos generales utilizados en reportes y encabezados.">Perfil del estudio</PageHeading>
       </div>
 
       {!canViewSettings ? (

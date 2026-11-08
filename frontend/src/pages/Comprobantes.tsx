@@ -351,7 +351,7 @@ const Comprobantes = () => {
   }
 
   return (
-    <div className="space-y-4 w-full min-w-0 max-w-full">
+    <div className="space-y-3 w-full min-w-0 max-w-full">
       <header className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
