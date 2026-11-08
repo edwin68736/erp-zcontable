@@ -173,6 +173,7 @@ var registryDefs = []PermDef{
 	{SettingsFirmUploadBankLogo, ModEstudio, "Configuración", "Subir logo banco en estado de cuenta"},
 	{SettingsFirmUploadPaymentQR, ModEstudio, "Configuración", "Subir QR de pagos en estado de cuenta"},
 
+	{SecurityEventsView, ModEstudio, "Seguridad", "Ver la bitácora de seguridad (accesos, fallos y bloqueos)"},
 	{UsersView, ModEstudio, "Usuarios", "Ver usuarios"},
 	{UsersCreate, ModEstudio, "Usuarios", "Crear usuario"},
 	{UsersUpdate, ModEstudio, "Usuarios", "Editar usuario"},
@@ -240,6 +241,7 @@ var contadorDeny = []string{
 	PlanCategoriesDelete, PaymentsDelete, PaymentsViewVoided, ProductsDelete,
 	FinanceSunatDueDatesManage,
 	CompanyCredentialsSolView, CompanyCredentialsInactiveView,
+	SecurityEventsView,
 }
 
 // asistenteCodes lista cerrada del rol Asistente.
@@ -360,7 +362,7 @@ func administradorCodes() []string {
 // para poder diferenciarlos sin tocar Administrador si en el futuro hace falta.
 func gerenciaSupervisorCodes() []string {
 	deny := append([]string(nil), supervisorDeny...)
-	deny = append(deny, FinanceSunatDueDatesManage, SupervisorsPdt621ReceiveAny)
+	deny = append(deny, FinanceSunatDueDatesManage, SupervisorsPdt621ReceiveAny, SecurityEventsView)
 	return codesExcept(deny)
 }
 

@@ -48,6 +48,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillCompanyCredentialsSireEdit(db); err != nil {
 		return err
 	}
+	if err := backfillSecurityEventsView(db); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
@@ -445,4 +448,11 @@ func backfillDetraccionesMarkStatus(db *gorm.DB) error {
 func backfillCompanyCredentialsSireEdit(db *gorm.DB) error {
 	return backfillPermissionOnce(db, "rbac_company_credentials_sire_edit_v1", rbac.CompanyCredentialsSireEdit,
 		[]string{rbac.CompanyCredentialsManage, rbac.CompanyCredentialsSolView}, []string{rbac.RoleAsistente})
+}
+
+// backfillSecurityEventsView «Ver la bitácora de seguridad»: lo reciben los roles que ya podían administrar usuarios
+// (Administrador y Super usuario por defecto).
+func backfillSecurityEventsView(db *gorm.DB) error {
+	return backfillPermissionOnce(db, "rbac_security_events_view_v1", rbac.SecurityEventsView,
+		[]string{rbac.UsersView}, nil)
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"miappfiber/authclaims"
@@ -11,6 +12,7 @@ import (
 	"miappfiber/models"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -20,28 +22,85 @@ func NewAuthService() *AuthService {
 	return &AuthService{}
 }
 
+// ErrInvalidCredentials respuesta única para cualquier fallo de inicio de sesión (usuario que no existe, contraseña
+// incorrecta o usuario inactivo): el sistema no revela cuál fue.
+var ErrInvalidCredentials = errors.New("credenciales inválidas")
+
+// Motivos internos de un fallo (solo van a la bitácora de seguridad, nunca a la respuesta).
+const (
+	LoginFailUnknownUser = "usuario inexistente"
+	LoginFailBadPassword = "contraseña incorrecta"
+	LoginFailInactive    = "usuario inactivo"
+)
+
+var (
+	dummyHashOnce sync.Once
+	dummyHash     []byte
+)
+
+// dummyPasswordHash hash de relleno: cuando el usuario no existe se compara igual contra algo, para que la
+// respuesta tarde lo mismo y no se pueda averiguar qué usuarios existen por el tiempo de respuesta.
+func dummyPasswordHash() []byte {
+	dummyHashOnce.Do(func() {
+		dummyHash, _ = bcrypt.GenerateFromPassword([]byte("relleno-sin-usuario"), bcrypt.DefaultCost)
+	})
+	return dummyHash
+}
+
+// Login valida usuario y contraseña. Ante cualquier fallo devuelve ErrInvalidCredentials.
 func (s *AuthService) Login(username, password string) (*models.User, error) {
+	u, _, err := s.LoginDetailed(username, password)
+	return u, err
+}
+
+// LoginDetailed igual que Login, pero además devuelve el motivo real del fallo (para la bitácora de seguridad).
+// El usuario, si existe, se devuelve aun cuando falle (para registrar a quién se intentó entrar).
+func (s *AuthService) LoginDetailed(username, password string) (*models.User, string, error) {
 	username = strings.TrimSpace(username)
-	if username == "" {
-		return nil, errors.New("credenciales inválidas")
-	}
 	var user models.User
-	if err := database.DB.Where("LOWER(TRIM(username)) = ?", strings.ToLower(username)).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("credenciales inválidas")
+	found := false
+	if username != "" {
+		err := database.DB.Where("LOWER(TRIM(username)) = ?", strings.ToLower(username)).First(&user).Error
+		switch {
+		case err == nil:
+			found = true
+		case errors.Is(err, gorm.ErrRecordNotFound):
+		default:
+			return nil, "", err
 		}
-		return nil, err
 	}
-
-	if !user.Active {
-		return nil, errors.New("usuario inactivo")
+	if !found {
+		_ = bcrypt.CompareHashAndPassword(dummyPasswordHash(), []byte(password))
+		return nil, LoginFailUnknownUser, ErrInvalidCredentials
 	}
-
 	if !user.CheckPassword(password) {
-		return nil, errors.New("credenciales inválidas")
+		return &user, LoginFailBadPassword, ErrInvalidCredentials
 	}
+	if !user.Active {
+		return &user, LoginFailInactive, ErrInvalidCredentials
+	}
+	return &user, "", nil
+}
 
-	return &user, nil
+// ChangeOwnPassword cambia la contraseña del propio usuario: exige la actual y cumplir la política.
+func (s *AuthService) ChangeOwnPassword(userID uint, current, next string) error {
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		return ErrInvalidCredentials
+	}
+	if !user.CheckPassword(current) {
+		return errors.New("la contraseña actual no es correcta")
+	}
+	if current == next {
+		return errors.New("la contraseña nueva debe ser distinta de la actual")
+	}
+	if err := ValidatePasswordPolicy(next, user.Username); err != nil {
+		return err
+	}
+	if err := user.SetPassword(next); err != nil {
+		return err
+	}
+	return database.DB.Model(&user).Update("password", user.Password).Error
 }
 
 func (s *AuthService) GenerateToken(user *models.User) (string, error) {

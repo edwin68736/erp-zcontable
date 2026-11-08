@@ -46,7 +46,7 @@ const Login = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-1">
                   Usuario
@@ -72,7 +72,14 @@ const Login = () => {
                   id="password"
                   name="password"
                   required
-                  autoComplete="current-password"
+                  // El navegador puede recordar el usuario, pero la contraseña la escribe la persona cada vez
+                  // (el equipo lo usan varias personas con el mismo perfil de Chrome). "new-password" evita que se
+                  // autorrellene una guardada; los data-* son para los gestores de contraseñas de terceros.
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
+                  data-form-type="other"
                   className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 outline-none transition shadow-inner"
                   placeholder="••••••••"
                   value={password}

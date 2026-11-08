@@ -3,6 +3,7 @@ package controllers
 import (
 	"strconv"
 
+	"miappfiber/models"
 	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
@@ -113,6 +114,12 @@ func (ctrl *UserController) UpdateAPI(c fiber.Ctx) error {
 	u, err := ctrl.userService.Update(uint(id), body.Username, body.Name, body.Email, body.Password, body.RoleID, body.Active, body.DNI, body.Phone, body.Address)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	// Bitácora de seguridad: un administrador cambió la contraseña de otro usuario.
+	if body.Password != "" {
+		actor, _ := getUserID(c)
+		services.NewAuthSecurityService().Record(models.AuthEventPasswordReset, u.ID, u.Username, clientIP(c), c.Get("User-Agent"),
+			"restablecida por el usuario #"+strconv.FormatUint(uint64(actor), 10))
 	}
 	return c.JSON(u)
 }

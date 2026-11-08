@@ -5,6 +5,7 @@ import (
 
 	"miappfiber/authclaims"
 	"miappfiber/config"
+	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -39,6 +40,13 @@ func JWTProtected() fiber.Handler {
 		if err != nil || !token.Valid {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Token inválido o expirado",
+			})
+		}
+
+		// Un usuario desactivado o eliminado pierde el acceso enseguida, aunque su token no haya vencido.
+		if !services.Authz().UserActive(claims.UserID) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Sesión no válida: el usuario está inactivo",
 			})
 		}
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"unicode/utf8"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -91,8 +90,8 @@ func (s *UserService) Create(username, name, emailStr, password string, roleID u
 	if password == "" {
 		password = randomPassword(12)
 		generatedPlain = password
-	} else if utf8.RuneCountInString(password) < 6 {
-		return nil, "", errors.New("la contraseña debe tener al menos 6 caracteres")
+	} else if err := ValidatePasswordPolicy(password, username); err != nil {
+		return nil, "", err
 	}
 
 	var exists int64
@@ -204,8 +203,8 @@ func (s *UserService) Update(id uint, username, name, emailStr, password string,
 		u.Address = strings.TrimSpace(*address)
 	}
 	if password = strings.TrimSpace(password); password != "" {
-		if utf8.RuneCountInString(password) < 6 {
-			return nil, errors.New("la contraseña debe tener al menos 6 caracteres")
+		if err := ValidatePasswordPolicy(password, u.Username); err != nil {
+			return nil, err
 		}
 		if err := u.SetPassword(password); err != nil {
 			return nil, err

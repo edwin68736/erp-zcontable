@@ -49,6 +49,9 @@ func Setup(app *fiber.App) {
 	api.Get("/dashboard", middleware.RequirePermission(rbac.DashboardView), dashboardCtrl.HomeAPI)
 	api.Get("/dashboard/overview", middleware.RequirePermission(rbac.DashboardView), dashboardCtrl.OverviewAPI)
 	api.Get("/logout", authCtrl.LogoutAPI)
+	// Seguridad de la cuenta: cada usuario cambia su propia contraseña; la bitácora la ve quien tenga el permiso.
+	api.Post("/me/password", authCtrl.ChangePasswordAPI)
+	api.Get("/security/events", middleware.RequirePermission(rbac.SecurityEventsView), authCtrl.SecurityEventsAPI)
 
 	api.Get("/me/permissions", meCtrl.PermissionsAPI)
 

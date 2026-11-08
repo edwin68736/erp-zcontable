@@ -99,6 +99,7 @@ func AutoMigrate() error {
 		&models.NpdHistory{},
 		&models.DamHistory{},
 		&models.ExchangeRate{},
+		&models.AuthEvent{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

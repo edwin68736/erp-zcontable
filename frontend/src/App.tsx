@@ -27,12 +27,13 @@ import PaymentsVoided from './pages/PaymentsVoided';
 import PaymentForm from './pages/PaymentForm';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+import SecurityEvents from './pages/settings/SecurityEvents';
 import ActivityConfigurationSettings from './pages/settings/ActivityConfigurationSettings';
 import Users from './pages/Users';
 import UserForm from './pages/UserForm';
 import RolePermissions from './pages/RolePermissions';
 import Login from './pages/Login';
-import Placeholder from './pages/Placeholder';
 import ModuleComingSoon from './pages/ModuleComingSoon';
 import ToolUnderConstruction from './pages/tools/ToolUnderConstruction';
 import ExchangeRates from './pages/finance/ExchangeRates';
@@ -240,6 +241,7 @@ function App() {
             <Route path="assistant/controls/:id" element={guard(P.supervisorsControlsView, <SupervisorControlDetail />)} />
             <Route path="pos" element={guard(P.salesEmit, <PosSale />)} />
             <Route path="pos/history" element={guard(P.salesHistory, <PosHistory />)} />
+            <Route path="settings/security" element={guard(P.securityEventsView, <SecurityEvents />)} />
             <Route path="settings/firm" element={guard(P.settingsFirmView, <Settings />)} />
             <Route path="settings/activity-configuration" element={guard(P.settingsFirmView, <ActivityConfigurationSettings />)} />
             <Route path="settings/fiscal-series" element={guard(P.fiscalSeriesView, <FiscalDocumentSeries />)} />
@@ -249,7 +251,7 @@ function App() {
             <Route path="users/:id/edit" element={guard(P.usersView, <UserForm />)} />
             
             {/* Rutas anidadas para formularios (por ahora placeholders) */}
-            <Route path="profile" element={<Placeholder title="Mi Perfil" />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
         </Route>
       </Routes>

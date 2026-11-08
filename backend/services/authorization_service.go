@@ -2,19 +2,34 @@ package services
 
 import (
 	"sync"
+	"time"
 
 	"miappfiber/database"
+	"miappfiber/models"
 )
+
+// userActiveTTL cuánto se recuerda que un usuario está activo antes de volver a preguntarlo a la base.
+const userActiveTTL = 30 * time.Second
+
+type userActiveEntry struct {
+	active bool
+	at     time.Time
+}
 
 // AuthorizationService resuelve permisos con caché en memoria por usuario.
 type AuthorizationService struct {
 	mu    sync.RWMutex
 	cache map[uint]map[string]struct{} // userID -> set de códigos permission
+	// active recuerda unos segundos si el usuario sigue activo (para no consultar la base en cada petición).
+	active map[uint]userActiveEntry
+	now    func() time.Time
 }
 
 func NewAuthorizationService() *AuthorizationService {
 	return &AuthorizationService{
-		cache: make(map[uint]map[string]struct{}),
+		cache:  make(map[uint]map[string]struct{}),
+		active: make(map[uint]userActiveEntry),
+		now:    time.Now,
 	}
 }
 
@@ -29,13 +44,32 @@ func Authz() *AuthorizationService {
 func (s *AuthorizationService) InvalidateUser(userID uint) {
 	s.mu.Lock()
 	delete(s.cache, userID)
+	delete(s.active, userID)
 	s.mu.Unlock()
+}
+
+// UserActive true si el usuario existe y está activo. Un usuario desactivado o eliminado pierde el acceso aunque su
+// token todavía no haya vencido (el resultado se recuerda 30 s y se descarta al editar al usuario).
+func (s *AuthorizationService) UserActive(userID uint) bool {
+	s.mu.RLock()
+	e, ok := s.active[userID]
+	s.mu.RUnlock()
+	if ok && s.now().Sub(e.at) < userActiveTTL {
+		return e.active
+	}
+	var u models.User
+	active := database.DB.Select("id", "active").First(&u, userID).Error == nil && u.Active
+	s.mu.Lock()
+	s.active[userID] = userActiveEntry{active: active, at: s.now()}
+	s.mu.Unlock()
+	return active
 }
 
 // InvalidateAll vacía toda la caché (p. ej. cambio masivo de permisos).
 func (s *AuthorizationService) InvalidateAll() {
 	s.mu.Lock()
 	s.cache = make(map[uint]map[string]struct{})
+	s.active = make(map[uint]userActiveEntry)
 	s.mu.Unlock()
 }
 

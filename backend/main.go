@@ -4,6 +4,7 @@ import (
 	"log"
 	"miappfiber/config"
 	"miappfiber/database"
+	"miappfiber/middleware"
 	"miappfiber/routes"
 	"miappfiber/services"
 	// Zona horaria embebida: America/Lima resuelve igual aunque el servidor no tenga tzdata
@@ -18,6 +19,16 @@ import (
 func main() {
 	if err := config.Load(); err != nil {
 		log.Fatalf("config: %v", err)
+	}
+
+	// El secreto con el que se firman los tokens no puede ser el de ejemplo del código: con él cualquiera que conozca
+	// el código fabricaría sesiones válidas. Por defecto solo se avisa (para no tumbar un servidor que aún lo usa);
+	// con ENFORCE_STRONG_SECRETS=true el servidor se niega a arrancar.
+	if config.WeakJWTSecret(config.AppConfig.JWTSecret) {
+		log.Print("⚠ SEGURIDAD: JWT_SECRET es el valor de ejemplo o es demasiado corto. Cámbielo por uno propio de 32+ caracteres (openssl rand -base64 48).")
+		if config.EnforceStrongSecrets() {
+			log.Fatal("ENFORCE_STRONG_SECRETS está activo y JWT_SECRET es débil: el servidor no arranca.")
+		}
 	}
 
 	if err := database.Connect(); err != nil {
@@ -81,8 +92,10 @@ func main() {
 
 	app := fiber.New()
 
+	app.Use(middleware.SecurityHeaders())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"},
+		// Solo producción, pruebas y desarrollo local (ver config/cors.go; CORS_ALLOWED_ORIGINS agrega más).
+		AllowOrigins: config.CORSOrigins(),
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
@@ -94,10 +107,11 @@ func main() {
 		})
 	})
 
-	app.Use("/storage", static.New(config.AppConfig.StoragePath))
+	app.Use("/storage", middleware.StorageHeaders(), static.New(config.AppConfig.StoragePath))
 
 	routes.Setup(app)
 
+	services.StartAuthEventsPurgeLoop()
 	services.StartSupervisorAutomationLoop()
 	services.StartSunatBuzonNightlySync()
 
