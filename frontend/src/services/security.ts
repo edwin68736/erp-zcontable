@@ -110,6 +110,11 @@ export interface PendingApproval {
 }
 
 export const securityService = {
+  /** Vuelve a escribir la contraseña para acciones sensibles (vale unos minutos). */
+  async reauth(password: string): Promise<void> {
+    await client.post('/me/reauth', { password });
+  },
+
   // ───── Dispositivos de confianza y verificación en dos pasos (Mi cuenta) ─────
   async myDevices(): Promise<MyDevice[]> {
     const res = await client.get<{ data: MyDevice[] }>('/me/devices');

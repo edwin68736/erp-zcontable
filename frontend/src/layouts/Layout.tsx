@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
+import ReauthDialog from '../components/ReauthDialog';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
 
@@ -208,6 +209,7 @@ const Layout = () => {
             >
               <Outlet />
               <IdleLogoutGuard />
+              <ReauthDialog />
             </div>
           </main>
         </div>

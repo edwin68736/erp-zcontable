@@ -24,6 +24,8 @@ const (
 	sessionCacheTTL     = 15 * time.Second
 	sessionTouchEvery   = 30 * time.Second
 	sessionDefaultReuse = 5 * time.Minute
+	// ReauthWindow cuánto vale haber escrito la contraseña para las acciones sensibles (usuarios, roles, seguridad).
+	ReauthWindow = sessionDefaultReuse
 )
 
 // Motivos con los que se cierra una sesión.
@@ -78,7 +80,7 @@ func (s *SessionService) Create(userID, deviceID uint, ip, userAgent string) (*m
 	now := s.now()
 	sess := &models.UserSession{
 		ID: uuid.NewString(), UserID: userID, DeviceID: deviceID, IP: truncateStr(ip, 64), UserAgent: truncateStr(userAgent, 255),
-		CreatedAt: now, LastActiveAt: now, ExpiresAt: now.Add(SessionMaxLifetime),
+		CreatedAt: now, LastActiveAt: now, ExpiresAt: now.Add(SessionMaxLifetime), ReauthAt: &now,
 	}
 	if err := database.DB.Create(sess).Error; err != nil {
 		return nil, err

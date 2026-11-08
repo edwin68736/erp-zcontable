@@ -146,10 +146,42 @@ func (ctrl *AuthController) ChangePasswordAPI(c fiber.Ctx) error {
 	}
 	ctrl.security.Record(models.AuthEventPasswordChange, uid, username, ip, ua, "")
 	services.Authz().InvalidateUser(uid)
+	if sid, _ := c.Locals("session_id").(string); sid != "" {
+		services.Sessions().MarkReauth(sid) // acaba de escribir la contraseña
+	}
 	// Si alguien más tenía la contraseña anterior, sus sesiones dejan de valer; la de quien la cambió sigue.
 	current, _ := c.Locals("session_id").(string)
 	services.Sessions().RevokeUser(uid, current, services.SessionRevokedPassword)
 	return c.JSON(fiber.Map{"message": "Contraseña actualizada"})
+}
+
+// ReauthAPI POST /me/reauth — {"password"}: la persona vuelve a escribir su contraseña para poder hacer acciones sensibles
+// durante unos minutos. Los errores cuentan como intentos fallidos de inicio de sesión (bloqueo por usuario e IP).
+func (ctrl *AuthController) ReauthAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	if err := c.Bind().Body(&body); err != nil || body.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Escriba su contraseña"})
+	}
+	username, _ := c.Locals("user_username").(string)
+	ip, ua := clientIP(c), c.Get("User-Agent")
+	if wait, locked := ctrl.security.Locked(username, ip); locked {
+		c.Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "Demasiados intentos fallidos. Intente de nuevo más tarde."})
+	}
+	user, gerr := ctrl.authService.GetUserByID(uid)
+	if gerr != nil || !user.Active || !user.CheckPassword(body.Password) {
+		ctrl.security.Record(models.AuthEventLoginFail, uid, username, ip, ua, "confirmación de contraseña incorrecta")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "La contraseña no es correcta"})
+	}
+	sid, _ := c.Locals("session_id").(string)
+	services.Sessions().MarkReauth(sid)
+	return c.JSON(fiber.Map{"data": fiber.Map{"valid_seconds": int(services.ReauthWindow.Seconds())}})
 }
 
 // SecurityEventsAPI GET /security/events?type=&username=&ip=&from=AAAA-MM-DD&to=AAAA-MM-DD&page=&per_page=

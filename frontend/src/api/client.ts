@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { clearTukifacSeriesSessionCache } from '../constants/tukifacSeriesSessionKeys';
 import { isUserActive } from '../utils/activity';
+import { askReauth, isReauthRequired } from './reauth';
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? '').replace(/\/+$/, '');
 
@@ -57,9 +58,16 @@ client.interceptors.request.use((config) => {
 
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error?.response?.status;
     const code = error?.response?.data?.code as string | undefined;
+    // Acción sensible: se pide la contraseña de nuevo y, si la confirma, se repite la petición una sola vez.
+    const original = error?.config as (typeof error.config & { _reauthTried?: boolean }) | undefined;
+    if (isReauthRequired(status, code) && original && !original._reauthTried) {
+      original._reauthTried = true;
+      if (await askReauth()) return client.request(original);
+      return Promise.reject(error);
+    }
     // La contraseña la puso un administrador: hay que cambiarla antes de seguir (la pantalla «Mi cuenta» lo permite).
     if (status === 403 && code === 'password_change_required') {
       try {

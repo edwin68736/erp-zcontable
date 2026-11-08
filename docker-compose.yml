@@ -60,6 +60,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
 
       JWT_SECRET: ${JWT_SECRET}
+      # Opcionales (vacío = comportamiento anterior). APP_ENCRYPTION_KEY cifra los secretos de la verificación en dos
+      # pasos; si no se define se usa JWT_SECRET (y al cambiarlo habría que volver a configurar la verificación).
+      # ENFORCE_STRONG_SECRETS=true: el servidor no arranca con un JWT_SECRET débil o por defecto.
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      ENFORCE_STRONG_SECRETS: ${ENFORCE_STRONG_SECRETS:-}
 
       PORT: ${PORT}
 
