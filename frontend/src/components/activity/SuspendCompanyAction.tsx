@@ -3,6 +3,7 @@ import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
 import { companySuspensionService } from '../../services/companySuspension';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 type Props = {
   companyId: number;
@@ -31,11 +32,9 @@ export default function SuspendCompanyAction({ companyId, companyName, periodYm,
   const handleClick = async () => {
     if (saving) return;
     const next = !suspendida;
-    const ok = window.confirm(
-      next
+    const ok = (await confirmDialog({ message: next
         ? `¿Marcar a ${companyName || 'la empresa'} como SUSPENDIDA en ${periodYm}?\n\nQuedará suspendida en todos los módulos de este período (Buzón SOL, Preliminar de ventas, Detracciones, PDT 601/621…) y exenta de plazos. Puedes quitar la suspensión cuando quieras.`
-        : `¿Quitar la suspensión de ${companyName || 'la empresa'} en ${periodYm}?\n\nVolverá a contar en todos los módulos de este período.`,
-    );
+        : `¿Quitar la suspensión de ${companyName || 'la empresa'} en ${periodYm}?\n\nVolverá a contar en todos los módulos de este período.`, }));
     if (!ok) return;
     try {
       setSaving(true);

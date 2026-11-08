@@ -1302,7 +1302,7 @@ const Documents = () => {
                   <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-white">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
+                        <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                           <th className="py-2 pl-3 pr-2">Línea / concepto</th>
                           <th className="py-2 pr-2 whitespace-nowrap">Período</th>
                           <th className="py-2 pr-3 text-right whitespace-nowrap w-28">Monto</th>
@@ -1707,7 +1707,7 @@ const Documents = () => {
                       </div>
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
+                          <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                             <th className="py-2 pr-2">Descripción</th>
                             <th className="py-2 pr-2 whitespace-nowrap">Período</th>
                             <th className="py-2 text-right whitespace-nowrap w-28">Monto</th>

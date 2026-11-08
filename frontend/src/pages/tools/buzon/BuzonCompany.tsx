@@ -289,7 +289,7 @@ const BuzonCompany = () => {
           <div className={`overflow-auto ${loading ? 'opacity-60' : ''}`}>
             <table className="min-w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-700">
+                <tr className="bg-slate-50 text-slate-500 uppercase">
                   {['Publicada', 'Tipo', 'Asunto', 'Etiqueta', 'Adj.', 'Estado'].map((h) => (
                     <th key={h} className="whitespace-nowrap border-b border-slate-200 px-2 py-1.5 font-semibold">
                       {h}

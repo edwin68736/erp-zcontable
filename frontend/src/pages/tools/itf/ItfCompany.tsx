@@ -54,7 +54,7 @@ function DataTable({ t, empty }: { t: ItfTable; empty: string }) {
     <div className="overflow-auto">
       <table className="min-w-full border-collapse text-left text-xs">
         <thead>
-          <tr className="bg-slate-100 text-slate-700">
+          <tr className="bg-slate-50 text-slate-500 uppercase">
             {visible.map((i) => (
               <th key={`${t.columnas[i]}-${i}`} className={`whitespace-nowrap border-b border-slate-200 px-2 py-1.5 font-semibold ${isAmountColumn(t.columnas[i]) ? 'text-right' : ''}`}>
                 {t.columnas[i]}
@@ -411,7 +411,7 @@ const ItfCompany = () => {
                           <div className="overflow-auto">
                             <table className="min-w-full border-collapse text-left text-xs">
                               <thead>
-                                <tr className="bg-slate-100 text-slate-700">
+                                <tr className="bg-slate-50 text-slate-500 uppercase">
                                   <th className="border-b border-slate-200 px-2 py-1.5 font-semibold">Período</th>
                                   <th className="border-b border-slate-200 px-2 py-1.5 text-right font-semibold">Operaciones</th>
                                   <th className="border-b border-slate-200 px-2 py-1.5 text-right font-semibold">Base</th>

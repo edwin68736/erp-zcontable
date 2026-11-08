@@ -7,6 +7,7 @@ import DensityPicker from '../components/DensityPicker';
 import { DENSITY_KEY, parseDensityPref, resolveDensity, type DensityPref } from '../utils/density';
 import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref';
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
+import ConfirmHost from '../components/ConfirmHost';
 import ReauthDialog from '../components/ReauthDialog';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
@@ -244,6 +245,7 @@ const Layout = () => {
               <Outlet />
               <IdleLogoutGuard />
               <ReauthDialog />
+              <ConfirmHost />
             </div>
           </main>
         </div>

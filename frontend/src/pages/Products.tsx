@@ -6,6 +6,7 @@ import { P } from '../rbac/codes';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
+import { confirmDialog } from '../utils/confirmDialog';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -107,7 +108,7 @@ const Products = () => {
 
   const handleDelete = async (p: Product) => {
     if (!canDelete) return;
-    if (!confirm(`¿Eliminar «${p.description}»?`)) return;
+    if (!(await confirmDialog({ message: `¿Eliminar «${p.description}»?`, confirmLabel: 'Eliminar', danger: true }))) return;
     try {
       await productsService.remove(p.id);
       window.dispatchEvent(

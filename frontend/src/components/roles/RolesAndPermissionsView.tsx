@@ -7,6 +7,7 @@ import { P } from '../../rbac/codes';
 import ConfirmDialog from '../ConfirmDialog';
 import RoleCrudModal from './RoleCrudModal';
 import PageHeading from '../../components/ui/PageHeading';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -145,10 +146,10 @@ const RolesAndPermissionsView = () => {
   }, [roleId, canView]);
 
   const trySelectRole = useCallback(
-    (id: number) => {
+    async (id: number) => {
       if (id === roleId) return;
       if (dirty) {
-        const ok = window.confirm('Tiene cambios sin guardar en los permisos. ¿Descartar y cambiar de rol?');
+        const ok = (await confirmDialog({ message: 'Tiene cambios sin guardar en los permisos. ¿Descartar y cambiar de rol?', confirmLabel: 'Descartar cambios', danger: true }));
         if (!ok) return;
       }
       setRoleId(id);

@@ -21,6 +21,7 @@ import {
   parseDigColorMap,
   type ClavesSolPaletteId,
 } from '../../utils/clavesSolDigColors';
+import PageHeading from '../../components/ui/PageHeading';
 
 /** Mostrar las columnas Usuario SOL y Clave SOL en la lista (ocultas a propósito; ver showSolColumns). */
 const SHOW_SOL_COLUMNS = false;
@@ -636,14 +637,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   return (
     <div className={`${PAGE_WORKSPACE_CLASS} !space-y-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">
-            {isAssistantView ? 'Empresas' : 'Claves sol y accesos'}
-          </h2>
-          {isAssistantView ? (
-            <p className="text-slate-500 mt-0.5 text-sm">Empresas asignadas a su alcance operativo.</p>
-          ) : null}
-        </div>
+        <PageHeading hint={isAssistantView ? 'Empresas asignadas a su alcance operativo.' : undefined}>
+          {isAssistantView ? 'Empresas' : 'Claves sol y accesos'}
+        </PageHeading>
         {canImport ? (
           <button
             type="button"

@@ -18,6 +18,7 @@ import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
+import { confirmDialog } from '../utils/confirmDialog';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -287,7 +288,7 @@ const Companies = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('¿Eliminar esta empresa?')) {
+    if ((await confirmDialog({ message: '¿Eliminar esta empresa?', confirmLabel: 'Eliminar', danger: true }))) {
       try {
         await companiesService.delete(id);
         window.dispatchEvent(

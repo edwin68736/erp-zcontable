@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiErrorMessage, securityService, type PendingApproval } from '../../services/security';
 import { timeAgo } from '../tools/buzon/buzonUi';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 /** Equipos nuevos que esperan que un administrador los apruebe (la persona está mirando la pantalla de espera). */
 export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApproval[] | null; onChanged: () => void }) {
@@ -8,7 +9,7 @@ export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApprova
   const [busyId, setBusyId] = useState('');
 
   const decide = async (r: PendingApproval, approve: boolean) => {
-    if (approve && !window.confirm(`¿Aprobar el equipo «${r.device_label}» de ${r.name || r.username}?\n\nSolo apruebe si usted habló con la persona y sabe que es ella quien está entrando.`)) return;
+    if (approve && !(await confirmDialog({ message: `¿Aprobar el equipo «${r.device_label}» de ${r.name || r.username}?\n\nSolo apruebe si usted habló con la persona y sabe que es ella quien está entrando.`, confirmLabel: 'Aprobar' }))) return;
     setBusyId(r.id);
     setError('');
     try {

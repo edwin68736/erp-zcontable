@@ -5,6 +5,7 @@ import type { User } from '../../types/dashboard';
 import { timeAgo } from '../tools/buzon/buzonUi';
 import { VIA_LABEL } from './deviceUi';
 import { formatDate } from '../../utils/format';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -47,7 +48,7 @@ export default function UserDevicesTab() {
   const selected = users.find((u) => u.id === userId);
 
   const revoke = async (d: MyDevice) => {
-    if (!window.confirm(`¿Quitar «${d.label}»? Se cerrará la sesión abierta desde ese equipo.`)) return;
+    if (!(await confirmDialog({ message: `¿Quitar «${d.label}»? Se cerrará la sesión abierta desde ese equipo.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       await securityService.revokeDevice(d.id);
       await load(userId);
@@ -58,7 +59,7 @@ export default function UserDevicesTab() {
 
   const reset = async () => {
     if (!selected) return;
-    if (!window.confirm(`¿Dejar a ${selected.name || selected.username} sin verificación en dos pasos, sin equipos de confianza y sin sesiones abiertas?\n\nTendrá que volver a configurar su app y verificar cada equipo. Úselo si perdió el celular y los códigos de recuperación.`)) return;
+    if (!(await confirmDialog({ message: `¿Dejar a ${selected.name || selected.username} sin verificación en dos pasos, sin equipos de confianza y sin sesiones abiertas?\n\nTendrá que volver a configurar su app y verificar cada equipo. Úselo si perdió el celular y los códigos de recuperación.`, confirmLabel: 'Reiniciar', danger: true }))) return;
     setBusy(true);
     try {
       await securityService.resetUser(selected.id);

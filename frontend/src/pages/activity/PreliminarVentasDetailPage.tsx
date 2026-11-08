@@ -603,7 +603,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-xs font-semibold uppercase text-slate-500">
+              <tr className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <th className="text-left py-1.5 pr-2">Concepto</th>
                 <th className="text-right py-1.5 px-2">Base imponible</th>
                 <th className="text-right py-1.5 px-2">No gravadas</th>

@@ -15,6 +15,7 @@ import {
   type ActivityTemplateConfig,
 } from '../../services/activityConfiguration';
 import { formatDateTime } from '../../utils/format';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 const COMPARE_MODES: { value: ActivityRuleCompareMode; label: string }[] = [
   { value: 'date', label: 'Fecha (mismo día = a tiempo)' },
@@ -136,7 +137,7 @@ const ActivityConfigurationSettings = () => {
 
   const handleDeactivate = async (row: ActivityRule) => {
     if (!canEdit || !row.active) return;
-    if (!window.confirm(`¿Desactivar la regla "${row.name}"?`)) return;
+    if (!(await confirmDialog({ message: `¿Desactivar la regla "${row.name}"?`, confirmLabel: 'Desactivar', danger: true }))) return;
     try {
       await activityRulesService.update(row.id, {
         name: row.name,

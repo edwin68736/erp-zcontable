@@ -27,6 +27,7 @@ import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 function formatEntrega(fecha?: string | null, hora?: string | null): string {
   if (!fecha) return '';
@@ -250,7 +251,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const canRemoveAttachment = canApprove && canUpload;
   const handleRemoveAttachment = async (attachment: SupervisorAttachment) => {
     if (!declaration || !canRemoveAttachment) return;
-    if (!window.confirm(`¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog({ message: `¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       setRemovingId(attachment.id);
       setMsg('');
@@ -789,14 +790,14 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               type="checkbox"
               checked={showNotas}
               disabled={!canUpdate || formLocked || importesReadOnlyForAssistant}
-              onChange={(e) => {
+              onChange={async (e) => {
                 if (e.target.checked) {
                   setShowNotas(true);
                   return;
                 }
                 if (
                   record.observacion.trim() &&
-                  !window.confirm('¿Quitar las notas adicionales? Se borrarán al guardar el registro.')
+                  !(await confirmDialog({ message: '¿Quitar las notas adicionales? Se borrarán al guardar el registro.', confirmLabel: 'Quitar', danger: true }))
                 ) {
                   return;
                 }

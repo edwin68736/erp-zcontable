@@ -9,6 +9,7 @@ import SearchableSelect from '../components/SearchableSelect';
 import Input from '../components/ui/Input';
 import { SUNAT_PRODUCT_UNIT_LABEL, SUNAT_SERVICE_UNITS } from '../constants/sunatUnitOfMeasure';
 import { formatAmount } from '../utils/format';
+import PageHeading from '../components/ui/PageHeading';
 
 /** Contenedor: crece con el viewport en pantallas grandes; mantiene márgenes cómodos en móvil. */
 const PAGE_CLASS =
@@ -252,7 +253,7 @@ const ProductForm = () => {
   return (
     <div className={PAGE_CLASS}>
       <div className="flex justify-between items-center gap-3">
-        <h2 className="text-lg font-semibold text-slate-800">{editId ? 'Editar producto / servicio' : 'Nuevo producto / servicio'}</h2>
+        <PageHeading>{editId ? 'Editar producto / servicio' : 'Nuevo producto / servicio'}</PageHeading>
         <Link
           to="/products"
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"

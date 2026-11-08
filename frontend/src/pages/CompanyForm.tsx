@@ -25,6 +25,7 @@ import { formatUserPickLabel } from '../utils/userLabel';
 import { extractApiErrorMessage } from '../utils/apiError';
 import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
+import { confirmDialog } from '../utils/confirmDialog';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -332,7 +333,7 @@ const CompanyForm = () => {
 
   const handleDeleteContact = async (id: number) => {
     if (!isEdit || !companyId) return;
-    if (!confirm('¿Eliminar este contacto?')) return;
+    if (!(await confirmDialog({ message: '¿Eliminar este contacto?', confirmLabel: 'Eliminar', danger: true }))) return;
 
     try {
       setContactsLoading(true);

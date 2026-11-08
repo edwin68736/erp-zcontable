@@ -109,7 +109,7 @@ const BuzonCompanies = () => {
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="bg-blue-900 text-xs uppercase text-white">
+              <tr className="bg-slate-50 text-xs uppercase text-slate-500">
                 {['Cod', 'Razón social', 'RUC', 'Asistente', 'Estado', 'Notif.', 'Mensajes', 'No leídas', 'Nuevas', 'Última sincronización', ''].map((h, i) => (
                   <th key={`${h}-${i}`} className="whitespace-nowrap px-3 py-2.5 font-semibold">
                     {h}

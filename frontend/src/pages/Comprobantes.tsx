@@ -14,6 +14,7 @@ import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
 import { formatAmount } from '../utils/format';
+import { confirmDialog } from '../utils/confirmDialog';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -240,7 +241,7 @@ const Comprobantes = () => {
 
   const discardReceipt = async (id: number) => {
     if (!canDiscard) return;
-    if (!confirm('¿Descartar este comprobante? No se registrará pago.')) return;
+    if (!(await confirmDialog({ message: '¿Descartar este comprobante? No se registrará pago.', confirmLabel: 'Descartar', danger: true }))) return;
     try {
       await fiscalReceiptsService.discard(id);
       window.dispatchEvent(

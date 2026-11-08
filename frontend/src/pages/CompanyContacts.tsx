@@ -4,6 +4,7 @@ import { companiesService } from '../services/companies';
 import { contactsService } from '../services/contacts';
 import type { Company, Contact } from '../types/dashboard';
 import PageHeading from '../components/ui/PageHeading';
+import { confirmDialog } from '../utils/confirmDialog';
 
 const CompanyContacts = () => {
   const params = useParams();
@@ -41,7 +42,7 @@ const CompanyContacts = () => {
 
   const handleDelete = async (id: number) => {
     if (!companyId || Number.isNaN(companyId)) return;
-    if (!confirm('¿Eliminar este contacto?')) return;
+    if (!(await confirmDialog({ message: '¿Eliminar este contacto?', confirmLabel: 'Eliminar', danger: true }))) return;
 
     try {
       await contactsService.delete(companyId, id);

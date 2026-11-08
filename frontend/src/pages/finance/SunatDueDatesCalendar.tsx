@@ -35,7 +35,7 @@ function toEditable(rows: SunatDueDateRow[]): EditableRows {
   return out;
 }
 
-const TH = 'px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-white';
+const TH = 'px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500';
 const TD = 'px-3 py-2 text-sm text-slate-700 border-t border-slate-100 text-center';
 
 const SunatDueDatesCalendar = () => {
@@ -158,7 +158,7 @@ const SunatDueDatesCalendar = () => {
         <div className="overflow-x-auto">
           <table className="min-w-full w-full border-collapse">
             <thead>
-              <tr className="bg-primary-700">
+              <tr className="bg-slate-50">
                 <th className={`${TH} text-left`}>Periodo</th>
                 {DIGITS.map((d) => (
                   <th key={d} className={TH}>

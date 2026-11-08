@@ -458,7 +458,7 @@ function BankStatementView({
               <col style={{ width: '10%' }} />
             </colgroup>
             <thead>
-              <tr className="bg-slate-600 text-white">
+              <tr className="bg-slate-50 text-slate-500">
                 <th className="px-1.5 py-2.5 font-bold uppercase tracking-wide align-middle text-center leading-tight text-2xs">
                   <span className="block">Fecha de</span>
                   <span className="block">operación</span>

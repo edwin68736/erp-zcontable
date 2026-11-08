@@ -30,6 +30,7 @@ import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
@@ -357,7 +358,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const canRemoveAttachment = canApprove && canUpload;
   const handleRemoveAttachment = async (attachment: SupervisorAttachment) => {
     if (!declaration || !canRemoveAttachment) return;
-    if (!window.confirm(`¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog({ message: `¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       setRemovingId(attachment.id);
       showMsg('');

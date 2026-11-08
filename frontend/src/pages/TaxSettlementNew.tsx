@@ -673,7 +673,7 @@ const TaxSettlementNew = () => {
             <div className="overflow-x-auto">
               <table className="min-w-full w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-100/90 text-left text-2xs font-semibold uppercase tracking-wide text-slate-600">
+                  <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-3 w-10 text-center">#</th>
                     <th className="px-3 py-3 whitespace-nowrap">Tipo</th>
                     <th className="px-3 py-3 min-w-[200px]">Descripción</th>

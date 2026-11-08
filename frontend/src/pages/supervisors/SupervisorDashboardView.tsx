@@ -35,6 +35,7 @@ import { usersService } from '../../services/users';
 import type { Company, User } from '../../types/dashboard';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import { confirmDialog } from '../../utils/confirmDialog';
 
 const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
 const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
@@ -207,7 +208,7 @@ const SupervisorDashboardView = () => {
 
   const handleApprove = async (item: DashboardReviewItem) => {
     if (!canApprove || approvingId) return;
-    if (!window.confirm(`¿Aprobar la entrega de ${item.company} (${item.module_label})?`)) return;
+    if (!(await confirmDialog({ message: `¿Aprobar la entrega de ${item.company} (${item.module_label})?`, confirmLabel: 'Aprobar' }))) return;
     try {
       setApprovingId(item.declaration_id);
       setActionMsg('');
@@ -568,7 +569,7 @@ const SupervisorDashboardView = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[340px] border-collapse text-[11.5px]">
                       <thead>
-                        <tr className="text-center text-[10px] uppercase tracking-[0.2px] text-slate-500">
+                        <tr className="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2px] text-slate-500">
                           <th scope="col" className="rounded-l-md bg-[#F1F6F3] px-[6px] py-[6px] text-left">Módulo</th>
                           <th scope="col" className="bg-amber-100 px-[3px] py-[6px] text-amber-800">Pend.</th>
                           <th scope="col" className="bg-orange-100 px-[3px] py-[6px] text-orange-800">Obs.</th>

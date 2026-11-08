@@ -393,7 +393,7 @@ const DamCompany = () => {
                       <div className="overflow-auto">
                         <table className="min-w-full border-collapse text-left text-xs">
                           <thead>
-                            <tr className="bg-slate-100 text-slate-700">
+                            <tr className="bg-slate-50 text-slate-500 uppercase">
                               {['DAM', 'Numeración', 'Despachador', 'Exportador', 'Consignatario', 'Embarque', 'Cláusula de venta', 'Valor en aduana', ...(showReg ? ['Regularización'] : [])].map((h) => (
                                 <th
                                   key={h}

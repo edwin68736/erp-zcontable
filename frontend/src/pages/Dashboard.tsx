@@ -419,7 +419,7 @@ const Dashboard = () => {
             <div className={`mt-2 overflow-x-auto ${refreshing ? 'pointer-events-none opacity-60' : ''}`}>
               <table className="w-full min-w-[640px] border-collapse text-[12.5px]">
                 <thead>
-                  <tr className="text-left text-[10.5px] uppercase tracking-[0.4px] text-slate-500">
+                  <tr className="bg-slate-50 text-left text-[10.5px] uppercase tracking-[0.4px] text-slate-500">
                     <th scope="col" className="py-2 pr-2 font-bold">Empresa</th>
                     <th scope="col" className="p-2 font-bold">Período más antiguo</th>
                     <th scope="col" className="p-2 font-bold">Atraso</th>

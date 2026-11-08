@@ -386,7 +386,7 @@ const NpdCompany = () => {
                       <div className="overflow-auto">
                         <table className="min-w-full border-collapse text-left text-xs">
                           <thead>
-                            <tr className="bg-slate-100 text-slate-700">
+                            <tr className="bg-slate-50 text-slate-500 uppercase">
                               {['NPD', 'Creación', 'Fecha límite de pago', 'Estado', 'Importe'].map((h) => (
                                 <th key={h} className={`whitespace-nowrap border-b border-slate-200 px-2 py-1.5 font-semibold ${h === 'Importe' ? 'text-right' : ''}`}>
                                   {h}

@@ -6,6 +6,7 @@ import type { User } from '../types/dashboard';
 import { P } from '../rbac/codes';
 import { formatUserRolesDisplay } from '../rbac/userRoles';
 import PageHeading from '../components/ui/PageHeading';
+import { confirmDialog } from '../utils/confirmDialog';
 
 const Users = () => {
   const canView = useMemo(() => auth.hasPermission(P.usersView), []);
@@ -41,7 +42,7 @@ const Users = () => {
 
   const handleDelete = async (id: number) => {
     if (!canDelete) return;
-    if (!confirm('¿Eliminar este usuario?')) return;
+    if (!(await confirmDialog({ message: '¿Eliminar este usuario?', confirmLabel: 'Eliminar', danger: true }))) return;
     try {
       setError('');
       await usersService.delete(id);
