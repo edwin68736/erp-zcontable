@@ -13,7 +13,7 @@ describe('securityUi', () => {
   });
 
   it('tiene etiqueta para cada tipo de evento que registra el servidor', () => {
-    for (const t of ['login_ok', 'login_fail', 'login_blocked', 'password_change', 'password_change_fail', 'password_reset']) {
+    for (const t of ['login_ok', 'login_fail', 'login_blocked', 'password_change', 'password_change_fail', 'password_reset', 'device_new', 'device_challenge', 'device_verified', 'device_approval_requested', 'device_approved', 'device_denied', 'device_revoked', 'totp_enabled', 'totp_disabled', 'totp_reset', 'security_settings_changed']) {
       expect(EVENT_LABEL[t]?.label).toBeTruthy();
     }
   });

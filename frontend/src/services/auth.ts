@@ -1,5 +1,6 @@
 import { clearTukifacSeriesSessionCache } from '../constants/tukifacSeriesSessionKeys';
 import client from '../api/client';
+import { getDeviceToken } from '../utils/device';
 
 export interface AuthUser {
   id: number;
@@ -14,6 +15,21 @@ export interface LoginResponse {
   /** La contraseña la puso un administrador: debe cambiarla antes de seguir. */
   must_change_password?: boolean;
 }
+
+/** El equipo es nuevo: falta verificar (código de la app o aprobación de un administrador) antes de dar la sesión. */
+export interface LoginChallenge {
+  status: 'verification_required';
+  challenge_id: string;
+  device_label: string;
+  expires_at: string;
+  methods: { totp: boolean; approval: boolean };
+}
+
+export function isLoginChallenge(r: LoginResponse | LoginChallenge): r is LoginChallenge {
+  return (r as LoginChallenge).status === 'verification_required';
+}
+
+export type ChallengeStatus = 'pendiente' | 'aprobada' | 'rechazada' | 'usada' | 'vencida';
 
 const MUST_CHANGE_KEY = 'must_change_password';
 
@@ -68,8 +84,52 @@ function migrateLegacyLocalStorageToSessionStorage(): void {
 }
 
 export const auth = {
-  async login(username: string, password: string): Promise<LoginResponse> {
-    const res = await client.post<LoginResponse>('/login', { username, password });
+  /**
+   * Inicia sesión. Si el equipo es nuevo y el estudio lo exige, devuelve un desafío (HTTP 202) en vez de la sesión:
+   * hay que terminarlo con `verifyCode` o con `requestApproval` + `completeApproved`.
+   * `remember` = «confiar en este equipo» (por defecto sí).
+   */
+  async login(username: string, password: string, remember = true): Promise<LoginResponse | LoginChallenge> {
+    const res = await client.post<LoginResponse | LoginChallenge>('/login', {
+      username,
+      password,
+      device_token: getDeviceToken(username),
+      remember,
+    });
+    if (isLoginChallenge(res.data)) return res.data;
+    return auth.storeSession(res.data);
+  },
+
+  /** Termina el inicio de sesión con el código de la app (o uno de recuperación). */
+  async verifyCode(username: string, challengeId: string, code: string): Promise<LoginResponse> {
+    const res = await client.post<LoginResponse>('/login/verify', {
+      challenge_id: challengeId,
+      code,
+      device_token: getDeviceToken(username),
+    });
+    return auth.storeSession(res.data);
+  },
+
+  /** Pide a un administrador que apruebe este equipo. */
+  async requestApproval(challengeId: string): Promise<ChallengeStatus> {
+    const res = await client.post<{ status: ChallengeStatus }>('/login/approval', { challenge_id: challengeId });
+    return res.data.status;
+  },
+
+  async challengeStatus(challengeId: string): Promise<ChallengeStatus> {
+    const res = await client.get<{ status: ChallengeStatus }>(`/login/challenge/${encodeURIComponent(challengeId)}`);
+    return res.data.status;
+  },
+
+  /** Tras la aprobación del administrador, la persona termina de entrar. */
+  async completeApproved(username: string, challengeId: string): Promise<LoginResponse> {
+    const res = await client.post<LoginResponse>('/login/complete', { challenge_id: challengeId, device_token: getDeviceToken(username) });
+    return auth.storeSession(res.data);
+  },
+
+  /** Guarda la sesión recibida (token, usuario, permisos). */
+  async storeSession(data: LoginResponse): Promise<LoginResponse> {
+    const res = { data };
     const token = res.data?.token;
     if (!token) {
       throw new Error('Respuesta inválida del servidor');

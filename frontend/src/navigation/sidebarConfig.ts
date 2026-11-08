@@ -404,7 +404,7 @@ export const STUDIO_SECTION = {
       permission: P.settingsFirmView,
     },
     { to: '/users', icon: 'fas fa-users-cog', label: 'Usuarios', permission: P.usersView },
-    { to: '/settings/security', icon: 'fas fa-shield-halved', label: 'Bitácora de seguridad', permission: P.securityEventsView },
+    { to: '/settings/security', icon: 'fas fa-shield-halved', label: 'Seguridad', permission: P.securityEventsView },
     { to: '/users/roles', icon: 'fas fa-user-shield', label: 'Roles y permisos', permission: P.rbacRolesView },
     {
       to: '/settings/fiscal-series',

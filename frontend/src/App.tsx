@@ -28,7 +28,7 @@ import PaymentForm from './pages/PaymentForm';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
-import SecurityEvents from './pages/settings/SecurityEvents';
+import SecurityCenter from './pages/settings/SecurityCenter';
 import ActivityConfigurationSettings from './pages/settings/ActivityConfigurationSettings';
 import Users from './pages/Users';
 import UserForm from './pages/UserForm';
@@ -241,7 +241,7 @@ function App() {
             <Route path="assistant/controls/:id" element={guard(P.supervisorsControlsView, <SupervisorControlDetail />)} />
             <Route path="pos" element={guard(P.salesEmit, <PosSale />)} />
             <Route path="pos/history" element={guard(P.salesHistory, <PosHistory />)} />
-            <Route path="settings/security" element={guard(P.securityEventsView, <SecurityEvents />)} />
+            <Route path="settings/security" element={guard([P.securityEventsView, P.securityDevicesManage], <SecurityCenter />)} />
             <Route path="settings/firm" element={guard(P.settingsFirmView, <Settings />)} />
             <Route path="settings/activity-configuration" element={guard(P.settingsFirmView, <ActivityConfigurationSettings />)} />
             <Route path="settings/fiscal-series" element={guard(P.fiscalSeriesView, <FiscalDocumentSeries />)} />

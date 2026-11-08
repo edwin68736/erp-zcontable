@@ -7,6 +7,8 @@ import { apiErrorMessage, securityService, type MySession } from '../services/se
 import { describeUserAgent } from './settings/securityUi';
 import { timeAgo } from './tools/buzon/buzonUi';
 import { checkPassword, passwordOk } from '../utils/passwordPolicy';
+import DevicesCard from './security/DevicesCard';
+import TotpCard from './security/TotpCard';
 
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
@@ -231,6 +233,8 @@ const Profile = () => {
         </Button>
       </form>
 
+      {!forced ? <TotpCard username={user?.username} /> : null}
+      {!forced ? <DevicesCard /> : null}
       {!forced ? <SessionsCard /> : null}
     </div>
   );

@@ -65,6 +65,7 @@ export const P = {
   settingsFirmUploadBankLogo: 'settings.firm_upload_bank_logo',
   settingsFirmUploadPaymentQR: 'settings.firm_upload_payment_qr',
   securityEventsView: 'security.events_view',
+  securityDevicesManage: 'security.devices_manage',
   usersView: 'users.view',
   usersCreate: 'users.create',
   usersUpdate: 'users.update',

@@ -12,7 +12,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-PE', { dateSty
  * Estudio → Bitácora de seguridad: inicios de sesión, intentos fallidos, bloqueos y cambios de contraseña, con la IP y
  * el navegador. Solo la ven quienes tienen el permiso (Super usuario y Administrador por defecto). Se conservan 180 días.
  */
-const SecurityEvents = () => {
+const SecurityEvents = ({ embedded = false }: { embedded?: boolean }) => {
   const [type, setType] = useState('');
   const [username, setUsername] = useState('');
   const [ip, setIp] = useState('');
@@ -45,11 +45,15 @@ const SecurityEvents = () => {
   };
 
   return (
-    <div className="space-y-5 pt-2">
-      <div>
-        <PageHeading>Bitácora de seguridad</PageHeading>
-        <p className="mt-1 text-sm text-slate-500">Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.</p>
-      </div>
+    <div className={embedded ? 'space-y-5' : 'space-y-5 pt-2'}>
+      {embedded ? (
+        <p className="text-sm text-slate-500">Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.</p>
+      ) : (
+        <div>
+          <PageHeading>Bitácora de seguridad</PageHeading>
+          <p className="mt-1 text-sm text-slate-500">Quién entró al sistema, quién falló y desde dónde. Se conserva 180 días.</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <label className="text-xs text-slate-600">

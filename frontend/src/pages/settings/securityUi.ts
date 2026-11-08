@@ -9,6 +9,17 @@ export const EVENT_LABEL: Record<string, { label: string; cls: string }> = {
   logout: { label: 'Cerró sesión', cls: 'bg-slate-100 text-slate-700' },
   idle_logout: { label: 'Cierre por inactividad', cls: 'bg-amber-50 text-amber-700' },
   session_revoked: { label: 'Sesión cerrada a la fuerza', cls: 'bg-violet-50 text-violet-700' },
+  device_new: { label: 'Equipo nuevo registrado', cls: 'bg-sky-50 text-sky-700' },
+  device_challenge: { label: 'Equipo nuevo: pidió verificación', cls: 'bg-amber-50 text-amber-700' },
+  device_verified: { label: 'Equipo verificado', cls: 'bg-emerald-50 text-emerald-700' },
+  device_approval_requested: { label: 'Pidió aprobación del administrador', cls: 'bg-amber-100 text-amber-800' },
+  device_approved: { label: 'Equipo aprobado', cls: 'bg-emerald-50 text-emerald-700' },
+  device_denied: { label: 'Equipo rechazado', cls: 'bg-red-50 text-red-700' },
+  device_revoked: { label: 'Equipo quitado', cls: 'bg-violet-50 text-violet-700' },
+  totp_enabled: { label: 'Activó la verificación en dos pasos', cls: 'bg-emerald-50 text-emerald-700' },
+  totp_disabled: { label: 'Desactivó la verificación en dos pasos', cls: 'bg-amber-50 text-amber-700' },
+  totp_reset: { label: 'Verificación reiniciada por un administrador', cls: 'bg-violet-50 text-violet-700' },
+  security_settings_changed: { label: 'Cambió la configuración de seguridad', cls: 'bg-sky-50 text-sky-700' },
 };
 
 /** «Chrome 130 · Windows», «Edge · Windows», «Firefox · Android»… a partir del User-Agent (solo para leer rápido). */
