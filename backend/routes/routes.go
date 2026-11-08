@@ -38,6 +38,7 @@ func Setup(app *fiber.App) {
 	sireCtrl := controllers.NewSireController()
 	buzonCtrl := controllers.NewSunatBuzonController()
 	itfCtrl := controllers.NewItfController()
+	npdCtrl := controllers.NewNpdController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -391,6 +392,14 @@ func Setup(app *fiber.App) {
 	itf.Delete("/:companyId/history", itfCtrl.HistoryClearAPI)
 	itf.Get("/:companyId/history/:historyId", itfCtrl.HistoryGetAPI)
 	itf.Delete("/:companyId/history/:historyId", itfCtrl.HistoryDeleteAPI)
+
+	// Consulta de detracciones (NPD · Número de Pago de Detracciones): se lee en SOL con la clave de la empresa; solo lectura.
+	detr := api.Group("/tools/detracciones", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	detr.Get("/:companyId/npd", npdCtrl.QueryAPI)
+	detr.Get("/:companyId/history", npdCtrl.HistoryListAPI)
+	detr.Delete("/:companyId/history", npdCtrl.HistoryClearAPI)
+	detr.Get("/:companyId/history/:historyId", npdCtrl.HistoryGetAPI)
+	detr.Delete("/:companyId/history/:historyId", npdCtrl.HistoryDeleteAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

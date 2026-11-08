@@ -48,7 +48,14 @@ export const TOOLS: ToolConfig[] = [
     ready: true,
   },
   { slug: 'tipo-de-cambio', label: 'Tipo de cambio', icon: 'fas fa-dollar-sign', description: 'Tipo de cambio SUNAT por fecha.' },
-  { slug: 'consulta-detracciones', label: 'Consulta de detracciones', icon: 'fas fa-magnifying-glass-dollar', description: 'Consulta de depósitos y pendientes de detracciones.' },
+  {
+    slug: 'consulta-detracciones',
+    label: 'Consulta de detracciones',
+    icon: 'fas fa-magnifying-glass-dollar',
+    description: 'Números de Pago de Detracciones (NPD): estado, fecha límite e importe.',
+    permission: P.companyCredentialsView,
+    ready: true,
+  },
   { slug: 'consulta-dam', label: 'Consulta DAM', icon: 'fas fa-box-open', description: 'Consulta de Declaraciones Aduaneras de Mercancías.' },
   {
     slug: 'notificaciones-sunat',

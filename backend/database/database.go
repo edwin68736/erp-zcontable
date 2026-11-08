@@ -96,6 +96,7 @@ func AutoMigrate() error {
 		&models.SireDownload{},
 		&models.RheHistory{},
 		&models.ItfHistory{},
+		&models.NpdHistory{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

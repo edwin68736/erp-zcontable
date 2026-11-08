@@ -40,10 +40,12 @@ func openSolMenu(link string, timeout time.Duration) (*solMenuSession, error) {
 	return m, nil
 }
 
-func (m *solMenuSession) do(method, u string, form url.Values, referer string) (*http.Response, []byte, error) {
+func (m *solMenuSession) do(method, u string, form url.Values, referer string, headers ...map[string]string) (*http.Response, []byte, error) {
 	var rd io.Reader
 	if form != nil {
 		rd = strings.NewReader(form.Encode())
+	} else if method == http.MethodPost {
+		rd = strings.NewReader("")
 	}
 	req, _ := http.NewRequest(method, u, rd)
 	req.Header.Set("User-Agent", sunatSolUserAgent)
@@ -53,6 +55,11 @@ func (m *solMenuSession) do(method, u string, form url.Values, referer string) (
 	}
 	if referer != "" {
 		req.Header.Set("Referer", referer)
+	}
+	for _, h := range headers {
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
 	}
 	resp, err := m.client.Do(req)
 	if err != nil {
