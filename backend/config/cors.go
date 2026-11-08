@@ -35,3 +35,7 @@ func corsOriginsFrom(extra string) []string {
 	}
 	return out
 }
+
+// CORSAllowHeaders cabeceras que el navegador puede enviar al API desde otro dominio. X-Client-Active marca que la
+// persona está usando de verdad la pantalla (mantiene viva la sesión): si falta aquí, el navegador bloquea la petición.
+var CORSAllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Client-Active"}

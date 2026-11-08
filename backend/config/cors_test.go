@@ -28,3 +28,15 @@ func TestCORSOrigins(t *testing.T) {
 		t.Errorf("«*» vuelve a permitir todos: %v", all)
 	}
 }
+
+func TestCORSAllowHeaders_incluyeLaCabeceraDeActividad(t *testing.T) {
+	found := false
+	for _, h := range CORSAllowHeaders {
+		if h == "X-Client-Active" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("sin X-Client-Active el navegador bloquea las peticiones de quien está usando la pantalla")
+	}
+}

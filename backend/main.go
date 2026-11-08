@@ -96,7 +96,7 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		// Solo producción, pruebas y desarrollo local (ver config/cors.go; CORS_ALLOWED_ORIGINS agrega más).
 		AllowOrigins: config.CORSOrigins(),
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders: config.CORSAllowHeaders,
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
 
