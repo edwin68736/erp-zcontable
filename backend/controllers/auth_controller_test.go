@@ -26,7 +26,8 @@ func setupAuthTest(t *testing.T) (*fiber.App, *gorm.DB) {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&models.User{}, &models.AuthEvent{}, &models.UserSession{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AuthEvent{}, &models.UserSession{},
+		&models.SecuritySetting{}, &models.UserDevice{}, &models.LoginChallenge{}, &models.UserTOTP{}); err != nil {
 		t.Fatal(err)
 	}
 	database.DB = db

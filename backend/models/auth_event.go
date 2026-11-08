@@ -13,6 +13,19 @@ const (
 	AuthEventLogout          = "logout"
 	AuthEventSessionRevoked  = "session_revoked" // se cerró una sesión desde el servidor (otro equipo, admin, cambio de contraseña)
 	AuthEventIdleLogout      = "idle_logout"     // sesión cerrada por inactividad
+
+	// Dispositivos de confianza y verificación en dos pasos.
+	AuthEventDeviceNew         = "device_new"                // un equipo nuevo quedó registrado (modo aprendizaje)
+	AuthEventDeviceChallenge   = "device_challenge"          // equipo nuevo: se pidió verificación
+	AuthEventDeviceVerified    = "device_verified"           // equipo nuevo verificado con código o aprobación
+	AuthEventApprovalRequested = "device_approval_requested" // la persona pidió aprobación de un administrador
+	AuthEventDeviceApproved    = "device_approved"           // un administrador aprobó un equipo
+	AuthEventDeviceDenied      = "device_denied"             // un administrador rechazó un equipo
+	AuthEventDeviceRevoked     = "device_revoked"            // se quitó un equipo de confianza
+	AuthEventTOTPEnabled       = "totp_enabled"
+	AuthEventTOTPDisabled      = "totp_disabled"
+	AuthEventTOTPReset         = "totp_reset" // un administrador dejó a la persona sin verificación en dos pasos ni equipos
+	AuthEventSettingsChanged   = "security_settings_changed"
 )
 
 // AuthEvent bitácora de seguridad: quién intentó entrar (o cambiar su contraseña), desde dónde y con qué resultado.

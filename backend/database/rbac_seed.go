@@ -51,6 +51,9 @@ func SeedRBAC(db *gorm.DB) error {
 	if err := backfillSecurityEventsView(db); err != nil {
 		return err
 	}
+	if err := backfillSecurityDevicesManage(db); err != nil {
+		return err
+	}
 	if err := ensureDefaultRole(db); err != nil {
 		return err
 	}
@@ -454,5 +457,12 @@ func backfillCompanyCredentialsSireEdit(db *gorm.DB) error {
 // (Administrador y Super usuario por defecto).
 func backfillSecurityEventsView(db *gorm.DB) error {
 	return backfillPermissionOnce(db, "rbac_security_events_view_v1", rbac.SecurityEventsView,
+		[]string{rbac.UsersView}, nil)
+}
+
+// backfillSecurityDevicesManage «Administrar dispositivos de confianza»: lo reciben los roles que ya podían administrar
+// usuarios (Administrador y Super usuario por defecto).
+func backfillSecurityDevicesManage(db *gorm.DB) error {
+	return backfillPermissionOnce(db, "rbac_security_devices_manage_v1", rbac.SecurityDevicesManage,
 		[]string{rbac.UsersView}, nil)
 }

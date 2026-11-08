@@ -74,6 +74,7 @@ func JWTProtected() fiber.Handler {
 		}
 
 		c.Locals("session_id", claims.SessionID)
+		c.Locals("device_id", services.Sessions().DeviceID(claims.SessionID))
 		c.Locals("user_id", claims.UserID)
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_username", claims.Username)

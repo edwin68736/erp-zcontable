@@ -49,6 +49,7 @@ const (
 
 type sessionEntry struct {
 	userID       uint
+	deviceID     uint
 	expires      time.Time
 	lastActive   time.Time
 	dbLastActive time.Time // lo que hay guardado en la base (se escribe cada 30 s como máximo)
@@ -102,7 +103,7 @@ func (s *SessionService) load(sid string) *sessionEntry {
 		return nil
 	}
 	ne := &sessionEntry{
-		userID: row.UserID, expires: row.ExpiresAt, lastActive: row.LastActiveAt, dbLastActive: row.LastActiveAt,
+		userID: row.UserID, deviceID: row.DeviceID, expires: row.ExpiresAt, lastActive: row.LastActiveAt, dbLastActive: row.LastActiveAt,
 		revoked: row.RevokedAt != nil, reauthAt: row.ReauthAt, loadedAt: now,
 	}
 	if ok && e.lastActive.After(ne.lastActive) { // lo de la memoria puede ser más nuevo que lo guardado
@@ -230,4 +231,12 @@ func (s *SessionService) ResetCache() {
 	s.mu.Lock()
 	s.cache = map[string]*sessionEntry{}
 	s.mu.Unlock()
+}
+
+// DeviceID dispositivo de confianza con el que se abrió la sesión (0 = ninguno).
+func (s *SessionService) DeviceID(sid string) uint {
+	if e := s.load(sid); e != nil {
+		return e.deviceID
+	}
+	return 0
 }

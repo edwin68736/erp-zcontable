@@ -15,10 +15,11 @@ import (
 type AuthController struct {
 	authService *services.AuthService
 	security    *services.AuthSecurityService
+	devices     *services.DeviceTrustService
 }
 
 func NewAuthController() *AuthController {
-	return &AuthController{authService: services.NewAuthService(), security: services.NewAuthSecurityService()}
+	return &AuthController{authService: services.NewAuthService(), security: services.NewAuthSecurityService(), devices: services.NewDeviceTrustService()}
 }
 
 // clientIP la IP real del cliente (detrás de Traefik).
@@ -29,6 +30,10 @@ func clientIP(c fiber.Ctx) string {
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	// DeviceToken identificador aleatorio que guarda el navegador (el sistema solo guarda su huella).
+	DeviceToken string `json:"device_token"`
+	// Remember «confiar en este equipo» (por defecto sí).
+	Remember *bool `json:"remember"`
 }
 
 func (ctrl *AuthController) LoginAPI(c fiber.Ctx) error {
@@ -68,7 +73,31 @@ func (ctrl *AuthController) LoginAPI(c fiber.Ctx) error {
 	}
 	services.Authz().InvalidateUser(user.ID)
 
-	token, _, err := ctrl.authService.IssueSession(user, 0, ip, ua)
+	// ¿Es un equipo conocido? Si es nuevo y el estudio lo exige, falta verificar antes de dar la sesión.
+	remember := req.Remember == nil || *req.Remember
+	decision, derr := ctrl.devices.Decide(user, req.DeviceToken, ua, ip, remember)
+	if derr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo iniciar sesión. Intente de nuevo."})
+	}
+	if ch := decision.Challenge; ch != nil {
+		ctrl.security.Record(models.AuthEventDeviceChallenge, user.ID, user.Username, ip, ua, "equipo nuevo: "+ch.DeviceLabel)
+		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+			"status":       "verification_required",
+			"challenge_id": ch.ID,
+			"device_label": ch.DeviceLabel,
+			"expires_at":   ch.ExpiresAt,
+			"methods":      fiber.Map{"totp": ctrl.devices.TOTPStatus(user.ID).Enabled, "approval": true},
+		})
+	}
+	var deviceID uint
+	if decision.Device != nil {
+		deviceID = decision.Device.ID
+	}
+	if decision.NewDevice {
+		ctrl.security.Record(models.AuthEventDeviceNew, user.ID, user.Username, ip, ua, "equipo registrado: "+decision.Device.Label)
+	}
+
+	token, _, err := ctrl.authService.IssueSession(user, deviceID, ip, ua)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error generando token"})
 	}

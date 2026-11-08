@@ -157,6 +157,10 @@ const (
 	// usuario). Sin este permiso el servidor ni siquiera envía esos dos datos: el usuario solo usa el
 	// acceso directo a SUNAT, que el servidor genera con la clave guardada.
 	CompanyCredentialsSolView = "finance.company_credentials_sol_view"
+	// SecurityDevicesManage administrar los dispositivos de confianza: aprobar equipos nuevos, quitar equipos, dejar a
+	// alguien sin verificación en dos pasos y cambiar el modo. Por defecto Super usuario y Administrador.
+	SecurityDevicesManage = "security.devices_manage"
+
 	// SecurityEventsView ver la bitácora de seguridad (inicios de sesión, fallos, bloqueos y cambios de contraseña).
 	// Por defecto lo tienen Super usuario y Administrador.
 	SecurityEventsView = "security.events_view"

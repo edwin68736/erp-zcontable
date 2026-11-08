@@ -41,9 +41,15 @@ func Setup(app *fiber.App) {
 	npdCtrl := controllers.NewNpdController()
 	damCtrl := controllers.NewDamController()
 	exchangeCtrl := controllers.NewExchangeRateController()
+	deviceCtrl := controllers.NewDeviceController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
+	// Terminar un inicio de sesión desde un equipo nuevo (todavía no hay sesión: se identifica con la verificación).
+	app.Post("/api/login/verify", deviceCtrl.VerifyAPI)
+	app.Post("/api/login/approval", deviceCtrl.RequestApprovalAPI)
+	app.Get("/api/login/challenge/:id", deviceCtrl.ChallengeStatusAPI)
+	app.Post("/api/login/complete", deviceCtrl.CompleteAPI)
 
 	api := app.Group("/api", middleware.JWTProtected())
 	api.Get("/dashboard", middleware.RequirePermission(rbac.DashboardView), dashboardCtrl.HomeAPI)
@@ -54,7 +60,21 @@ func Setup(app *fiber.App) {
 	api.Get("/me/sessions", authCtrl.MySessionsAPI)
 	api.Post("/me/sessions/revoke-others", authCtrl.RevokeOtherSessionsAPI)
 	api.Delete("/me/sessions/:id", authCtrl.RevokeSessionAPI)
+	api.Get("/me/devices", deviceCtrl.MyDevicesAPI)
+	api.Delete("/me/devices/:id", deviceCtrl.RevokeMyDeviceAPI)
+	api.Get("/me/totp", deviceCtrl.MyTOTPAPI)
+	api.Post("/me/totp/setup", deviceCtrl.TOTPSetupAPI)
+	api.Post("/me/totp/enable", deviceCtrl.TOTPEnableAPI)
+	api.Post("/me/totp/disable", deviceCtrl.TOTPDisableAPI)
 	api.Get("/security/events", middleware.RequirePermission(rbac.SecurityEventsView), authCtrl.SecurityEventsAPI)
+	api.Get("/security/settings", middleware.RequirePermission(rbac.SecurityEventsView, rbac.SecurityDevicesManage), deviceCtrl.SettingsAPI)
+	api.Put("/security/settings", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.UpdateSettingsAPI)
+	api.Get("/security/approvals", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.PendingApprovalsAPI)
+	api.Post("/security/approvals/:id/approve", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.ApproveAPI)
+	api.Post("/security/approvals/:id/deny", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.DenyAPI)
+	api.Get("/security/users/:id/devices", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.UserDevicesAPI)
+	api.Delete("/security/devices/:id", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.RevokeDeviceAPI)
+	api.Post("/security/users/:id/reset", middleware.RequirePermission(rbac.SecurityDevicesManage), deviceCtrl.ResetUserAPI)
 
 	api.Get("/me/permissions", meCtrl.PermissionsAPI)
 

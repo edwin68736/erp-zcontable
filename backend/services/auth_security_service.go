@@ -166,6 +166,7 @@ func StartAuthEventsPurgeLoop() {
 		for {
 			svc.PurgeOlderThan(authEventsRetention)
 			Sessions().PurgeExpired()
+			NewDeviceTrustService().PurgeOld()
 			time.Sleep(24 * time.Hour)
 		}
 	}()
