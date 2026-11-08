@@ -94,6 +94,7 @@ func AutoMigrate() error {
 		&models.SunatBuzonMessage{},
 		&models.SunatBuzonSync{},
 		&models.SireDownload{},
+		&models.RheHistory{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

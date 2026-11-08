@@ -377,6 +377,11 @@ func Setup(app *fiber.App) {
 	// RH: plataforma de confirmación del RHE y de la FE (mismas credenciales de API que el SIRE).
 	rh := api.Group("/tools/rh", middleware.RequirePermission(rbac.CompanyCredentialsView))
 	rh.Get("/:companyId/comprobantes", sireCtrl.RheListAPI)
+	// Historial de consultas de RH (guardado por empresa, con su resultado).
+	rh.Get("/:companyId/history", sireCtrl.RheHistoryListAPI)
+	rh.Delete("/:companyId/history", sireCtrl.RheHistoryClearAPI)
+	rh.Get("/:companyId/history/:historyId", sireCtrl.RheHistoryGetAPI)
+	rh.Delete("/:companyId/history/:historyId", sireCtrl.RheHistoryDeleteAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

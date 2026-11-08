@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
-import { rheService, type RheComprobante, type RheResponse, type RheTipo } from '../../../services/rhe';
+import { rheService, type RheComprobante, type RheHistoryItem, type RheResponse, type RheTipo } from '../../../services/rhe';
 import type { SireApiError } from '../../../services/sire';
+import { timeAgo } from '../buzon/buzonUi';
 import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
 import { INPUT_CLS, SELECT_CLS, sireMissing } from '../sire/sireUi';
 import {
@@ -78,6 +79,128 @@ function Detail({ r, motivos }: { r: RheComprobante; motivos: Record<string, str
   );
 }
 
+/** Una consulta del historial: se abre con un clic (resultado guardado, sin volver a consultar a SUNAT). */
+function HistoryEntry({
+  item,
+  active,
+  busy,
+  onOpen,
+  onRemove,
+  onRetry,
+}: {
+  item: RheHistoryItem;
+  active: boolean;
+  busy: boolean;
+  onOpen: (it: RheHistoryItem) => void;
+  onRemove: (it: RheHistoryItem) => void;
+  onRetry: (it: RheHistoryItem) => void;
+}) {
+  const [detail, setDetail] = useState(false);
+  const estados = item.estados
+    .split(",")
+    .filter(Boolean)
+    .map((v) => RH_ESTADOS[item.tipo].find((e) => e.value === v)?.label ?? v)
+    .join(", ");
+  return (
+    <li
+      className={`rounded-xl border p-3 ${active ? "border-blue-400 bg-blue-50/60" : "border-slate-200"}`}
+    >
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="font-semibold text-slate-800">
+            {item.tipo === "C" ? "Recibidos" : "Emitidos"}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            {item.cod_cpe === "02" ? "RHE" : "Factura"}
+          </span>
+          {item.status === "listo" ? (
+            <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+              {item.total}
+            </span>
+          ) : null}
+          {item.status === "sin_datos" ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+              Sin resultados
+            </span>
+          ) : null}
+          {item.status === "error" ? (
+            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+              Error
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-slate-700">
+          {fmtDay(item.desde)} al {fmtDay(item.hasta)}
+        </p>
+        {estados ? <p className="text-2xs text-slate-500">{estados}</p> : null}
+        <p
+          className="text-2xs text-slate-400"
+          title={new Date(item.created_at).toLocaleString("es-PE")}
+        >
+          {timeAgo(item.created_at)}
+          {item.status === "listo" || item.status === "sin_datos"
+            ? ` · ${item.consultas} consulta${item.consultas === 1 ? "" : "s"} a SUNAT`
+            : ""}
+          {item.truncado ? " · incompleta (tope)" : ""}
+        </p>
+        {item.status === "error" ? (
+          <p className="text-xs text-red-700">
+            {item.error_message || "No se pudo completar la consulta."}
+            {item.error_detail ? (
+              <button
+                type="button"
+                onClick={() => setDetail((v) => !v)}
+                className="ml-2 underline"
+              >
+                {detail ? "Ocultar detalle técnico" : "Ver detalle técnico"}
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+        {detail && item.error_detail ? (
+          <p className="break-words rounded-md bg-slate-50 px-2 py-1.5 font-mono text-2xs text-slate-700">
+            {item.error_code ? `[${item.error_code}] ` : ""}
+            {item.error_detail}
+          </p>
+        ) : null}
+        <div className="flex items-center gap-2 pt-0.5">
+          {item.status === "listo" ? (
+            <Button
+              variant="secondary"
+              className="!px-3 !py-1 text-xs"
+              disabled={busy || active}
+              onClick={() => onOpen(item)}
+            >
+              <i className="fas fa-eye mr-1.5" aria-hidden />
+              {active ? "Viendo" : "Ver"}
+            </Button>
+          ) : null}
+          {item.status === "error" || item.status === "sin_datos" ? (
+            <Button
+              variant="secondary"
+              className="!px-3 !py-1 text-xs"
+              disabled={busy}
+              onClick={() => onRetry(item)}
+            >
+              <i className="fas fa-rotate-right mr-1.5" aria-hidden />
+              {item.status === "error" ? "Reintentar" : "Consultar de nuevo"}
+            </Button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onRemove(item)}
+            title="Quitar del historial"
+            aria-label="Quitar del historial"
+            className="ml-auto rounded-lg px-2 py-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+          >
+            <i className="fas fa-trash-can" aria-hidden />
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 /**
  * Herramientas → RH → una empresa: consulta en SUNAT los recibos por honorarios (o facturas) que están en la
  * plataforma de confirmación del RHE y de la FE: pendientes, subsanados y pendientes por reinicio (compras) o
@@ -99,6 +222,26 @@ const RhCompany = () => {
   const [queried, setQueried] = useState<{ tipo: RheTipo; desde: string; hasta: string } | null>(null);
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState('');
+  // Historial de consultas de la empresa (se guarda en el servidor; el resultado se puede volver a ver sin consultar a SUNAT).
+  const [history, setHistory] = useState<RheHistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState<SireApiError | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [savedAt, setSavedAt] = useState("");
+  const [opening, setOpening] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setHistory(await rheService.history(companyId));
+      setHistoryError(null);
+    } catch (e) {
+      setHistoryError(e as SireApiError);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(companyId) || companyId <= 0) return;
+    void loadHistory();
+  }, [companyId, loadHistory]);
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -129,19 +272,93 @@ const RhCompany = () => {
   const toggleEstado = (v: string) =>
     setEstados((cur) => (cur.includes(v) ? (cur.length > 1 ? cur.filter((x) => x !== v) : cur) : [...cur, v]));
 
-  const run = async () => {
+  const run = async (p?: {
+    tipo: RheTipo;
+    cod_cpe: "02" | "01";
+    desde: string;
+    hasta: string;
+    estados: string[];
+  }) => {
+    const params = p ?? { tipo, cod_cpe: codCpe, desde, hasta, estados };
     setLoading(true);
     setError(null);
-    setOpen('');
+    setOpen("");
+    setSavedAt("");
     try {
-      const r = await rheService.list(companyId, { tipo, cod_cpe: codCpe, desde, hasta, estados });
+      const r = await rheService.list(companyId, params);
       setResp(r);
-      setQueried({ tipo, desde, hasta });
+      setQueried({
+        tipo: params.tipo,
+        desde: params.desde,
+        hasta: params.hasta,
+      });
+      setActiveId(r.history_id ?? null);
     } catch (e) {
       setResp(null);
+      setActiveId(null);
       setError(e as SireApiError);
     } finally {
       setLoading(false);
+      void loadHistory();
+    }
+  };
+
+  /** Pone en el formulario los filtros de una consulta guardada. */
+  const applyQuery = (it: RheHistoryItem) => {
+    const vals = it.estados.split(",").filter(Boolean);
+    setTipo(it.tipo);
+    setCodCpe(it.cod_cpe);
+    setDesde(it.desde);
+    setHasta(it.hasta);
+    setEstados(vals.length ? vals : RH_ESTADOS[it.tipo].map((e) => e.value));
+    return {
+      tipo: it.tipo,
+      cod_cpe: it.cod_cpe,
+      desde: it.desde,
+      hasta: it.hasta,
+      estados: vals.length ? vals : RH_ESTADOS[it.tipo].map((e) => e.value),
+    };
+  };
+
+  /** Muestra el resultado guardado de una consulta (sin volver a consultar a SUNAT). */
+  const openSaved = async (it: RheHistoryItem) => {
+    setOpening(true);
+    setError(null);
+    try {
+      const r = await rheService.historyGet(companyId, it.id);
+      applyQuery(it);
+      setResp(r);
+      setQueried({ tipo: it.tipo, desde: it.desde, hasta: it.hasta });
+      setActiveId(it.id);
+      setSavedAt(it.created_at);
+      setOpen("");
+      setFilter("");
+    } catch (e) {
+      setError(e as SireApiError);
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const retrySaved = (it: RheHistoryItem) => void run(applyQuery(it));
+
+  const removeSaved = async (it: RheHistoryItem) => {
+    try {
+      await rheService.removeHistory(companyId, it.id);
+      setHistory((cur) => cur.filter((x) => x.id !== it.id));
+      if (activeId === it.id) setActiveId(null);
+    } catch (e) {
+      setHistoryError(e as SireApiError);
+    }
+  };
+
+  const clearHistory = async () => {
+    try {
+      await rheService.clearHistory(companyId);
+      setHistory([]);
+      setActiveId(null);
+    } catch (e) {
+      setHistoryError(e as SireApiError);
     }
   };
 
@@ -191,6 +408,8 @@ const RhCompany = () => {
             honorarios. SUNAT permite 15 días por consulta: un rango mayor se consulta por tramos automáticamente.
           </div>
 
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
+          <div className="min-w-0 space-y-5">
           <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-3">
               <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Tipo de consulta">
@@ -264,7 +483,7 @@ const RhCompany = () => {
           {resp && queried && !loading ? (
             <Card
               title={`${resp.data.total} comprobante${resp.data.total === 1 ? '' : 's'}`}
-              subtitle={`Emisión del ${fmtDay(queried.desde)} al ${fmtDay(queried.hasta)} · ${resp.data.consultas} consultas a SUNAT`}
+              subtitle={`Emisión del ${fmtDay(queried.desde)} al ${fmtDay(queried.hasta)} · ${resp.data.consultas} consultas a SUNAT${savedAt ? ` · guardada ${timeAgo(savedAt)} (no se volvió a consultar)` : ''}`}
               actions={
                 resp.data.total > 0 ? (
                   <Button
@@ -403,6 +622,60 @@ const RhCompany = () => {
               )}
             </Card>
           ) : null}
+          </div>
+
+          <aside className="lg:sticky lg:top-2">
+              <Card
+                title="Historial de consultas"
+                subtitle="Quedan guardadas por empresa: ábralas sin volver a consultar a SUNAT."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      {history.length}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      className="!px-3 !py-1.5 text-xs"
+                      disabled={history.length === 0 || loading}
+                      onClick={() => void clearHistory()}
+                    >
+                      <i className="fas fa-broom mr-1.5" aria-hidden />
+                      Limpiar
+                    </Button>
+                  </div>
+                }
+              >
+                {historyError ? (
+                  <div className="mb-3">
+                    <SireErrorBox
+                      error={historyError}
+                      onRetry={() => void loadHistory()}
+                    />
+                  </div>
+                ) : null}
+                {history.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">
+                    Aún no hay consultas. Elija las fechas y pulse «Consultar en
+                    SUNAT»: aquí quedará el resultado.
+                  </p>
+                ) : (
+                  <ul className="max-h-[70vh] space-y-2 overflow-y-auto pr-0.5">
+                    {history.map((it) => (
+                      <HistoryEntry
+                        key={it.id}
+                        item={it}
+                        active={activeId === it.id}
+                        busy={loading || opening}
+                        onOpen={(x) => void openSaved(x)}
+                        onRemove={(x) => void removeSaved(x)}
+                        onRetry={retrySaved}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </aside>
+          </div>
         </>
       ) : null}
     </div>

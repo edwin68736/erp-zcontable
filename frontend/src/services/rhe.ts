@@ -56,6 +56,27 @@ export interface RheResponse {
   data: RheResult;
   estados: Record<string, string>;
   motivos: Record<string, string>;
+  /** Id de la consulta en el historial de la empresa (la consulta queda guardada). */
+  history_id?: number;
+}
+
+/** Una consulta guardada en el historial de la empresa (sin sus resultados). */
+export interface RheHistoryItem {
+  id: number;
+  tipo: RheTipo;
+  cod_cpe: '02' | '01';
+  desde: string;
+  hasta: string;
+  /** Estados consultados, separados por coma. */
+  estados: string;
+  status: 'listo' | 'sin_datos' | 'error';
+  total: number;
+  consultas: number;
+  truncado: boolean;
+  error_code?: string;
+  error_message?: string;
+  error_detail?: string;
+  created_at: string;
 }
 
 export interface RheParams {
@@ -82,6 +103,45 @@ export const rheService = {
         timeout: 180000,
       });
       return res.data;
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  /** Historial de consultas de la empresa (lo más reciente primero). */
+  async history(companyId: number): Promise<RheHistoryItem[]> {
+    try {
+      const res = await client.get<{ data: RheHistoryItem[] }>(`/tools/rh/${companyId}/history`);
+      return res.data.data ?? [];
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  /** El resultado guardado de una consulta (no vuelve a consultar a SUNAT). */
+  async historyGet(companyId: number, id: number): Promise<RheResponse> {
+    try {
+      const res = await client.get<{ data: RheResult | null; motivos: Record<string, string>; estados: Record<string, string> }>(
+        `/tools/rh/${companyId}/history/${id}`,
+      );
+      if (!res.data.data) throw new Error('sin resultado');
+      return { data: res.data.data, estados: res.data.estados, motivos: res.data.motivos, history_id: id };
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  async removeHistory(companyId: number, id: number): Promise<void> {
+    try {
+      await client.delete(`/tools/rh/${companyId}/history/${id}`);
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  async clearHistory(companyId: number): Promise<void> {
+    try {
+      await client.delete(`/tools/rh/${companyId}/history`);
     } catch (err) {
       throw toError(err);
     }
