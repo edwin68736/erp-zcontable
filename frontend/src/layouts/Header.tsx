@@ -500,7 +500,7 @@ const Header = ({
                 role="menuitem"
               >
                 <i className="fas fa-sliders-h w-4 text-center"></i>
-                <span>Tema</span>
+                <span>Tema y densidad</span>
               </button>
              
              <div className="border-t border-slate-50 my-1"></div>

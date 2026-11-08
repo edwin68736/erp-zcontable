@@ -245,14 +245,15 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex flex-wrap items-end gap-x-4 gap-y-2">
         <CompanyDigitoFilter
           filterDig={filterDig}
           onFilterDigChange={setFilterDig}
           digColorsJson={digColorsJson}
           loading={facetsLoading}
         />
-        <div className="flex flex-wrap items-end gap-3 pt-1 border-t border-slate-100">
+        {/* contents: los filtros comparten la fila de la tarjeta con los dígitos (una sola fila en pantallas anchas) */}
+        <div className="contents">
         <ActivityPeriodFilter value={periodYm} onChange={setPeriodYm} />
         <div className="flex-1 min-w-[200px]">
           <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
@@ -284,9 +285,9 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
             ))}
           </select>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
+        <div className="flex shrink-0 items-baseline gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5">
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
-          <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
+          <p className="text-base font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         <button
           type="button"

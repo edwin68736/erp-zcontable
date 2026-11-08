@@ -71,7 +71,7 @@ const BuzonCompanies = () => {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <form
           className="min-w-[14rem] flex-1"
           onSubmit={(e) => {

@@ -3,6 +3,8 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
+import DensityPicker from '../components/DensityPicker';
+import { DENSITY_KEY, parseDensityPref, resolveDensity, type DensityPref } from '../utils/density';
 import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref';
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
 import ReauthDialog from '../components/ReauthDialog';
@@ -59,6 +61,31 @@ const Layout = () => {
     }
   });
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [densityPref, setDensityPref] = useState<DensityPref>(() => {
+    try {
+      return parseDensityPref(window.localStorage.getItem(DENSITY_KEY));
+    } catch {
+      return 'auto';
+    }
+  });
+  // La densidad efectiva (compacta/cómoda) se publica en <html data-density> y el CSS global la aplica a las tablas.
+  useEffect(() => {
+    const apply = () => {
+      document.documentElement.dataset.density = resolveDensity(densityPref, window.innerWidth, window.innerHeight);
+    };
+    apply();
+    if (densityPref !== 'auto') return;
+    window.addEventListener('resize', apply);
+    return () => window.removeEventListener('resize', apply);
+  }, [densityPref]);
+  const handleDensityChange = (next: DensityPref) => {
+    setDensityPref(next);
+    try {
+      window.localStorage.setItem(DENSITY_KEY, next);
+    } catch {
+      /* sin almacenamiento: no se recuerda la elección */
+    }
+  };
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const user = auth.getUser();
   const hasThemeBg = Boolean(layoutThemeBg);
@@ -235,7 +262,7 @@ const Layout = () => {
             <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-white/90 backdrop-blur shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-slate-800">Ajustes</h3>
-                <p className="text-xs text-slate-500">Selecciona un tema para el fondo del layout.</p>
+                <p className="text-xs text-slate-500">Densidad de las listas y tema de fondo.</p>
               </div>
               <button
                 type="button"
@@ -248,6 +275,7 @@ const Layout = () => {
             </div>
 
             <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-5 overflow-y-auto flex-1 min-h-0">
+              <DensityPicker value={densityPref} onChange={handleDensityChange} />
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {themeOptions.map((t) => {
                   const selected = layoutThemeBg === t.src;

@@ -468,9 +468,9 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
             </p>
           </div>
         ) : null}
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
+        <div className="flex shrink-0 items-baseline gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5">
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
-          <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
+          <p className="text-base font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         <button
           type="button"

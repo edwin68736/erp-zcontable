@@ -163,7 +163,7 @@ const ActivityTemplates = () => {
 
       <form
         onSubmit={handleFilterSubmit}
-        className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4 shadow-sm"
+        className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-3 shadow-sm"
       >
         <div className="min-w-[140px] flex-1">
           <label htmlFor="tpl-code" className="block text-xs font-medium text-slate-500 mb-1">

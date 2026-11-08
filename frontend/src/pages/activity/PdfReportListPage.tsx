@@ -169,14 +169,15 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex flex-wrap items-end gap-x-4 gap-y-2">
         <CompanyDigitoFilter
           filterDig={filterDig}
           onFilterDigChange={setFilterDig}
           digColorsJson={digColorsJson}
           loading={facetsLoading}
         />
-        <div className="flex flex-wrap items-end gap-3 pt-1 border-t border-slate-100">
+        {/* contents: los filtros comparten la fila de la tarjeta con los dígitos (una sola fila en pantallas anchas) */}
+        <div className="contents">
           <ActivityPeriodFilter value={periodYm} onChange={setPeriodYm} />
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>

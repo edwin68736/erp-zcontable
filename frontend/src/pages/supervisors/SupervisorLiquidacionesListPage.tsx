@@ -145,7 +145,7 @@ const SupervisorLiquidacionesListPage = () => {
         <PageHeading hint="Inicie liquidaciones por empresa y periodo mensual (AAAA-MM). Por defecto se muestra el mes calendario anterior. Si ya existe liquidación en borrador puede editarla; si fue emitida solo podrá visualizarla. En periodos sin liquidación puede crear una nueva.">Liquidaciones</PageHeading>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex flex-wrap items-end gap-x-4 gap-y-2">
         <CompanyDigitoFilter
           filterDig={filterDig}
           onFilterDigChange={(dig) => {
@@ -155,7 +155,8 @@ const SupervisorLiquidacionesListPage = () => {
           digColorsJson={digColorsJson}
           loading={facetsLoading}
         />
-        <div className="flex flex-wrap items-end gap-3 pt-1 border-t border-slate-100">
+        {/* contents: los filtros comparten la fila de la tarjeta con los dígitos (una sola fila en pantallas anchas) */}
+        <div className="contents">
           <div className="min-w-[10rem]">
             <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="sup-liq-list-period">
               Periodo de liquidación
@@ -181,9 +182,9 @@ const SupervisorLiquidacionesListPage = () => {
             placeholder="RUC o razón social (mín. 2 caracteres)…"
           />
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 min-w-[9rem]">
+        <div className="flex shrink-0 items-baseline gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5">
           <p className="text-2xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
-          <p className="text-lg font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
+          <p className="text-base font-semibold text-slate-800 tabular-nums leading-tight">{loading ? '—' : total}</p>
         </div>
         </div>
       </div>

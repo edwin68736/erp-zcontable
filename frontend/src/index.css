@@ -41,3 +41,13 @@
   background-position: center, center, center, center;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
 }
+
+/* Densidad compacta de las listas (Ajustes → Densidad): las celdas con relleno vertical amplio (py-3 / py-2.5, que
+   son la gran mayoría de las tablas) pasan a py-2 sin tocar cada pantalla. El atributo data-density lo pone el Layout. */
+html[data-density='compact'] td[class*='py-3'],
+html[data-density='compact'] th[class*='py-3'],
+html[data-density='compact'] td[class*='py-2.5'],
+html[data-density='compact'] th[class*='py-2.5'] {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
