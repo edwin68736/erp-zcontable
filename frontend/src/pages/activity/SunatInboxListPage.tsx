@@ -378,7 +378,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
             <button
               type="button"
               onClick={() => setScope('week')}
-              className={`flex-1 px-3 py-2 font-medium transition-colors ${
+              className={`flex-1 whitespace-nowrap px-3 py-2 font-medium transition-colors ${
                 scope === 'week' ? 'bg-primary-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -387,11 +387,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
             <button
               type="button"
               onClick={() => setScope('month')}
-              className={`flex-1 px-3 py-2 font-medium border-l border-slate-300 transition-colors ${
+              className={`flex-1 whitespace-nowrap px-3 py-2 font-medium border-l border-slate-300 transition-colors ${
                 scope === 'month' ? 'bg-primary-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
-              Mes completo
+              Mes
             </button>
           </div>
         </div>
