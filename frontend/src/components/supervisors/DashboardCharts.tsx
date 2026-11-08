@@ -24,7 +24,7 @@ export function ComplianceTrendChart({ points }: { points: ComplianceTrendPoint[
 
   const withData = points.filter((p) => p.total_controls > 0);
   if (points.length === 0) {
-    return <p className="text-sm text-slate-500">Sin datos de períodos anteriores.</p>;
+    return <p className="text-sm text-slate-500">Sin datos de periodos anteriores.</p>;
   }
 
   const x = (i: number) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
@@ -90,7 +90,7 @@ export function ComplianceTrendChart({ points }: { points: ComplianceTrendPoint[
         ) : null}
       </svg>
       <p className="text-xs text-slate-500 mt-1">
-        Último período: <span className="font-semibold text-slate-700">{last.compliance_pct}%</span> de cumplimiento
+        Último periodo: <span className="font-semibold text-slate-700">{last.compliance_pct}%</span> de cumplimiento
         {last.total_controls > 0 ? ` sobre ${last.total_controls} control${last.total_controls === 1 ? '' : 'es'}` : ' (sin controles)'}
       </p>
     </div>
@@ -157,7 +157,7 @@ export function StatusDistributionDonut({ slices, total }: { slices: DonutSlice[
 
 /** Cumplimiento POR SUPERVISOR (no por responsable/contador) — como el resto del dashboard ya
  * está acotado a las empresas del supervisor que lo está viendo, esto es su propio avance del
- * período (una sola fila) para que se autoevalúe; con alcance de estudio sin restricción salen
+ * periodo (una sola fila) para que se autoevalúe; con alcance de estudio sin restricción salen
  * varias filas, una por supervisor, para compararlos entre sí. Mismo componente de siempre
  * (barra + %), ordenado de mayor a menor cumplimiento. */
 export function ProductivityRanking({ rows }: { rows: SupervisorProductivityRow[] }) {
@@ -169,7 +169,7 @@ export function ProductivityRanking({ rows }: { rows: SupervisorProductivityRow[
     <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
       <p className="text-sm font-medium text-slate-700 px-4 pt-4">Productividad por supervisor</p>
       <p className="text-xs text-slate-500 px-4 mt-0.5">
-        Cumplimiento en vivo del período (PDT 601/621, Detracciones, Buzón SOL), por supervisor asignado.
+        Cumplimiento en vivo del periodo (PDT 601/621, Detracciones, Buzón SOL), por supervisor asignado.
       </p>
       <div className="p-4 space-y-2.5 min-w-[26rem]">
         {sorted.map((r) => (

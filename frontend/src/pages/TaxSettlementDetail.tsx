@@ -27,6 +27,7 @@ import PageHeading from '../components/ui/PageHeading';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
 import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 import { formatAmount } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -425,14 +426,14 @@ const TaxSettlementDetail = () => {
 
   if (error || !row) {
     return (
-      <div className="w-full min-w-0 max-w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <Alert variant="error" className="w-full min-w-0 max-w-full">
         {error || 'No encontrado'}
         <div className="mt-2">
           <Link to="/tax-settlements" className="text-primary-700 font-medium">
             Volver
           </Link>
         </div>
-      </div>
+      </Alert>
     );
   }
 

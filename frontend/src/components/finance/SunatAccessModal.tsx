@@ -6,6 +6,7 @@ import {
   type SunatAccessError,
 } from '../../services/companyAccessCredentials';
 import { openSunatAccessUrl, openSunatLoginPage, sunatAccessFallback, SUNAT_TARGETS, type SunatAccessTarget } from '../../utils/sunatSol';
+import Alert from '../../components/ui/Alert';
 
 type Props = {
   row: CompanyAccessCredentialRow;
@@ -252,7 +253,7 @@ const SunatAccessModal = ({ row, target = 'sunat', onClose }: Props) => {
 
         {phase.kind === 'error' ? (
           <div className="mt-4 space-y-2">
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{phase.error.message}</p>
+            <Alert variant="error">{phase.error.message}</Alert>
             {phase.error.detail ? (
               <div>
                 <button type="button" onClick={() => setShowDetail((v) => !v)} className="text-2xs font-medium text-slate-500 underline">

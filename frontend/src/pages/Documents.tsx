@@ -46,6 +46,7 @@ import { parseTukifacReceiptViewLinks, type TukifacReceiptViewLinks } from '../u
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 type DocumentWithPayments = Document & { payments?: Payment[] };
 
@@ -163,7 +164,7 @@ function formatAccountingPeriodHuman(doc: Document): string {
   return `${meses[mo]}-${yStr}`;
 }
 
-/** Texto único para columna período (humano o AAAA-MM). */
+/** Texto único para columna periodo (humano o AAAA-MM). */
 function debtPeriodDisplay(doc: Document): string {
   const human = formatAccountingPeriodHuman(doc);
   if (human) return human;
@@ -946,7 +947,7 @@ const Documents = () => {
           {canUpsert ? (
             <Link
               to="/documents/new"
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
             >
               <i className="fas fa-plus text-xs"></i>
               <span>Nueva deuda</span>
@@ -999,9 +1000,9 @@ const Documents = () => {
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error">
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -1070,7 +1071,7 @@ const Documents = () => {
                           type="button"
                           title="Todas las líneas de todas las deudas de esta empresa (vista plana)"
                           onClick={() => void openDebtsForCompanyModal(row)}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
                         >
                           <i className="fas fa-list-ul mr-1"></i> Ver líneas
                         </button>
@@ -1128,7 +1129,7 @@ const Documents = () => {
                           type="button"
                           title="Detalle financiero e historial de pagos"
                           onClick={() => void openDebtDetailModal(doc)}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
                         >
                           <i className="fas fa-circle-info mr-1"></i> Detalle
                         </button>
@@ -1136,7 +1137,7 @@ const Documents = () => {
                           <button
                             type="button"
                             onClick={() => openPayModal(doc)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50"
                           >
                             <i className="fas fa-hand-holding-usd mr-1"></i> Pagar
                           </button>
@@ -1146,7 +1147,7 @@ const Documents = () => {
                             type="button"
                             title="Desglose por conceptos guardados en esta deuda"
                             onClick={() => void openItemsModal(doc)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
                           >
                             <i className="fas fa-align-left mr-1"></i> Desglose
                           </button>
@@ -1281,12 +1282,12 @@ const Documents = () => {
               ) : null}
 
               {payError ? (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{payError}</div>
+                <Alert variant="error">{payError}</Alert>
               ) : null}
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 space-y-3">
                 <div className="text-xs">
-                  <span className="font-semibold text-slate-700">Período contable: </span>
+                  <span className="font-semibold text-slate-700">Periodo contable: </span>
                   {formatDebtPeriod(payDoc) !== '—' ? (
                     <>
                       <span className="font-mono tabular-nums text-slate-800">{formatDebtPeriod(payDoc)}</span>
@@ -1304,7 +1305,7 @@ const Documents = () => {
                       <thead>
                         <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                           <th className="py-2 pl-3 pr-2">Línea / concepto</th>
-                          <th className="py-2 pr-2 whitespace-nowrap">Período</th>
+                          <th className="py-2 pr-2 whitespace-nowrap">Periodo</th>
                           <th className="py-2 pr-3 text-right whitespace-nowrap w-28">Monto</th>
                         </tr>
                       </thead>
@@ -1475,7 +1476,7 @@ const Documents = () => {
                 <button
                   type="button"
                   onClick={closePayModal}
-                  className="inline-flex items-center px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Cancelar
                 </button>
@@ -1527,9 +1528,9 @@ const Documents = () => {
                 </div>
                 <div className="px-2 sm:px-4 py-3 overflow-y-auto flex-1 min-h-0">
                   {debtsCompanyError ? (
-                    <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm mb-3">
+                    <Alert variant="error" className="mb-3">
                       {debtsCompanyError}
-                    </div>
+                    </Alert>
                   ) : null}
                   {debtsCompanyLoading ? (
                     <div className="py-12 text-center text-sm text-slate-500">
@@ -1683,7 +1684,7 @@ const Documents = () => {
                 </div>
                 <div className="px-4 sm:px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3">
                   {itemsModalError ? (
-                    <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">{itemsModalError}</div>
+                    <Alert variant="error">{itemsModalError}</Alert>
                   ) : null}
                   {itemsModalLoading ? (
                     <div className="py-10 text-center text-sm text-slate-500">
@@ -1693,7 +1694,7 @@ const Documents = () => {
                   ) : itemsModalDetail?.items && itemsModalDetail.items.length > 0 ? (
                     <>
                       <div className="text-xs text-slate-600 mb-2">
-                        <span className="font-semibold text-slate-700">Período contable: </span>
+                        <span className="font-semibold text-slate-700">Periodo contable: </span>
                         {formatDebtPeriod(itemsModalDetail) !== '—' ? (
                           <>
                             <span className="font-mono tabular-nums">{formatDebtPeriod(itemsModalDetail)}</span>
@@ -1709,7 +1710,7 @@ const Documents = () => {
                         <thead>
                           <tr className="bg-slate-50 text-left text-2xs font-semibold uppercase text-slate-500 border-b border-slate-100">
                             <th className="py-2 pr-2">Descripción</th>
-                            <th className="py-2 pr-2 whitespace-nowrap">Período</th>
+                            <th className="py-2 pr-2 whitespace-nowrap">Periodo</th>
                             <th className="py-2 text-right whitespace-nowrap w-28">Monto</th>
                           </tr>
                         </thead>

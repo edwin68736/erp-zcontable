@@ -144,7 +144,7 @@ const Pdt621RecepcionarButton = ({ companyId, periodYm, businessName, entrega, c
                 <div>
                   <h3 className="text-base font-semibold text-slate-800">Recepcionar archivador — {label}</h3>
                   <p className="text-sm text-slate-600 mt-1">
-                    <span className="font-medium text-slate-800">{businessName}</span> · Período {periodYm}
+                    <span className="font-medium text-slate-800">{businessName}</span> · Periodo {periodYm}
                   </p>
                 </div>
                 <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-4 text-center">

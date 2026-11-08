@@ -57,7 +57,7 @@ const DetraccionesRowActions = ({
   const [preview, setPreview] = useState<{ url: string; fileName: string } | null>(null);
 
   const status = normalizeDetraccionesStatus(row.status);
-  // Suspendida es un overlay global del período (§5.9.7), no un estado más de la declaración — pisa
+  // Suspendida es un overlay global del periodo (§5.9.7), no un estado más de la declaración — pisa
   // el label/color del badge en vez de mostrarse aparte junto a la razón social (mismo criterio que
   // pdt621DisplayStatus en PDT 601/621, y que preliminarVentasConfig en Preliminar de Ventas).
   const displayLabel = row.suspendida ? 'Suspendida' : detraccionesStatusLabel(status);

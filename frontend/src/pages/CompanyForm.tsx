@@ -26,6 +26,7 @@ import { extractApiErrorMessage } from '../utils/apiError';
 import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
 import { confirmDialog } from '../utils/confirmDialog';
+import Alert from '../components/ui/Alert';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -528,20 +529,20 @@ const CompanyForm = () => {
         </div>
         <Link
           to={convertMode ? '/companies/external' : '/companies'}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver al listado
         </Link>
       </div>
 
       {convertMode ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Cliente externo (código {code}). Al guardar pasará a cliente del estudio con plan y equipo asignados.
-        </div>
+        </Alert>
       ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {rucConflict ? (
@@ -952,7 +953,7 @@ const CompanyForm = () => {
                 {isEdit && companyId ? (
                   <Link
                     to={`/companies/${companyId}/contacts`}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
                     <i className="fas fa-address-book text-xs"></i> Ver todos
                   </Link>
@@ -1079,7 +1080,7 @@ const CompanyForm = () => {
                               <div className="flex items-center justify-end gap-2">
                                 <Link
                                   to={`/companies/${companyId}/contacts/${c.id}/edit`}
-                                  className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                                  className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
                                 >
                                   <i className="fas fa-pen mr-1"></i> Editar
                                 </Link>
@@ -1087,7 +1088,7 @@ const CompanyForm = () => {
                                   type="button"
                                   disabled={contactsLoading}
                                   onClick={() => handleDeleteContact(c.id)}
-                                  className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                                  className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                                 >
                                   <i className="fas fa-trash mr-1"></i> Eliminar
                                 </button>
@@ -1115,7 +1116,7 @@ const CompanyForm = () => {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveDraftContact(c.tempId)}
-                                className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
+                                className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
                               >
                                 <i className="fas fa-times mr-1"></i> Quitar
                               </button>
@@ -1141,7 +1142,7 @@ const CompanyForm = () => {
           <button
             type="submit"
             disabled={!canUpsert}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
           >
             <i className="fas fa-save mr-2 text-xs"></i>
             {convertMode ? 'Convertir a cliente del estudio' : isEdit ? 'Guardar cambios' : 'Crear empresa'}

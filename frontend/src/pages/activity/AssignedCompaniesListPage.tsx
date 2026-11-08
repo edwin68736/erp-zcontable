@@ -19,6 +19,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import type { ActivityWorkspace } from '../../navigation/activityRoutes';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -108,7 +109,7 @@ const AssignedCompaniesListPage = ({ workspace }: AssignedCompaniesListPageProps
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {/*

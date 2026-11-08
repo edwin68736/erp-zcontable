@@ -69,6 +69,7 @@ import {
   PDT621_SUMMARY_LABEL,
   PDT621_SUMMARY_LABEL_EMPHASIS,
 } from '../taxSettlements/pdt621Layout';
+import Alert from '../../components/ui/Alert';
 
 type Props = {
   value: TaxSettlementSectionsPayload;
@@ -519,9 +520,9 @@ function DetraccionModal({
             Aplicar pago con detracción/efectivo para {sectionLabel}
           </label>
           {originalAmount <= 0 ? (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <Alert variant="warning">
               No hay monto aplicable. Ingrese valores en los campos correspondientes.
-            </p>
+            </Alert>
           ) : null}
           <fieldset disabled={!enabled || originalAmount <= 0} className="space-y-3 disabled:opacity-60">
             <legend className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tipo de aplicación</legend>

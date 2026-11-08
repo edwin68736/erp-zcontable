@@ -37,6 +37,7 @@ import {
   frozenHeadCellStyle,
 } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -233,7 +234,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <PageHeading hint="Seguimiento manual de vencimientos PDT 621 por empresa y período. Sin integración con SUNAT.">Control Vencimientos PDT 621</PageHeading>
+          <PageHeading hint="Seguimiento manual de vencimientos PDT 621 por empresa y periodo. Sin integración con SUNAT.">Control Vencimientos PDT 621</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver
@@ -304,7 +305,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
       ) : null}
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {/*

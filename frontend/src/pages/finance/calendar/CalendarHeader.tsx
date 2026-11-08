@@ -172,7 +172,7 @@ const CalendarHeader = ({
               type="button"
               disabled={pdfLoading}
               onClick={onExportPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
             >
               {pdfLoading ? (
                 <i className="fas fa-spinner fa-spin text-2xs" aria-hidden />
@@ -187,7 +187,7 @@ const CalendarHeader = ({
             <button
               type="button"
               onClick={onAddActivity}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
               title="Crear actividad (también puede hacer doble clic en un día)"
             >
               <i className="fas fa-plus text-2xs" aria-hidden />
@@ -201,7 +201,7 @@ const CalendarHeader = ({
                 <button
                   type="button"
                   onClick={onNewCalendar}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-medium shadow-sm hover:bg-primary-700 transition-colors"
                 >
                   <i className="fas fa-plus text-2xs" aria-hidden />
                   Nuevo calendario
@@ -212,7 +212,7 @@ const CalendarHeader = ({
                 <button
                   type="button"
                   onClick={onCloseCalendar}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50 text-amber-900 text-xs font-medium hover:bg-amber-100"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs font-medium hover:bg-amber-100"
                 >
                   <i className="fas fa-lock text-2xs" aria-hidden />
                   Cerrar calendario
@@ -223,7 +223,7 @@ const CalendarHeader = ({
                 <button
                   type="button"
                   onClick={onReopenCalendar}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary-300 bg-primary-50 text-primary-800 text-xs font-medium hover:bg-primary-100"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary-300 bg-primary-50 text-primary-800 text-xs font-medium hover:bg-primary-100"
                 >
                   <i className="fas fa-lock-open text-2xs" aria-hidden />
                   Abrir calendario

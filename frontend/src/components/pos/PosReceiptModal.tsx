@@ -176,7 +176,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 </div>
                 {(receipt.period_label ?? '').trim() ? (
                   <div>
-                    <dt className="text-slate-500">Período</dt>
+                    <dt className="text-slate-500">Periodo</dt>
                     <dd className="font-medium">{receipt.period_label}</dd>
                   </div>
                 ) : null}
@@ -270,7 +270,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
               )}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                     <tr>
                       <th className="text-left px-3 py-2">Descripción</th>
                       <th className="text-right px-3 py-2">Cant.</th>
@@ -344,7 +344,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                     await downloadFiscalReceiptPdf(receipt, firm, undefined, 'a5');
                   })
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
               >
                 <i className="fas fa-download text-xs" />
                 Descargar A5
@@ -357,7 +357,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                     await downloadFiscalReceiptPdf(receipt, firm, undefined, 'a4');
                   })
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
               >
                 <i className="fas fa-download text-xs" />
                 Descargar A4
@@ -370,7 +370,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                     await downloadFiscalReceiptPdf(receipt, firm, undefined, 'ticket');
                   })
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 <i className="fas fa-download text-xs" />
                 Descargar ticket
@@ -393,7 +393,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                     );
                   }
                 }}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 title={tab === 'summary' ? 'Seleccione Vista A4, Vista A5 o Vista ticket' : `Imprimir ${downloadName}`}
               >
                 <i className="fas fa-print text-xs" />
@@ -407,7 +407,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 <Link
                   to="/pos/history"
                   onClick={onClose}
-                  className="inline-flex justify-center items-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="inline-flex justify-center items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Ver historial
                 </Link>
@@ -415,7 +415,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                   type="button"
                   disabled={busy}
                   onClick={onClose}
-                  className="inline-flex justify-center items-center rounded-full bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                  className="inline-flex justify-center items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
                 >
                   Nueva venta
                 </button>
@@ -425,7 +425,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 type="button"
                 disabled={busy}
                 onClick={onClose}
-                className="inline-flex justify-center items-center rounded-full bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                className="inline-flex justify-center items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 Ir al listado de pagos
               </button>
@@ -434,7 +434,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 type="button"
                 disabled={busy}
                 onClick={onClose}
-                className="inline-flex justify-center items-center rounded-full bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                className="inline-flex justify-center items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 Cerrar
               </button>

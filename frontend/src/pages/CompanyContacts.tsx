@@ -5,6 +5,7 @@ import { contactsService } from '../services/contacts';
 import type { Company, Contact } from '../types/dashboard';
 import PageHeading from '../components/ui/PageHeading';
 import { confirmDialog } from '../utils/confirmDialog';
+import Alert from '../components/ui/Alert';
 
 const CompanyContacts = () => {
   const params = useParams();
@@ -71,13 +72,13 @@ const CompanyContacts = () => {
   if (!company) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert variant="error">
           {error || 'Empresa no encontrada'}
-        </div>
+        </Alert>
         <button
           type="button"
           onClick={() => navigate('/companies')}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver a empresas
         </button>
@@ -94,13 +95,13 @@ const CompanyContacts = () => {
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Link
             to="/companies"
-            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             <i className="fas fa-arrow-left text-xs"></i> Volver a empresas
           </Link>
           <Link
             to={`/companies/${company.id}/contacts/new`}
-            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
           >
             <i className="fas fa-plus text-xs"></i>
             <span>Nuevo contacto</span>
@@ -109,7 +110,7 @@ const CompanyContacts = () => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -138,14 +139,14 @@ const CompanyContacts = () => {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           to={`/companies/${company.id}/contacts/${c.id}/edit`}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
                         >
                           <i className="fas fa-pen mr-1"></i> Editar
                         </Link>
                         <button
                           type="button"
                           onClick={() => handleDelete(c.id)}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
                         >
                           <i className="fas fa-trash mr-1"></i> Eliminar
                         </button>

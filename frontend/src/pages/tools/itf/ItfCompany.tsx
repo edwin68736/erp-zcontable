@@ -25,6 +25,7 @@ import {
   summarizeByPeriod,
 } from './itfUi';
 import { formatDateTime } from '../../../utils/format';
+import Alert from '../../../components/ui/Alert';
 
 /** Atajos de rango: (mes actual) → [desde, hasta] en «AAAA-MM». */
 const RANGES: { label: string; make: (cur: string) => [string, string] }[] = [
@@ -164,7 +165,7 @@ function HistoryEntry({
 
 /**
  * Herramientas → Consulta ITF → una empresa: lee en SUNAT (Menú SOL → ITF → Consulta de ITF, Formulario 0695) el
- * Impuesto a las Transacciones Financieras de la empresa entre dos períodos: movimientos acumulados por banco,
+ * Impuesto a las Transacciones Financieras de la empresa entre dos periodos: movimientos acumulados por banco,
  * contra asientos por error y exoneraciones. Usa la clave SOL (no las credenciales de API). Solo lectura.
  * Cada consulta queda guardada en el historial de la empresa.
  */
@@ -219,13 +220,13 @@ const ItfCompany = () => {
   const missingSol = company ? !company.sol_configurado : false;
   const span = monthsBetween(desde, hasta);
   const rangeError = !desde || !hasta
-    ? 'Indique los dos períodos.'
+    ? 'Indique los dos periodos.'
     : span === 0
-      ? 'El período inicial no puede ser posterior al final.'
+      ? 'El periodo inicial no puede ser posterior al final.'
       : desde < ITF_MIN_MONTH
         ? 'SUNAT consulta desde marzo de 2004.'
         : hasta > cur
-          ? 'El período final no puede ser posterior al mes actual.'
+          ? 'El periodo final no puede ser posterior al mes actual.'
           : span > ITF_MAX_MONTHS
             ? `El rango máximo es de ${ITF_MAX_MONTHS} meses.`
             : '';
@@ -312,35 +313,35 @@ const ItfCompany = () => {
         </div>
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company && missingSol ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Falta cargar: <strong>usuario y clave SOL</strong>. Complételos en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
           (botón Editar de la empresa). Esta consulta entra a SUNAT con la clave SOL; no usa las credenciales de API.
-        </div>
+        </Alert>
       ) : null}
 
       {company && !missingSol ? (
         <>
-          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900">
+          <Alert variant="info">
             Esta consulta es la de <strong>ITF · Formulario 0695</strong> del Menú SOL de SUNAT: movimientos de las cuentas de la empresa afectos al Impuesto a las
-            Transacciones Financieras, por banco y período. La <strong>base imponible es referencial</strong>: SUNAT la calcula a partir del impuesto retenido.
-          </div>
+            Transacciones Financieras, por banco y periodo. La <strong>base imponible es referencial</strong>: SUNAT la calcula a partir del impuesto retenido.
+          </Alert>
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
             <div className="min-w-0 space-y-5">
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-end gap-3">
                   <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Período inicial</span>
+                    <span className="mb-0.5 block">Periodo inicial</span>
                     <input type="month" value={desde} min={ITF_MIN_MONTH} max={hasta || cur} onChange={(e) => setDesde(e.target.value)} className={INPUT_CLS} />
                   </label>
                   <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Período final</span>
+                    <span className="mb-0.5 block">Periodo final</span>
                     <input type="month" value={hasta} min={desde || ITF_MIN_MONTH} max={cur} onChange={(e) => setHasta(e.target.value)} className={INPUT_CLS} />
                   </label>
                   <div className="flex flex-wrap gap-1" aria-label="Rangos rápidos">
@@ -387,7 +388,7 @@ const ItfCompany = () => {
                   }
                 >
                   {totalRegistros === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-500">SUNAT no registra movimientos afectos al ITF para este rango de períodos.</p>
+                    <p className="py-6 text-center text-sm text-slate-500">SUNAT no registra movimientos afectos al ITF para este rango de periodos.</p>
                   ) : (
                     <div className="space-y-5">
                       <div className="flex flex-wrap gap-3 text-sm">
@@ -407,12 +408,12 @@ const ItfCompany = () => {
 
                       {byPeriod.length > 0 ? (
                         <div>
-                          <h4 className="mb-1.5 text-xs font-bold uppercase text-slate-500">Resumen por período</h4>
+                          <h4 className="mb-1.5 text-xs font-bold uppercase text-slate-500">Resumen por periodo</h4>
                           <div className="overflow-auto">
                             <table className="min-w-full border-collapse text-left text-xs">
                               <thead>
                                 <tr className="bg-slate-50 text-slate-500 uppercase">
-                                  <th className="border-b border-slate-200 px-2 py-1.5 font-semibold">Período</th>
+                                  <th className="border-b border-slate-200 px-2 py-1.5 font-semibold">Periodo</th>
                                   <th className="border-b border-slate-200 px-2 py-1.5 text-right font-semibold">Operaciones</th>
                                   <th className="border-b border-slate-200 px-2 py-1.5 text-right font-semibold">Base</th>
                                   <th className="border-b border-slate-200 px-2 py-1.5 text-right font-semibold">ITF</th>
@@ -472,7 +473,7 @@ const ItfCompany = () => {
                   </div>
                 ) : null}
                 {history.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-500">Aún no hay consultas. Elija los períodos y pulse «Consultar en SUNAT»: aquí quedará el resultado.</p>
+                  <p className="py-8 text-center text-sm text-slate-500">Aún no hay consultas. Elija los periodos y pulse «Consultar en SUNAT»: aquí quedará el resultado.</p>
                 ) : (
                   <ul className="max-h-[70vh] space-y-2 overflow-y-auto pr-0.5">
                     {history.map((it) => (

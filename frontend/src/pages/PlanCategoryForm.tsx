@@ -128,7 +128,7 @@ const PlanCategoryForm = () => {
         <button
           type="submit"
           disabled={!canUpsert}
-          className="px-5 py-2 rounded-full bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
+          className="px-5 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
         >
           Guardar
         </button>

@@ -31,6 +31,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import PageHeading from '../../components/ui/PageHeading';
 import { formatAmount } from '../../utils/format';
+import Alert from '../../components/ui/Alert';
 
 
 
@@ -604,7 +605,7 @@ const PosSale = () => {
 
 
 
-      {error ? <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
 
 
@@ -622,7 +623,7 @@ const PosSale = () => {
 
                 onClick={() => setPickerOpen(true)}
 
-                className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium"
 
               >
 
@@ -694,7 +695,7 @@ const PosSale = () => {
 
             <table className="min-w-full w-full text-sm">
 
-              <thead className="bg-slate-50 text-slate-600">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
 
                 <tr>
 

@@ -143,7 +143,7 @@ export async function exportSunatInboxReportExcel(options: {
   capturesPerWeek: number;
   workspace: 'supervisor' | 'assistant';
   /** 'week' cuando el backend ya restringió `weeks`/`rows` a una sola semana (igual que la tabla en
-   * modo semana); 'month' para el reporte de todas las semanas del período. Solo afecta el subtítulo
+   * modo semana); 'month' para el reporte de todas las semanas del periodo. Solo afecta el subtítulo
    * y el nombre de archivo — la estructura de columnas ya sigue naturalmente el largo de `weeks`. */
   scope: 'week' | 'month';
 }): Promise<void> {
@@ -184,7 +184,7 @@ export async function exportSunatInboxReportExcel(options: {
       : `Mes completo (${weeks.length} semana${weeks.length === 1 ? '' : 's'})`;
   sheet.mergeCells(2, 1, 2, totalCols);
   sheet.getCell(2, 1).value =
-    `Período: ${periodLabel} · Alcance: ${scopeLabel} · Vista: ${workspace === 'assistant' ? 'Asistente' : 'Supervisor'} · ${rows.length} empresa${rows.length === 1 ? '' : 's'}`;
+    `Periodo: ${periodLabel} · Alcance: ${scopeLabel} · Vista: ${workspace === 'assistant' ? 'Asistente' : 'Supervisor'} · ${rows.length} empresa${rows.length === 1 ? '' : 's'}`;
   sheet.getCell(2, 1).font = { size: 10, color: { argb: 'FF64748B' } };
 
   let rowIdx = 4;

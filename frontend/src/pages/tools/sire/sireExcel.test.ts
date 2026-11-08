@@ -11,7 +11,7 @@ async function sample(period: string, total: number): Promise<Blob> {
 }
 
 describe('mergePeriodExcels', () => {
-  it('una hoja por período con los mismos valores y tipos', async () => {
+  it('una hoja por periodo con los mismos valores y tipos', async () => {
     const merged = await mergePeriodExcels([
       { period: '202609', blob: await sample('202609', 100.5) },
       { period: '202610', blob: await sample('202610', 200) },

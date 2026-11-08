@@ -13,6 +13,7 @@ import type { Product } from '../services/products';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
 import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 import PageHeading from '../components/ui/PageHeading';
+import Alert from '../components/ui/Alert';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -505,9 +506,9 @@ const TaxSettlementNew = () => {
 
   if (!allowed) {
     return (
-      <div className="w-full min-w-0 max-w-full rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
+      <Alert variant="warning" className="w-full min-w-0 max-w-full">
         No tiene permiso para {isEdit ? 'editar' : 'crear'} liquidaciones.
-      </div>
+      </Alert>
     );
   }
 
@@ -539,7 +540,7 @@ const TaxSettlementNew = () => {
         ) : null}
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       {!isEdit && pendingFromClosedCount > 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -846,14 +847,14 @@ const TaxSettlementNew = () => {
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
           <Link
             to={isEdit ? `/tax-settlements/${editId}` : '/tax-settlements'}
-            className="inline-flex justify-center px-4 py-2.5 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex justify-center px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Cancelar
           </Link>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50"
+            className="inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50"
           >
             {saving ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-save text-xs" />}
             {isEdit ? 'Guardar cambios' : 'Guardar borrador'}

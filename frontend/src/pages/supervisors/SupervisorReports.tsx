@@ -26,11 +26,11 @@ const REPORT_TABS: { kind: SupervisorReportKind; label: string }[] = [
 ];
 
 const REPORT_KIND_HINTS: Record<SupervisorReportKind, string> = {
-  monthly: 'Cuadro general del período: estado, riesgo y total a pagar por empresa.',
+  monthly: 'Cuadro general del periodo: estado, riesgo y total a pagar por empresa.',
   overdue: 'Empresas con control en estado vencido.',
   pending_declarations: 'Empresas con declaraciones 601, 621 o SIRE aún sin cerrar.',
-  productivity: 'Cumplimiento por analista responsable en el período.',
-  observations: 'Historial de observaciones registradas en controles del período.',
+  productivity: 'Cumplimiento por analista responsable en el periodo.',
+  observations: 'Historial de observaciones registradas en controles del periodo.',
 };
 
 function parsePositiveInt(value: string | null, fallback: number): number {
@@ -350,14 +350,14 @@ const SupervisorReports = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <PageHeading hint="Vistas por tipo de cumplimiento y productividad.">Reportes supervisores</PageHeading>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-slate-600 flex items-center gap-2">
-            Período
+            Periodo
             <input
               type="month"
               value={periodYm}
@@ -369,7 +369,7 @@ const SupervisorReports = () => {
             type="button"
             disabled={loading || exportingExcel || pagination.total === 0}
             onClick={() => void handleExportExcel()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <i className={`fas ${exportingExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'} text-xs text-primary-700`} />
             Excel
@@ -378,7 +378,7 @@ const SupervisorReports = () => {
             type="button"
             disabled={loading || exportingPdf || pagination.total === 0}
             onClick={() => void handleExportPdf()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <i className={`fas ${exportingPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'} text-xs text-red-600`} />
             PDF
@@ -431,7 +431,7 @@ const SupervisorReports = () => {
           <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
             {kind === 'productivity' ? (
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="text-left px-4 py-3">Responsable</th>
                     <th className="text-right px-4 py-3">Controles</th>
@@ -443,7 +443,7 @@ const SupervisorReports = () => {
                   {rows.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                        Sin datos para este período.
+                        Sin datos para este periodo.
                       </td>
                     </tr>
                   ) : (
@@ -460,7 +460,7 @@ const SupervisorReports = () => {
               </table>
             ) : kind === 'observations' ? (
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="text-left px-4 py-3">Empresa</th>
                     <th className="text-left px-4 py-3">Observación</th>
@@ -472,7 +472,7 @@ const SupervisorReports = () => {
                   {rows.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                        Sin observaciones en este período.
+                        Sin observaciones en este periodo.
                       </td>
                     </tr>
                   ) : (
@@ -500,7 +500,7 @@ const SupervisorReports = () => {
               </table>
             ) : (
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="text-left px-4 py-3">Empresa</th>
                     <th className="text-left px-4 py-3">RUC</th>
@@ -519,7 +519,7 @@ const SupervisorReports = () => {
                         colSpan={5 + (showComplianceCol ? 1 : 0)}
                         className="px-4 py-8 text-center text-slate-500"
                       >
-                        No hay registros para este período o búsqueda.
+                        No hay registros para este periodo o búsqueda.
                       </td>
                     </tr>
                   ) : (

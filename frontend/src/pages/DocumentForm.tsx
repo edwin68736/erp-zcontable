@@ -14,6 +14,7 @@ import { productLabel, productUnitPrice } from '../components/productPickerUtils
 import type { Product } from '../services/products';
 import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
+import Alert from '../components/ui/Alert';
 
 const DEBT_TYPE_OPTIONS = [
   { value: 'nota_venta', label: 'Nota de venta' },
@@ -333,14 +334,14 @@ const DocumentForm = () => {
         </div>
         <Link
           to="/documents"
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver al listado
         </Link>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {editLocked && writeoffInfo ? (
@@ -699,7 +700,7 @@ const DocumentForm = () => {
           <button
             type="submit"
             disabled={saving || !canUpsert}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
           >
             <i className="fas fa-save mr-2 text-xs"></i>
             {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar deuda'}

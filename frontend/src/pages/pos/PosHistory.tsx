@@ -80,7 +80,7 @@ const PosHistory = () => {
         </div>
         <Link
           to="/pos"
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
         >
           <i className="fas fa-plus text-xs" />
           Nueva venta
@@ -101,7 +101,7 @@ const PosHistory = () => {
           <>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium">Número</th>
                     <th className="text-left px-4 py-3 font-medium">Cliente</th>
@@ -123,7 +123,7 @@ const PosHistory = () => {
                         <button
                           type="button"
                           disabled={detailLoading}
-                          className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100 disabled:opacity-50"
                           onClick={() => void openReceipt(r.id)}
                         >
                           <i className="fas fa-eye" />

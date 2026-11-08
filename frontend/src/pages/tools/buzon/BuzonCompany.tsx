@@ -7,6 +7,7 @@ import { sunatBuzonService, type BuzonApiError, type BuzonDetail, type BuzonFilt
 import { Card, Spinner } from '../sire/SireShared';
 import { INPUT_CLS, SELECT_CLS } from '../sire/sireUi';
 import { ETIQUETA_BADGE, buzonBadge, fmtDateTime, timeAgo } from './buzonUi';
+import Alert from '../../../components/ui/Alert';
 
 const PER_PAGE = 25;
 
@@ -143,10 +144,10 @@ const BuzonCompany = () => {
         </div>
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company ? (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div>
             <span className="block text-[10px] font-semibold uppercase text-slate-400">Estado</span>
             {badge ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span> : null}
@@ -178,13 +179,13 @@ const BuzonCompany = () => {
       ) : null}
 
       {company && !hasKey ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           <strong>Sin clave:</strong> la empresa no tiene usuario o clave SOL cargados, así que no se puede sincronizar. Complételos en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
           (botón Editar).
-        </div>
+        </Alert>
       ) : null}
       {blocked ? (
         <BuzonError
@@ -195,17 +196,17 @@ const BuzonCompany = () => {
         />
       ) : null}
       {otherRunning ? (
-        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" role="status">
+        <Alert variant="info">
           Se está sincronizando otra empresa. Espere a que termine para sincronizar esta.
-        </p>
+        </Alert>
       ) : null}
       {syncing ? <Spinner label="Entrando a SUNAT con la clave de la empresa y leyendo el buzón (puede tardar unos segundos)…" /> : null}
-      {syncedNote && !syncError ? <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{syncedNote}</p> : null}
+      {syncedNote && !syncError ? <Alert variant="success">{syncedNote}</Alert> : null}
       {syncError ? <BuzonError error={syncError} /> : null}
       {!syncError && !blocked && state?.status === 'error' && state.error_message ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <Alert variant="warning">
           El último intento ({timeAgo(state.last_attempt_at)}) falló: {state.error_message}
-        </p>
+        </Alert>
       ) : null}
       {hasKey && !syncing ? (
         <p className="text-xs text-slate-500">

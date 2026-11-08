@@ -90,7 +90,7 @@ const SupervisorControls = ({
       setShowCreate(false);
       void load();
     } catch {
-      setMsg('No se pudo crear el control (¿ya existe para esa empresa/período?)');
+      setMsg('No se pudo crear el control (¿ya existe para esa empresa/periodo?)');
     }
   };
 
@@ -116,7 +116,7 @@ const SupervisorControls = ({
       : 'Hub de supervisión y listado de controles mensuales por empresa.';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <PageHeading hint={pageSubtitle}>{pageTitle}</PageHeading>
@@ -125,7 +125,7 @@ const SupervisorControls = ({
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium"
           >
             <i className="fas fa-plus text-xs mr-1"></i> Nuevo control
           </button>
@@ -145,7 +145,7 @@ const SupervisorControls = ({
 
       <div className="flex flex-wrap gap-4 items-end">
         <label className="text-sm text-slate-600">
-          Período
+          Periodo
           <input
             type="month"
             value={periodYm}
@@ -179,7 +179,7 @@ const SupervisorControls = ({
           <p className="text-sm font-medium text-slate-800">Nuevo control mensual</p>
           <div className="flex flex-wrap gap-3">
             <label className="text-sm">
-              Período
+              Periodo
               <input
                 type="month"
                 value={createPeriod}
@@ -196,7 +196,7 @@ const SupervisorControls = ({
             <button
               type="button"
               onClick={() => void handleCreate()}
-              className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm"
+              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm"
             >
               Guardar
             </button>
@@ -212,10 +212,10 @@ const SupervisorControls = ({
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3">Empresa</th>
-                <th className="text-left px-4 py-3">Período</th>
+                <th className="text-left px-4 py-3">Periodo</th>
                 <th className="text-left px-4 py-3">Estado</th>
                 <th className="text-left px-4 py-3">Riesgo</th>
                 <th className="text-left px-4 py-3">Responsable</th>
@@ -228,7 +228,7 @@ const SupervisorControls = ({
               {list.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                    No hay controles para este período o filtros. Cree un período y genere controles, o agregue uno manualmente.
+                    No hay controles para este periodo o filtros. Cree un periodo y genere controles, o agregue uno manualmente.
                   </td>
                 </tr>
               ) : null}

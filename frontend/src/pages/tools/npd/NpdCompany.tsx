@@ -10,6 +10,7 @@ import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { NPD_ESTADOS, NPD_ESTADO_BADGE, NPD_MAX_DAYS, daysAgo, daysSpan, exportNpdExcel, fmtDay, fmtMoney, totalsByEstado } from './npdUi';
 import { formatDateTime } from '../../../utils/format';
+import Alert from '../../../components/ui/Alert';
 
 const RANGES = [
   { label: '30 días', days: 29 },
@@ -262,29 +263,29 @@ const NpdCompany = () => {
         </div>
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company && missingSol ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Falta cargar: <strong>usuario y clave SOL</strong>. Complételos en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
           (botón Editar de la empresa). Esta consulta entra a SUNAT con la clave SOL; no usa las credenciales de API.
-        </div>
+        </Alert>
       ) : null}
 
       {company && !missingSol ? (
         <>
-          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900">
+          <Alert variant="info">
             Esta consulta es la de <strong>NPD (Número de Pago de Detracciones)</strong> del Menú SOL de SUNAT: los NPD que generó la empresa para pagar
             detracciones, con su estado y fecha límite de pago. Se busca por <strong>fecha de generación</strong> (hasta 12 meses por consulta). Es solo
             lectura: desde aquí no se puede anular ningún NPD.
-          </div>
+          </Alert>
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
             <div className="min-w-0 space-y-5">
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-end gap-3">
                   <label className="text-xs text-slate-600">
                     <span className="mb-0.5 block">Generados desde</span>

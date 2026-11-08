@@ -16,6 +16,7 @@ import {
 } from '../../services/activityConfiguration';
 import { formatDateTime } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 const COMPARE_MODES: { value: ActivityRuleCompareMode; label: string }[] = [
   { value: 'date', label: 'Fecha (mismo día = a tiempo)' },
@@ -201,9 +202,9 @@ const ActivityConfigurationSettings = () => {
   if (!canView) {
     return (
       <div className="mx-auto max-w-5xl p-6">
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert variant="error">
           No tienes permisos para acceder a esta pantalla.
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -217,7 +218,7 @@ const ActivityConfigurationSettings = () => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <section className="space-y-4">

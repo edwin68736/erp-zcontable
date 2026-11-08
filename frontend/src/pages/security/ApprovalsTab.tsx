@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { apiErrorMessage, securityService, type PendingApproval } from '../../services/security';
 import { timeAgo } from '../tools/buzon/buzonUi';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 /** Equipos nuevos que esperan que un administrador los apruebe (la persona está mirando la pantalla de espera). */
 export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApproval[] | null; onChanged: () => void }) {
@@ -27,8 +28,8 @@ export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApprova
       <p className="text-sm text-slate-500">
         Alguien está entrando desde un equipo nuevo y pidió que usted lo apruebe. <strong>Confirme primero con la persona</strong> (llámela o hable con ella): quien robó una contraseña también podría pedir la aprobación. No puede aprobar su propio equipo.
       </p>
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
-      <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {error ? <Alert variant="error">{error}</Alert> : null}
+      <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
         {(rows ?? []).map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
             <div className="min-w-0 flex-1">
@@ -43,7 +44,7 @@ export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApprova
               type="button"
               disabled={busyId === r.id}
               onClick={() => void decide(r, true)}
-              className="rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               Aprobar
             </button>
@@ -51,7 +52,7 @@ export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApprova
               type="button"
               disabled={busyId === r.id}
               onClick={() => void decide(r, false)}
-              className="rounded-full border border-red-300 px-4 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+              className="rounded-lg border border-red-300 px-4 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
             >
               Rechazar
             </button>

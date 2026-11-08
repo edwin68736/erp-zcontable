@@ -322,13 +322,13 @@ const ActivityModalWithTemplate = ({
           </p>
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 pb-4">
-            <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving || !canSave}
-              className="px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              className="px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {saving ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : null}
               {isEdit ? 'Guardar fechas' : 'Crear actividad'}

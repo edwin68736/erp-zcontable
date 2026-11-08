@@ -59,7 +59,7 @@ export function PdtSummarySection({
       <div>
         <h3 className="text-sm font-semibold text-slate-800">Declaraciones PDT 601/621</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Resumen por tipo a partir de controles y declaraciones del período. Haga clic en un estado para ver las
+          Resumen por tipo a partir de controles y declaraciones del periodo. Haga clic en un estado para ver las
           empresas.
         </p>
       </div>
@@ -144,7 +144,7 @@ function PdtAssistantPerformanceTable({
           {error}
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500">Sin empresas con asistente asignado en este período/alcance.</p>
+        <p className="text-sm text-slate-500">Sin empresas con asistente asignado en este periodo/alcance.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
@@ -233,7 +233,7 @@ function PdtTypeCard({
           />
         ) : null}
         {/* Solo PDT 601 tiene el concepto "sin planilla" (PDT 621 siempre trae 0 acá) — no se
-            cuenta como pendiente: la empresa no tiene nada que declarar en el período. */}
+            cuenta como pendiente: la empresa no tiene nada que declarar en el periodo. */}
         {summary.sin_planilla > 0 ? (
           <PdtMiniStat
             label="Sin planilla"
@@ -253,7 +253,7 @@ function PdtTypeCard({
           />
         ) : null}
       </div>
-      <p className="text-2xs text-slate-400 mt-3">Total en período: {summary.total}</p>
+      <p className="text-2xs text-slate-400 mt-3">Total en periodo: {summary.total}</p>
     </div>
   );
 }
@@ -416,7 +416,7 @@ function PdtBucketCompaniesModal({
               {declarationLabel} — {open.label}
             </p>
             <p className="text-xs text-slate-500">
-              Período {filters.periodYm} · {total} {total === 1 ? 'empresa' : 'empresas'}
+              Periodo {filters.periodYm} · {total} {total === 1 ? 'empresa' : 'empresas'}
             </p>
           </div>
           <button

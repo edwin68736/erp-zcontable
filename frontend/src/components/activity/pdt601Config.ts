@@ -17,7 +17,7 @@ export const PDT601_STATUSES = [
   { value: 'entregado', label: 'Entregado' },
 ] as const;
 
-/** Régimen laboral de la empresa para el período — obligatorio, sin valor por defecto (fuerza a
+/** Régimen laboral de la empresa para el periodo — obligatorio, sin valor por defecto (fuerza a
  * elegir). Fuente única de labels/valores, compartida entre el detalle, el listado y el export
  * Excel de PDT 601 (ver Pdt601DetailPage.tsx, Pdt601ListPage.tsx, pdt601ExcelExport.ts). */
 export const PDT601_REGIMEN_LABORAL_OPTIONS = [

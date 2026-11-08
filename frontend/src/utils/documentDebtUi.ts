@@ -53,7 +53,7 @@ export function documentPeriodLabel(d: Document): string {
   return ((d.accounting_period ?? '').trim() || (d.service_month ?? '').trim()) || '';
 }
 
-/** «Descripción - YYYY-MM», sin la palabra «período». */
+/** «Descripción - YYYY-MM», sin la palabra «periodo». */
 export function joinDebtDescAndPeriod(description: string, periodYm: string): string {
   const desc = description.trim();
   const period = periodYm.trim();

@@ -19,6 +19,7 @@ import {
   getLogoPngBlobForAccountPdf,
 } from '../pdf/companyAccountStatementPdf';
 import PageHeading from '../components/ui/PageHeading';
+import Alert from '../components/ui/Alert';
 
 const DEFAULT_STATEMENT_WHATSAPP =
   'Puedes solicitar tu estado de cuenta a través del grupo de WhatsApp de tu empresa o comunicándote a los números oficiales de ZContable.';
@@ -293,9 +294,9 @@ function BankStatementView({
 
   if (!ledger) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <Alert variant="warning">
         No se pudo armar el libro del periodo. Actualice la página o contacte al administrador.
-      </div>
+      </Alert>
     );
   }
 
@@ -822,13 +823,13 @@ const CompanyStatement = () => {
   if (!data) {
     return (
       <div className="space-y-6">
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert variant="error">
           {error || 'Empresa no encontrada'}
-        </div>
+        </Alert>
         <button
           type="button"
           onClick={() => navigate('/companies')}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver a empresas
         </button>
@@ -845,13 +846,13 @@ const CompanyStatement = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             to={`/documents/new?company_id=${data.Company.id}`}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-700 text-white text-xs font-medium shadow-sm hover:bg-primary-800"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-700 text-white text-xs font-medium shadow-sm hover:bg-primary-800"
           >
             <i className="fas fa-file-invoice-dollar text-xs"></i> Registrar cargo
           </Link>
           <Link
             to="/companies"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             <i className="fas fa-arrow-left text-xs"></i> Volver a empresas
           </Link>
@@ -874,7 +875,7 @@ const CompanyStatement = () => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {!ledgerMatchesFilters && loading ? (

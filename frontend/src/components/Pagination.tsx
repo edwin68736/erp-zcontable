@@ -134,7 +134,7 @@ const Pagination = ({
             type="button"
             onClick={handleLast}
             disabled={safePage >= totalPages}
-            className="hidden sm:inline-flex items-center px-3 py-2 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            className="hidden sm:inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
           >
             Último <i className="fas fa-angles-right ml-1"></i>
           </button>

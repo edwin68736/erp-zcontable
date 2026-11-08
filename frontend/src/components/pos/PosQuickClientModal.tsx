@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom';
 import { posSalesService } from '../../services/posSales';
 import type { Company } from '../../types/dashboard';
+import Alert from '../../components/ui/Alert';
 
 function docDigits(raw: string): string {
   return raw.replace(/\D/g, '');
@@ -155,7 +156,7 @@ const PosQuickClientModal = ({ open, initialSearch = '', onClose, onCreated }: P
         </div>
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
           {error ? (
-            <p className="text-sm text-red-600 rounded-lg bg-red-50 border border-red-100 px-3 py-2">{error}</p>
+            <Alert variant="error">{error}</Alert>
           ) : null}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">DNI / RUC</label>
@@ -222,14 +223,14 @@ const PosQuickClientModal = ({ open, initialSearch = '', onClose, onCreated }: P
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="rounded-full border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving || validating}
-              className="rounded-full bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+              className="rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {saving ? 'Guardando…' : 'Registrar cliente'}
             </button>

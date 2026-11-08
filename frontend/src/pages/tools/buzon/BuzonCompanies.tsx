@@ -6,6 +6,7 @@ import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from
 import { sunatBuzonService, type BuzonSync } from '../../../services/sunatBuzon';
 import { INPUT_CLS } from '../sire/sireUi';
 import { buzonBadge, timeAgo } from './buzonUi';
+import Alert from '../../../components/ui/Alert';
 
 const PER_PAGE = 20;
 
@@ -67,7 +68,7 @@ const BuzonCompanies = () => {
         <PageHeading hint="Buzón electrónico de cada empresa. Se sincroniza todas las noches a la 1:00 a. m.; también puede sincronizar una empresa a la vez desde su pantalla.">Notificaciones SUNAT</PageHeading>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <form
           className="min-w-[14rem] flex-1"
           onSubmit={(e) => {
@@ -98,14 +99,14 @@ const BuzonCompanies = () => {
       </div>
 
       {running ? (
-        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" role="status">
+        <Alert variant="info">
           <i className="fas fa-spinner fa-spin mr-1.5" aria-hidden />
           Se está sincronizando una empresa ahora mismo. Las demás sincronizaciones esperan a que termine.
-        </p>
+        </Alert>
       ) : null}
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>

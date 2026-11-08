@@ -7,6 +7,7 @@ import { auth } from '../services/auth';
 import type { FinanceOverview } from '../types/dashboard';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { periodDebtMoraBadge } from '../utils/periodDebtScore';
+import Alert from '../components/ui/Alert';
 
 const money = (n: number) => `S/ ${Math.round(n).toLocaleString('es-PE')}`;
 const money2 = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -108,13 +109,13 @@ const Dashboard = () => {
   }
   if (error || !data) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
+      <Alert variant="error" className="text-center">
         <p className="mb-2 font-bold">Error</p>
         <p>{error || 'No se pudieron cargar los datos'}</p>
         <button onClick={() => window.location.reload()} className="mt-4 rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-50">
           Reintentar
         </button>
-      </div>
+      </Alert>
     );
   }
 
@@ -312,7 +313,7 @@ const Dashboard = () => {
           <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
             <div className="min-w-0" style={{ flex: '1.1 1 340px' }}>
               <h2 className="m-0 text-[15px] font-extrabold">Antigüedad de la deuda</h2>
-              <p className="mb-3 mt-[2px] text-[11.5px] text-slate-500">{money(agingTotal)} por cobrar, según los meses de atraso del período de cada cargo</p>
+              <p className="mb-3 mt-[2px] text-[11.5px] text-slate-500">{money(agingTotal)} por cobrar, según los meses de atraso del periodo de cada cargo</p>
               <div className="flex h-[18px] gap-[2px] overflow-hidden rounded-[9px] bg-[#EEF3F0]" role="img" aria-label="Distribución de la deuda por antigüedad">
                 {data.aging.map((a, i) => (
                   <div key={a.key} style={{ width: `${agingTotal > 0 ? (a.amount / agingTotal) * 100 : 0}%`, background: AGING_COLORS[i] }} />
@@ -421,7 +422,7 @@ const Dashboard = () => {
                 <thead>
                   <tr className="bg-slate-50 text-left text-[10.5px] uppercase tracking-[0.4px] text-slate-500">
                     <th scope="col" className="py-2 pr-2 font-bold">Empresa</th>
-                    <th scope="col" className="p-2 font-bold">Período más antiguo</th>
+                    <th scope="col" className="p-2 font-bold">Periodo más antiguo</th>
                     <th scope="col" className="p-2 font-bold">Atraso</th>
                     <th scope="col" className="p-2 text-right font-bold">Saldo</th>
                     <th scope="col" className="py-2 pl-2 text-right font-bold">Acciones</th>

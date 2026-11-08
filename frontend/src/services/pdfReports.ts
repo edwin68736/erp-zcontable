@@ -3,12 +3,12 @@ import type { SupervisorDeclaration } from './supervisors';
 
 /**
  * Módulos de "informe en PDF" (Informe detracciones, Siscont balances): el asistente carga UN solo PDF
- * por empresa y período con su fecha de cumplimiento; el supervisor lo aprueba u observa. Mismo
+ * por empresa y periodo con su fecha de cumplimiento; el supervisor lo aprueba u observa. Mismo
  * backend y mismas formas para ambos — solo cambia el slug de la URL.
  */
 export type PdfReportSlug = 'informe-detracciones' | 'siscont-balances';
 
-/** Cumplimiento de la fecha vs. la regla del calendario de actividades; 'no_rule' si el período no
+/** Cumplimiento de la fecha vs. la regla del calendario de actividades; 'no_rule' si el periodo no
  * tiene la actividad configurada. */
 export type PdfReportTimeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exempt' | 'no_rule';
 

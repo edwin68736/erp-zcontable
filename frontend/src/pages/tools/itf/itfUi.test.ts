@@ -4,7 +4,7 @@ import { addMonths, colIndex, monthToPeriod, monthsBetween, parseAmount, periodL
 
 const table: ItfTable = {
   titulo: 'Movimientos Acumulados',
-  columnas: ['RUC', 'Declarante', 'Período', 'Tipo', 'Cod. Oper.', 'Base', 'Impuesto'],
+  columnas: ['RUC', 'Declarante', 'Periodo', 'Tipo', 'Cod. Oper.', 'Base', 'Impuesto'],
   filas: [
     ['20100000001', 'BANCO UNO', '202606', 'Afecta', '13', '16,000.00', '0.80'],
     ['20100000001', 'BANCO UNO', '202605', 'Afecta', '13', '1,000.00', '0.05'],
@@ -14,7 +14,7 @@ const table: ItfTable = {
 };
 
 describe('itfUi', () => {
-  it('convierte períodos y meses', () => {
+  it('convierte periodos y meses', () => {
     expect(periodLabel('202605')).toBe('05/2026');
     expect(periodLabel('xx')).toBe('xx');
     expect(monthToPeriod('2026-05')).toBe('202605');
@@ -48,7 +48,7 @@ describe('itfUi', () => {
     expect(colIndex(table, 'no existe')).toBe(-1);
   });
 
-  it('resume por período, ordenado, con base, impuesto y operaciones', () => {
+  it('resume por periodo, ordenado, con base, impuesto y operaciones', () => {
     const r = summarizeByPeriod(table);
     expect(r.map((x) => x.periodo)).toEqual(['202605', '202606']);
     expect(r[1]).toMatchObject({ operaciones: 2, base: 29000 });

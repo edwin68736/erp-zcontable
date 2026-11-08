@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Alert from '../../components/ui/Alert';
 
 type Props = {
   businessName: string;
@@ -65,13 +66,13 @@ const Pdt621ObservacionButton = ({ businessName, periodYm, motivo, observadoPor,
                 <div>
                   <h3 className="text-base font-semibold text-slate-800">Archivador observado</h3>
                   <p className="text-sm text-slate-600 mt-1">
-                    <span className="font-medium text-slate-800">{businessName}</span> · Período {periodYm}
+                    <span className="font-medium text-slate-800">{businessName}</span> · Periodo {periodYm}
                   </p>
                 </div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <Alert variant="warning">
                   <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Motivo de la observación</p>
                   <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{motivo || 'Sin motivo registrado.'}</p>
-                </div>
+                </Alert>
                 {observadoPor || observadoAt ? (
                   <p className="text-xs text-slate-500">
                     Observado{observadoPor ? ` por ${observadoPor}` : ''}

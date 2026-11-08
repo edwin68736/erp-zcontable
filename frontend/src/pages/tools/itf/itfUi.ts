@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { ItfResult, ItfTable } from '../../../services/itf';
 
-/** SUNAT no consulta períodos anteriores a marzo de 2004. */
+/** SUNAT no consulta periodos anteriores a marzo de 2004. */
 export const ITF_MIN_MONTH = '2004-03';
 export const ITF_MAX_MONTHS = 60;
 
@@ -74,9 +74,9 @@ export interface ItfPeriodSummary {
   operaciones: number;
 }
 
-/** Totales por período de los movimientos acumulados (base e impuesto), ordenados por período. */
+/** Totales por periodo de los movimientos acumulados (base e impuesto), ordenados por periodo. */
 export function summarizeByPeriod(t: ItfTable): ItfPeriodSummary[] {
-  const ip = colIndex(t, 'Período');
+  const ip = colIndex(t, 'Periodo');
   const ib = colIndex(t, 'Base');
   const ii = colIndex(t, 'Impuesto');
   if (ip < 0 || ib < 0 || ii < 0) return [];
@@ -95,7 +95,7 @@ export function summarizeByPeriod(t: ItfTable): ItfPeriodSummary[] {
 /** Columnas que se muestran alineadas a la derecha (importes). */
 export const isAmountColumn = (name: string): boolean => ['base', 'impuesto'].includes(norm(name));
 
-/** Excel con las tres tablas del resultado (una hoja por tabla, más un resumen por período). */
+/** Excel con las tres tablas del resultado (una hoja por tabla, más un resumen por periodo). */
 export async function exportItfExcel(res: ItfResult, meta: { empresa: string; ruc: string }): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const style = (row: ExcelJS.Row) => {
@@ -105,13 +105,13 @@ export async function exportItfExcel(res: ItfResult, meta: { empresa: string; ru
       c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     });
   };
-  const title = `Consulta de ITF — ${meta.empresa} (RUC ${meta.ruc}) · períodos ${periodLabel(res.desde)} a ${periodLabel(res.hasta)}`;
+  const title = `Consulta de ITF — ${meta.empresa} (RUC ${meta.ruc}) · periodos ${periodLabel(res.desde)} a ${periodLabel(res.hasta)}`;
 
   const resumen = wb.addWorksheet('Resumen');
   resumen.addRow([title]).font = { bold: true, size: 12 };
   resumen.addRow(['Base imponible referencial calculada por SUNAT a partir del impuesto retenido.']);
   resumen.addRow([]);
-  style(resumen.addRow(['Período', 'Operaciones', 'Base', 'Impuesto (ITF)']));
+  style(resumen.addRow(['Periodo', 'Operaciones', 'Base', 'Impuesto (ITF)']));
   const rows = summarizeByPeriod(res.acumulados);
   for (const r of rows) resumen.addRow([periodLabel(r.periodo), r.operaciones, r.base, r.impuesto]);
   const total = resumen.addRow(['Total', rows.reduce((a, r) => a + r.operaciones, 0), rows.reduce((a, r) => a + r.base, 0), rows.reduce((a, r) => a + r.impuesto, 0)]);

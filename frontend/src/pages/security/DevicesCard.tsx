@@ -4,6 +4,7 @@ import { timeAgo } from '../tools/buzon/buzonUi';
 import { VIA_LABEL } from './deviceUi';
 import { formatDate } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 /** Mis dispositivos: equipos de los que el sistema ya no pide verificación. Se pueden quitar uno por uno. */
 export default function DevicesCard() {
@@ -34,10 +35,10 @@ export default function DevicesCard() {
   };
 
   return (
-    <div className="max-w-xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid="devices-card">
+    <div className="max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" data-testid="devices-card">
       <h2 className="text-sm font-bold text-slate-800">Mis dispositivos de confianza</h2>
       <p className="text-xs text-slate-500">Equipos desde los que no se le pide verificación. Si no reconoce alguno, quítelo y cambie su contraseña.</p>
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
       <ul className="divide-y divide-slate-100">
         {(rows ?? []).map((d) => (
           <li key={d.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">

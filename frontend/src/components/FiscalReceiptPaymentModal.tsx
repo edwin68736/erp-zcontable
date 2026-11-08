@@ -9,6 +9,7 @@ import { documentBalanceAmount, documentDebtSelectLabel } from '../utils/documen
 import SearchableSelect from './SearchableSelect';
 import Button from './ui/Button';
 import { formatAmount } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 type Props = {
   receipt: TukifacFiscalReceipt | null;
@@ -262,7 +263,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
 
         <div className={`flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4 ${allocMode === 'manual' ? 'pb-52' : ''}`}>
           {modalPaymentError ? (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{modalPaymentError}</div>
+            <Alert variant="error">{modalPaymentError}</Alert>
           ) : null}
           <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Datos del pago</p>
@@ -410,9 +411,9 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
                 pendientes, el importe queda como <strong>pago a cuenta</strong>.
               </p>
               {fifoPreviewDocs.length === 0 ? (
-                <p className="text-sm text-sky-900 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
+                <Alert variant="info">
                   Sin deudas pendientes: al confirmar, los S/ {formatAmount(receipt.total)} se registrarán como pago a cuenta.
-                </p>
+                </Alert>
               ) : (
                 <ul className="text-sm text-slate-700 space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
                   {fifoPreviewDocs.map((d) => (
@@ -486,7 +487,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
+            className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
           >
             Cancelar
           </button>

@@ -11,6 +11,7 @@ import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { DAM_MAX_DAYS, exportDamExcel, filterDams, fmtDamAmount, hasRegularizacion } from './damUi';
 import { formatDateTime } from '../../../utils/format';
+import Alert from '../../../components/ui/Alert';
 
 const POLL_MS = 4000;
 
@@ -286,29 +287,29 @@ const DamCompany = () => {
         </div>
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company && missingSol ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Falta cargar: <strong>usuario y clave SOL</strong>. Complételos en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
           (botón Editar de la empresa). Esta consulta entra a SUNAT con la clave SOL; no usa las credenciales de API.
-        </div>
+        </Alert>
       ) : null}
 
       {company && !missingSol ? (
         <>
-          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900">
+          <Alert variant="info">
             Esta consulta es la de <strong>DAM (Declaración Aduanera de Mercancías) de exportación</strong> del Menú SOL de SUNAT, por <strong>fecha de
             numeración</strong> (hasta 3 meses por consulta). La búsqueda de Aduanas es lenta: <strong>puede tardar más de un minuto</strong>. Corre en segundo plano
             y queda en el historial; puede esperar aquí o volver después. Si la empresa no exporta, SUNAT no devuelve resultados.
-          </div>
+          </Alert>
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
             <div className="min-w-0 space-y-5">
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-end gap-3">
                   <label className="text-xs text-slate-600">
                     <span className="mb-0.5 block">Numeradas desde</span>
@@ -370,7 +371,7 @@ const DamCompany = () => {
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      {resp.aviso ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Aviso de SUNAT: {resp.aviso}</p> : null}
+                      {resp.aviso ? <Alert variant="warning">Aviso de SUNAT: {resp.aviso}</Alert> : null}
                       <div className="flex flex-wrap items-end gap-3 text-sm">
                         <div className="rounded-lg border border-slate-200 px-4 py-2">
                           <span className="block text-[10px] font-semibold uppercase text-slate-400">DAM</span>

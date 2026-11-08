@@ -3,8 +3,9 @@ import QRCode from 'qrcode';
 import Button from '../../components/ui/Button';
 import { apiErrorMessage, securityService, type TotpStatus } from '../../services/security';
 import { recoveryCodesText } from './deviceUi';
+import Alert from '../../components/ui/Alert';
 
-const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
+const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
 /**
  * Verificación en dos pasos con una app de autenticación (Google Authenticator, Microsoft Authenticator, Authy…).
@@ -106,7 +107,7 @@ export default function TotpCard({ username }: { username?: string }) {
   };
 
   return (
-    <div className="max-w-xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid="totp-card">
+    <div className="max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" data-testid="totp-card">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-slate-800">Verificación en dos pasos</h2>
         {status ? (
@@ -119,7 +120,7 @@ export default function TotpCard({ username }: { username?: string }) {
         Con una app en su celular (Google Authenticator, Microsoft Authenticator o Authy), cuando entre desde un equipo nuevo le pediremos un código de 6 dígitos. Así nadie entra con solo su contraseña.
       </p>
 
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       {recovery ? (
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4" role="status">

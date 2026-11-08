@@ -38,7 +38,7 @@ export interface PreliminarVentasListResponse {
 /** Lo único que registra el asistente para UNA entrega — Ventas (Base Imponible + No Gravadas por
  * concepto, separadas por tasa IGV 18%/10.5% — igv_aplicable_18/105 dice cuál(es) está(n) activa(s)
  * para esta entrega), opcionalmente un importe aproximado de Compras, y opcionalmente un valor
- * propio de crédito del período anterior (si no se manda, se usa el arrastre automático). Todo lo
+ * propio de crédito del periodo anterior (si no se manda, se usa el arrastre automático). Todo lo
  * demás se calcula (ver Summary). */
 export interface PreliminarVentasRecordInput {
   igv_aplicable_18: boolean;
@@ -62,7 +62,7 @@ export interface PreliminarVentasRecordInput {
   retencion_monto: number;
   percepcion_monto: number;
   /** Fecha de corte de la entrega (YYYY-MM-DD): las ventas son las acumuladas hasta ese día. Sin
-   * guardar, el servidor sugiere la fecha límite de la entrega. Debe caer dentro del mes del período. */
+   * guardar, el servidor sugiere la fecha límite de la entrega. Debe caer dentro del mes del periodo. */
   cutoff_date?: string;
   /** Régimen del pago a cuenta de renta: mype | rer | general | coeficiente (mismas opciones que la
    * Liquidación). El servidor siempre lo devuelve resuelto. */
@@ -104,7 +104,7 @@ export interface PreliminarVentasSummary {
   renta_rate_pct: number;
   monto_aproximado_renta: number;
   /** De dónde salió el régimen de renta aplicado: "entrega" (elegido en esta entrega), "entrega_1"
-   * (heredado de la entrega 1 del período), "empresa" (ficha de la empresa) o "por_defecto" (la
+   * (heredado de la entrega 1 del periodo), "empresa" (ficha de la empresa) o "por_defecto" (la
    * empresa no lo tiene cargado: se asume MYPE 1 %, igual que la Liquidación). */
   renta_regimen_origen?: 'entrega' | 'entrega_1' | 'empresa' | 'por_defecto';
 }

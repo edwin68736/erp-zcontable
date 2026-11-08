@@ -31,6 +31,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
@@ -261,7 +262,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
   // Fecha límite por grupo de RUC del calendario interno (docs/diseno-limpieza-control-detail-2026-
   // 09-16.md §5.7b) — reemplaza a declaration.due_date (0% de uso real, §3.1) como fuente de
-  // "Vencimiento", con la fecha genérica del control como respaldo si el período no tiene ninguna
+  // "Vencimiento", con la fecha genérica del control como respaldo si el periodo no tiene ninguna
   // actividad "pdt_601" configurada en el calendario.
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
@@ -478,9 +479,9 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
         <Link to={listPath} className="text-sm text-primary-700 hover:underline">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'No se encontró el registro.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -496,7 +497,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           Control Planillas PDT 601 — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Período {periodYm} · RUC {detail.ruc} · Código {detail.code}
+          Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
@@ -582,14 +583,14 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
               // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-                Esta empresa está marcada "Suspendida" en este período (desde Control de
+                Esta empresa está marcada "Suspendida" en este periodo (desde Control de
                 Detracciones) — no aplica observar ni aprobar.
               </p>
             ) : planilla.sin_planilla ? (
               // Sin planilla no hay nada que revisar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-amber-600" aria-hidden />
-                Esta empresa está marcada "Sin planilla" en este período — no aplica observar ni
+                Esta empresa está marcada "Sin planilla" en este periodo — no aplica observar ni
                 aprobar.
               </p>
             ) : declarationLocked ? (
@@ -693,9 +694,9 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-slate-800">Planilla PDT 601 — Período {periodYm}</h2>
+          <h2 className="text-sm font-semibold text-slate-800">Planilla PDT 601 — Periodo {periodYm}</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Datos de planilla del período. Se guardan por empresa y período.
+            Datos de planilla del periodo. Se guardan por empresa y periodo.
           </p>
         </div>
 
@@ -715,7 +716,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>
-              <span className="block font-medium">Esta empresa está suspendida en este período</span>
+              <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
                 Se marcó desde Control de Detracciones — no se puede editar nada acá mientras esté
                 suspendida. Para reactivarla, desmarque la suspensión en Control de Detracciones.
@@ -738,7 +739,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
               className="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
             <span>
-              <span className="block font-medium">Esta empresa no tiene planilla en este período</span>
+              <span className="block font-medium">Esta empresa no tiene planilla en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
                 No es necesario registrar N° de trabajadores, importes ni seguimiento.
               </span>

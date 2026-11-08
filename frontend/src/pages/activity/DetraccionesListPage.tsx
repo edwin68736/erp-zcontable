@@ -35,6 +35,7 @@ import { exportDetraccionesReportExcel } from '../../utils/detraccionesExcelExpo
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
 import { formatDateTime } from '../../utils/format';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -87,7 +88,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const [msg, setMsg] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
 
-  // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
+  // Modal de arrastre de suspensión entre periodos (§5.9.9) — "cualquier usuario" puede resolverlo
   // (§5.9.9.3), así que no se acota a canVerify/canUpload.
   const [carryOverCompanies, setCarryOverCompanies] = useState<SuspensionCarryOverRow[]>([]);
   const [carryOverOpen, setCarryOverOpen] = useState(false);
@@ -139,9 +140,9 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     setPage(1);
   }, [periodYm, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId]);
 
-  // Al entrar (o cambiar de período), se consulta si hay un arrastre de suspensión sin resolver — si
+  // Al entrar (o cambiar de periodo), se consulta si hay un arrastre de suspensión sin resolver — si
   // el usuario cierra el modal sin decidir, NO se recuerda acá: la próxima vez que se entre a este
-  // período (nuevo mount o cambio de periodYm) se vuelve a preguntar, tal como pide §5.9.9.2.
+  // periodo (nuevo mount o cambio de periodYm) se vuelve a preguntar, tal como pide §5.9.9.2.
   useEffect(() => {
     let cancelled = false;
     detraccionesService
@@ -316,16 +317,16 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         </div>
       ) : null}
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
       {actionError ? (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">{actionError}</div>
+        <Alert variant="warning">{actionError}</Alert>
       ) : null}
       {!periodEnabled ? (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm" role="status">
-          <strong>Período {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
-          verificar información de períodos ya terminados. Este período se muestra únicamente para consulta.
-        </div>
+        <Alert variant="warning">
+          <strong>Periodo {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
+          verificar información de periodos ya terminados. Este periodo se muestra únicamente para consulta.
+        </Alert>
       ) : null}
 
       {/*

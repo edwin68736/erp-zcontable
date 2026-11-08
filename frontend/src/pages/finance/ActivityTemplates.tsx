@@ -153,7 +153,7 @@ const ActivityTemplates = () => {
         {canManage ? (
           <Link
             to="/finance/activity-templates/new"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shrink-0"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shrink-0"
           >
             <i className="fas fa-plus text-xs" aria-hidden />
             Nueva plantilla
@@ -214,7 +214,7 @@ const ActivityTemplates = () => {
           <button
             type="button"
             onClick={handleClearFilters}
-            className="px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Limpiar
           </button>
@@ -230,7 +230,7 @@ const ActivityTemplates = () => {
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-slate-600">Código</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-600">Nombre / vista previa</th>

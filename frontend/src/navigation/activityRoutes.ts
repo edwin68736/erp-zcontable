@@ -81,7 +81,7 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
   {
     id: 'detracciones',
     label: 'Control de Detracciones SUNAT',
-    description: 'Seguimiento manual del régimen de detracciones por empresa y período.',
+    description: 'Seguimiento manual del régimen de detracciones por empresa y periodo.',
     icon: 'fas fa-landmark',
     phaseLabel: 'Fase F4',
   },
@@ -102,14 +102,14 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
   {
     id: 'informe-detracciones',
     label: 'Informe detracciones',
-    description: 'Carga del informe de detracciones en PDF por empresa y período.',
+    description: 'Carga del informe de detracciones en PDF por empresa y periodo.',
     icon: 'fas fa-file-invoice-dollar',
     phaseLabel: 'Informes',
   },
   {
     id: 'siscont-balances',
     label: 'Siscont balances',
-    description: 'Carga del balance de Siscont en PDF por empresa y período.',
+    description: 'Carga del balance de Siscont en PDF por empresa y periodo.',
     icon: 'fas fa-balance-scale',
     phaseLabel: 'Informes',
   },

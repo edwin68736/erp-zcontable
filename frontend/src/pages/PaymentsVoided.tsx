@@ -8,6 +8,7 @@ import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount, formatDateTime } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 // Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.2): vía de auditoría de pagos anulados.
 // Pantalla de SOLO LECTURA, con ruta propia — deliberadamente NUNCA comparte tabla/estado con
@@ -100,7 +101,7 @@ const PaymentsVoided = () => {
         </div>
         <Link
           to="/payments"
-          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs"></i>
           <span>Volver a Pagos</span>
@@ -120,7 +121,7 @@ const PaymentsVoided = () => {
         </div>
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         <table className="min-w-full text-sm text-left">

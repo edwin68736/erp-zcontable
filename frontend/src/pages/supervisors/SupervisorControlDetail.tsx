@@ -261,7 +261,7 @@ const SupervisorControlDetail = () => {
           {control.company?.business_name ?? `Empresa #${control.company_id}`}
         </PageHeading>
         <p className="text-sm text-slate-500">
-          Período {control.period_ym} · {controlStatusLabel(control.general_status)} · Riesgo{' '}
+          Periodo {control.period_ym} · {controlStatusLabel(control.general_status)} · Riesgo{' '}
           {riskLevelLabel(control.risk_level)}
         </p>
       </div>
@@ -278,7 +278,7 @@ const SupervisorControlDetail = () => {
                 setMsg('Información registrada como recibida.');
               });
             }}
-            className="px-4 py-2 rounded-full border border-primary-200 text-primary-800 text-sm font-medium hover:bg-primary-50"
+            className="px-4 py-2 rounded-lg border border-primary-200 text-primary-800 text-sm font-medium hover:bg-primary-50"
           >
             Registrar recepción de información
           </button>
@@ -412,7 +412,7 @@ const SupervisorControlDetail = () => {
               de uso real en producción (nunca salieron de "Pendiente") no justifica mantener una vía
               de edición. */}
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3">Tipo</th>
                 <th className="text-left px-4 py-3">Estado</th>
@@ -581,7 +581,7 @@ const SupervisorControlDetail = () => {
                   <button
                     type="button"
                     onClick={() => void saveLiquidation()}
-                    className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm"
+                    className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm"
                   >
                     Guardar liquidación
                   </button>
@@ -593,7 +593,7 @@ const SupervisorControlDetail = () => {
                       onClick={() => {
                         void supervisorsService.approveLiquidation(controlId).then(() => load());
                       }}
-                      className="px-4 py-2 rounded-full border border-primary-600 text-primary-700 text-sm"
+                      className="px-4 py-2 rounded-lg border border-primary-600 text-primary-700 text-sm"
                     >
                       Aprobar liquidación
                     </button>
@@ -614,7 +614,7 @@ const SupervisorControlDetail = () => {
               </div>
             </>
           ) : (
-            <p className="text-sm text-slate-500">Sin liquidación (se crea al generar el control del período).</p>
+            <p className="text-sm text-slate-500">Sin liquidación (se crea al generar el control del periodo).</p>
           )}
         </div>
       ) : null}
@@ -650,7 +650,7 @@ const SupervisorControlDetail = () => {
                   <button
                     type="button"
                     onClick={() => void addObservation()}
-                    className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm"
+                    className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm"
                   >
                     Agregar
                   </button>
@@ -715,7 +715,7 @@ const SupervisorControlDetail = () => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 rounded-full border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
                   >
                     Subir archivo
                   </button>

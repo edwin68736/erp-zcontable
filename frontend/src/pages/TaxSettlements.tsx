@@ -11,6 +11,7 @@ import TableRowMoreMenu from '../components/TableRowMoreMenu';
 import { usePermission } from '../rbac/hooks';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
+import Alert from '../components/ui/Alert';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -290,7 +291,7 @@ const TaxSettlements = () => {
         {canCreate ? (
           <Link
             to="/tax-settlements/new"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 shadow-sm"
           >
             <i className="fas fa-plus text-xs" aria-hidden />
             Nueva liquidación
@@ -305,7 +306,7 @@ const TaxSettlements = () => {
         </div>
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         <table className="min-w-full text-sm text-left">

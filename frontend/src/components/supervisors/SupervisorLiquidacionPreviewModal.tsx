@@ -10,6 +10,7 @@ import {
 } from '../../utils/companyTaxRegime';
 import { type TaxSettlementSectionsPayload } from '../../utils/taxSettlementSections';
 import { TaxSettlementSectionsSummary } from '../taxSettlements/TaxSettlementSectionsSummary';
+import Alert from '../../components/ui/Alert';
 
 type Props = {
   open: boolean;
@@ -114,9 +115,9 @@ const SupervisorLiquidacionPreviewModal = ({
           {hasSections ? (
             <TaxSettlementSectionsSummary sections={taxSections} />
           ) : (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <Alert variant="warning">
               No hay secciones fiscales activas. Active al menos PDT 621, 601 o ITAN para registrar montos.
-            </div>
+            </Alert>
           )}
         </div>
 
@@ -125,7 +126,7 @@ const SupervisorLiquidacionPreviewModal = ({
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+            className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
           >
             Cerrar
           </button>
@@ -133,7 +134,7 @@ const SupervisorLiquidacionPreviewModal = ({
             type="button"
             disabled={saving}
             onClick={onSave}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
           >
             {saving ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : null}
             {isEdit ? 'Guardar cambios' : 'Guardar liquidación'}

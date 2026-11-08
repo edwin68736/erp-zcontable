@@ -39,6 +39,7 @@ import { exportSunatInboxReportExcel } from '../../utils/sunatInboxExcelExport';
 import { useElementHeight } from '../../hooks/useElementHeight';
 import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -484,7 +485,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       </div>
 
       {verifyError ? (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{verifyError}</div>
+        <Alert variant="error">{verifyError}</Alert>
       ) : null}
 
       {msg ? (
@@ -492,7 +493,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       ) : null}
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {/*
@@ -566,7 +567,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           <span className="block truncate">{row.assistant_username || '—'}</span>
                         </td>
                         <td className={TD}>
-                          {/* Suspendida es un overlay global del período (§5.9.7/§5.9.8), no un
+                          {/* Suspendida es un overlay global del periodo (§5.9.7/§5.9.8), no un
                               estado más del buzón — pisa el label/color acá en vez de mostrarse
                               aparte junto a la razón social (mismo criterio que Detracciones y
                               Preliminar de Ventas). */}

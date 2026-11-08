@@ -17,6 +17,7 @@ import { peruDateInputFromApiDate } from '../utils/peruDates';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import { usePdfObjectUrl } from '../hooks/usePdfObjectUrl';
+import Alert from '../components/ui/Alert';
 
 function formatPaymentDate(iso?: string): string {
   const d = peruDateInputFromApiDate(iso);
@@ -343,7 +344,7 @@ const Payments = () => {
         {canViewVoided ? (
           <Link
             to="/payments/voided"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <i className="fas fa-ban text-xs"></i>
             <span>Pagos anulados</span>
@@ -352,7 +353,7 @@ const Payments = () => {
         {canCreate ? (
           <Link
             to="/payments/new"
-            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
           >
             <i className="fas fa-plus text-xs"></i>
             <span>Nuevo pago</span>
@@ -409,9 +410,9 @@ const Payments = () => {
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error">
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -538,7 +539,7 @@ const Payments = () => {
                         {canEdit && !isAppliedPayment(payment) ? (
                           <Link
                             to={`/payments/${payment.id}/edit`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
                           >
                             <i className="fas fa-pen mr-1"></i> Editar
                           </Link>
@@ -547,7 +548,7 @@ const Payments = () => {
                           <button
                             type="button"
                             onClick={() => setDeleteTarget(payment)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
                           >
                             <i className="fas fa-trash mr-1"></i> Eliminar
                           </button>

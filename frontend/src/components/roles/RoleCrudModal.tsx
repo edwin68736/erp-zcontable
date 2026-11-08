@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { RoleCreateInput, RoleRow, RoleUpdateInput } from '../../services/roles';
+import Alert from '../../components/ui/Alert';
 
 type Mode = 'create' | 'edit' | null;
 
@@ -87,7 +88,7 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col flex-1 min-h-0">
           <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
             {error ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
+              <Alert variant="error">{error}</Alert>
             ) : null}
 
             <div>
@@ -121,14 +122,14 @@ const RoleCrudModal = ({ open, mode, role, saving, error, onClose, onCreate, onU
             <button
               type="button"
               onClick={() => !saving && onClose()}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-white"
+              className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-white"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving || !name.trim()}
-              className="px-5 py-2 rounded-xl bg-primary-700 text-white text-sm font-semibold hover:bg-primary-800 disabled:opacity-50"
+              className="px-5 py-2 rounded-lg bg-primary-700 text-white text-sm font-semibold hover:bg-primary-800 disabled:opacity-50"
             >
               {saving ? <i className="fas fa-spinner fa-spin mr-2" /> : null}
               {mode === 'create' ? 'Crear rol' : 'Guardar'}

@@ -26,6 +26,7 @@ import { supervisorsService, type SupervisorAttachment, type SupervisorDeclarati
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import Alert from '../../components/ui/Alert';
 
 type PdfReportDetailPageProps = {
   workspace: ActivityWorkspace;
@@ -53,7 +54,7 @@ function isPdf(file: File): boolean {
 
 /**
  * Detalle de un módulo de informe en PDF (Informe detracciones / Siscont balances) para una empresa y
- * período. El asistente carga un solo PDF con su fecha de cumplimiento (cargar otro lo reemplaza; se
+ * periodo. El asistente carga un solo PDF con su fecha de cumplimiento (cargar otro lo reemplaza; se
  * admite arrastrar y soltar); el supervisor lo aprueba ("Entregado") u observa con un motivo, y con el
  * permiso dedicado puede reabrir una entrega ya aprobada.
  */
@@ -265,9 +266,9 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
         <Link to={listPath} className="text-sm text-primary-700 hover:underline">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'No se encontró el registro.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -285,7 +286,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
           {mod.title} — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Período {periodYm} · RUC {detail.ruc} · Código {detail.code}
+          Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
@@ -360,7 +361,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
             {suspendida ? (
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-                Esta empresa está marcada "Suspendida" en este período (desde Control de Detracciones) — no aplica
+                Esta empresa está marcada "Suspendida" en este periodo (desde Control de Detracciones) — no aplica
                 observar ni aprobar.
               </p>
             ) : locked ? (
@@ -470,7 +471,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>
-              <span className="block font-medium">Esta empresa está suspendida en este período</span>
+              <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
                 Se marcó desde Control de Detracciones — no se puede cargar nada mientras esté suspendida.
               </span>

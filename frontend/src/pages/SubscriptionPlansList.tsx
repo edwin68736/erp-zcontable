@@ -42,7 +42,7 @@ const SubscriptionPlansList = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <PageHeading hint="Planes con tramos por facturación y precio mensual.">Planes de suscripción</PageHeading>
@@ -52,7 +52,7 @@ const SubscriptionPlansList = () => {
             <button
               type="button"
               onClick={() => void runLiq()}
-              className="w-full sm:w-auto px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="w-full sm:w-auto px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               <i className="fas fa-calendar-check mr-2 text-xs"></i>
               Ejecutar liquidación mensual
@@ -61,7 +61,7 @@ const SubscriptionPlansList = () => {
           {canEdit ? (
             <Link
               to="/subscription-plans/new"
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium"
             >
               <i className="fas fa-plus text-xs"></i> Nuevo plan
             </Link>
@@ -74,7 +74,7 @@ const SubscriptionPlansList = () => {
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3">Plan</th>
                 <th className="text-left px-4 py-3">Categoría</th>

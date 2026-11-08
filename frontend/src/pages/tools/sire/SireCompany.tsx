@@ -22,6 +22,7 @@ import SireCredentialsModal from './SireCredentialsModal';
 import { Card, SireErrorBox, Spinner } from './SireShared';
 import { SELECT_CLS, sireMissing } from './sireUi';
 import { formatDateTime } from '../../../utils/format';
+import Alert from '../../../components/ui/Alert';
 
 const MAX_RANGE = 12;
 const POLL_MS = 3000;
@@ -40,7 +41,7 @@ const TABS: { value: SireLibro; label: string; icon: string }[] = [
 /** Selector segmentado del sistema (mismo estilo que el resto de las herramientas). */
 const segBtn = (active: boolean) => `px-4 py-2 text-sm font-semibold ${active ? 'bg-blue-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`;
 
-/** Todos los períodos AAAAMM del listado de SUNAT, sin repetir y en orden (el listado viene agrupado por año). */
+/** Todos los periodos AAAAMM del listado de SUNAT, sin repetir y en orden (el listado viene agrupado por año). */
 function allPeriods(years: SirePeriodYear[]): string[] {
   return Array.from(new Set(years.flatMap((y) => (y.lisPeriodos ?? []).map((p) => p.perTributario)).filter(Boolean))).sort();
 }
@@ -88,7 +89,7 @@ function HistoryItem({
             ) : item.status === 'listo' ? (
               `${item.rows} ${item.rows === 1 ? 'comprobante' : 'comprobantes'} · listo para descargar`
             ) : item.status === 'sin_datos' ? (
-              'SUNAT no tiene comprobantes en la propuesta de este período.'
+              'SUNAT no tiene comprobantes en la propuesta de este periodo.'
             ) : (
               <span className="text-red-700">
                 {item.error_message || 'No se pudo completar la consulta.'}
@@ -236,7 +237,7 @@ const SireCompany = () => {
   const monthsOfYear = useMemo(() => periodList.filter((p) => p.startsWith(year)), [periodList, year]);
   const rangeOptions = useMemo(() => periodList.map((p) => ({ value: p, label: formatSirePeriod(p) })), [periodList]);
   const rangePeriods = useMemo(() => (desde && hasta ? periodsBetween(desde, hasta) : []), [desde, hasta]);
-  const rangeError = !rangeOpen || !desde || !hasta ? '' : rangePeriods.length === 0 ? 'El período «desde» no puede ser posterior a «hasta».' : rangePeriods.length > MAX_RANGE ? `El rango máximo es de ${MAX_RANGE} períodos.` : '';
+  const rangeError = !rangeOpen || !desde || !hasta ? '' : rangePeriods.length === 0 ? 'El periodo «desde» no puede ser posterior a «hasta».' : rangePeriods.length > MAX_RANGE ? `El rango máximo es de ${MAX_RANGE} periodos.` : '';
 
   const start = async (lb: SireLibro, periods: string[]) => {
     setBusy(true);
@@ -340,10 +341,10 @@ const SireCompany = () => {
         ) : null}
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company && missing ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Falta cargar: <strong>{missing}</strong>. Complételo en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
@@ -357,7 +358,7 @@ const SireCompany = () => {
               </Button>
             </div>
           ) : null}
-        </div>
+        </Alert>
       ) : null}
 
       {company && credOpen ? (
@@ -365,7 +366,7 @@ const SireCompany = () => {
       ) : null}
 
       {testState === 'ok' ? (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">Conexión correcta: SUNAT aceptó las credenciales de API de esta empresa.</p>
+        <Alert variant="success">Conexión correcta: SUNAT aceptó las credenciales de API de esta empresa.</Alert>
       ) : typeof testState === 'object' ? (
         <SireErrorBox error={testState} />
       ) : null}
@@ -382,7 +383,7 @@ const SireCompany = () => {
           </div>
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
-            <Card title={`Descarga individual (${tabLabel})`} subtitle="Elija el período y SUNAT preparará el Excel; el resultado queda en el historial.">
+            <Card title={`Descarga individual (${tabLabel})`} subtitle="Elija el periodo y SUNAT preparará el Excel; el resultado queda en el historial.">
               <div className="space-y-3">
                 <div>
                   <span className="mb-0.5 block text-xs text-slate-600">Empresa</span>
@@ -413,7 +414,7 @@ const SireCompany = () => {
                       </select>
                     </label>
                     <label className="text-xs text-slate-600">
-                      <span className="mb-0.5 block">Período</span>
+                      <span className="mb-0.5 block">Periodo</span>
                       <select value={period} disabled={periodsLoading || monthsOfYear.length === 0} onChange={(e) => setPeriod(e.target.value)} className={`${SELECT_CLS} w-full`}>
                         {monthsOfYear.map((p) => (
                           <option key={p} value={p}>
@@ -469,14 +470,14 @@ const SireCompany = () => {
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                   <Button disabled={submitDisabled} onClick={() => void start(libro, rangeOpen ? rangePeriods : [period])}>
                     <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-download'} mr-1.5`} aria-hidden />
-                    {rangeOpen ? `Consultar ${rangePeriods.length || ''} ${rangePeriods.length === 1 ? 'período' : 'períodos'}` : 'Consultar y descargar'}
+                    {rangeOpen ? `Consultar ${rangePeriods.length || ''} ${rangePeriods.length === 1 ? 'periodo' : 'periodos'}` : 'Consultar y descargar'}
                   </Button>
                   <button type="button" onClick={() => setRangeOpen((v) => !v)} className="text-xs font-semibold text-primary-700 hover:underline">
-                    {rangeOpen ? 'Volver a un solo período' : 'Consultar un rango de períodos'}
+                    {rangeOpen ? 'Volver a un solo periodo' : 'Consultar un rango de periodos'}
                   </button>
                 </div>
 
-                {periodsLoading ? <Spinner label="Consultando períodos en SUNAT…" /> : null}
+                {periodsLoading ? <Spinner label="Consultando periodos en SUNAT…" /> : null}
                 {periodsError ? <SireErrorBox error={periodsError} onRetry={() => void loadPeriods()} /> : null}
               </div>
             </Card>
@@ -488,7 +489,7 @@ const SireCompany = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{items.length}</span>
                   {readyOfTab.length >= 2 ? (
-                    <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={merging} onClick={() => void mergeReady()} title="Junta los Excel listos de esta pestaña en un solo archivo, con una hoja por período">
+                    <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={merging} onClick={() => void mergeReady()} title="Junta los Excel listos de esta pestaña en un solo archivo, con una hoja por periodo">
                       <i className={`fas ${merging ? 'fa-spinner fa-spin' : 'fa-object-group'} mr-1.5`} aria-hidden />
                       Unir {tabLabel.toLowerCase()} en un Excel
                     </Button>
@@ -512,7 +513,7 @@ const SireCompany = () => {
               ) : null}
 
               {items.length === 0 ? (
-                <p className="py-10 text-center text-sm text-slate-500">Aún no hay consultas. Elija el período y pulse «Consultar y descargar»: aquí quedará el resultado.</p>
+                <p className="py-10 text-center text-sm text-slate-500">Aún no hay consultas. Elija el periodo y pulse «Consultar y descargar»: aquí quedará el resultado.</p>
               ) : (
                 <ul className="space-y-2">
                   {items.map((it) => (

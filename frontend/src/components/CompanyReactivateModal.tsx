@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CompanyRucConflict } from '../services/companies';
 import { formatDate } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 const CONFLICT_COPY: Record<'inactiva' | 'eliminada', { title: string; state: (c: CompanyRucConflict) => string }> = {
   inactiva: {
@@ -62,7 +63,7 @@ const CompanyReactivateModal = ({ conflict, initialCode, saving, error, onCancel
             className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm outline-none focus:ring-2 focus:ring-primary-500"
           />
         </label>
-        {error ? <p className="m-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+        {error ? <Alert variant="error" className="m-0">{error}</Alert> : null}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             Cancelar

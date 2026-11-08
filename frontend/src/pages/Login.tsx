@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, isLoginChallenge, type LoginChallenge, type LoginResponse } from '../services/auth';
 import { apiErrorMessage } from '../services/security';
+import Alert from '../components/ui/Alert';
 
 const INPUT =
   'w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 outline-none transition shadow-inner';
@@ -150,22 +151,22 @@ const Login = () => {
             </div>
 
             {notice && !error && !challenge && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900" role="status">
+              <Alert variant="warning" className="mb-4 text-left">
                 {notice}
-              </div>
+              </Alert>
             )}
 
             {error && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-left" role="alert">
+              <Alert variant="error" className="mb-4 text-left">
                 {error}
-              </div>
+              </Alert>
             )}
 
             {challenge ? (
               <div className="space-y-5 text-left" data-testid="verification-step">
-                <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                <Alert variant="info">
                   Está entrando desde un <strong>equipo nuevo</strong> ({challenge.device_label || 'navegador'}). Por seguridad, hay que confirmar que es usted.
-                </div>
+                </Alert>
 
                 {approval === 'waiting' ? (
                   <div className="space-y-3 text-center" role="status">

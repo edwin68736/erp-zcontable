@@ -337,7 +337,7 @@ const Header = ({
                               <p className="text-xs font-semibold text-slate-800 truncate">{n.title}</p>
                               <p className="text-2xs text-slate-500 line-clamp-2">{n.message}</p>
                               {n.period_ym ? (
-                                <p className="text-2xs text-slate-400 mt-0.5">Período {n.period_ym}</p>
+                                <p className="text-2xs text-slate-400 mt-0.5">Periodo {n.period_ym}</p>
                               ) : null}
                             </Link>
                           ))}

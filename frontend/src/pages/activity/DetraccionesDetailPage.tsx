@@ -25,6 +25,7 @@ import { detraccionesService, type DetraccionesDetail } from '../../services/det
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
+import Alert from '../../components/ui/Alert';
 
 type DetraccionesDetailPageProps = {
   workspace: ActivityWorkspace;
@@ -200,9 +201,9 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
         <Link to={listPath} className="text-sm text-primary-700 hover:underline">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'No se encontró el registro.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -226,16 +227,16 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
           Control de Detracciones SUNAT — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Período {periodYm} · RUC {detail.ruc} · Código {detail.code}
+          Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
 
       {!periodEnabled ? (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm" role="status">
-          <strong>Período {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
-          verificar información de períodos ya terminados. Este período se muestra únicamente para consulta.
-        </div>
+        <Alert variant="warning">
+          <strong>Periodo {periodYm} aún no habilitado.</strong> Las detracciones se registran «pasando el mes»: solo se puede cargar, marcar o
+          verificar información de periodos ya terminados. Este periodo se muestra únicamente para consulta.
+        </Alert>
       ) : null}
 
       {msg ? (
@@ -306,7 +307,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
               className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
             />
             <span>
-              <span className="block font-medium">Esta empresa está suspendida en este período</span>
+              <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
                 Se aplica a Control de Detracciones, PDT 601, PDT 621 y Buzón SOL — no se registra
                 ningún otro dato en ninguno de estos módulos mientras esté suspendida.

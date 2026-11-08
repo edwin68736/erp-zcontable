@@ -25,6 +25,7 @@ import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPdfReportExcel } from '../../utils/pdfReportExcelExport';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -229,7 +230,7 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
       ) : null}
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-clip">

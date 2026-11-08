@@ -13,6 +13,7 @@ import {
   type ReceiptPdfFormat,
 } from '../pdf/fiscalReceiptPdf';
 import type { FirmBranding } from '../pdf/fiscalReceiptPdf';
+import Alert from '../components/ui/Alert';
 
 type Props = {
   open: boolean;
@@ -171,7 +172,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+            <Alert variant="error">{error}</Alert>
           ) : loading || loadingPreview ? (
             <p className="flex h-[min(420px,55vh)] items-center justify-center text-sm text-slate-500">
               <i className="fas fa-spinner fa-spin mr-2" />
@@ -199,7 +200,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
                 await downloadFiscalReceiptPdf(receipt, firm, undefined, format);
               })
             }
-            className="inline-flex items-center gap-2 rounded-full border border-primary-300 bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary-300 bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
           >
             <i className="fas fa-download text-xs" />
             Descargar {downloadName}
@@ -216,7 +217,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
                 );
               }
             }}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <i className="fas fa-print text-xs" />
             Imprimir
@@ -225,7 +226,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="ml-auto inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="ml-auto inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Cerrar
           </button>

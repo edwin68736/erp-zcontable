@@ -59,7 +59,7 @@ const IdleLogoutGuard = () => {
           </strong>
           .
         </p>
-        <button type="button" onClick={stay} className="mt-4 w-full rounded-full bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800">
+        <button type="button" onClick={stay} className="mt-4 w-full rounded-lg bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800">
           Seguir conectado
         </button>
         <p className="mt-2 text-2xs text-slate-400">Cierra a los {Math.round(IDLE_LIMIT_MS / 60000)} min sin uso.</p>

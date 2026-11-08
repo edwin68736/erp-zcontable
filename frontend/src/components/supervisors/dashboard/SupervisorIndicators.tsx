@@ -387,13 +387,13 @@ const SupervisorIndicatorsPanel = ({ params, reloadKey = 0 }: Props) => {
           <div className="flex flex-wrap gap-3">
             <Section title="Revisión de buzones" hint="Capturas SUNAT y SUNAFIL por asistente: a tiempo, pendientes (incluye vencidas sin subir) y subidas fuera de plazo.">
               {data.mailboxes.length === 0 ? (
-                <p className="py-8 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este período.</p>
+                <p className="py-8 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este periodo.</p>
               ) : (
                 <MailboxChart rows={data.mailboxes} />
               )}
             </Section>
             <Section title="KPI 2: Entrega de planillas por RUC" hint="Empresas con planilla por dígito de RUC y cuántas entregaron dentro del plazo del calendario (PDT 601).">
-              {k2 && k2.total.total > 0 ? <DigitColumns digits={k2.by_digit} okLabel="Dentro de plazo" /> : <p className="py-8 text-center text-xs text-slate-500">Sin planillas en este período.</p>}
+              {k2 && k2.total.total > 0 ? <DigitColumns digits={k2.by_digit} okLabel="Dentro de plazo" /> : <p className="py-8 text-center text-xs text-slate-500">Sin planillas en este periodo.</p>}
             </Section>
           </div>
 

@@ -49,6 +49,7 @@ import {
   type CompanyTaxRegime,
   type LiquidationRentaRegime,
 } from '../../utils/companyTaxRegime';
+import Alert from '../../components/ui/Alert';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -402,7 +403,7 @@ const SupervisorLiquidacionCreatePage = () => {
   // - igv: "SALDO A FAVOR (FINAL)" (p621.saldo_favor_final) — el mismo campo que ya se usa para la
   //   fila principal "Impuesto a pagar (IGV)" en el panel de Finanzas y en el PDF v2
   //   (getPdt621IgvBalanceLabel). Con signo: negativo = crédito fiscal a favor (arrastra crédito
-  //   de períodos anteriores, percepciones y retenciones), cero = neutral, positivo = IGV por
+  //   de periodos anteriores, percepciones y retenciones), cero = neutral, positivo = IGV por
   //   pagar. NUNCA se resta la detracción acá (igual que en la fila principal de Finanzas/PDF) —
   //   antes se sincronizaba getPdt621IgvPendienteSigned, que sí restaba la detracción aplicada, y
   //   el Control PDT 621 terminaba mostrando S/0 cuando en realidad sí había IGV declarado ese mes
@@ -552,9 +553,9 @@ const SupervisorLiquidacionCreatePage = () => {
   if (isView && !canView) {
     return (
       <div className={PAGE_WORKSPACE_CLASS}>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
+        <Alert variant="warning">
           No tiene permiso para visualizar liquidaciones.
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -562,9 +563,9 @@ const SupervisorLiquidacionCreatePage = () => {
   if (!isView && !canSubmit) {
     return (
       <div className={PAGE_WORKSPACE_CLASS}>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
+        <Alert variant="warning">
           No tiene permiso para {isEdit ? 'editar' : 'crear'} liquidaciones.
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -584,9 +585,9 @@ const SupervisorLiquidacionCreatePage = () => {
         <Link to={listBackTo} className="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'Empresa no encontrada o sin acceso.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -634,7 +635,7 @@ const SupervisorLiquidacionCreatePage = () => {
         </p>
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       <section className="w-full min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 md:p-6">
         <h2 className="text-sm font-semibold text-slate-800">Empresa</h2>

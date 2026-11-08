@@ -411,9 +411,9 @@ export const supervisorsService = {
     return res.data.data;
   },
 
-  /** Resumen agregado PDT 601/621 del período — calculado en el servidor con una sola consulta
+  /** Resumen agregado PDT 601/621 del periodo — calculado en el servidor con una sola consulta
    * agrupada (mismos filtros que `dashboard`), en vez de traer todos los controles y
-   * declaraciones del período al navegador para agregarlos ahí. */
+   * declaraciones del periodo al navegador para agregarlos ahí. */
   async pdtDashboardSummary(params: {
     period_ym?: string;
     general_status?: string;
@@ -528,7 +528,7 @@ export interface SupervisorPdtTypeSummary {
   // Solo aplica a PDT 601 (planilla marcada "sin planilla" — ver Pdt601DetailPage): siempre 0
   // en PDT 621, que no tiene ese concepto. No cuenta como "pendiente": no hay nada que declarar.
   sin_planilla: number;
-  // Empresa suspendida en el período (PDT 601 Y PDT 621) — no cuenta como "pendiente" ni
+  // Empresa suspendida en el periodo (PDT 601 Y PDT 621) — no cuenta como "pendiente" ni
   // "vencido": mientras esté suspendida no se registra ningún otro dato.
   suspendida: number;
   total: number;
@@ -617,7 +617,7 @@ export interface AssistantWorkItem {
   ruc?: string;
   module_key: string;
   module_label: string;
-  /** Entrega del mes (1 o 2) en módulos que se envían más de una vez por período (Preliminar de ventas). */
+  /** Entrega del mes (1 o 2) en módulos que se envían más de una vez por periodo (Preliminar de ventas). */
   slot?: number;
   /** Buzón SOL observado: qué buzón/carga (`detail`) y la semana (`week_start`) a la que hay que ir. */
   detail?: string;

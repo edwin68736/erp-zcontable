@@ -163,7 +163,7 @@ const SubscriptionPlanForm = () => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Base para facturación del período (liquidación)</label>
+          <label className="block text-sm font-medium mb-1">Base para facturación del periodo (liquidación)</label>
           <select
             value={billingBasis}
             onChange={(e) => setBillingBasis(e.target.value)}
@@ -266,7 +266,7 @@ const SubscriptionPlanForm = () => {
         <button
           type="submit"
           disabled={!canUpsert}
-          className="px-5 py-2 rounded-full bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
+          className="px-5 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
         >
           Guardar
         </button>

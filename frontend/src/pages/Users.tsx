@@ -7,6 +7,7 @@ import { P } from '../rbac/codes';
 import { formatUserRolesDisplay } from '../rbac/userRoles';
 import PageHeading from '../components/ui/PageHeading';
 import { confirmDialog } from '../utils/confirmDialog';
+import Alert from '../components/ui/Alert';
 
 const Users = () => {
   const canView = useMemo(() => auth.hasPermission(P.usersView), []);
@@ -68,7 +69,7 @@ const Users = () => {
         </div>
         <Link
           to="/users/new"
-          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition disabled:opacity-60"
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition disabled:opacity-60"
           aria-disabled={!canCreate}
           onClick={(e) => {
             if (!canCreate) e.preventDefault();
@@ -80,13 +81,13 @@ const Users = () => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {!canView ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert variant="error">
           No tienes permisos para acceder a esta pantalla
-        </div>
+        </Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -152,7 +153,7 @@ const Users = () => {
                         {canUpdate ? (
                           <Link
                             to={`/users/${user.id}/edit`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
                           >
                             <i className="fas fa-pen mr-1"></i> Editar
                           </Link>
@@ -161,7 +162,7 @@ const Users = () => {
                           type="button"
                           onClick={() => handleDelete(user.id)}
                           disabled={!canDelete}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                         >
                           <i className="fas fa-trash mr-1"></i> Eliminar
                         </button>

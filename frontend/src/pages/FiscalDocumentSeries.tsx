@@ -142,7 +142,7 @@ const FiscalDocumentSeries = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <PageHeading hint="Control local de numeración. El siguiente comprobante usará el correlativo indicado como próximo.">Series y correlativos</PageHeading>
@@ -170,7 +170,7 @@ const FiscalDocumentSeries = () => {
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3">Tipo</th>
                 <th className="text-left px-4 py-3">SUNAT</th>
@@ -304,7 +304,7 @@ const FiscalDocumentSeries = () => {
               <button
                 type="button"
                 disabled={saving || duplicateInForm}
-                className="px-4 py-2 text-sm rounded-full bg-primary-600 text-white disabled:opacity-50"
+                className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white disabled:opacity-50"
                 onClick={() => void submit()}
               >
                 {saving ? 'Guardando…' : 'Guardar'}

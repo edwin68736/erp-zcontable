@@ -3,8 +3,8 @@ import ExcelJS from 'exceljs';
 export type PeriodExcel = { period: string; blob: Blob };
 
 /**
- * Junta varios Excel de la propuesta (uno por período, ya generados por el servidor) en un solo libro con una
- * hoja por período («202610», «202611»…). Cada hoja queda igual que el Excel individual.
+ * Junta varios Excel de la propuesta (uno por periodo, ya generados por el servidor) en un solo libro con una
+ * hoja por periodo («202610», «202611»…). Cada hoja queda igual que el Excel individual.
  */
 export async function mergePeriodExcels(parts: PeriodExcel[]): Promise<Blob> {
   const out = new ExcelJS.Workbook();
@@ -25,7 +25,7 @@ export async function mergePeriodExcels(parts: PeriodExcel[]): Promise<Blob> {
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-/** Períodos AAAAMM entre dos extremos (incluidos), en orden. */
+/** Periodos AAAAMM entre dos extremos (incluidos), en orden. */
 export function periodsBetween(desde: string, hasta: string): string[] {
   const out: string[] = [];
   let y = Number(desde.slice(0, 4));

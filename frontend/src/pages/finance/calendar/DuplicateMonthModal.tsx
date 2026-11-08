@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatPeriodLabel } from './calendarUtils';
+import Alert from '../../../components/ui/Alert';
 
 type Props = {
   open: boolean;
@@ -76,9 +77,9 @@ const DuplicateMonthModal = ({ open, fromPeriodYm, saving, onClose, onConfirm }:
             ))}
           </fieldset>
 
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <Alert variant="warning">
             Si el mes destino ya existe, será reemplazado por la copia.
-          </p>
+          </Alert>
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-4 bg-slate-50/80 rounded-b-2xl border-t border-slate-100">
@@ -86,7 +87,7 @@ const DuplicateMonthModal = ({ open, fromPeriodYm, saving, onClose, onConfirm }:
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+            className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
           >
             Cancelar
           </button>
@@ -94,7 +95,7 @@ const DuplicateMonthModal = ({ open, fromPeriodYm, saving, onClose, onConfirm }:
             type="button"
             disabled={saving || !toYm || toYm === fromPeriodYm}
             onClick={() => onConfirm(toYm, { copy_activities: copyActivities, copy_marks: copyMarks, copy_notes: copyNotes })}
-            className="px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
+            className="px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
           >
             {saving ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : <i className="fas fa-copy text-xs" aria-hidden />}
             Duplicar

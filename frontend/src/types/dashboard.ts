@@ -267,7 +267,7 @@ export interface TukifacFiscalReceipt {
   print_ticket_url?: string;
   /** URL PDF legacy (sincronización externa). */
   pdf_url?: string;
-  /** Período contable / liquidación (detalle PDF). */
+  /** Periodo contable / liquidación (detalle PDF). */
   period_label?: string;
   debt_payment_context?: DebtPaymentContext;
   company?: Company;

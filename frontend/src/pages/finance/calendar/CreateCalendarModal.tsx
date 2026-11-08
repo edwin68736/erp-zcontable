@@ -51,14 +51,14 @@ const CreateCalendarModal = ({ open, saving, onClose, onConfirm }: Props) => {
           </label>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-4 bg-slate-50/80 rounded-b-2xl">
-          <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 bg-white">
+          <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white">
             Cancelar
           </button>
           <button
             type="button"
             disabled={saving || !periodYm}
             onClick={() => onConfirm(periodYm, notes)}
-            className="px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+            className="px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
           >
             {saving ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : null}
             Crear calendario

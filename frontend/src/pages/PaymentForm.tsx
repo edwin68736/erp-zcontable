@@ -31,6 +31,7 @@ import {
   stripLegacyMigrationNotes,
 } from '../utils/documentDebtUi';
 import { formatAmount } from '../utils/format';
+import Alert from '../components/ui/Alert';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el pago';
@@ -82,7 +83,7 @@ function stripConceptQuantityNoise(s: string): string {
   return t.trim();
 }
 
-/** Descripción + período YYYY-MM solo separados por " - " (sin la palabra «período»). */
+/** Descripción + periodo YYYY-MM solo separados por " - " (sin la palabra «periodo»). */
 function joinDebtDescAndPeriod(description: string, periodYm: string): string {
   const d = description.trim();
   const p = periodYm.trim();
@@ -799,14 +800,14 @@ const PaymentForm = () => {
         </div>
         <Link
           to="/payments"
-          className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full border border-slate-300 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[44px] sm:min-h-0"
+          className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[44px] sm:min-h-0"
         >
           <i className="fas fa-arrow-left text-xs"></i> Volver al listado
         </Link>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {settlementLoadError ? (
@@ -820,7 +821,7 @@ const PaymentForm = () => {
       ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-5">
         {showComprobanteEmision ? (
-          <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="px-3 py-4 sm:p-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-3 sm:gap-x-4 items-start">
                 <div className="min-w-0">
@@ -872,7 +873,7 @@ const PaymentForm = () => {
         ) : null}
 
         {!hideCompanyField ? (
-          <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="px-3 py-4 sm:p-5 max-w-xl">
               <SearchableSelect
                 id="company_id"
@@ -889,7 +890,7 @@ const PaymentForm = () => {
         ) : null}
 
         <div className="flex flex-col gap-3 sm:gap-4 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-stretch">
-          <section className="lg:col-span-6 rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
+          <section className="lg:col-span-6 rounded-xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
             <div className="px-3 py-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">
               <div className="flex flex-wrap gap-x-3 gap-y-2 text-sm">
                 <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -1078,7 +1079,7 @@ const PaymentForm = () => {
             </div>
           </section>
 
-          <section className="lg:col-span-6 rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
+          <section className="lg:col-span-6 rounded-xl border border-slate-200 bg-white shadow-sm overflow-visible flex flex-col min-w-0">
             <div className="px-3 py-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">
               {isEdit && loadedCreatedAt ? (
                 <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
@@ -1245,7 +1246,7 @@ const PaymentForm = () => {
           </section>
         </div>
 
-        <section className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="px-3 py-4 sm:p-5 space-y-4">
             <div>
               <label htmlFor="payment_description" className="block text-sm font-medium text-slate-700 mb-1">
@@ -1288,7 +1289,7 @@ const PaymentForm = () => {
           <button
             type="submit"
             disabled={saving || uploading || !canUpsert}
-            className="inline-flex w-full sm:w-auto items-center justify-center px-6 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
+            className="inline-flex w-full sm:w-auto items-center justify-center px-6 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
           >
             <i className="fas fa-save mr-2 text-xs"></i>
             {saving ? 'Guardando…' : uploading ? 'Subiendo…' : isEdit ? 'Guardar cambios' : 'Registrar pago'}

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Button from '../../components/ui/Button';
 import { apiErrorMessage, securityService, type DeviceTrustMode, type SecuritySettings } from '../../services/security';
 import { MODE_HELP, MODE_LABEL, dateInputValue } from './deviceUi';
+import Alert from '../../components/ui/Alert';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 const MODES: DeviceTrustMode[] = ['off', 'learn', 'enforce'];
@@ -48,7 +49,7 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
   const daysOk = Number.isInteger(days) && days >= 1 && days <= 180;
 
   return (
-    <form onSubmit={submit} className="max-w-2xl space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <form onSubmit={submit} className="max-w-2xl space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       {current ? (
         <p className="text-sm text-slate-600">
           Hoy rige: <strong>{MODE_LABEL[current.effective_mode]}</strong>
@@ -97,8 +98,8 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
         </label>
       ) : null}
 
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
-      {saved ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">Configuración guardada.</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
+      {saved ? <Alert variant="success">Configuración guardada.</Alert> : null}
 
       {canEdit ? (
         <Button type="submit" disabled={busy || (mode !== 'off' && !daysOk)}>

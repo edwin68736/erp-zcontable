@@ -4,7 +4,7 @@ import SireCompanies from '../sire/SireCompanies';
 const ItfCompanies = () => (
   <SireCompanies
     title="Consulta ITF"
-    subtitle="Impuesto a las Transacciones Financieras (Formulario 0695): elija una empresa para ver los movimientos de sus cuentas afectos al ITF por período."
+    subtitle="Impuesto a las Transacciones Financieras (Formulario 0695): elija una empresa para ver los movimientos de sus cuentas afectos al ITF por periodo."
     basePath="/tools/consulta-itf"
     openLabel="Abrir ITF"
     openIcon="fas fa-money-bill-transfer"

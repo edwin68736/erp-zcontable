@@ -89,7 +89,7 @@ const OperationsKeyDialog = ({
             type="button"
             disabled={loading}
             onClick={onClose}
-            className="inline-flex justify-center px-4 py-2.5 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex justify-center px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -97,7 +97,7 @@ const OperationsKeyDialog = ({
             type="button"
             disabled={loading}
             onClick={submit}
-            className="inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50"
+            className="inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? <i className="fas fa-spinner fa-spin text-xs" aria-hidden /> : null}
             {confirmLabel}

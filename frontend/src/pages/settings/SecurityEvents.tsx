@@ -4,6 +4,7 @@ import PageHeading from '../../components/ui/PageHeading';
 import { apiErrorMessage, securityService, type SecurityEvent, type SecurityEventsPage } from '../../services/security';
 import { EVENT_LABEL, describeUserAgent } from './securityUi';
 import { formatDateTimeSeconds } from '../../utils/format';
+import Alert from '../../components/ui/Alert';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -55,7 +56,7 @@ const SecurityEvents = ({ embedded = false }: { embedded?: boolean }) => {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <label className="text-xs text-slate-600">
           <span className="mb-0.5 block">Tipo</span>
           <select value={type} onChange={(e) => filter(() => setType(e.target.value))} className={INPUT}>
@@ -89,9 +90,9 @@ const SecurityEvents = ({ embedded = false }: { embedded?: boolean }) => {
         </Button>
       </div>
 
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
-      <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${loading ? 'opacity-60' : ''}`}>
+      <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${loading ? 'opacity-60' : ''}`}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

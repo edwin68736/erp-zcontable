@@ -21,6 +21,7 @@ import {
   settlementStatusLabel,
 } from '../../utils/liquidationPeriod';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -132,9 +133,9 @@ const SupervisorLiquidacionesListPage = () => {
     return (
       <div className={PAGE_WORKSPACE_CLASS}>
         <PageHeading>Liquidaciones</PageHeading>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
+        <Alert variant="warning">
           No tiene permiso para consultar liquidaciones de supervisores.
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -190,7 +191,7 @@ const SupervisorLiquidacionesListPage = () => {
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { SuspensionCarryOverRow } from '../../services/detracciones';
 import Button from '../ui/Button';
+import Alert from '../../components/ui/Alert';
 
 type SuspensionCarryOverModalProps = {
   open: boolean;
@@ -12,11 +13,11 @@ type SuspensionCarryOverModalProps = {
   onConfirm: (keepSuspendedCompanyIds: number[]) => void;
 };
 
-// Modal de arrastre de suspensión entre períodos (docs/diseno-limpieza-control-detail-2026-09-16.md
-// §5.9.9) — al abrir Control de Detracciones de un período con empresas suspendidas el mes anterior
+// Modal de arrastre de suspensión entre periodos (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.9) — al abrir Control de Detracciones de un periodo con empresas suspendidas el mes anterior
 // (y sin resolver todavía), pregunta empresa por empresa qué hacer. Cerrar sin confirmar NO cuenta
 // como decisión (§5.9.9.2 punto 3): el caller no debe recordar que se cerró, así que vuelve a
-// aparecer la próxima vez que se entre al módulo para este período.
+// aparecer la próxima vez que se entre al módulo para este periodo.
 const SuspensionCarryOverModal = ({ open, companies, saving, error, onClose, onConfirm }: SuspensionCarryOverModalProps) => {
   // Por defecto todas tildadas = mantener suspendidas (§5.9.9.2 punto 2).
   const [keep, setKeep] = useState<Set<number>>(new Set());
@@ -62,19 +63,19 @@ const SuspensionCarryOverModal = ({ open, companies, saving, error, onClose, onC
       >
         <div>
           <h2 id="suspension-carryover-modal-title" className="text-lg font-semibold text-slate-800">
-            Empresas suspendidas del período anterior
+            Empresas suspendidas del periodo anterior
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             {companies.length === 1
-              ? 'Esta empresa estaba marcada como suspendida el período anterior.'
-              : `Estas ${companies.length} empresas estaban marcadas como suspendidas el período anterior.`}{' '}
+              ? 'Esta empresa estaba marcada como suspendida el periodo anterior.'
+              : `Estas ${companies.length} empresas estaban marcadas como suspendidas el periodo anterior.`}{' '}
             La suspensión no se arrastra sola de un mes al otro — indique cuáles siguen suspendidas y
-            cuáles se reactivan para este período.
+            cuáles se reactivan para este periodo.
           </p>
         </div>
 
         {error ? (
-          <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          <Alert variant="error">{error}</Alert>
         ) : null}
 
         <ul className="max-h-80 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">

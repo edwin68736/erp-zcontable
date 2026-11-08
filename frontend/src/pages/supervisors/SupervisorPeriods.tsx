@@ -35,7 +35,7 @@ const SupervisorPeriods = () => {
       setList(res.items);
       setPagination(res.pagination);
     } catch {
-      setMsg('Error al cargar períodos');
+      setMsg('Error al cargar periodos');
     } finally {
       setLoading(false);
     }
@@ -52,13 +52,13 @@ const SupervisorPeriods = () => {
       setNewYm('');
       setNewNotes('');
       if (bootstrap) {
-        setMsg(`Período creado. Controles generados: ${bootstrap.created} (omitidas: ${bootstrap.skipped}).`);
+        setMsg(`Periodo creado. Controles generados: ${bootstrap.created} (omitidas: ${bootstrap.skipped}).`);
       } else {
         setMsg('');
       }
       void load();
     } catch {
-      setMsg('No se pudo crear el período');
+      setMsg('No se pudo crear el periodo');
     }
   };
 
@@ -80,7 +80,7 @@ const SupervisorPeriods = () => {
       await supervisorsService.closePeriod(id);
       void load();
     } catch {
-      setMsg('No se pudo cerrar el período (revise controles pendientes)');
+      setMsg('No se pudo cerrar el periodo (revise controles pendientes)');
     }
   };
 
@@ -121,18 +121,18 @@ const SupervisorPeriods = () => {
   };
 
   if (!canView) {
-    return <p className="p-6 text-center text-slate-600">Sin permiso para ver períodos.</p>;
+    return <p className="p-6 text-center text-slate-600">Sin permiso para ver periodos.</p>;
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div>
-        <PageHeading hint="Apertura y cierre mensual del módulo supervisores.">Períodos contables</PageHeading>
+        <PageHeading hint="Apertura y cierre mensual del módulo supervisores.">Periodos contables</PageHeading>
       </div>
 
       {msg ? (
         <p
-          className={`text-sm ${msg.startsWith('Período') || msg.includes('generados') || msg.includes('Notas') ? 'text-primary-700' : 'text-red-600'}`}
+          className={`text-sm ${msg.startsWith('Periodo') || msg.includes('generados') || msg.includes('Notas') ? 'text-primary-700' : 'text-red-600'}`}
         >
           {msg}
         </p>
@@ -141,7 +141,7 @@ const SupervisorPeriods = () => {
       {canCreate ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap gap-3 items-end">
           <label className="text-sm">
-            Período (YYYY-MM)
+            Periodo (YYYY-MM)
             <input
               type="month"
               value={newYm}
@@ -170,9 +170,9 @@ const SupervisorPeriods = () => {
           <button
             type="button"
             onClick={() => void handleCreate()}
-            className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium"
           >
-            Crear período
+            Crear periodo
           </button>
         </div>
       ) : null}
@@ -183,9 +183,9 @@ const SupervisorPeriods = () => {
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
-                <th className="text-left px-4 py-3">Período</th>
+                <th className="text-left px-4 py-3">Periodo</th>
                 <th className="text-left px-4 py-3">Estado</th>
                 <th className="text-left px-4 py-3">Notas</th>
                 <th className="text-right px-4 py-3">Acciones</th>
@@ -266,8 +266,8 @@ const SupervisorPeriods = () => {
 
       <ConfirmDialog
         open={deleteId != null}
-        title="Eliminar período"
-        message="¿Eliminar este período? Solo si no tiene controles asociados."
+        title="Eliminar periodo"
+        message="¿Eliminar este periodo? Solo si no tiene controles asociados."
         confirmLabel="Eliminar"
         danger
         onConfirm={() => void handleDelete()}

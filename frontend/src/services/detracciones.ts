@@ -30,7 +30,7 @@ export interface DetraccionesListRow {
   file_name?: string;
   file_url?: string;
   timeliness: DetraccionesTimeliness;
-  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — solo
+  // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — solo
   // se marca/desmarca desde este módulo (Control de Detracciones), PDT 601/621/Buzón SOL solo la leen.
   suspendida: boolean;
 }
@@ -49,13 +49,13 @@ export interface DetraccionesDetail {
   // suspendida: ver comentario en DetraccionesListRow — acá SÍ es editable (checkbox "Marcar como
   // suspendida", único lugar del sistema que la modifica).
   suspendida: boolean;
-  /** El período ya terminó y admite registros (el mes en curso y los futuros solo se pueden mirar). */
+  /** El periodo ya terminó y admite registros (el mes en curso y los futuros solo se pueden mirar). */
   period_enabled?: boolean;
 }
 
 export interface DetraccionesListResponse {
   data: DetraccionesListRow[];
-  /** El período consultado ya terminó y admite registros. */
+  /** El periodo consultado ya terminó y admite registros. */
   period_enabled?: boolean;
   pagination: {
     page: number;
@@ -65,9 +65,9 @@ export interface DetraccionesListResponse {
   };
 }
 
-// Modal de arrastre de suspensión entre períodos (docs/diseno-limpieza-control-detail-2026-09-16.md
-// §5.9.9) — "suspendida" es por período (§5.9.7), así que un control nuevo siempre nace en false;
-// esto avisa si el período anterior tenía empresas suspendidas que nadie decidió reactivar todavía.
+// Modal de arrastre de suspensión entre periodos (docs/diseno-limpieza-control-detail-2026-09-16.md
+// §5.9.9) — "suspendida" es por periodo (§5.9.7), así que un control nuevo siempre nace en false;
+// esto avisa si el periodo anterior tenía empresas suspendidas que nadie decidió reactivar todavía.
 export interface SuspensionCarryOverRow {
   company_id: number;
   code: string;
@@ -161,7 +161,7 @@ export const detraccionesService = {
   },
 
   // Modal de arrastre de suspensión (§5.9.9) — getSuspensionCarryOverStatus se llama al abrir
-  // Control de Detracciones para un período; si pending=true, mostrar el modal con `companies`.
+  // Control de Detracciones para un periodo; si pending=true, mostrar el modal con `companies`.
   async getSuspensionCarryOverStatus(periodYm: string): Promise<SuspensionCarryOverStatus> {
     const res = await client.get<{ data: SuspensionCarryOverStatus }>(
       '/supervisors/activity-modules/detracciones/suspension-carry-over',
@@ -172,7 +172,7 @@ export const detraccionesService = {
 
   // applySuspensionCarryOver aplica la decisión — `keepSuspendedCompanyIds` son las empresas que se
   // dejaron tildadas (se mantienen suspendidas); las demás candidatas quedan reactivadas. Si otro
-  // usuario ya resolvió el arrastre para este período, el backend rechaza con error — el caller debe
+  // usuario ya resolvió el arrastre para este periodo, el backend rechaza con error — el caller debe
   // recargar el estado (getSuspensionCarryOverStatus) en vez de reintentar (§5.9.9.4).
   async applySuspensionCarryOver(periodYm: string, keepSuspendedCompanyIds: number[]): Promise<void> {
     await client.post(

@@ -18,6 +18,7 @@ import {
   parseMonthKey,
   shiftMonth,
 } from './exchangeRates/exchangeRatesUi';
+import Alert from '../../components/ui/Alert';
 
 const INPUT_CLS = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -86,7 +87,7 @@ const ExchangeRates = () => {
         <PageHeading hint="Compra y venta de SUNAT por día (dólar americano). El valor de cada fecha es el cierre de la SBS del día hábil anterior.">Tipo de cambio</PageHeading>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Cambiar de mes">
             <button type="button" onClick={() => setYm((k) => shiftMonth(k, -1))} aria-label="Mes anterior" className="px-3.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -122,9 +123,9 @@ const ExchangeRates = () => {
             Cargando el tipo de cambio… si el mes es nuevo se trae desde SUNAT y puede tardar unos segundos.
           </p>
         ) : null}
-        {error ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+        {error ? <Alert variant="error" className="mt-3">{error}</Alert> : null}
         {data?.warning ? (
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Alert variant="warning" className="mt-3">
             {data.warning}
             {data.warning_code === 'sin_token' || data.warning_code === 'token_invalido' ? (
               <>
@@ -135,7 +136,7 @@ const ExchangeRates = () => {
                 .
               </>
             ) : null}
-          </p>
+          </Alert>
         ) : null}
         {data && data.fetched > 0 && !loading ? (
           <p className="mt-3 text-xs text-emerald-700">
@@ -146,7 +147,7 @@ const ExchangeRates = () => {
       </div>
 
       {/* Calendario (pantallas medianas y grandes) */}
-      <div className={`hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block ${loading ? 'opacity-60' : ''}`}>
+      <div className={`hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block ${loading ? 'opacity-60' : ''}`}>
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-sm font-semibold text-slate-800">
           {WEEKDAYS_SUN.map((d) => (
             <div key={d} className="px-3 py-2">
@@ -161,12 +162,12 @@ const ExchangeRates = () => {
                 <div className={`mb-1 text-sm ${c.inMonth ? 'text-slate-800' : 'text-slate-300'}`}>{c.dayNum}</div>
                 {c.inMonth && c.rate ? (
                   <div className="space-y-1" title={c.rate.fecha_sunat ? `Cierre SBS del ${c.rate.fecha_sunat.split('-').reverse().join('/')}` : undefined}>
-                    <div className="rounded border border-green-300 bg-green-100 px-2 py-0.5 text-xs text-green-900">
+                    <Alert variant="success">
                       <span className="font-semibold">Compra</span> {fmtRate(c.rate.compra)}
-                    </div>
-                    <div className="rounded border border-sky-300 bg-sky-100 px-2 py-0.5 text-xs text-sky-900">
+                    </Alert>
+                    <Alert variant="info">
                       <span className="font-semibold">Venta</span> {fmtRate(c.rate.venta)}
-                    </div>
+                    </Alert>
                   </div>
                 ) : null}
               </div>
@@ -176,7 +177,7 @@ const ExchangeRates = () => {
       </div>
 
       {/* Lista (celulares) */}
-      <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:hidden ${loading ? 'opacity-60' : ''}`}>
+      <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:hidden ${loading ? 'opacity-60' : ''}`}>
         {monthDays.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-slate-500">{loading ? 'Cargando…' : 'No hay tipo de cambio guardado para este mes.'}</p>
         ) : (

@@ -19,6 +19,7 @@ import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLabel } from '../../utils/mailboxWeek';
 import { summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import Alert from '../../components/ui/Alert';
 
 type SunatInboxDetailPageProps = {
   workspace: ActivityWorkspace;
@@ -151,9 +152,9 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
         <Link to={listPath} className="text-sm text-primary-700 hover:underline">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'No se encontró el registro.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -174,7 +175,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
             Buzón SOL — {detail.business_name}
           </h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Período {periodYm} · RUC {detail.ruc} · Código {detail.code}
+            Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
             {detail.dig ? ` · Dígito ${detail.dig}` : ''}
           </p>
         </div>

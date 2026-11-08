@@ -30,7 +30,7 @@ export interface SirePeriodYear {
 export type SireDownloadMode = 'sin_glosas';
 export type SireDownloadStatus = 'en_proceso' | 'listo' | 'sin_datos' | 'error';
 
-/** Una consulta del historial: el período pedido y su resultado. */
+/** Una consulta del historial: el periodo pedido y su resultado. */
 export interface SireDownloadItem {
   id: number;
   company_id: number;
@@ -98,7 +98,7 @@ export function saveBlobAs(blob: Blob, name: string): void {
 }
 
 export const sireService = {
-  /** Comprueba las credenciales de API de la empresa (token + consulta de períodos). */
+  /** Comprueba las credenciales de API de la empresa (token + consulta de periodos). */
   async test(companyId: number): Promise<void> {
     try {
       await client.post(`${base(companyId)}/test`, undefined, LONG);
@@ -116,13 +116,13 @@ export const sireService = {
     }
   },
 
-  /** Períodos que SUNAT tiene habilitados para el libro, agrupados por año. */
+  /** Periodos que SUNAT tiene habilitados para el libro, agrupados por año. */
   async periods(companyId: number, libro: SireLibro): Promise<SirePeriodYear[]> {
     try {
       const res = await client.get<{ data: SirePeriodYear[] | null }>(`${base(companyId)}/periods`, { params: { libro }, ...LONG });
       return Array.isArray(res.data.data) ? res.data.data : [];
     } catch (err) {
-      throw toError(err, 'No se pudieron consultar los períodos en SUNAT.');
+      throw toError(err, 'No se pudieron consultar los periodos en SUNAT.');
     }
   },
 
@@ -136,7 +136,7 @@ export const sireService = {
     }
   },
 
-  /** Registra una consulta por período; SUNAT la procesa en segundo plano y aparece en el historial. */
+  /** Registra una consulta por periodo; SUNAT la procesa en segundo plano y aparece en el historial. */
   async startDownloads(companyId: number, p: { libro: SireLibro; periods: string[]; mode: SireDownloadMode }): Promise<SireDownloadItem[]> {
     try {
       const res = await client.post<{ data: SireDownloadItem[] }>(`${base(companyId)}/downloads`, p, SHORT);

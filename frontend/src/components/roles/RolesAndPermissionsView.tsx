@@ -8,6 +8,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import RoleCrudModal from './RoleCrudModal';
 import PageHeading from '../../components/ui/PageHeading';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -366,12 +367,12 @@ const RolesAndPermissionsView = () => {
       </div>
 
       {listError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{listError}</div>
+        <Alert variant="error">{listError}</Alert>
       ) : null}
 
       <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch min-h-[min(70vh,720px)]">
         {/* Panel izquierdo — roles */}
-        <aside className="w-full lg:w-auto lg:max-w-[min(100%,20rem)] shrink-0 self-start flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-h-[42vh] lg:max-h-none lg:min-h-[520px]">
+        <aside className="w-full lg:w-auto lg:max-w-[min(100%,20rem)] shrink-0 self-start flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden max-h-[42vh] lg:max-h-none lg:min-h-[520px]">
           <div className="p-3 border-b border-slate-100 bg-slate-50/90 space-y-2 w-full lg:w-max min-w-[12rem]">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Roles</span>
@@ -379,7 +380,7 @@ const RolesAndPermissionsView = () => {
                 <button
                   type="button"
                   onClick={openCreate}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-primary-700 text-white text-xs font-semibold px-3 py-1.5 hover:bg-primary-800 shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary-700 text-white text-xs font-semibold px-3 py-1.5 hover:bg-primary-800 shadow-sm"
                 >
                   <i className="fas fa-plus text-2xs" /> Nuevo rol
                 </button>
@@ -494,7 +495,7 @@ const RolesAndPermissionsView = () => {
         </aside>
 
         {/* Panel derecho — permisos */}
-        <section className="flex-1 min-w-0 flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="flex-1 min-w-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           {!currentRole ? (
             <div className="p-8 text-center text-slate-500 text-sm">Seleccione un rol de la lista.</div>
           ) : (
@@ -647,7 +648,7 @@ const RolesAndPermissionsView = () => {
                       type="button"
                       disabled={!dirty || savingPerms}
                       onClick={handleDiscardPermissions}
-                      className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                      className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                     >
                       Descartar
                     </button>
@@ -655,7 +656,7 @@ const RolesAndPermissionsView = () => {
                       type="button"
                       disabled={!dirty || savingPerms}
                       onClick={() => void handleSavePermissions()}
-                      className="px-5 py-2 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary-800 disabled:opacity-40 shadow-sm"
+                      className="px-5 py-2 rounded-lg bg-primary-700 text-white text-sm font-bold hover:bg-primary-800 disabled:opacity-40 shadow-sm"
                     >
                       {savingPerms ? <i className="fas fa-spinner fa-spin mr-2" /> : <i className="fas fa-floppy-disk mr-2" />}
                       Guardar permisos
@@ -698,7 +699,7 @@ const RolesAndPermissionsView = () => {
               Copia los permisos de «{cloneSource.name}» en un rol nuevo.
             </p>
             {cloneError ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{cloneError}</div>
+              <Alert variant="error">{cloneError}</Alert>
             ) : null}
             <div className="space-y-3">
               <div>
@@ -732,7 +733,7 @@ const RolesAndPermissionsView = () => {
                 type="button"
                 disabled={cloneSaving || !cloneName.trim()}
                 onClick={() => void handleConfirmClone()}
-                className="px-4 py-2 rounded-xl bg-primary-700 text-white text-sm font-semibold disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-primary-700 text-white text-sm font-semibold disabled:opacity-50"
               >
                 {cloneSaving ? <i className="fas fa-spinner fa-spin mr-2" /> : null}
                 Clonar

@@ -20,6 +20,7 @@ import {
   periodScoreExportLabel,
   periodScoreSolidColor,
 } from '../utils/periodDebtScore';
+import Alert from '../components/ui/Alert';
 
 const Reports = () => {
   const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
@@ -547,7 +548,7 @@ const Reports = () => {
             type="button"
             onClick={handleResetFilters}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
           >
             Limpiar
           </button>
@@ -555,9 +556,9 @@ const Reports = () => {
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error">
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

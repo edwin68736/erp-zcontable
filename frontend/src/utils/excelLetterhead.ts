@@ -83,7 +83,7 @@ export interface ExcelLetterheadOptions {
 /**
  * Arma el encabezado con membrete en las filas 1 y 2 de la hoja — mismo formato que el reporte del
  * sistema anterior: logo del estudio a la izquierda, banner con el título a la derecha, y una barra
- * con el responsable (supervisor/asistente que exporta), el período tributario y el total de
+ * con el responsable (supervisor/asistente que exporta), el periodo tributario y el total de
  * empresas, antes de la tabla. El logo sale de FirmConfig.logo_url (Ajustes → membrete); si el
  * estudio no configuró uno, cae al logo estático de public/ (mismo fallback que el PDF v2 de
  * liquidaciones) — si tampoco existe, sigue sin logo (no bloquea el export). No toca las filas 3
@@ -127,7 +127,7 @@ export async function buildExcelLetterhead(opts: ExcelLetterheadOptions): Promis
     /* sin logo no bloquea el export */
   }
 
-  // Barra de datos (responsable / período / empresas), en lugar del subtítulo plano de antes.
+  // Barra de datos (responsable / periodo / empresas), en lugar del subtítulo plano de antes.
   const row2 = sheet.getRow(2);
   row2.height = 20;
   const user = auth.getUser();

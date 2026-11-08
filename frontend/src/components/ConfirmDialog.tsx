@@ -76,7 +76,8 @@ const ConfirmDialog = ({
             type="button"
             disabled={loading}
             onClick={onClose}
-            className="inline-flex justify-center items-center px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+            autoFocus={danger}
+            className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -84,6 +85,7 @@ const ConfirmDialog = ({
             type="button"
             disabled={loading || confirmDisabled}
             onClick={onConfirm}
+            autoFocus={!danger}
             className={`inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-sm disabled:opacity-50 ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'
             }`}

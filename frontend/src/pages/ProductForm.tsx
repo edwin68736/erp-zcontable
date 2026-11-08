@@ -256,7 +256,7 @@ const ProductForm = () => {
         <PageHeading>{editId ? 'Editar producto / servicio' : 'Nuevo producto / servicio'}</PageHeading>
         <Link
           to="/products"
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-arrow-left text-xs" aria-hidden="true"></i>
           Volver al listado
@@ -281,7 +281,7 @@ const ProductForm = () => {
 
       <form
         onSubmit={handleSubmit}
-        className="w-full space-y-4 bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 lg:p-8 shadow-sm"
+        className="w-full space-y-4 bg-white border border-slate-200 rounded-xl p-5 sm:p-6 lg:p-8 shadow-sm"
       >
         <div className="xl:grid xl:grid-cols-2 xl:gap-x-10 xl:gap-y-4 xl:items-start">
           <div className="space-y-4 min-w-0">
@@ -525,7 +525,7 @@ const ProductForm = () => {
             <button
               type="submit"
               disabled={!canUpsert}
-              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 shadow-sm"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 shadow-sm"
             >
               <i className="fas fa-save text-xs" aria-hidden="true"></i>
               Guardar
@@ -557,7 +557,7 @@ const ProductForm = () => {
                   <button
                     type="button"
                     onClick={() => setCatModalOpen(false)}
-                    className="px-4 py-2 rounded-full border border-slate-300 text-sm text-slate-700 hover:bg-slate-50"
+                    className="px-4 py-2 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50"
                   >
                     Cancelar
                   </button>
@@ -565,7 +565,7 @@ const ProductForm = () => {
                     type="button"
                     disabled={catSaving}
                     onClick={() => void handleCreateCategory()}
-                    className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
                   >
                     {catSaving ? 'Guardando…' : 'Crear'}
                   </button>

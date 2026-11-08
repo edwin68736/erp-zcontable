@@ -54,7 +54,7 @@ export interface SunatInboxListRow {
   declaration_id?: number;
   summary_status: string;
   slots: SunatInboxCaptureSlot[];
-  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/§5.9.8)
+  // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/§5.9.8)
   // — Buzón SOL solo la lee, se marca desde Control de Detracciones.
   suspendida: boolean;
 }
@@ -87,7 +87,7 @@ export interface SunatInboxListResponse {
   };
 }
 
-/** Fila por empresa para el reporte Excel: capturas de TODAS las semanas del período (no solo una). */
+/** Fila por empresa para el reporte Excel: capturas de TODAS las semanas del periodo (no solo una). */
 export interface SunatInboxExportRow {
   company_id: number;
   code: string;
@@ -185,8 +185,8 @@ export const sunatInboxService = {
   /**
    * Todas las empresas que matchean los filtros (q, status), con sus capturas — para el reporte
    * Excel. scope="week" exporta solo week_start (igual que la tabla en modo semana); scope="month"
-   * (o si se omite) exporta todas las semanas del período. Una sola llamada al backend (antes se
-   * hacía una llamada paginada por cada semana del período, repitiendo trabajo de BD).
+   * (o si se omite) exporta todas las semanas del periodo. Una sola llamada al backend (antes se
+   * hacía una llamada paginada por cada semana del periodo, repitiendo trabajo de BD).
    */
   async fetchExportData(params: {
     period_ym: string;
@@ -203,7 +203,7 @@ export const sunatInboxService = {
     return res.data;
   },
 
-  /** Vista "Mes completo": cada fila trae las capturas de TODAS las semanas del período, paginada. */
+  /** Vista "Mes completo": cada fila trae las capturas de TODAS las semanas del periodo, paginada. */
   async listMonth(params: {
     period_ym: string;
     q?: string;

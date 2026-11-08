@@ -6,6 +6,7 @@ import { timeAgo } from '../tools/buzon/buzonUi';
 import { VIA_LABEL } from './deviceUi';
 import { formatDate } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -84,10 +85,10 @@ export default function UserDevicesTab() {
           ))}
         </select>
       </label>
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
       {selected && devices ? (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-700">
               Verificación en dos pasos:{' '}
@@ -99,7 +100,7 @@ export default function UserDevicesTab() {
               type="button"
               disabled={busy}
               onClick={() => void reset()}
-              className="rounded-full border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+              className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
             >
               <i className="fas fa-rotate-left mr-1.5" aria-hidden />
               Reiniciar seguridad del usuario

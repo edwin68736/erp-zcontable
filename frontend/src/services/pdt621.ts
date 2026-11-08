@@ -1,10 +1,10 @@
 import client from '../api/client';
 import type { SupervisorDeclaration } from './supervisors';
 
-/** Cumplimiento de fecha_declaracion vs. el cronograma SUNAT por dígito de RUC del período. */
+/** Cumplimiento de fecha_declaracion vs. el cronograma SUNAT por dígito de RUC del periodo. */
 export type Pdt621Timeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exempt' | 'no_rule';
 
-/** Seguimiento manual PDT 621 del período (revisión de archivadores, importes, SIRE). */
+/** Seguimiento manual PDT 621 del periodo (revisión de archivadores, importes, SIRE). */
 export interface Pdt621Record {
   primera_entrega_fecha?: string | null;
   primera_entrega_hora: string;
@@ -66,7 +66,7 @@ export interface Pdt621ListRow {
    * que el asistente haga la primera entrega — distinto de declaration_timeliness (cronograma
    * SUNAT). No valida nada contra SUNAT, solo la entrega interna del asistente. */
   assistant_timeliness: Pdt621Timeliness;
-  // suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
+  // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
   // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
   suspendida: boolean;
   /** Motivo con el que el supervisor observó el archivador (el último), quién y cuándo. No confundir
@@ -99,7 +99,7 @@ export interface Pdt621Detail {
    * mostrar "Entregado fuera de fecha" en el detalle sin recalcular nada en el frontend. */
   assistant_timeliness: Pdt621Timeliness;
   /** Fecha límite resuelta por el calendario interno del estudio para el grupo de RUC de esta
-   * empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — undefined si el período no
+   * empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — undefined si el periodo no
    * tiene ninguna actividad "pdt_621" configurada. Fuente para mostrar "Vencimiento", reemplaza a
    * `declaration.due_date` (0% de uso real, §3.1). */
   calendar_due_date?: string;
@@ -147,7 +147,7 @@ export const pdt621Service = {
     return res.data.data;
   },
 
-  /** Lectura pura del seguimiento del período (sin crear control/declaración PDT 621). */
+  /** Lectura pura del seguimiento del periodo (sin crear control/declaración PDT 621). */
   async getRecord(companyId: number, periodYm: string): Promise<Pdt621Record | null> {
     const res = await client.get<{ data: Pdt621Record | null }>(
       `/supervisors/activity-modules/pdt-621/companies/${companyId}/record`,

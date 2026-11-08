@@ -9,8 +9,9 @@ import { timeAgo } from './tools/buzon/buzonUi';
 import { checkPassword, passwordOk } from '../utils/passwordPolicy';
 import DevicesCard from './security/DevicesCard';
 import TotpCard from './security/TotpCard';
+import Alert from '../components/ui/Alert';
 
-const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
+const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
 function Rule({ ok, children }: { ok: boolean; children: string }) {
   return (
@@ -67,7 +68,7 @@ function SessionsCard() {
 
   const others = rows.filter((r) => !r.current).length;
   return (
-    <div className="max-w-xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-slate-800">Mis sesiones</h2>
         <Button variant="secondary" className="!py-1.5 text-xs" disabled={busy || others === 0} onClick={() => void closeOthers()}>
@@ -76,7 +77,7 @@ function SessionsCard() {
         </Button>
       </div>
       <p className="text-xs text-slate-500">Equipos donde su cuenta está abierta ahora. Si no reconoce alguno, ciérrelo y cambie su contraseña.</p>
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
       <ul className="divide-y divide-slate-100">
         {rows.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
@@ -149,12 +150,12 @@ const Profile = () => {
       </div>
 
       {forced ? (
-        <div className="max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+        <Alert variant="warning" className="max-w-xl">
           <strong>Debe cambiar su contraseña para continuar.</strong> La que usa ahora la puso otra persona. Escriba la actual y elija una nueva que solo usted conozca.
-        </div>
+        </Alert>
       ) : null}
 
-      <div className="max-w-xl space-y-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="max-w-xl space-y-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold uppercase text-slate-400">Usuario</p>
         <p className="text-sm font-bold text-slate-800">{user?.name || '—'}</p>
         <p className="text-sm text-slate-600">
@@ -163,7 +164,7 @@ const Profile = () => {
         </p>
       </div>
 
-      <form onSubmit={submit} autoComplete="off" className="max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form onSubmit={submit} autoComplete="off" className="max-w-xl space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-bold text-slate-800">Cambiar contraseña</h2>
         <p className="text-xs text-slate-500">
           Escríbala usted mismo cada vez: no la guarde en el navegador, sobre todo si el equipo lo usan otras personas.
@@ -219,11 +220,11 @@ const Profile = () => {
           {mismatch ? <span className="mt-1 block text-xs text-red-700">No coincide con la contraseña nueva.</span> : null}
         </label>
 
-        {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+        {error ? <Alert variant="error">{error}</Alert> : null}
         {done ? (
-          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+          <Alert variant="success">
             Contraseña actualizada. Úsela la próxima vez que inicie sesión.
-          </p>
+          </Alert>
         ) : null}
 
         <Button type="submit" disabled={!canSubmit}>

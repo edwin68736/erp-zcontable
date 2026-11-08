@@ -28,6 +28,7 @@ import Button from '../../components/ui/Button';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import { confirmDialog } from '../../utils/confirmDialog';
+import Alert from '../../components/ui/Alert';
 
 function formatEntrega(fecha?: string | null, hora?: string | null): string {
   if (!fecha) return '';
@@ -145,7 +146,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // SupervisorLiquidacionCreatePage.tsx) — si ya tienen algún valor, dejarlos editables a mano
   // no sirve de nada (la liquidación es la fuente de verdad y los va a volver a sobreescribir en
   // el próximo guardado), así que se bloquean. Si están todos en cero es porque aún no hay
-  // liquidación registrada para esta empresa/período — ahí se siguen llenando a mano como antes.
+  // liquidación registrada para esta empresa/periodo — ahí se siguen llenando a mano como antes.
   const pdt621Locked = useMemo(() => {
     const rec = detail?.record;
     if (!rec) return false;
@@ -154,7 +155,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
 
   // Fecha límite por grupo de RUC del calendario interno (docs/diseno-limpieza-control-detail-2026-
   // 09-16.md §5.7b) — reemplaza a declaration.due_date (0% de uso real, §3.1) como fuente de
-  // "Vencimiento", con la fecha genérica del control como respaldo si el período no tiene ninguna
+  // "Vencimiento", con la fecha genérica del control como respaldo si el periodo no tiene ninguna
   // actividad "pdt_621" configurada en el calendario.
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
@@ -383,9 +384,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         <Link to={listPath} className="text-sm text-primary-700 hover:underline">
           ← Volver al listado
         </Link>
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <Alert variant="error" className="mt-4">
           {error || 'No se encontró el registro.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -401,7 +402,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           Control Vencimientos PDT 621 — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Período {periodYm} · RUC {detail.ruc} · Código {detail.code}
+          Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
@@ -432,7 +433,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             // desde Control de Detracciones.
             <p className="flex items-start gap-2 text-sm text-slate-500">
               <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-              Esta empresa está marcada "Suspendida" en este período (desde Control de
+              Esta empresa está marcada "Suspendida" en este periodo (desde Control de
               Detracciones).
             </p>
           ) : null}
@@ -445,7 +446,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               // Suspendida bloquea TODO registro, incluido el flujo de observar/aprobar.
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-                Esta empresa está marcada "Suspendida" en este período — no aplica observar ni
+                Esta empresa está marcada "Suspendida" en este periodo — no aplica observar ni
                 aprobar.
               </p>
             ) : declarationLocked ? (
@@ -504,7 +505,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               // Todavía no hay nada que revisar (Pendiente) u observado esperando corrección.
               <div className="space-y-3">
                 {declaration.status === 'observado' && detail.observacion_motivo ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <Alert variant="warning">
                     <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Motivo de la observación</p>
                     <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{detail.observacion_motivo}</p>
                     {detail.observado_por || detail.observado_at ? (
@@ -513,7 +514,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                         {detail.observado_at ? ` el ${formatStoredAt(detail.observado_at)}` : ''}
                       </p>
                     ) : null}
-                  </div>
+                  </Alert>
                 ) : null}
                 <p className="flex items-start gap-2 text-sm text-slate-500">
                   <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
@@ -580,7 +581,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>
-              <span className="block font-medium">Esta empresa está suspendida en este período</span>
+              <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
                 No es necesario (ni se permite) registrar entregas, importes ni SIRE.
               </span>
@@ -642,7 +643,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
               </p>
             ) : pdt621Locked ? (
               <p className="text-xs text-slate-500 -mt-2">
-                Total ventas, Total compras, IGV y Renta se sincronizan desde la liquidación de esta empresa/período — no
+                Total ventas, Total compras, IGV y Renta se sincronizan desde la liquidación de esta empresa/periodo — no
                 se editan a mano acá.
               </p>
             ) : null}

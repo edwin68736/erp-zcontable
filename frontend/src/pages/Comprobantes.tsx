@@ -15,6 +15,7 @@ import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
 import { formatAmount } from '../utils/format';
 import { confirmDialog } from '../utils/confirmDialog';
+import Alert from '../components/ui/Alert';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -346,9 +347,9 @@ const Comprobantes = () => {
 
   if (!canView) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <Alert variant="error">
         No tienes permisos para ver esta pantalla.
-      </div>
+      </Alert>
     );
   }
 
@@ -398,7 +399,7 @@ const Comprobantes = () => {
       ) : null}
 
       {error ? (
-        <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error" className="sm:p-4">{error}</Alert>
       ) : null}
 
       <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm space-y-3">
@@ -643,7 +644,7 @@ const Comprobantes = () => {
               Comprobante <span className="font-mono">{linkModal.number}</span> ·{' '}
               {linkModal.company?.business_name ?? linkModal.customer_name}
             </p>
-            {linkError ? <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{linkError}</div> : null}
+            {linkError ? <Alert variant="error">{linkError}</Alert> : null}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Liquidación emitida</label>
               {settlementsLoading ? (

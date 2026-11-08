@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import ConfirmDialog from './ConfirmDialog';
 import { registerConfirmPrompt, type ConfirmOptions } from '../utils/confirmDialog';
 
 /**
- * Diálogo de confirmación único de la aplicación (ver utils/confirmDialog.ts). Se monta una vez en el Layout.
- * Enter confirma, Escape cancela; el foco empieza en «Cancelar» cuando la acción es destructiva.
+ * Anfitrión de `confirmDialog()` (ver utils/confirmDialog.ts): muestra el mismo ConfirmDialog que ya usan las pantallas
+ * que lo controlan con estado, para que haya un solo diálogo de confirmación en toda la aplicación. Se monta una vez en
+ * el Layout.
  */
 const ConfirmHost = () => {
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
-  const confirmBtn = useRef<HTMLButtonElement>(null);
-  const cancelBtn = useRef<HTMLButtonElement>(null);
 
   useEffect(
     () =>
@@ -31,66 +31,17 @@ const ConfirmHost = () => {
     resolver.current = null;
   };
 
-  useEffect(() => {
-    if (!opts) return;
-    (opts.danger ? cancelBtn.current : confirmBtn.current)?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        finish(false);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [opts]);
-
-  if (!opts) return null;
-  const danger = !!opts.danger;
   return (
-    <div
-      className="fixed inset-0 z-dialog flex items-center justify-center bg-slate-900/50 p-4"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="confirm-title"
-      aria-describedby="confirm-message"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) finish(false);
-      }}
-    >
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <div className="flex items-start gap-3">
-          <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${danger ? 'bg-red-50 text-red-600' : 'bg-primary-50 text-primary-700'}`}>
-            <i className={`fas ${danger ? 'fa-triangle-exclamation' : 'fa-circle-question'}`} aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h2 id="confirm-title" className="text-base font-bold text-slate-800">
-              {opts.title ?? (danger ? 'Confirme esta acción' : 'Confirmar')}
-            </h2>
-            <p id="confirm-message" className="mt-1 whitespace-pre-line text-sm text-slate-600">
-              {opts.message}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            ref={cancelBtn}
-            type="button"
-            onClick={() => finish(false)}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            {opts.cancelLabel ?? 'Cancelar'}
-          </button>
-          <button
-            ref={confirmBtn}
-            type="button"
-            onClick={() => finish(true)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'}`}
-          >
-            {opts.confirmLabel ?? (danger ? 'Eliminar' : 'Confirmar')}
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      open={opts !== null}
+      title={opts?.title ?? (opts?.danger ? 'Confirme esta acción' : 'Confirmar')}
+      message={opts?.message ?? ''}
+      confirmLabel={opts?.confirmLabel ?? (opts?.danger ? 'Eliminar' : 'Confirmar')}
+      cancelLabel={opts?.cancelLabel}
+      danger={opts?.danger}
+      onClose={() => finish(false)}
+      onConfirm={() => finish(true)}
+    />
   );
 };
 

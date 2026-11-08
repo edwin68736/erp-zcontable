@@ -22,6 +22,7 @@ import {
   totalsByCurrency,
 } from './rhUi';
 import { formatDateTime } from '../../../utils/format';
+import Alert from '../../../components/ui/Alert';
 
 const RANGES = [
   { label: '15 días', days: 15 },
@@ -388,29 +389,29 @@ const RhCompany = () => {
         </div>
       </div>
 
-      {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}
+      {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       {company && missing ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <Alert variant="warning">
           Falta cargar: <strong>{missing}</strong>. Complételo en{' '}
           <Link to="/finance/claves-sol" className="font-semibold underline">
             Claves SOL
           </Link>{' '}
           (botón Editar de la empresa). Se usan las mismas credenciales de API que el SIRE.
-        </div>
+        </Alert>
       ) : null}
 
       {company && !missing ? (
         <>
-          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900">
+          <Alert variant="info">
             Esta consulta usa la <strong>Plataforma de confirmación del RHE y de la FE</strong> de SUNAT. Muestra solo los comprobantes que están en esa
             plataforma: pendientes, subsanados o pendientes por reinicio (compras) y disconformes (ventas). No es el registro completo de recibos por
             honorarios. SUNAT permite 15 días por consulta: un rango mayor se consulta por tramos automáticamente.
-          </div>
+          </Alert>
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
           <div className="min-w-0 space-y-5">
-          <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-3">
               <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Tipo de consulta">
                 {(
@@ -506,9 +507,9 @@ const RhCompany = () => {
               }
             >
               {resp.data.truncado ? (
-                <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <Alert variant="warning" className="mb-3">
                   Hay más comprobantes de los que se muestran (tope de {resp.data.items.length}). Acorte el rango de fechas.
-                </p>
+                </Alert>
               ) : null}
 
               {resp.data.total === 0 ? (

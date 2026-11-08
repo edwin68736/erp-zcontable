@@ -17,7 +17,7 @@ describe('detraccionesShowStatusEdit', () => {
     }
   });
 
-  it('una empresa suspendida en el período bloquea cualquier cambio', () => {
+  it('una empresa suspendida en el periodo bloquea cualquier cambio', () => {
     expect(detraccionesShowStatusEdit(true, 'pendiente', true)).toBe(false);
   });
 });

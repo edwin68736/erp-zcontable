@@ -4,6 +4,7 @@ import ActivityOwnerFilters from '../../../components/activity/ActivityOwnerFilt
 import PageHeading from '../../../components/ui/PageHeading';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
 import { INPUT_CLS } from './sireUi';
+import Alert from '../../../components/ui/Alert';
 
 const PER_PAGE = 20;
 
@@ -22,7 +23,7 @@ interface Props {
 
 const SireCompanies = ({
   title = 'SIRE',
-  subtitle = 'Elija una empresa para descargar en Excel sus ventas y compras (propuesta del SIRE de SUNAT) de un período.',
+  subtitle = 'Elija una empresa para descargar en Excel sus ventas y compras (propuesta del SIRE de SUNAT) de un periodo.',
   basePath = '/tools/sire',
   openLabel = 'Abrir SIRE',
   openIcon = 'fas fa-file-invoice',
@@ -70,7 +71,7 @@ const SireCompanies = ({
         <PageHeading hint={subtitle}>{title}</PageHeading>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <form
           className="min-w-[14rem] flex-1"
           onSubmit={(e) => {
@@ -100,9 +101,9 @@ const SireCompanies = ({
         </div>
       </div>
 
-      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>

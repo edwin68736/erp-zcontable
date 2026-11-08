@@ -74,7 +74,7 @@ const initials = (name: string) =>
 function deltaText(series: number[], unit = '', goodWhenUp = true): { text: string; tone: 'good' | 'warn' | 'bad' | 'neutral' } | undefined {
   if (series.length < 2) return undefined;
   const d = series[series.length - 1] - series[series.length - 2];
-  if (d === 0) return { text: '= vs. período anterior', tone: 'neutral' };
+  if (d === 0) return { text: '= vs. periodo anterior', tone: 'neutral' };
   const up = d > 0;
   const good = up === goodWhenUp;
   return { text: `${up ? '▲ +' : '▼ −'}${Math.abs(Math.round(d * 10) / 10)}${unit}`, tone: good ? 'good' : 'bad' };
@@ -289,11 +289,11 @@ const SupervisorDashboardView = () => {
 
   const heroDelta = deltaText(trend.map((t) => t.compliance_pct), ' pts');
   const heroLine1 = studioView
-    ? `${heroDelta ? `${heroDelta.text} vs. período anterior` : 'Cumplimiento del período'}`
+    ? `${heroDelta ? `${heroDelta.text} vs. periodo anterior` : 'Cumplimiento del periodo'}`
     : lastStudio
       ? `${compliancePct >= lastStudio.compliance_pct ? '▲ +' : '▼ −'}${Math.abs(Math.round((compliancePct - lastStudio.compliance_pct) * 10) / 10)} pts sobre el estudio (${lastStudio.compliance_pct}%)`
-      : 'Cumplimiento del período';
-  const heroLine2 = studioView ? 'a tiempo ÷ controles sin exentos' : heroDelta ? `${heroDelta.text} vs. período anterior` : undefined;
+      : 'Cumplimiento del periodo';
+  const heroLine2 = studioView ? 'a tiempo ÷ controles sin exentos' : heroDelta ? `${heroDelta.text} vs. periodo anterior` : undefined;
 
   const onTimeDelta = deltaText(series('on_time'), '', true);
   const pendingDelta = deltaText(series('pending'), '', false);
@@ -319,7 +319,7 @@ const SupervisorDashboardView = () => {
     alerts.push({ key: 'obs', title: `${data?.declarations_observed} declaraciones observadas`, text: 'Esperan la corrección del asistente.', color: '#DC2626', soft: '#FEF2F2', icon: 'fas fa-exclamation-circle' });
   }
   if ((data?.companies_without_control ?? 0) > 0) {
-    alerts.push({ key: 'noctl', title: `${data?.companies_without_control} empresas sin control en ${periodYm}`, text: 'Abre el control del período para medirlas.', color: '#7C3AED', soft: '#F5F3FF', icon: 'fas fa-plus-circle' });
+    alerts.push({ key: 'noctl', title: `${data?.companies_without_control} empresas sin control en ${periodYm}`, text: 'Abre el control del periodo para medirlas.', color: '#7C3AED', soft: '#F5F3FF', icon: 'fas fa-plus-circle' });
   }
   (data?.alerts ?? []).slice(0, 2).forEach((a, i) => {
     alerts.push({ key: `be-${i}`, title: a.message, color: '#B45309', soft: '#FFF7E6', icon: 'fas fa-bell', to: a.control_id ? `/supervisors/controls/${a.control_id}` : undefined });
@@ -354,15 +354,15 @@ const SupervisorDashboardView = () => {
                   {studioView ? `${scope.supervisors} supervisores · ` : ''}
                   {scope.assistants} asistentes · {scope.companies} empresas
                 </strong>{' '}
-                · período {periodYm}
+                · periodo {periodYm}
               </>
             ) : (
-              <>Cumplimiento, avance y alertas del período contable.</>
+              <>Cumplimiento, avance y alertas del periodo contable.</>
             )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <FilterChip label="Período">
+          <FilterChip label="Periodo">
             <input type="month" value={periodYm} onChange={(e) => setPeriodYm(e.target.value)} className={SELECT_CLS} />
           </FilterChip>
           {canPickCompanies ? (
@@ -468,7 +468,7 @@ const SupervisorDashboardView = () => {
               value={data.total_active_companies}
               delta={`${data.companies_without_control ?? 0} sin control`}
               deltaTone={(data.companies_without_control ?? 0) > 0 ? 'warn' : 'neutral'}
-              sub="en el período"
+              sub="en el periodo"
               icon="fas fa-building"
               color="#0369A1"
               soft="#FFFFFF"
@@ -662,11 +662,11 @@ const SupervisorDashboardView = () => {
 
               <Card>
                 <div className="mb-[10px] flex items-center justify-between">
-                  <h2 className="m-0 text-sm font-extrabold">Alertas del período</h2>
+                  <h2 className="m-0 text-sm font-extrabold">Alertas del periodo</h2>
                   <Link to="/supervisors/reports" className="rounded-[7px] bg-[#E3F5EA] px-2 py-[3px] text-[10.5px] font-bold text-[#0A5A3A]">Ver reportes →</Link>
                 </div>
                 {alerts.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-slate-500">Sin alertas para este período.</p>
+                  <p className="py-3 text-center text-xs text-slate-500">Sin alertas para este periodo.</p>
                 ) : (
                   <div className="flex flex-col gap-[7px]">
                     {alerts.slice(0, 5).map((a) => {

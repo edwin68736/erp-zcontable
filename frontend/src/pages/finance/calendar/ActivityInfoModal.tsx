@@ -154,7 +154,7 @@ const ActivityInfoModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Cerrar
           </button>
@@ -163,14 +163,14 @@ const ActivityInfoModal = ({
               <button
                 type="button"
                 onClick={() => onDelete(activity)}
-                className="px-4 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-700 hover:bg-red-50"
+                className="px-4 py-2.5 rounded-lg border border-red-200 text-sm font-medium text-red-700 hover:bg-red-50"
               >
                 Eliminar
               </button>
               <button
                 type="button"
                 onClick={() => onEdit(activity)}
-                className="px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                className="px-4 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
               >
                 Editar
               </button>

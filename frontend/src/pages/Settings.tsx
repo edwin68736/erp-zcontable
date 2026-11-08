@@ -13,6 +13,7 @@ import {
   serializeDigColorMap,
   type ClavesSolPaletteId,
 } from '../utils/clavesSolDigColors';
+import Alert from '../components/ui/Alert';
 
 const Settings = () => {
   const canViewSettings = useMemo(() => auth.hasPermission(P.settingsFirmView), []);
@@ -234,9 +235,9 @@ const Settings = () => {
       </div>
 
       {!canViewSettings ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert variant="error">
           No tienes permisos para acceder a esta pantalla
-        </div>
+        </Alert>
       ) : null}
 
       {loading ? (
@@ -246,7 +247,7 @@ const Settings = () => {
       ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {config ? (
@@ -868,7 +869,7 @@ const Settings = () => {
                   <button
                     type="submit"
                     disabled={!canEdit || saving || uploading}
-                    className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
+                    className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
                   >
                     <i className="fas fa-save mr-2 text-xs"></i>
                     {saving ? 'Guardando…' : 'Guardar cambios'}

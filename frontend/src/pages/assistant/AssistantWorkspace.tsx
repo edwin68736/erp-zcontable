@@ -178,13 +178,13 @@ const AssistantWorkspace = () => {
                 <strong className="text-amber-700">{data.counts.due_this_week} que {data.counts.due_this_week === 1 ? 'vence' : 'vencen'} esta semana</strong> · {data.companies} empresas asignadas
               </>
             ) : (
-              'Lo que tienes que hacer en el período.'
+              'Lo que tienes que hacer en el periodo.'
             )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
-            <span className="text-slate-500">Período</span>
+            <span className="text-slate-500">Periodo</span>
             <input type="month" value={periodYm} onChange={(e) => setPeriodYm(e.target.value)} className="border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" />
           </label>
           <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
@@ -267,7 +267,7 @@ const AssistantWorkspace = () => {
             <HeroGauge
               pct={cs?.compliance_pct ?? 0}
               title="Mi cumplimiento"
-              line1={trendDelta === null ? 'Cumplimiento del período' : `${trendDelta >= 0 ? '▲ +' : '▼ −'}${Math.abs(trendDelta)} pts vs. período anterior`}
+              line1={trendDelta === null ? 'Cumplimiento del periodo' : `${trendDelta >= 0 ? '▲ +' : '▼ −'}${Math.abs(trendDelta)} pts vs. periodo anterior`}
               line2={cs ? `${cs.on_time} a tiempo de ${cs.on_time + cs.late + cs.missing} que cuentan` : undefined}
             />
             <KpiTile label="Por entregar" value={data.counts.to_deliver} delta="pendientes + vencidas" deltaTone="warn" icon="fas fa-clock" color="#B45309" soft="#FFFFFF" tint="#FEF3C7" tintBorder="#FDE68A" />
@@ -313,7 +313,7 @@ const AssistantWorkspace = () => {
                 </div>
                 {shown.length === 0 ? (
                   <p className="py-10 text-center text-sm text-slate-500">
-                    {counts.todas === 0 ? '¡Todo al día! No tienes entregas pendientes en este período.' : 'No hay entregas en esta pestaña.'}
+                    {counts.todas === 0 ? '¡Todo al día! No tienes entregas pendientes en este periodo.' : 'No hay entregas en esta pestaña.'}
                   </p>
                 ) : (
                   <div className="flex flex-col">

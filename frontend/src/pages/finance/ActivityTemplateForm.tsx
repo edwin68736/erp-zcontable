@@ -16,6 +16,7 @@ import {
 import ActivityTemplatePreview from './activityTemplates/ActivityTemplatePreview';
 import ActivityTemplatesBreadcrumb from './activityTemplates/ActivityTemplatesBreadcrumb';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 const ActivityTemplateForm = () => {
   const navigate = useNavigate();
@@ -189,7 +190,7 @@ const ActivityTemplateForm = () => {
       </div>
 
       {error ? (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-2">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <div className="grid lg:grid-cols-[1fr,minmax(240px,320px)] gap-6 items-start">
@@ -390,13 +391,13 @@ const ActivityTemplateForm = () => {
             <button
               type="submit"
               disabled={saving || !name.trim()}
-              className="px-5 py-2 rounded-full bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
+              className="px-5 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
             >
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
             <Link
               to="/finance/activity-templates"
-              className="px-5 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="px-5 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Cancelar
             </Link>

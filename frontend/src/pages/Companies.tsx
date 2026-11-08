@@ -19,6 +19,7 @@ import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
 import { confirmDialog } from '../utils/confirmDialog';
+import Alert from '../components/ui/Alert';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -474,14 +475,14 @@ const Companies = () => {
             <button
               type="button"
               onClick={openImportModal}
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50 transition"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50 transition"
             >
               <i className="fas fa-file-excel text-xs"></i>
               <span>Importar Excel</span>
             </button>
             <Link
               to="/companies/new"
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 transition"
             >
               <i className="fas fa-plus text-xs"></i>
               <span>Nueva empresa</span>
@@ -604,7 +605,7 @@ const Companies = () => {
                       <button
                         type="button"
                         onClick={() => openTeamModal(company)}
-                        className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       >
                         <i
                           className={`fas fa-users mr-1 ${
@@ -630,11 +631,11 @@ const Companies = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link to={`/documents/new?company_id=${company.id}`}
-                           className="inline-flex items-center px-3 py-1.5 rounded-full border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50">
+                           className="inline-flex items-center px-3 py-1.5 rounded-lg border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50">
                           <i className="fas fa-file-invoice-dollar mr-1"></i> Cargo
                         </Link>
                         <Link to={`/companies/${company.id}/contacts`}
-                           className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                           className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100">
                           <i className="fas fa-address-book mr-1"></i>
                         </Link>
                         {canUpsert ? (
@@ -649,7 +650,7 @@ const Companies = () => {
                           <button 
                             type="button"
                             onClick={() => handleDelete(company.id)}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50">
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50">
                             <i className="fas fa-trash mr-1"></i>
                           </button>
                         ) : null}
@@ -708,7 +709,7 @@ const Companies = () => {
                 <button
                   type="button"
                   onClick={handleDownloadTemplate}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50"
                 >
                   <i className="fas fa-download text-xs"></i>
                   Descargar plantilla
@@ -732,9 +733,9 @@ const Companies = () => {
                 </div>
 
                 {importBanner ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <Alert variant="warning">
                     {importBanner}
-                  </div>
+                  </Alert>
                 ) : null}
 
                 {importErrors.length > 0 ? (
@@ -761,7 +762,7 @@ const Companies = () => {
                 <button
                   type="button"
                   onClick={closeImportModal}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
                 >
                   Cerrar
                 </button>
@@ -769,7 +770,7 @@ const Companies = () => {
                   type="button"
                   disabled={!importFile || importValidateLoading}
                   onClick={() => void handleValidateImport()}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-primary-400 text-sm font-medium text-primary-800 hover:bg-primary-50 disabled:opacity-50"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-primary-400 text-sm font-medium text-primary-800 hover:bg-primary-50 disabled:opacity-50"
                 >
                   {importValidateLoading ? (
                     <>
@@ -785,7 +786,7 @@ const Companies = () => {
                   type="button"
                   disabled={!importFile || !importValidatedOk || importCommitLoading}
                   onClick={() => void handleCommitImport()}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 disabled:opacity-50"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 disabled:opacity-50"
                 >
                   {importCommitLoading ? (
                     <>
@@ -827,9 +828,9 @@ const Companies = () => {
 
               <div className="p-5 space-y-4">
                 {teamError ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <Alert variant="error">
                     {teamError}
-                  </div>
+                  </Alert>
                 ) : null}
 
                 {teamLoading ? (
@@ -920,7 +921,7 @@ const Companies = () => {
                 <button
                   type="button"
                   onClick={closeTeamModal}
-                  className="inline-flex items-center px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
+                  className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-white"
                 >
                   Cerrar
                 </button>
@@ -929,7 +930,7 @@ const Companies = () => {
                     type="button"
                     disabled={teamSaving}
                     onClick={handleSaveTeam}
-                    className="inline-flex items-center px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 disabled:opacity-60"
+                    className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 disabled:opacity-60"
                   >
                     <i className="fas fa-save mr-2 text-xs"></i>
                     Guardar

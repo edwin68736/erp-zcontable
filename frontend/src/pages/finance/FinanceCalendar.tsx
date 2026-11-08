@@ -385,7 +385,7 @@ const FinanceCalendar = () => {
       };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-3 pb-10 print:max-w-none">
+    <div className="space-y-3 pb-10 print:max-w-none">
       <CalendarHeader
         periodYm={periodYm}
         canManage={canManage}
@@ -477,7 +477,7 @@ const FinanceCalendar = () => {
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+              className="px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
             >
               Crear calendario
             </button>

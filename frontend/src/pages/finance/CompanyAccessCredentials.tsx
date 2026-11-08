@@ -22,6 +22,7 @@ import {
   type ClavesSolPaletteId,
 } from '../../utils/clavesSolDigColors';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 /** Mostrar las columnas Usuario SOL y Clave SOL en la lista (ocultas a propósito; ver showSolColumns). */
 const SHOW_SOL_COLUMNS = false;
@@ -644,7 +645,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50"
+            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg border border-primary-300 bg-white text-primary-800 text-sm font-medium shadow-sm hover:bg-primary-50"
           >
             <i className="fas fa-file-excel text-xs" aria-hidden />
             Importar Excel
@@ -792,7 +793,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       {listNotice ? (
@@ -1290,7 +1291,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
               <button
                 type="button"
                 onClick={closeEdit}
-                className="px-4 py-2 rounded-full border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {canManage ? 'Cancelar' : 'Cerrar'}
               </button>
@@ -1299,7 +1300,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                   type="button"
                   disabled={saving}
                   onClick={() => void handleSave()}
-                  className="px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                 >
                   {saving ? 'Guardando…' : 'Guardar'}
                 </button>
@@ -1363,10 +1364,10 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
               </ul>
             ) : null}
             {importUnmatched.length > 0 ? (
-              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <Alert variant="warning">
                 <p className="font-semibold mb-1">RUC no registrados ({importUnmatched.length}):</p>
                 <p className="font-mono break-all">{importUnmatched.join(', ')}</p>
-              </div>
+              </Alert>
             ) : null}
             {importValidatedOk && importRowCount > 0 && !importBanner ? (
               <p className="text-sm text-primary-800 bg-primary-50 border border-primary-100 px-3 py-2 rounded-lg">
@@ -1385,7 +1386,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 type="button"
                 disabled={!importFile || importValidateLoading}
                 onClick={() => void handleValidateImport()}
-                className="px-4 py-2 rounded-full border border-primary-300 text-primary-800 text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-lg border border-primary-300 text-primary-800 text-sm font-medium disabled:opacity-50"
               >
                 {importValidateLoading ? 'Validando…' : 'Validar'}
               </button>
@@ -1393,7 +1394,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                 type="button"
                 disabled={!importValidatedOk || importCommitLoading}
                 onClick={() => void handleCommitImport()}
-                className="px-4 py-2 rounded-full bg-primary-700 text-white text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-primary-700 text-white text-sm font-medium disabled:opacity-50"
               >
                 {importCommitLoading ? 'Importando…' : 'Importar'}
               </button>

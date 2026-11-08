@@ -18,28 +18,28 @@ const toast = (type: 'success' | 'error', message: string) =>
   window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type, message } }));
 
 /**
- * Botón de fila para marcar o quitar la SUSPENSIÓN de una empresa en el período, disponible en todos los
+ * Botón de fila para marcar o quitar la SUSPENSIÓN de una empresa en el periodo, disponible en todos los
  * módulos de actividades (Buzón SOL, Preliminar, Detracciones, PDT 601/621, informes…). La marca es una sola
- * por empresa y período: al suspenderla en un módulo queda suspendida en todos. La empresa sigue activa.
+ * por empresa y periodo: al suspenderla en un módulo queda suspendida en todos. La empresa sigue activa.
  */
 export default function SuspendCompanyAction({ companyId, companyName, periodYm, suspendida, onChanged }: Props) {
   const [saving, setSaving] = useState(false);
   // Mismo permiso que exige el servidor para marcar la suspensión.
   if (!auth.hasPermission(P.supervisorsAttachmentsUpload)) return null;
 
-  const label = suspendida ? 'Quitar suspensión' : 'Suspender empresa en este período';
+  const label = suspendida ? 'Quitar suspensión' : 'Suspender empresa en este periodo';
 
   const handleClick = async () => {
     if (saving) return;
     const next = !suspendida;
     const ok = (await confirmDialog({ message: next
-        ? `¿Marcar a ${companyName || 'la empresa'} como SUSPENDIDA en ${periodYm}?\n\nQuedará suspendida en todos los módulos de este período (Buzón SOL, Preliminar de ventas, Detracciones, PDT 601/621…) y exenta de plazos. Puedes quitar la suspensión cuando quieras.`
-        : `¿Quitar la suspensión de ${companyName || 'la empresa'} en ${periodYm}?\n\nVolverá a contar en todos los módulos de este período.`, }));
+        ? `¿Marcar a ${companyName || 'la empresa'} como SUSPENDIDA en ${periodYm}?\n\nQuedará suspendida en todos los módulos de este periodo (Buzón SOL, Preliminar de ventas, Detracciones, PDT 601/621…) y exenta de plazos. Puedes quitar la suspensión cuando quieras.`
+        : `¿Quitar la suspensión de ${companyName || 'la empresa'} en ${periodYm}?\n\nVolverá a contar en todos los módulos de este periodo.`, }));
     if (!ok) return;
     try {
       setSaving(true);
       await companySuspensionService.set(companyId, periodYm, next);
-      toast('success', next ? 'Empresa suspendida en este período.' : 'Suspensión quitada.');
+      toast('success', next ? 'Empresa suspendida en este periodo.' : 'Suspensión quitada.');
       onChanged();
     } catch (err) {
       toast('error', extractApiErrorMessage(err, 'No se pudo cambiar la suspensión.'));

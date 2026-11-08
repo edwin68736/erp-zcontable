@@ -55,10 +55,10 @@ const AssistantDashboard = () => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-4">
         <div>
-          <PageHeading hint="Cómo vienen sus empresas asignadas en el período.">Mi resumen PDT 601 / 621</PageHeading>
+          <PageHeading hint="Cómo vienen sus empresas asignadas en el periodo.">Mi resumen PDT 601 / 621</PageHeading>
         </div>
         <label className="text-sm text-slate-600">
-          Período
+          Periodo
           <input
             type="month"
             value={periodYm}

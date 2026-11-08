@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { registerReauthPrompt } from '../api/reauth';
 import { apiErrorMessage, securityService } from '../services/security';
+import Alert from '../components/ui/Alert';
 
 /**
  * Pide la contraseña de nuevo antes de acciones sensibles (usuarios, roles, seguridad). Se monta una vez en el Layout:
@@ -77,18 +78,18 @@ const ReauthDialog = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Su contraseña"
-          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30"
+          className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30"
         />
         {error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+          <Alert variant="error">
             {error}
-          </p>
+          </Alert>
         ) : null}
         <div className="flex gap-2">
-          <button type="button" onClick={() => finish(false)} className="flex-1 rounded-full border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <button type="button" onClick={() => finish(false)} className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Cancelar
           </button>
-          <button type="submit" disabled={busy || !password} className="flex-1 rounded-full bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800 disabled:opacity-60">
+          <button type="submit" disabled={busy || !password} className="flex-1 rounded-lg bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800 disabled:opacity-60">
             {busy ? 'Confirmando…' : 'Confirmar'}
           </button>
         </div>

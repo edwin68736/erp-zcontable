@@ -48,12 +48,12 @@ function toError(err: unknown): SireApiError {
   const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string } } }).response?.data;
   if (data?.error) return { message: data.error, code: data.code, detail: data.detail };
   const net = err as { code?: string; message?: string };
-  if (net.code === 'ECONNABORTED') return { message: 'La consulta tardó demasiado. Pruebe con un rango de períodos menor.', code: 'timeout' };
+  if (net.code === 'ECONNABORTED') return { message: 'La consulta tardó demasiado. Pruebe con un rango de periodos menor.', code: 'timeout' };
   return { message: 'No se pudo consultar a SUNAT. Intente de nuevo.', detail: net.message };
 }
 
 export const itfService = {
-  /** Consulta el ITF de la empresa entre dos períodos (AAAAMM). El servidor entra a SOL con su clave. */
+  /** Consulta el ITF de la empresa entre dos periodos (AAAAMM). El servidor entra a SOL con su clave. */
   async query(companyId: number, desde: string, hasta: string): Promise<ItfQueryResponse> {
     try {
       const res = await client.get<ItfQueryResponse>(`/tools/itf/${companyId}/consulta`, { params: { desde, hasta }, timeout: 120000 });

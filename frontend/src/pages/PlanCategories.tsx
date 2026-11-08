@@ -19,7 +19,7 @@ const PlanCategories = () => {
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <PageHeading hint="Agrupadores comerciales (ej. clientes legacy, nuevos).">Categorías de planes</PageHeading>
@@ -27,7 +27,7 @@ const PlanCategories = () => {
         {canEdit ? (
           <Link
             to="/plan-categories/new"
-            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white text-sm font-medium"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium"
           >
             <i className="fas fa-plus text-xs"></i> Nueva categoría
           </Link>
@@ -39,7 +39,7 @@ const PlanCategories = () => {
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="text-left px-4 py-3">Código</th>
                   <th className="text-left px-4 py-3">Nombre</th>

@@ -20,16 +20,17 @@ import {
   type PreliminarVentasListRow,
   type PreliminarVentasSlotStatus,
 } from '../../services/preliminarVentas';
-// El arrastre de suspensión entre períodos (§5.9.9) es genérico (vive en detraccionesService porque
+// El arrastre de suspensión entre periodos (§5.9.9) es genérico (vive en detraccionesService porque
 // Detracciones es el único módulo que escribe/resuelve "suspendida", no porque sea exclusivo de
-// ese módulo) — se reusa tal cual acá para que abrir Preliminar de Ventas en un período nuevo
-// también pregunte si corresponde arrastrar la suspensión del período anterior, en vez de dejar que
+// ese módulo) — se reusa tal cual acá para que abrir Preliminar de Ventas en un periodo nuevo
+// también pregunte si corresponde arrastrar la suspensión del periodo anterior, en vez de dejar que
 // el control nuevo nazca en falso silenciosamente (antes solo Detracciones preguntaba esto).
 import { detraccionesService, type SuspensionCarryOverRow } from '../../services/detracciones';
 import { currentPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPreliminarVentasReportExcel } from '../../utils/preliminarVentasExcelExport';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 function formatDueDate(iso?: string): string {
   if (!iso) return 'Sin fecha configurada';
@@ -78,7 +79,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   const [exportingExcel, setExportingExcel] = useState(false);
   const [excelSlots, setExcelSlots] = useState<'both' | '1' | '2'>('both');
 
-  // Modal de arrastre de suspensión entre períodos (§5.9.9) — "cualquier usuario" puede resolverlo
+  // Modal de arrastre de suspensión entre periodos (§5.9.9) — "cualquier usuario" puede resolverlo
   // (§5.9.9.3), así que no se acota por permiso de edición.
   const [carryOverCompanies, setCarryOverCompanies] = useState<SuspensionCarryOverRow[]>([]);
   const [carryOverOpen, setCarryOverOpen] = useState(false);
@@ -129,9 +130,9 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
     setPage(1);
   }, [periodYm, debouncedQ, statusFilter, filterAssistantId, filterSupervisorId]);
 
-  // Al entrar (o cambiar de período), se consulta si hay un arrastre de suspensión sin resolver —
+  // Al entrar (o cambiar de periodo), se consulta si hay un arrastre de suspensión sin resolver —
   // si el usuario cierra el modal sin decidir, no se recuerda acá: la próxima vez que se entre a
-  // este período se vuelve a preguntar, igual que en Control de Detracciones (§5.9.9.2).
+  // este periodo se vuelve a preguntar, igual que en Control de Detracciones (§5.9.9.2).
   useEffect(() => {
     let cancelled = false;
     detraccionesService
@@ -205,7 +206,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   };
 
   // La fecha límite de cada entrega sale del calendario y es la misma para toda la lista en este
-  // período (no depende de la empresa) — se toma de la primera fila que la traiga.
+  // periodo (no depende de la empresa) — se toma de la primera fila que la traiga.
   const slot1DueDate = rows[0]?.slot1.due_date;
   const slot2DueDate = rows[0]?.slot2.due_date;
 
@@ -283,7 +284,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
       </div>
 
       {error ? (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+        <Alert variant="error">{error}</Alert>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-clip">
@@ -390,7 +391,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
   );
 };
 
-// Suspendida es un overlay global del período (SupervisorMonthlyControl.Suspendida, §5.9.7) — no un
+// Suspendida es un overlay global del periodo (SupervisorMonthlyControl.Suspendida, §5.9.7) — no un
 // estado más de la entrega — así que pisa el estado real de AMBAS entregas en vez de mostrarse como
 // un chip aparte junto a la razón social (mismo criterio que pdt621DisplayStatus en PDT 601/621).
 /** Celda celeste: entrega registrada después de su fecha del calendario (igual en el Excel). */

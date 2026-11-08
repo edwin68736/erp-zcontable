@@ -87,7 +87,7 @@ const ExternalClients = () => {
         </div>
         <Link
           to="/pos"
-          className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           <i className="fas fa-cash-register text-xs" />
           Ir a POS
@@ -116,7 +116,7 @@ const ExternalClients = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="text-left px-4 py-3">Código</th>
                   <th className="text-left px-4 py-3">Documento</th>
@@ -136,7 +136,7 @@ const ExternalClients = () => {
                       {canConvert ? (
                         <Link
                           to={`/companies/${c.id}/edit?convert=1`}
-                          className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100"
+                          className="inline-flex items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-800 hover:bg-primary-100"
                         >
                           <i className="fas fa-building text-2xs" />
                           Convertir en cliente del estudio

@@ -31,10 +31,11 @@ import {
   type LiquidationRentaRegime,
 } from '../../utils/companyTaxRegime';
 import PageHeading from '../../components/ui/PageHeading';
+import Alert from '../../components/ui/Alert';
 
 /** Fecha de corte por defecto: HOY (hora del navegador). La fecha de corte debe caer dentro del mes
- * del período (el servidor lo exige), así que si el período es otro mes se usa el último día de un
- * período pasado o el primero de uno futuro. */
+ * del periodo (el servidor lo exige), así que si el periodo es otro mes se usa el último día de un
+ * periodo pasado o el primero de uno futuro. */
 function defaultCutoffDate(periodYm: string): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -200,7 +201,7 @@ function computeLocalVentasSummary(
   const totalTotal = round2(totalBase + totalNoGravadas + totalIgv);
 
   const igvResultante = roundHalfAwayFromZero(totalIgv);
-  // Retención/percepción restan igual que el crédito del período anterior — si el resultado da
+  // Retención/percepción restan igual que el crédito del periodo anterior — si el resultado da
   // negativo es saldo a favor (crédito fiscal), no "a pagar" (oculta la sección Compras más abajo).
   const retencionMonto = Number(record.retencion_monto ?? 0);
   const percepcionMonto = Number(record.percepcion_monto ?? 0);
@@ -422,7 +423,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline">
           ← Volver
         </Link>
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mt-3">Empresa inválida.</div>
+        <Alert variant="error" className="mt-3">Empresa inválida.</Alert>
       </div>
     );
   }
@@ -444,9 +445,9 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         <Link to={listPath} className="text-primary-700 text-sm font-medium hover:underline">
           ← Volver al listado
         </Link>
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mt-3">
+        <Alert variant="error" className="mt-3">
           {error || 'No se pudo cargar la empresa.'}
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -470,7 +471,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       ? detail.summary.renta_regimen_origen === 'por_defecto'
         ? 'La empresa no tiene régimen cargado en su ficha: se asume MYPE (1 %). Elíjalo aquí y guarde el registro.'
         : detail.summary.renta_regimen_origen === 'entrega_1'
-          ? 'Tomado de la entrega 1 de este período.'
+          ? 'Tomado de la entrega 1 de este periodo.'
           : detail.summary.renta_regimen_origen === 'empresa'
             ? 'Tomado del régimen de la empresa.'
             : ''
@@ -480,7 +481,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     <div className={PAGE_WORKSPACE_CLASS} ref={formRef} onKeyDown={handleEnterNext}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <PageHeading hint={`Período ${periodYm}`}>Preliminar de ventas · Entrega {slotIndex}</PageHeading>
+          <PageHeading hint={`Periodo ${periodYm}`}>Preliminar de ventas · Entrega {slotIndex}</PageHeading>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -507,7 +508,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         </div>
       </div>
 
-      {error ? <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div> : null}
+      {error ? <Alert variant="error">{error}</Alert> : null}
       {msg ? (
         <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800">{msg}</div>
       ) : null}
@@ -561,7 +562,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         {detail.control_suspendida ? (
           <p className="flex items-start gap-2 text-sm text-slate-500">
             <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-            Esta empresa está marcada "Suspendida" en este período (desde Control de Detracciones) — no se puede editar.
+            Esta empresa está marcada "Suspendida" en este periodo (desde Control de Detracciones) — no se puede editar.
           </p>
         ) : null}
       </div>
