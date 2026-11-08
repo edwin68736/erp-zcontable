@@ -465,12 +465,7 @@ const Reports = () => {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <PageHeading>Reportes financieros</PageHeading>
-          <p className="text-sm text-slate-500">
-            {isAdmin
-              ? 'Resumen global de documentos, pagos y saldos por empresa. Las fechas filtran totales por emisión/pagos. La mora mínima y el score usan el periodo contable del cargo con saldo (periodo de servicio o mes de emisión).'
-              : 'Resumen de documentos, pagos y saldos de tus empresas asignadas. Las mismas reglas de periodo y mora aplican según tus permisos.'}
-          </p>
+          <PageHeading hint={isAdmin ? 'Resumen global de documentos, pagos y saldos por empresa. Las fechas filtran totales por emisión/pagos. La mora mínima y el score usan el periodo contable del cargo con saldo (periodo de servicio o mes de emisión).' : 'Resumen de documentos, pagos y saldos de tus empresas asignadas. Las mismas reglas de periodo y mora aplican según tus permisos.'}>Reportes financieros</PageHeading>
         </div>
         <div className="flex items-center gap-2">
           <Button

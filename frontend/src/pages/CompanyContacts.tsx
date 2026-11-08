@@ -88,9 +88,7 @@ const CompanyContacts = () => {
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <PageHeading>{company.business_name}</PageHeading>
-          <p className="text-sm text-slate-500">Contactos responsables para la comunicación con el estudio.</p>
+          <PageHeading hint="Contactos responsables para la comunicación con el estudio.">{company.business_name}</PageHeading>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Link

@@ -302,12 +302,13 @@ const ItfCompany = () => {
   return (
     <div className="space-y-5 pt-2">
       <div>
-        <Link to="/tools/consulta-itf" className="text-xs font-semibold text-primary-700 hover:underline">
-          <i className="fas fa-arrow-left mr-1" aria-hidden />
-          Volver a la lista
-        </Link>
-        <PageHeading className="mt-1">{company?.business_name || 'Consulta ITF'}</PageHeading>
-        <p className="mt-1 text-sm font-medium text-slate-500">{company ? `RUC ${company.ruc} · Cod ${company.code}` : companyError || 'Cargando empresa…'}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <Link to="/tools/consulta-itf" title="Volver a la lista" aria-label="Volver a la lista" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">
+            <i className="fas fa-arrow-left text-xs" aria-hidden />
+          </Link>
+          <PageHeading>{company?.business_name || 'Consulta ITF'}</PageHeading>
+          <p className="text-sm font-medium text-slate-500">{company ? `RUC ${company.ruc} · Cod ${company.code}` : companyError || 'Cargando empresa…'}</p>
+        </div>
       </div>
 
       {companyError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{companyError}</p> : null}

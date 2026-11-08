@@ -329,10 +329,7 @@ const DocumentForm = () => {
     <div className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <PageHeading>{isEdit ? 'Editar deuda' : 'Nueva deuda'}</PageHeading>
-          <p className="text-sm text-slate-500">
-            Cargo interno en cuentas por cobrar. Las facturas, boletas y notas de venta se emiten desde pagos, liquidaciones o el punto de venta.
-          </p>
+          <PageHeading hint="Cargo interno en cuentas por cobrar. Las facturas, boletas y notas de venta se emiten desde pagos, liquidaciones o el punto de venta.">{isEdit ? 'Editar deuda' : 'Nueva deuda'}</PageHeading>
         </div>
         <Link
           to="/documents"

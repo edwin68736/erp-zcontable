@@ -67,9 +67,7 @@ const SireCompanies = ({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
-        <PageHeading className="mt-1">{title}</PageHeading>
-        <p className="mt-1 text-sm font-medium text-slate-500">{subtitle}</p>
+        <PageHeading hint={subtitle}>{title}</PageHeading>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">

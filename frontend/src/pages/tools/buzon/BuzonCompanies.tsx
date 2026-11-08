@@ -64,11 +64,7 @@ const BuzonCompanies = () => {
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
-        <PageHeading className="mt-1">Notificaciones SUNAT</PageHeading>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Buzón electrónico de cada empresa. Se sincroniza todas las noches a la 1:00 a. m.; también puede sincronizar una empresa a la vez desde su pantalla.
-        </p>
+        <PageHeading hint="Buzón electrónico de cada empresa. Se sincroniza todas las noches a la 1:00 a. m.; también puede sincronizar una empresa a la vez desde su pantalla.">Notificaciones SUNAT</PageHeading>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">

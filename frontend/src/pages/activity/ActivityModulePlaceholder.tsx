@@ -23,10 +23,7 @@ const ActivityModulePlaceholder = () => {
         <Link to={homePath} className="text-sm text-primary-700 hover:underline">
           ← Volver
         </Link>
-        <PageHeading className="mt-2">{title}</PageHeading>
-        <p className="text-sm text-slate-500 mt-1">
-          {item?.description ?? 'Este módulo se implementará en una fase posterior del plan aprobado.'}
-        </p>
+        <PageHeading hint={item?.description ?? 'Este módulo se implementará en una fase posterior del plan aprobado.'}>{title}</PageHeading>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">

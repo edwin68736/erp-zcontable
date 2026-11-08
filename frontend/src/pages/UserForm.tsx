@@ -226,8 +226,7 @@ const UserForm = () => {
     <div className="max-w-5xl mx-auto w-full space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <PageHeading>{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</PageHeading>
-          <p className="text-sm text-slate-500">Define los datos de acceso y el rol del usuario.</p>
+          <PageHeading hint="Define los datos de acceso y el rol del usuario.">{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</PageHeading>
         </div>
         <Link
           to="/users"

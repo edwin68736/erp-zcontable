@@ -117,9 +117,7 @@ const CompanyContactForm = () => {
     <div className="max-w-4xl mx-auto space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <PageHeading>{company.business_name}</PageHeading>
-          <p className="text-sm text-slate-500">{isEdit ? 'Editar contacto' : 'Nuevo contacto'} responsable.</p>
+          <PageHeading hint={`${isEdit ? 'Editar contacto' : 'Nuevo contacto'} responsable.`}>{company.business_name}</PageHeading>
         </div>
         <Link
           to={`/companies/${company.id}/contacts`}

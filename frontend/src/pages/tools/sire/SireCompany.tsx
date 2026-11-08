@@ -323,12 +323,13 @@ const SireCompany = () => {
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/tools/sire" className="text-xs font-semibold text-primary-700 hover:underline">
-            <i className="fas fa-arrow-left mr-1" aria-hidden />
-            Volver a la lista
-          </Link>
-          <PageHeading className="mt-1">{company?.business_name || 'SIRE'}</PageHeading>
-          <p className="mt-1 text-sm font-medium text-slate-500">{company ? `RUC ${company.ruc} · Cod ${company.code}` : companyError || 'Cargando empresa…'}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <Link to="/tools/sire" title="Volver a la lista" aria-label="Volver a la lista" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">
+              <i className="fas fa-arrow-left text-xs" aria-hidden />
+            </Link>
+            <PageHeading>{company?.business_name || 'SIRE'}</PageHeading>
+            <p className="text-sm font-medium text-slate-500">{company ? `RUC ${company.ruc} · Cod ${company.code}` : companyError || 'Cargando empresa…'}</p>
+          </div>
         </div>
         {company && !missing ? (
           <Button variant="secondary" onClick={() => void runTest()} disabled={testState === 'running'}>

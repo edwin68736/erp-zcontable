@@ -20,8 +20,7 @@ const ModuleComingSoon = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Módulo en preparación</p>
-          <PageHeading className="mt-1">{copy.title}</PageHeading>
-          <p className="text-slate-500 mt-1 text-sm font-medium">{copy.subtitle}</p>
+          <PageHeading hint={copy.subtitle}>{copy.title}</PageHeading>
         </div>
       </div>
 

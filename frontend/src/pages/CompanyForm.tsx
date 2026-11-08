@@ -521,14 +521,9 @@ const CompanyForm = () => {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <PageHeading>
+          <PageHeading hint={convertMode ? 'Complete plan, equipo y datos contables. El cliente dejará de ser solo POS.' : 'Datos maestros del cliente del estudio.'}>
             {convertMode ? 'Convertir a cliente del estudio' : isEdit ? 'Editar empresa' : 'Nueva empresa'}
           </PageHeading>
-          <p className="text-sm text-slate-500">
-            {convertMode
-              ? 'Complete plan, equipo y datos contables. El cliente dejará de ser solo POS.'
-              : 'Datos maestros del cliente del estudio.'}
-          </p>
         </div>
         <Link
           to={convertMode ? '/companies/external' : '/companies'}

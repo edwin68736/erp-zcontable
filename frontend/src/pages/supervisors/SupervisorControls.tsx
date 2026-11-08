@@ -118,8 +118,7 @@ const SupervisorControls = ({
     <div className="max-w-6xl mx-auto space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <PageHeading>{pageTitle}</PageHeading>
-          <p className="text-sm text-slate-500">{pageSubtitle}</p>
+          <PageHeading hint={pageSubtitle}>{pageTitle}</PageHeading>
         </div>
         {canCreate ? (
           <button

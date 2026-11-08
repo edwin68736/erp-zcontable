@@ -840,12 +840,7 @@ const CompanyStatement = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Empresa</p>
-          <PageHeading>{data.Company.business_name}</PageHeading>
-          <p className="text-sm text-slate-500 mt-1">
-            Estado de cuenta tipo extracto bancario por periodo o mes (cargos, abonos y saldo corrido).
-            {/* Perfil operativo (pestaña oculta): deudas, pagos aplicados y pagos a cuenta. */}
-          </p>
+          <PageHeading hint="Estado de cuenta tipo extracto bancario por periodo o mes (cargos, abonos y saldo corrido).">{data.Company.business_name}</PageHeading>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link

@@ -14,9 +14,7 @@ const ToolUnderConstruction = () => {
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary-700/90">Herramientas</p>
-        <PageHeading className="mt-1">{tool.label}</PageHeading>
-        <p className="text-slate-500 mt-1 text-sm font-medium">{tool.description}</p>
+        <PageHeading hint={tool.description}>{tool.label}</PageHeading>
       </div>
 
       <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 flex items-center justify-center min-h-[16rem]">

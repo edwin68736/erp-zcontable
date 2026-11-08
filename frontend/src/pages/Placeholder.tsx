@@ -9,10 +9,7 @@ const Placeholder = ({ title }: PlaceholderProps) => {
     <div className="space-y-3">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <PageHeading>{title}</PageHeading>
-          <p className="text-slate-500 mt-1 text-sm font-medium">
-            Esta vista está en construcción.
-          </p>
+          <PageHeading hint="Esta vista está en construcción.">{title}</PageHeading>
         </div>
       </div>
       
