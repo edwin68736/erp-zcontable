@@ -1,10 +1,10 @@
 /** Política de contraseñas (la misma que valida el servidor; el servidor es quien decide). */
 
-export const PASSWORD_MIN = 10;
+export const PASSWORD_MIN = 6;
 export const PASSWORD_MAX_BYTES = 72;
 
 export interface PasswordCheck {
-  /** Mínimo de 10 caracteres. */
+  /** Mínimo de 6 caracteres. */
   length: boolean;
   /** No pasa de 72 bytes (bcrypt ignora lo que sobra). */
   maxBytes: boolean;

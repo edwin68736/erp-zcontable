@@ -86,7 +86,7 @@ func (ctrl *AuthController) LoginAPI(c fiber.Ctx) error {
 }
 
 // ChangePasswordAPI POST /me/password — {"current_password":"…","new_password":"…"}
-// El usuario cambia su propia contraseña: exige la actual y cumplir la política (mínimo 10 caracteres, no común, no
+// El usuario cambia su propia contraseña: exige la actual y cumplir la política (mínimo 6 caracteres, no común, no
 // filtrada). Los fallos repetidos se registran en la bitácora de seguridad.
 func (ctrl *AuthController) ChangePasswordAPI(c fiber.Ctx) error {
 	uid, err := getUserID(c)

@@ -167,8 +167,8 @@ func TestChangePassword(t *testing.T) {
 	if code != http.StatusBadRequest || !strings.Contains(out["error"].(string), "actual") {
 		t.Errorf("actual incorrecta: %d %v", code, out)
 	}
-	code, out, _ = post(t, app, "/me/password", `{"current_password":"una-clave-segura-123","new_password":"123456"}`, h)
-	if code != http.StatusBadRequest || !strings.Contains(out["error"].(string), "10 caracteres") {
+	code, out, _ = post(t, app, "/me/password", `{"current_password":"una-clave-segura-123","new_password":"ab12"}`, h)
+	if code != http.StatusBadRequest || !strings.Contains(out["error"].(string), "6 caracteres") {
 		t.Errorf("política: %d %v", code, out)
 	}
 	code, out, _ = post(t, app, "/me/password", `{"current_password":"una-clave-segura-123","new_password":"NuevaClave-2026-x"}`, h)

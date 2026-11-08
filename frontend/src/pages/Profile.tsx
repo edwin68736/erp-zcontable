@@ -103,7 +103,7 @@ const Profile = () => {
           />
         </label>
         <ul className="space-y-0.5 text-xs" aria-label="Requisitos de la contraseña">
-          <Rule ok={check.length}>Al menos 10 caracteres</Rule>
+          <Rule ok={check.length}>Al menos 6 caracteres (se recomienda 10 o más, y que no sea su DNI)</Rule>
           <Rule ok={check.noUsername}>No contiene su nombre de usuario</Rule>
           <Rule ok={next !== '' && check.notObvious}>No es una contraseña común ni una secuencia (1234567890, aaaaaaaaaa…)</Rule>
           <Rule ok={next !== '' && next !== current}>Distinta de la actual</Rule>

@@ -77,7 +77,7 @@ func TestChangeOwnPassword(t *testing.T) {
 	if err := s.ChangeOwnPassword(u.ID, "una-clave-segura-123", "una-clave-segura-123"); err == nil || !strings.Contains(err.Error(), "distinta") {
 		t.Errorf("igual a la actual: %v", err)
 	}
-	if err := s.ChangeOwnPassword(u.ID, "una-clave-segura-123", "corta"); err == nil || !strings.Contains(err.Error(), "10 caracteres") {
+	if err := s.ChangeOwnPassword(u.ID, "una-clave-segura-123", "corta"); err == nil || !strings.Contains(err.Error(), "6 caracteres") {
 		t.Errorf("política: %v", err)
 	}
 	if err := s.ChangeOwnPassword(u.ID, "una-clave-segura-123", "NuevaClave-2026-x"); err != nil {
@@ -95,15 +95,21 @@ func TestChangeOwnPassword(t *testing.T) {
 }
 
 func TestPasswordPolicy(t *testing.T) {
-	ok := []string{"Una-clave-larga-2026", "frase secreta del estudio", "k9#Xp2!vLm4Q"}
+	// Un DNI de 8 dígitos o una clave de 6 se aceptan (parte del personal las usa); lo comunes y las secuencias no.
+	ok := []string{"Una-clave-larga-2026", "frase secreta del estudio", "k9#Xp2!vLm4Q", "45671289", "482910", "Zeta52"}
 	for _, p := range ok {
 		if err := ValidatePasswordPolicy(p, "maria"); err != nil {
 			t.Errorf("%q debía aceptarse: %v", p, err)
 		}
 	}
 	bad := map[string]string{
-		"corta1":                    "al menos 10",
-		"123456789":                 "al menos 10",
+		"corta":                     "al menos 6",
+		"ab12":                      "al menos 6",
+		"12345":                     "al menos 6",
+		"123456":                    "demasiado común",
+		"12345678":                  "demasiado común",
+		"111111":                    "demasiado común",
+		"123456789":                 "demasiado común",
 		"1234567890":                "demasiado común",
 		"aaaaaaaaaaaa":              "demasiado común",
 		"abcdefghijkl":              "demasiado común",
@@ -139,7 +145,7 @@ func TestUserService_aplicaLaPoliticaAlCrearYEditar(t *testing.T) {
 		t.Fatal(err)
 	}
 	us := NewUserService()
-	if _, _, err := us.Create("nuevo1", "Nuevo", "", "123456", 1, "", "", "", true); err == nil || !strings.Contains(err.Error(), "10 caracteres") {
+	if _, _, err := us.Create("nuevo1", "Nuevo", "", "123456", 1, "", "", "", true); err == nil || !strings.Contains(err.Error(), "demasiado común") {
 		t.Errorf("crear con contraseña débil debía rechazarse: %v", err)
 	}
 }

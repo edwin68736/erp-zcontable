@@ -12,13 +12,14 @@ import (
 )
 
 // Política de contraseñas del sistema (al crearlas o cambiarlas; las ya guardadas no se tocan):
-//   - de 10 a 72 caracteres (bcrypt ignora lo que pase de 72 bytes, así que más largo engaña);
+//   - de 6 a 72 caracteres (el mínimo es bajo a propósito: parte del personal usa su DNI de 8 dígitos o una clave de 6;
+//     lo compensan el bloqueo por intentos fallidos y el rechazo de contraseñas comunes y filtradas) (bcrypt ignora lo que pase de 72 bytes, así que más largo engaña);
 //   - no puede ser el usuario ni contenerlo, ni una contraseña muy común, ni una secuencia obvia;
 //   - no puede figurar en filtraciones públicas (consulta por k-anonimato a Have I Been Pwned: solo se envían los
 //     primeros 5 caracteres del hash, nunca la contraseña; si el servicio no responde, no se bloquea el cambio).
 
 const (
-	PasswordMinLen = 10
+	PasswordMinLen = 6
 	passwordMaxLen = 72
 )
 
@@ -44,7 +45,7 @@ func ValidatePasswordPolicy(plain, username string) error {
 		return errPasswordPolicy("la contraseña no puede pasar de 72 caracteres")
 	}
 	if n < PasswordMinLen {
-		return errPasswordPolicy("la contraseña debe tener al menos 10 caracteres")
+		return errPasswordPolicy("la contraseña debe tener al menos 6 caracteres")
 	}
 	if strings.TrimSpace(plain) == "" {
 		return errPasswordPolicy("la contraseña no puede estar en blanco")
