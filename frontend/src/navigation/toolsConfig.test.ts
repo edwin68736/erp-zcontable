@@ -4,12 +4,11 @@ import { OPERATIONAL_MODULES } from './sidebarConfig';
 import { TOOLS, findTool, toolPath } from './toolsConfig';
 
 describe('módulo Herramientas', () => {
-  it('tiene los 7 submenús pedidos, en orden', () => {
+  it('tiene los 6 submenús pedidos, en orden (Tipo de cambio pasó a Recursos)', () => {
     expect(TOOLS.map((t) => t.label)).toEqual([
       'SIRE',
       'RH',
       'Consulta ITF',
-      'Tipo de cambio',
       'Consulta de detracciones',
       'Consulta DAM',
       'Notificaciones SUNAT',

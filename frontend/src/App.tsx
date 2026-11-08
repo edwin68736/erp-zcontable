@@ -35,6 +35,7 @@ import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
 import ModuleComingSoon from './pages/ModuleComingSoon';
 import ToolUnderConstruction from './pages/tools/ToolUnderConstruction';
+import ExchangeRates from './pages/finance/ExchangeRates';
 import ItfCompanies from './pages/tools/itf/ItfCompanies';
 import ItfCompany from './pages/tools/itf/ItfCompany';
 import NpdCompanies from './pages/tools/npd/NpdCompanies';
@@ -209,6 +210,8 @@ function App() {
               <Route path="new" element={guard([P.financeCalendarManage, P.settingsFirmView], <ActivityTemplateForm />)} />
               <Route path=":id/edit" element={guard([P.financeCalendarManage, P.settingsFirmView], <ActivityTemplateForm />)} />
             </Route>
+            <Route path="finance/tipo-de-cambio" element={<ExchangeRates />} />
+            <Route path="tools/tipo-de-cambio" element={<Navigate to="/finance/tipo-de-cambio" replace />} />
             <Route path="finance/claves-sol" element={guard(P.companyCredentialsView, <CompanyAccessCredentials />)} />
             <Route path="finance/sunat-due-dates" element={guard(P.financeSunatDueDatesView, <SunatDueDatesCalendar />)} />
             <Route path="assistant" element={guard(P.supervisorsControlsView, <AssistantWorkspace />)} />

@@ -104,6 +104,7 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
         items: [
           { to: '/finance/calendar', icon: 'fas fa-calendar-days', label: 'Calendario', public: true },
           { to: '/finance/claves-sol', icon: 'fas fa-key', label: 'Claves sol', public: true },
+          { to: '/finance/tipo-de-cambio', icon: 'fas fa-dollar-sign', label: 'Tipo de cambio', public: true },
           {
             to: '/finance/sunat-due-dates',
             icon: 'fas fa-calendar-check',

@@ -40,6 +40,7 @@ func Setup(app *fiber.App) {
 	itfCtrl := controllers.NewItfController()
 	npdCtrl := controllers.NewNpdController()
 	damCtrl := controllers.NewDamController()
+	exchangeCtrl := controllers.NewExchangeRateController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -409,6 +410,9 @@ func Setup(app *fiber.App) {
 	dam.Delete("/:companyId/history", damCtrl.HistoryClearAPI)
 	dam.Get("/:companyId/history/:historyId", damCtrl.HistoryGetAPI)
 	dam.Delete("/:companyId/history/:historyId", damCtrl.HistoryDeleteAPI)
+
+	// Tipo de cambio (Recursos): calendario mensual de SUNAT guardado en la base y completado desde ApiPeru.dev; lo ve cualquier usuario autenticado.
+	api.Get("/exchange-rates/month", exchangeCtrl.MonthAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

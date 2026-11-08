@@ -98,6 +98,7 @@ func AutoMigrate() error {
 		&models.ItfHistory{},
 		&models.NpdHistory{},
 		&models.DamHistory{},
+		&models.ExchangeRate{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

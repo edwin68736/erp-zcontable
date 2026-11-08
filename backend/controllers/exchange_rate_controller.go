@@ -1,0 +1,33 @@
+package controllers
+
+import (
+	"strconv"
+
+	"miappfiber/services"
+
+	"github.com/gofiber/fiber/v3"
+)
+
+// ExchangeRateController Recursos → Tipo de cambio: calendario mensual de SUNAT guardado en nuestra base y completado
+// desde ApiPeru.dev (ver services/exchange_rate_service.go). Lo ve cualquier usuario autenticado.
+type ExchangeRateController struct {
+	svc *services.ExchangeRateService
+}
+
+func NewExchangeRateController() *ExchangeRateController {
+	return &ExchangeRateController{svc: services.NewExchangeRateService()}
+}
+
+// MonthAPI GET /exchange-rates/month?year=2026&month=10&currency=USD&fetch=1
+// Devuelve los días del mes que hay en la base; con fetch=1 trae antes los que falten. Si no se pudo completar, igual
+// responde con lo guardado y un aviso (warning / warning_code).
+func (ctrl *ExchangeRateController) MonthAPI(c fiber.Ctx) error {
+	year, _ := strconv.Atoi(c.Query("year"))
+	month, _ := strconv.Atoi(c.Query("month"))
+	fetch := c.Query("fetch") == "1" || c.Query("fetch") == "true"
+	res, err := ctrl.svc.Month(year, month, c.Query("currency"), fetch)
+	if err != nil {
+		return sunatErrorResponse(c, err, "No se pudo leer el tipo de cambio")
+	}
+	return c.JSON(fiber.Map{"data": res})
+}

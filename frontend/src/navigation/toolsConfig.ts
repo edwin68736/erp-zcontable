@@ -47,7 +47,6 @@ export const TOOLS: ToolConfig[] = [
     permission: P.companyCredentialsView,
     ready: true,
   },
-  { slug: 'tipo-de-cambio', label: 'Tipo de cambio', icon: 'fas fa-dollar-sign', description: 'Tipo de cambio SUNAT por fecha.' },
   {
     slug: 'consulta-detracciones',
     label: 'Consulta de detracciones',
