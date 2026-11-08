@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -93,6 +94,10 @@ func isSimpleSequence(s string) bool {
 
 // pwnedPasswordCheck consulta Have I Been Pwned (k-anonimato). Ante cualquier error devuelve (false, err).
 func pwnedPasswordCheck(plain string) (bool, error) {
+	// PASSWORD_BREACH_CHECK=off apaga la consulta (pruebas, o un servidor sin salida a Internet).
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_BREACH_CHECK")), "off") {
+		return false, nil
+	}
 	sum := sha1.Sum([]byte(plain)) //nolint:gosec
 	h := strings.ToUpper(hex.EncodeToString(sum[:]))
 	req, err := http.NewRequest(http.MethodGet, "https://api.pwnedpasswords.com/range/"+h[:5], nil)

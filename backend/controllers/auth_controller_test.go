@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"miappfiber/config"
 	"miappfiber/database"
@@ -30,6 +31,7 @@ func setupAuthTest(t *testing.T) (*fiber.App, *gorm.DB) {
 	}
 	database.DB = db
 	config.AppConfig = &config.Config{JWTSecret: "secreto-de-prueba"}
+	t.Setenv("PASSWORD_BREACH_CHECK", "off") // las pruebas no salen a Internet
 	mk := func(username, pw string, active bool) models.User {
 		u := models.User{Name: username, Username: username, Active: true}
 		_ = u.SetPassword(pw)
@@ -63,7 +65,7 @@ func post(t *testing.T, app *fiber.App, path, body string, headers map[string]st
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +200,7 @@ func TestSecurityEventsAPI(t *testing.T) {
 	post(t, app, "/login", `{"username":"maria","password":"una-clave-segura-123"}`, nil)
 	post(t, app, "/login", `{"username":"maria","password":"mala"}`, nil)
 	req := httptest.NewRequest(http.MethodGet, "/security/events?type=login_fail&username=mar", nil)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

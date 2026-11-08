@@ -51,7 +51,7 @@ func call(t *testing.T, app *fiber.App, method, path, token, body string, header
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
