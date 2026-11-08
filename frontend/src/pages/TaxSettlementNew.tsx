@@ -7,10 +7,11 @@ import { stripLegacyMigrationNotes } from '../utils/documentDebtUi';
 import type { Company, SettlementPreviewLine } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
-import ProductPickerModal, { productLabel, productUnitPrice } from '../components/ProductPickerModal';
+import ProductPickerModal from '../components/ProductPickerModal';
+import { productLabel, productUnitPrice } from '../components/productPickerUtils';
 import type { Product } from '../services/products';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
-import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
+import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 import PageHeading from '../components/ui/PageHeading';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');

@@ -29,7 +29,8 @@ func main() {
 	if err := services.EnsureDocumentMigrationsOnStartup(); err != nil {
 		log.Fatalf("document migrations: %v", err)
 	}
-	fmt.Println("Migraciones OK. Ejecutando auditoría...\n")
+	fmt.Println("Migraciones OK. Ejecutando auditoría...")
+	fmt.Println()
 
 	summary, err := debtsvc.RunIntegrityAudit(database.DB)
 	if err != nil {

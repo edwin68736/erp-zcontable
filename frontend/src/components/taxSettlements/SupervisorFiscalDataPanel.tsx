@@ -1,4 +1,5 @@
-import TaxSettlementSectionsSummary, { hasTaxSectionsData } from './TaxSettlementSectionsSummary';
+import TaxSettlementSectionsSummary from './TaxSettlementSectionsSummary';
+import { hasTaxSectionsData } from './taxSectionsData';
 
 type Props = {
   pdt621Json?: string | null;

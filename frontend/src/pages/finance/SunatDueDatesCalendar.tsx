@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
-import { usePermission } from '../../rbac/access';
+import { usePermission } from '../../rbac/hooks';
 import { P } from '../../rbac/codes';
 import {
   sunatDueDatesService,

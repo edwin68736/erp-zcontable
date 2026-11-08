@@ -8,7 +8,7 @@ import CompanySearchInput from '../components/CompanySearchInput';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OperationsKeyDialog from '../components/OperationsKeyDialog';
 import TableRowMoreMenu from '../components/TableRowMoreMenu';
-import { usePermission } from '../rbac/access';
+import { usePermission } from '../rbac/hooks';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
 

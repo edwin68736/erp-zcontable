@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { activityTemplatesService, type ActivityTemplate } from '../../../services/activityTemplates';
 import type { FinanceCalendarActivity } from '../../../services/financeCalendar';
-import ActivityTemplatePreview, { priorityBadgeClass } from '../activityTemplates/ActivityTemplatePreview';
+import ActivityTemplatePreview from '../activityTemplates/ActivityTemplatePreview';
+import { priorityBadgeClass } from '../activityTemplates/priorityBadge';
 import { ACTIVITY_COLORS, activityTypeLabel } from './calendarUtils';
 import { priorityLabel } from '../../../utils/supervisorLabels';
 import {

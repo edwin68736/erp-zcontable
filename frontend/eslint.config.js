@@ -38,4 +38,10 @@ export default [
       ],
     },
   },
+  {
+    // Documentos de @react-pdf: no son pantallas, nunca se recargan en caliente como UI; mezclan componentes con
+    // constantes y utilidades de armado del PDF a propósito.
+    files: ['src/pdf/**/*.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ];

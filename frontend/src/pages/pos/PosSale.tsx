@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Link, Navigate } from 'react-router-dom';
 
-import ProductPickerModal, { productLabel, productUnitPrice } from '../../components/ProductPickerModal';
+import ProductPickerModal from '../../components/ProductPickerModal';
+import { productLabel, productUnitPrice } from '../../components/productPickerUtils';
 
 import PosPaymentSplit, { type PosPaymentRow } from '../../components/pos/PosPaymentSplit';
 

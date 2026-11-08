@@ -6,7 +6,8 @@ import { companiesService } from '../services/companies';
 import { supervisorsService, type SupervisorNotification } from '../services/supervisors';
 import { P } from '../rbac/codes';
 import type { Company, DashboardData } from '../types/dashboard';
-import { PeriodScoreMini, periodDebtMoraBadge } from '../utils/periodDebtScore';
+import { periodDebtMoraBadge } from '../utils/periodDebtScore';
+import { PeriodScoreMini } from '../utils/PeriodScoreMini';
 import {
   controlDetailPath,
   notificationsPath,

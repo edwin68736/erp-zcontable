@@ -14,8 +14,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
 import Pagination from '../components/Pagination';
+import { PeriodScoreMini } from '../utils/PeriodScoreMini';
 import {
-  PeriodScoreMini,
   periodDebtMoraSemaforo,
   periodScoreExportLabel,
   periodScoreSolidColor,

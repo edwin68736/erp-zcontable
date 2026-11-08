@@ -25,7 +25,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import OperationsKeyDialog from '../components/OperationsKeyDialog';
 import PageHeading from '../components/ui/PageHeading';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
-import { hasTaxSectionsData } from '../components/taxSettlements/TaxSettlementSectionsSummary';
+import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
