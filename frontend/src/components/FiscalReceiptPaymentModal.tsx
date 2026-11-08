@@ -8,6 +8,7 @@ import type { Document, TaxSettlement, TukifacFiscalReceipt } from '../types/das
 import { documentBalanceAmount, documentDebtSelectLabel } from '../utils/documentDebtUi';
 import SearchableSelect from './SearchableSelect';
 import Button from './ui/Button';
+import { formatAmount } from '../utils/format';
 
 type Props = {
   receipt: TukifacFiscalReceipt | null;
@@ -244,7 +245,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
               Registrar pago — {receipt.number}
             </h3>
             <p className="text-sm text-slate-600 mt-1">
-              Monto <span className="font-semibold tabular-nums">S/ {receipt.total.toFixed(2)}</span>
+              Monto <span className="font-semibold tabular-nums">S/ {formatAmount(receipt.total)}</span>
               <span className="text-slate-400"> · </span>
               <span className="break-words">{receipt.company?.business_name ?? receipt.customer_name}</span>
             </p>
@@ -405,12 +406,12 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
               <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">FIFO (deuda más antigua primero)</p>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Se registra <strong>un pago por el total del comprobante</strong> (S/ {receipt.total.toFixed(2)}). Si no hay deudas
+                Se registra <strong>un pago por el total del comprobante</strong> (S/ {formatAmount(receipt.total)}). Si no hay deudas
                 pendientes, el importe queda como <strong>pago a cuenta</strong>.
               </p>
               {fifoPreviewDocs.length === 0 ? (
                 <p className="text-sm text-sky-900 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
-                  Sin deudas pendientes: al confirmar, los S/ {receipt.total.toFixed(2)} se registrarán como pago a cuenta.
+                  Sin deudas pendientes: al confirmar, los S/ {formatAmount(receipt.total)} se registrarán como pago a cuenta.
                 </p>
               ) : (
                 <ul className="text-sm text-slate-700 space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
@@ -425,7 +426,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-slate-500">
-                La suma de las líneas debe ser exactamente S/ {receipt.total.toFixed(2)} (total del comprobante).
+                La suma de las líneas debe ser exactamente S/ {formatAmount(receipt.total)} (total del comprobante).
               </p>
               {manualLines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem] gap-2">

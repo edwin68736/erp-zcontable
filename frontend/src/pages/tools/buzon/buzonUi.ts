@@ -1,5 +1,6 @@
 import type { CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
 import type { BuzonSync } from '../../../services/sunatBuzon';
+import { formatDate, formatDateTime } from '../../../utils/format';
 
 export type BuzonBadge = { label: string; className: string };
 
@@ -27,13 +28,13 @@ export function timeAgo(iso: string | undefined, now: number = Date.now()): stri
   if (hours < 24) return `hace ${hours} h`;
   const days = Math.round(hours / 24);
   if (days <= 7) return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
-  return new Date(t).toLocaleDateString('es-PE');
+  return formatDate(t);
 }
 
 export function fmtDateTime(iso: string | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? '—' : formatDateTime(d);
 }
 
 export const ETIQUETA_BADGE: Record<string, string> = {

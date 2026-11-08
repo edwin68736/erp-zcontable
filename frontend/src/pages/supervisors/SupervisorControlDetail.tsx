@@ -28,6 +28,7 @@ import {
   priorityLabel,
   riskLevelLabel,
 } from '../../utils/supervisorLabels';
+import { formatAmount, formatDate, formatDateTime } from '../../utils/format';
 
 function supervisorUserLabel(u?: { full_name?: string; username?: string }): string {
   return u?.full_name || u?.username || '—';
@@ -283,7 +284,7 @@ const SupervisorControlDetail = () => {
           </button>
           {control.info_received_at ? (
             <span className="text-xs text-slate-500 self-center">
-              Recibida: {new Date(control.info_received_at).toLocaleString()}
+              Recibida: {formatDateTime(control.info_received_at)}
             </span>
           ) : null}
         </div>
@@ -431,7 +432,7 @@ const SupervisorControlDetail = () => {
                   <td className="px-4 py-3">{priorityLabel(d.priority || 'media')}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-slate-600">
-                      {d.due_date ? new Date(d.due_date).toLocaleDateString() : '—'}
+                      {d.due_date ? formatDate(d.due_date) : '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3">{supervisorUserLabel(d.approver)}</td>
@@ -501,12 +502,12 @@ const SupervisorControlDetail = () => {
                 </label>
               </div>
               <p className="text-sm font-semibold text-slate-800">
-                Total a pagar: S/ {liquidation.total_pagar.toFixed(2)}
+                Total a pagar: S/ {formatAmount(liquidation.total_pagar)}
                 <span className="text-xs font-normal text-slate-500 ml-2">(calculado automáticamente)</span>
               </p>
               {liquidation.calculated_at ? (
                 <p className="text-xs text-slate-500">
-                  Último cálculo: {new Date(liquidation.calculated_at).toLocaleString()}
+                  Último cálculo: {formatDateTime(liquidation.calculated_at)}
                 </p>
               ) : null}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -632,7 +633,7 @@ const SupervisorControlDetail = () => {
                       <p>{o.body}</p>
                       <p className="text-xs text-slate-400 mt-1">
                         {o.user?.name || o.user?.username || 'Usuario'} ·{' '}
-                        {new Date(o.created_at).toLocaleString()}
+                        {formatDateTime(o.created_at)}
                       </p>
                     </li>
                   ))
@@ -670,7 +671,7 @@ const SupervisorControlDetail = () => {
                       <span className="font-medium">{h.field_name}</span>: {h.old_value || '—'} → {h.new_value || '—'}
                       <span className="block text-xs text-slate-400">
                         {h.user?.name || h.user?.username || `#${h.user_id}`} ·{' '}
-                        {new Date(h.created_at).toLocaleString()}
+                        {formatDateTime(h.created_at)}
                       </span>
                     </li>
                   ))
@@ -694,7 +695,7 @@ const SupervisorControlDetail = () => {
                       {a.file_name}
                     </a>
                     <span className="text-xs text-slate-400 ml-2">
-                      {new Date(a.created_at).toLocaleDateString()}
+                      {formatDate(a.created_at)}
                     </span>
                   </li>
                 ))}

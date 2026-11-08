@@ -34,6 +34,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportDetraccionesReportExcel } from '../../utils/detraccionesExcelExport';
 import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
+import { formatDateTime } from '../../utils/format';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -413,7 +414,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${timelinessBadgeClass(row.timeliness?.timeliness)}`}
                         title={
                           row.timeliness?.due_at
-                            ? `Plazo: ${new Date(row.timeliness.due_at).toLocaleString('es-PE')}`
+                            ? `Plazo: ${formatDateTime(row.timeliness.due_at)}`
                             : undefined
                         }
                       >

@@ -26,6 +26,7 @@ import OperationsKeyDialog from '../components/OperationsKeyDialog';
 import PageHeading from '../components/ui/PageHeading';
 import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFiscalDataPanel';
 import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
+import { formatAmount } from '../utils/format';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -685,15 +686,15 @@ const TaxSettlementDetail = () => {
           <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100">
             <div>
               <span className="text-xs font-medium text-slate-500">Honorarios / cargos</span>
-              <p className="text-lg font-semibold tabular-nums">S/ {settlementTotals.honorarios.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums">S/ {formatAmount(settlementTotals.honorarios)}</p>
             </div>
             <div>
               <span className="text-xs font-medium text-slate-500">Fiscal (PDT)</span>
-              <p className="text-lg font-semibold tabular-nums">S/ {settlementTotals.impuestos.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums">S/ {formatAmount(settlementTotals.impuestos)}</p>
             </div>
             <div>
               <span className="text-xs font-medium text-slate-500">Total</span>
-              <p className="text-lg font-semibold tabular-nums text-primary-800">S/ {settlementTotals.total.toFixed(2)}</p>
+              <p className="text-lg font-semibold tabular-nums text-primary-800">S/ {formatAmount(settlementTotals.total)}</p>
             </div>
           </div>
         ) : null}
@@ -913,7 +914,7 @@ const TaxSettlementDetail = () => {
                       return row.liquidation_period || '—';
                     })()}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium">S/ {Number(ln.amount).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium">S/ {formatAmount(Number(ln.amount))}</td>
                 </tr>
               ))
             )}
@@ -926,7 +927,7 @@ const TaxSettlementDetail = () => {
                     Subtotal deudas cargadas
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-800">
-                    S/ {lineBreakdown.subDeudas.toFixed(2)}
+                    S/ {formatAmount(lineBreakdown.subDeudas)}
                   </td>
                 </tr>
               ) : null}
@@ -936,7 +937,7 @@ const TaxSettlementDetail = () => {
                     Subtotal conceptos / servicios
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-800">
-                    S/ {lineBreakdown.subManual.toFixed(2)}
+                    S/ {formatAmount(lineBreakdown.subManual)}
                   </td>
                 </tr>
               ) : null}
@@ -945,7 +946,7 @@ const TaxSettlementDetail = () => {
                   Total líneas
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-base font-bold text-primary-800">
-                  S/ {lineBreakdown.total.toFixed(2)}
+                  S/ {formatAmount(lineBreakdown.total)}
                 </td>
               </tr>
             </tfoot>

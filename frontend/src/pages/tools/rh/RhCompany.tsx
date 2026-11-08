@@ -21,6 +21,7 @@ import {
   motivosLabel,
   totalsByCurrency,
 } from './rhUi';
+import { formatDateTime } from '../../../utils/format';
 
 const RANGES = [
   { label: '15 días', days: 15 },
@@ -135,7 +136,7 @@ function HistoryEntry({
         {estados ? <p className="text-2xs text-slate-500">{estados}</p> : null}
         <p
           className="text-2xs text-slate-400"
-          title={new Date(item.created_at).toLocaleString("es-PE")}
+          title={formatDateTime(item.created_at)}
         >
           {timeAgo(item.created_at)}
           {item.status === "listo" || item.status === "sin_datos"

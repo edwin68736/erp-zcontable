@@ -3,10 +3,11 @@ import Button from '../../components/ui/Button';
 import PageHeading from '../../components/ui/PageHeading';
 import { apiErrorMessage, securityService, type SecurityEvent, type SecurityEventsPage } from '../../services/security';
 import { EVENT_LABEL, describeUserAgent } from './securityUi';
+import { formatDateTimeSeconds } from '../../utils/format';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' });
+const fmtDate = (iso: string) => formatDateTimeSeconds(iso);
 
 /**
  * Estudio → Bitácora de seguridad: inicios de sesión, intentos fallidos, bloqueos y cambios de contraseña, con la IP y

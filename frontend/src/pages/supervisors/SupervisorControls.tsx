@@ -13,6 +13,7 @@ import {
   type ActivityWorkspace,
 } from '../../navigation/activityRoutes';
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
+import { formatDate } from '../../utils/format';
 
 type SupervisorControlsProps = {
   /** Ruta base para enlazar al detalle (p. ej. /assistant/controls). */
@@ -247,7 +248,7 @@ const SupervisorControls = ({
                     {row.supervisor?.full_name || row.supervisor?.username || '—'}
                   </td>
                   <td className="px-4 py-3 text-slate-600 font-mono text-xs">
-                    {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}
+                    {row.due_date ? formatDate(row.due_date) : '—'}
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <Link to={`${resolvedDetailBase}/${row.id}`} className="text-primary-700 text-xs font-medium">

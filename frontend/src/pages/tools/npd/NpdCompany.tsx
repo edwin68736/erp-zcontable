@@ -9,6 +9,7 @@ import { timeAgo } from '../buzon/buzonUi';
 import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { NPD_ESTADOS, NPD_ESTADO_BADGE, NPD_MAX_DAYS, daysAgo, daysSpan, exportNpdExcel, fmtDay, fmtMoney, totalsByEstado } from './npdUi';
+import { formatDateTime } from '../../../utils/format';
 
 const RANGES = [
   { label: '30 días', days: 29 },
@@ -56,7 +57,7 @@ function HistoryEntry({
             ) : null}
           </p>
         ) : null}
-        <p className="text-2xs text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
+        <p className="text-2xs text-slate-400" title={formatDateTime(item.created_at)}>
           {timeAgo(item.created_at)}
         </p>
         {item.status === 'error' ? (

@@ -196,7 +196,7 @@ const Login = () => {
                         />
                         <p className="text-xs text-slate-500">Los 6 dígitos que muestra la app en su celular. Si lo perdió, escriba uno de sus códigos de recuperación.</p>
                         <button type="submit" disabled={loading || !code.trim()} className={PRIMARY}>
-                          {loading ? 'Verificando...' : 'Verificar y entrar'}
+                          {loading ? 'Verificando…' : 'Verificar y entrar'}
                         </button>
                       </form>
                     ) : (
@@ -276,7 +276,7 @@ const Login = () => {
                   </span>
                 </label>
                 <button type="submit" disabled={loading} className={PRIMARY}>
-                  {loading ? 'Iniciando sesión...' : 'Entrar al panel'}
+                  {loading ? 'Iniciando sesión…' : 'Entrar al panel'}
                 </button>
               </form>
             )}

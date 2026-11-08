@@ -882,7 +882,7 @@ const CompanyForm = () => {
                     name="assistant_user_id"
                     value={assistantUserId}
                     onChange={setAssistantUserId}
-                    searchPlaceholder="Buscar usuario..."
+                    searchPlaceholder="Buscar usuario…"
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users
@@ -904,7 +904,7 @@ const CompanyForm = () => {
                     name="accountant_user_id"
                     value={accountantUserId}
                     onChange={setAccountantUserId}
-                    searchPlaceholder="Buscar usuario..."
+                    searchPlaceholder="Buscar usuario…"
                     options={[
                       { value: '', label: 'Sin asignar' },
                       ...users

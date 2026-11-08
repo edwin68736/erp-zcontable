@@ -5,6 +5,7 @@ import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
+import { formatAmount } from '../utils/format';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -229,7 +230,7 @@ const Products = () => {
                     <td className="px-4 py-3 font-mono text-xs">{p.unit_type_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-800">
-                        {p.currency_type_symbol || ''} {Number(p.price ?? 0).toFixed(2)}
+                        {p.currency_type_symbol || ''} {formatAmount(Number(p.price ?? 0))}
                       </div>
                       {p.sale_unit_price ? (
                         <div className="text-xs text-slate-500">{p.sale_unit_price}</div>

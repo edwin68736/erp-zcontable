@@ -292,7 +292,7 @@ const Settings = () => {
                     }`}
                   >
                     <i className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-upload'} mr-2 text-xs`}></i>
-                    {uploading ? 'Subiendo...' : 'Cambiar logo'}
+                    {uploading ? 'Subiendo…' : 'Cambiar logo'}
                     <input
                       type="file"
                       accept="image/*"
@@ -871,7 +871,7 @@ const Settings = () => {
                     className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
                   >
                     <i className="fas fa-save mr-2 text-xs"></i>
-                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                    {saving ? 'Guardando…' : 'Guardar cambios'}
                   </button>
                 </div>
               </form>

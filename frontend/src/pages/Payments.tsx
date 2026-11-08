@@ -368,7 +368,7 @@ const Payments = () => {
             value={companyId}
             onChange={setCompanyId}
             className="min-w-[200px]"
-            searchPlaceholder="Buscar empresa..."
+            searchPlaceholder="Buscar empresa…"
             options={[
               { value: '', label: 'Todas' },
               ...companies.map((c) => ({ value: String(c.id), label: c.business_name })),
@@ -560,7 +560,7 @@ const Payments = () => {
               ) : (
                 <tr>
                   <td colSpan={12} className="px-4 py-6 text-center text-slate-500 text-sm">
-                    {loading ? "Cargando..." : "No hay pagos registrados."}
+                    {loading ? "Cargando…" : "No hay pagos registrados."}
                   </td>
                 </tr>
               )}

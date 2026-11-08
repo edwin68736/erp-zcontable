@@ -13,6 +13,7 @@ import FiscalReceiptPaymentModal from '../components/FiscalReceiptPaymentModal';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
+import { formatAmount } from '../utils/format';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -512,7 +513,7 @@ const Comprobantes = () => {
                       <td className="px-3 py-3 text-slate-700 max-w-[200px] truncate" title={r.company?.business_name ?? r.customer_name}>
                         {r.company?.business_name ?? r.customer_name ?? r.customer_number ?? '—'}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums font-medium text-slate-800">S/ {r.total.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums font-medium text-slate-800">S/ {formatAmount(r.total)}</td>
                       <td className="px-3 py-3 text-slate-600">
                         <div className="space-y-0.5">
                           <span className="block">{recon}</span>

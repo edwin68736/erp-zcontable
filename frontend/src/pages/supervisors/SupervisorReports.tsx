@@ -15,6 +15,7 @@ import { P } from '../../rbac/codes';
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
 import Pagination from '../../components/Pagination';
 import PageHeading from '../../components/ui/PageHeading';
+import { formatAmount, formatDateTime } from '../../utils/format';
 
 const REPORT_TABS: { kind: SupervisorReportKind; label: string }[] = [
   { kind: 'monthly', label: 'Mensual' },
@@ -231,7 +232,7 @@ const SupervisorReports = () => {
             ruc: r.company_ruc,
             body: r.body,
             author: r.author_name,
-            fecha: new Date(r.created_at).toLocaleString(),
+            fecha: formatDateTime(r.created_at),
           });
         });
       } else {
@@ -324,7 +325,7 @@ const SupervisorReports = () => {
                     <Text style={pdfStyles.cell}>{r.company_ruc}</Text>
                     <Text style={pdfStyles.cell}>{controlStatusLabel(r.general_status)}</Text>
                     <Text style={pdfStyles.cell}>{r.compliance_pct ?? 0}%</Text>
-                    <Text style={pdfStyles.cell}>S/ {r.total_pagar.toFixed(2)}</Text>
+                    <Text style={pdfStyles.cell}>S/ {formatAmount(r.total_pagar)}</Text>
                   </View>
                 ))}
               </>
@@ -491,7 +492,7 @@ const SupervisorReports = () => {
                         </td>
                         <td className="px-4 py-3 max-w-md">{r.body}</td>
                         <td className="px-4 py-3">{r.author_name}</td>
-                        <td className="px-4 py-3 text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-slate-500">{formatDateTime(r.created_at)}</td>
                       </tr>
                     ))
                   )}
@@ -531,7 +532,7 @@ const SupervisorReports = () => {
                         {showComplianceCol ? (
                           <td className="px-4 py-3 text-right">{r.compliance_pct ?? 0}%</td>
                         ) : null}
-                        <td className="px-4 py-3 text-right">S/ {r.total_pagar.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">S/ {formatAmount(r.total_pagar)}</td>
                       </tr>
                     ))
                   )}

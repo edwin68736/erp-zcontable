@@ -7,6 +7,7 @@ import { companiesService } from '../services/companies';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
+import { formatAmount, formatDateTime } from '../utils/format';
 
 // Fase 7 (docs/diseno-fase7-paso2-ui-reportes-2026-09-15.md D.2): vía de auditoría de pagos anulados.
 // Pantalla de SOLO LECTURA, con ruta propia — deliberadamente NUNCA comparte tabla/estado con
@@ -19,15 +20,6 @@ function formatDate(iso?: string | null): string {
   const [y, m, day] = d.split('-');
   if (!y || !m || !day) return '—';
   return `${day}/${m}/${y}`;
-}
-
-function formatDateTime(iso?: string | null): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
-  } catch {
-    return formatDate(iso);
-  }
 }
 
 function purposeLabel(purpose?: string | null): string {
@@ -122,7 +114,7 @@ const PaymentsVoided = () => {
             value={companyId}
             onChange={setCompanyId}
             className="min-w-[220px]"
-            searchPlaceholder="Buscar empresa..."
+            searchPlaceholder="Buscar empresa…"
             options={companyOptions}
           />
         </div>
@@ -164,7 +156,7 @@ const PaymentsVoided = () => {
                   </td>
                   <td className="px-4 py-3 text-slate-800 font-medium">{p.company?.business_name ?? '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-700 line-through decoration-slate-400">
-                    S/ {Number(p.amount ?? 0).toFixed(2)}
+                    S/ {formatAmount(Number(p.amount ?? 0))}
                   </td>
                   <td className="px-4 py-3 text-slate-600 tabular-nums whitespace-nowrap">{formatDate(p.date)}</td>
                   <td className="px-4 py-3 text-slate-600 tabular-nums whitespace-nowrap">{formatDateTime(p.voided_at)}</td>
@@ -192,7 +184,7 @@ const PaymentsVoided = () => {
             ) : (
               <tr>
                 <td colSpan={11} className="px-4 py-6 text-center text-slate-500 text-sm">
-                  {loading ? 'Cargando...' : 'No hay pagos anulados para los filtros seleccionados.'}
+                  {loading ? 'Cargando…' : 'No hay pagos anulados para los filtros seleccionados.'}
                 </td>
               </tr>
             )}

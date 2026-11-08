@@ -14,6 +14,7 @@ import {
   activityConfigurationService,
   type ActivityTemplateConfig,
 } from '../../services/activityConfiguration';
+import { formatDateTime } from '../../utils/format';
 
 const COMPARE_MODES: { value: ActivityRuleCompareMode; label: string }[] = [
   { value: 'date', label: 'Fecha (mismo día = a tiempo)' },
@@ -313,7 +314,7 @@ const ActivityConfigurationSettings = () => {
                                 {(audits[row.id] ?? []).map((a) => (
                                   <li key={a.id}>
                                     <span className="font-medium">{a.action}</span> · usuario {a.user_id} ·{' '}
-                                    {new Date(a.created_at).toLocaleString('es-PE')}
+                                    {formatDateTime(a.created_at)}
                                   </li>
                                 ))}
                               </ul>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiErrorMessage, securityService, type MyDevice } from '../../services/security';
 import { timeAgo } from '../tools/buzon/buzonUi';
 import { VIA_LABEL } from './deviceUi';
+import { formatDate } from '../../utils/format';
 
 /** Mis dispositivos: equipos de los que el sistema ya no pide verificación. Se pueden quitar uno por uno. */
 export default function DevicesCard() {
@@ -46,7 +47,7 @@ export default function DevicesCard() {
               </p>
               <p className="text-xs text-slate-500">
                 IP {d.last_ip || '—'} · usado {timeAgo(d.last_seen_at)} · {VIA_LABEL[d.via] ?? d.via}
-                {d.trusted_until ? ` · confianza hasta ${new Date(d.trusted_until).toLocaleDateString('es-PE')}` : ''}
+                {d.trusted_until ? ` · confianza hasta ${formatDate(d.trusted_until)}` : ''}
               </p>
             </div>
             <button type="button" onClick={() => void remove(d)} className="rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">

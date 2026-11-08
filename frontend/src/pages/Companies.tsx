@@ -17,6 +17,7 @@ import { Company, User } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import Pagination from '../components/Pagination';
 import PageHeading from '../components/ui/PageHeading';
+import { formatAmount } from '../utils/format';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -617,7 +618,7 @@ const Companies = () => {
                     <td className="px-4 py-3 text-right">
                       {Math.max(0, Number(company.balance ?? 0)) > 0 ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 text-xs font-semibold">
-                          S/ {Math.max(0, Number(company.balance ?? 0)).toFixed(2)}
+                          S/ {formatAmount(Math.max(0, Number(company.balance ?? 0)))}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100 text-xs font-semibold">

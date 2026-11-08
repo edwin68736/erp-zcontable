@@ -9,6 +9,7 @@ import Pagination from '../../components/Pagination';
 import { configService } from '../../services/config';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import PageHeading from '../../components/ui/PageHeading';
+import { formatAmount } from '../../utils/format';
 
 const PosHistory = () => {
   const [list, setList] = useState<TukifacFiscalReceipt[]>([]);
@@ -116,7 +117,7 @@ const PosHistory = () => {
                       <td className="px-4 py-3 text-slate-800">{r.customer_name}</td>
                       <td className="px-4 py-3 text-slate-600">{(r.issue_date ?? '').slice(0, 10)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-800">
-                        S/ {Number(r.total).toFixed(2)}
+                        S/ {formatAmount(Number(r.total))}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button

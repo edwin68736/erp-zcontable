@@ -21,6 +21,7 @@ import { mergePeriodExcels, periodsBetween } from './sireExcel';
 import SireCredentialsModal from './SireCredentialsModal';
 import { Card, SireErrorBox, Spinner } from './SireShared';
 import { SELECT_CLS, sireMissing } from './sireUi';
+import { formatDateTime } from '../../../utils/format';
 
 const MAX_RANGE = 12;
 const POLL_MS = 3000;
@@ -74,7 +75,7 @@ function HistoryItem({
             {item.status === 'listo' ? <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Listo</span> : null}
             {item.status === 'sin_datos' ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Sin movimientos</span> : null}
             {item.status === 'error' ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Error</span> : null}
-            <span className="text-xs text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
+            <span className="text-xs text-slate-400" title={formatDateTime(item.created_at)}>
               {timeAgo(item.created_at)}
             </span>
           </div>

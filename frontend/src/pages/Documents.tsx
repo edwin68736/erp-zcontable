@@ -45,6 +45,7 @@ import type { PosSaleDetail } from '../services/posSales';
 import { parseTukifacReceiptViewLinks, type TukifacReceiptViewLinks } from '../utils/tukifacReceiptLinks';
 import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
+import { formatAmount } from '../utils/format';
 
 type DocumentWithPayments = Document & { payments?: Payment[] };
 
@@ -1061,7 +1062,7 @@ const Documents = () => {
                     </td>
                     <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{row.document_count}</td>
                     <td className="px-4 py-3 text-right text-slate-800 font-semibold whitespace-nowrap">
-                      S/ {row.open_balance_total.toFixed(2)}
+                      S/ {formatAmount(row.open_balance_total)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -1178,7 +1179,7 @@ const Documents = () => {
                     colSpan={useGroupedLayout ? 6 : 11}
                     className="px-4 py-6 text-center text-slate-500 text-sm"
                   >
-                    {loading ? 'Cargando...' : 'No hay deudas registradas.'}
+                    {loading ? 'Cargando…' : 'No hay deudas registradas.'}
                   </td>
                 </tr>
               )}
@@ -1338,8 +1339,8 @@ const Documents = () => {
                 <div className="sm:col-span-2">
                   <div className="text-xs font-medium text-slate-500">Monto</div>
                   <div className="mt-1 px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-800 font-semibold">
-                    S/ {(payBalance ?? payDoc.total_amount).toFixed(2)}
-                    {payLoadingDoc ? <span className="ml-2 text-xs text-slate-400">Calculando...</span> : null}
+                    S/ {formatAmount((payBalance ?? payDoc.total_amount))}
+                    {payLoadingDoc ? <span className="ml-2 text-xs text-slate-400">Calculando…</span> : null}
                   </div>
                 </div>
                 <div>
@@ -1430,7 +1431,7 @@ const Documents = () => {
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-slate-800 truncate">
                           {payUploading
-                            ? 'Subiendo comprobante...'
+                            ? 'Subiendo comprobante…'
                             : payAttachmentName
                               ? payAttachmentName
                               : 'Subir comprobante'}

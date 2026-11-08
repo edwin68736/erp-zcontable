@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { isCashPosMethod, POS_PAYMENT_METHODS, type PosPaymentMethod } from '../../constants/posPayments';
 import { resolveBackendUrl } from '../../api/client';
+import { formatAmount } from '../../utils/format';
 
 export type PosPaymentRow = {
   key: string;
@@ -172,15 +173,15 @@ const PosPaymentSplit = ({ rows, saleTotal, onChange, onUploadProof }: Props) =>
       >
         <div className="flex justify-between tabular-nums">
           <span>Pagado</span>
-          <span>S/ {paidSum.toFixed(2)}</span>
+          <span>S/ {formatAmount(paidSum)}</span>
         </div>
         <div className="flex justify-between tabular-nums font-medium">
           <span>Total venta</span>
-          <span>S/ {saleTotal.toFixed(2)}</span>
+          <span>S/ {formatAmount(saleTotal)}</span>
         </div>
         {!paymentsMatch && saleTotal > 0 ? (
           <p className="text-xs mt-1">
-            {diff > 0 ? `Faltan S/ ${diff.toFixed(2)}` : `Sobran S/ ${Math.abs(diff).toFixed(2)}`} para cuadrar el total.
+            {diff > 0 ? `Faltan S/ ${formatAmount(diff)}` : `Sobran S/ ${formatAmount(Math.abs(diff))}`} para cuadrar el total.
           </p>
         ) : null}
       </div>

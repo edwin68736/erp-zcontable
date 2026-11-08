@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CompanyRucConflict } from '../services/companies';
+import { formatDate } from '../utils/format';
 
 const CONFLICT_COPY: Record<'inactiva' | 'eliminada', { title: string; state: (c: CompanyRucConflict) => string }> = {
   inactiva: {
@@ -11,7 +12,7 @@ const CONFLICT_COPY: Record<'inactiva' | 'eliminada', { title: string; state: (c
     state: (c) => {
       if (!c.deleted_at) return 'Eliminada';
       const d = new Date(c.deleted_at);
-      return Number.isNaN(d.getTime()) ? 'Eliminada' : `Eliminada el ${d.toLocaleDateString('es-PE', { timeZone: 'America/Lima' })}`;
+      return Number.isNaN(d.getTime()) ? 'Eliminada' : `Eliminada el ${formatDate(d)}`;
     },
   },
 };

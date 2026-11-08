@@ -24,6 +24,7 @@ import {
   periodToMonth,
   summarizeByPeriod,
 } from './itfUi';
+import { formatDateTime } from '../../../utils/format';
 
 /** Atajos de rango: (mes actual) → [desde, hasta] en «AAAA-MM». */
 const RANGES: { label: string; make: (cur: string) => [string, string] }[] = [
@@ -114,7 +115,7 @@ function HistoryEntry({
             ITF S/ {fmtAmount(item.total_impuesto)} · base S/ {fmtAmount(item.total_movimientos)}
           </p>
         ) : null}
-        <p className="text-2xs text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
+        <p className="text-2xs text-slate-400" title={formatDateTime(item.created_at)}>
           {timeAgo(item.created_at)}
         </p>
         {item.status === 'error' ? (

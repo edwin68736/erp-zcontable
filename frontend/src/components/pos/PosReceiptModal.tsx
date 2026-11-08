@@ -12,6 +12,7 @@ import {
   printFiscalReceiptPdfBlob,
   type ReceiptPdfFormat,
 } from '../../pdf/fiscalReceiptPdf';
+import { formatAmount } from '../../utils/format';
 
 type PreviewTab = 'summary' | 'a4' | 'a5' | 'ticket';
 
@@ -119,7 +120,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
               {docTypeLabel(receipt.document_type_id ?? '')} {receipt.number}
             </h2>
             <p className="mt-0.5 text-sm text-slate-600">
-              {receipt.customer_name} · S/ {Number(receipt.total).toFixed(2)}
+              {receipt.customer_name} · S/ {formatAmount(Number(receipt.total))}
             </p>
           </div>
           <button
@@ -216,19 +217,19 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                     <div className="flex justify-between gap-3">
                       <dt className="text-slate-600">Monto total deuda</dt>
                       <dd className="tabular-nums font-medium">
-                        S/ {Number(receipt.debt_payment_context.debt_total).toFixed(2)}
+                        S/ {formatAmount(Number(receipt.debt_payment_context.debt_total))}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-slate-600">Pagado (operación)</dt>
                       <dd className="tabular-nums font-medium">
-                        S/ {Number(receipt.debt_payment_context.paid_this_operation).toFixed(2)}
+                        S/ {formatAmount(Number(receipt.debt_payment_context.paid_this_operation))}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-slate-600">Saldo pendiente</dt>
                       <dd className="tabular-nums font-bold">
-                        S/ {Number(receipt.debt_payment_context.balance_pending).toFixed(2)}
+                        S/ {formatAmount(Number(receipt.debt_payment_context.balance_pending))}
                       </dd>
                     </div>
                   </dl>
@@ -246,7 +247,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                             <span className="text-slate-500 font-normal"> · Op. {p.operation_number}</span>
                           ) : null}
                         </span>
-                        <span className="tabular-nums font-medium">S/ {Number(p.amount).toFixed(2)}</span>
+                        <span className="tabular-nums font-medium">S/ {formatAmount(Number(p.amount))}</span>
                         {p.proof_url ? (
                           <a
                             href={resolveBackendUrl(p.proof_url)}
@@ -282,7 +283,7 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                         <td className="px-3 py-2">{ln.description || ln.product_name}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{Number(ln.quantity).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          S/ {Number(ln.line_total).toFixed(2)}
+                          S/ {formatAmount(Number(ln.line_total))}
                         </td>
                       </tr>
                     ))}
@@ -292,21 +293,21 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
               <div className="flex justify-end text-sm space-y-1 flex-col items-end">
                 <div className="flex justify-between w-44 gap-4">
                   <span className="text-slate-500">Subtotal</span>
-                  <span className="tabular-nums">S/ {Number(receipt.subtotal ?? 0).toFixed(2)}</span>
+                  <span className="tabular-nums">S/ {formatAmount(Number(receipt.subtotal ?? 0))}</span>
                 </div>
                 {(receipt.total_discount ?? 0) > 0.005 ? (
                   <div className="flex justify-between w-44 gap-4">
                     <span className="text-slate-500">Descuento</span>
-                    <span className="tabular-nums text-amber-800">− S/ {Number(receipt.total_discount).toFixed(2)}</span>
+                    <span className="tabular-nums text-amber-800">− S/ {formatAmount(Number(receipt.total_discount))}</span>
                   </div>
                 ) : null}
                 <div className="flex justify-between w-44 gap-4">
                   <span className="text-slate-500">IGV</span>
-                  <span className="tabular-nums">S/ {Number(receipt.tax_amount ?? 0).toFixed(2)}</span>
+                  <span className="tabular-nums">S/ {formatAmount(Number(receipt.tax_amount ?? 0))}</span>
                 </div>
                 <div className="flex justify-between w-44 gap-4 font-bold text-primary-800">
                   <span>Total</span>
-                  <span className="tabular-nums">S/ {Number(receipt.total).toFixed(2)}</span>
+                  <span className="tabular-nums">S/ {formatAmount(Number(receipt.total))}</span>
                 </div>
               </div>
             </div>

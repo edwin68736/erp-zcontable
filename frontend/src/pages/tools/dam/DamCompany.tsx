@@ -10,6 +10,7 @@ import { daysAgo, daysSpan, fmtDay } from '../npd/npdUi';
 import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { DAM_MAX_DAYS, exportDamExcel, filterDams, fmtDamAmount, hasRegularizacion } from './damUi';
+import { formatDateTime } from '../../../utils/format';
 
 const POLL_MS = 4000;
 
@@ -56,7 +57,7 @@ function HistoryEntry({
           </p>
         ) : null}
         {item.status === 'listo' ? <p className="text-xs text-slate-700">Valor en aduana {fmtDamAmount(item.total_valor)}</p> : null}
-        <p className="text-2xs text-slate-400" title={new Date(item.created_at).toLocaleString('es-PE')}>
+        <p className="text-2xs text-slate-400" title={formatDateTime(item.created_at)}>
           {timeAgo(item.created_at)}
         </p>
         {item.status === 'error' ? (

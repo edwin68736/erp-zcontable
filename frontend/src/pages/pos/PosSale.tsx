@@ -30,6 +30,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import PageHeading from '../../components/ui/PageHeading';
+import { formatAmount } from '../../utils/format';
 
 
 
@@ -429,9 +430,9 @@ const PosSale = () => {
 
       return diff > 0
 
-        ? `Faltan S/ ${diff.toFixed(2)} para igualar el total de la venta`
+        ? `Faltan S/ ${formatAmount(diff)} para igualar el total de la venta`
 
-        : `Los pagos exceden el total en S/ ${Math.abs(diff).toFixed(2)}`;
+        : `Los pagos exceden el total en S/ ${formatAmount(Math.abs(diff))}`;
 
     }
 
@@ -951,7 +952,7 @@ const PosSale = () => {
 
               <span>Subtotal</span>
 
-              <span className="tabular-nums">S/ {totals.subtotal.toFixed(2)}</span>
+              <span className="tabular-nums">S/ {formatAmount(totals.subtotal)}</span>
 
             </div>
 
@@ -959,7 +960,7 @@ const PosSale = () => {
 
               <span>IGV (18%)</span>
 
-              <span className="tabular-nums">S/ {totals.tax.toFixed(2)}</span>
+              <span className="tabular-nums">S/ {formatAmount(totals.tax)}</span>
 
             </div>
 
@@ -967,7 +968,7 @@ const PosSale = () => {
 
               <span>Total</span>
 
-              <span className="tabular-nums">S/ {totals.total.toFixed(2)}</span>
+              <span className="tabular-nums">S/ {formatAmount(totals.total)}</span>
 
             </div>
 

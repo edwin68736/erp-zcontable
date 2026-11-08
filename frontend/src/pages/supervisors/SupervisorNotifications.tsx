@@ -8,6 +8,7 @@ import {
   resolveActivityWorkspace,
 } from '../../navigation/activityRoutes';
 import PageHeading from '../../components/ui/PageHeading';
+import { formatDateTime } from '../../utils/format';
 
 const SupervisorNotifications = () => {
   const location = useLocation();
@@ -76,7 +77,7 @@ const SupervisorNotifications = () => {
                     <p className="font-medium text-slate-800 text-sm">{n.title}</p>
                     <p className="text-sm text-slate-600 mt-1">{n.message}</p>
                     <p className="text-xs text-slate-400 mt-2">
-                      {new Date(n.created_at).toLocaleString()}
+                      {formatDateTime(n.created_at)}
                       {n.period_ym ? ` · ${n.period_ym}` : ''}
                     </p>
                     {n.monthly_control_id ? (

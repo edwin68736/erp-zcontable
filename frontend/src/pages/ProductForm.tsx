@@ -8,6 +8,7 @@ import { P } from '../rbac/codes';
 import SearchableSelect from '../components/SearchableSelect';
 import Input from '../components/ui/Input';
 import { SUNAT_PRODUCT_UNIT_LABEL, SUNAT_SERVICE_UNITS } from '../constants/sunatUnitOfMeasure';
+import { formatAmount } from '../utils/format';
 
 /** Contenedor: crece con el viewport en pantallas grandes; mantiene márgenes cómodos en móvil. */
 const PAGE_CLASS =
@@ -44,10 +45,10 @@ function buildUpsert(input: {
   priceIncludesIgv: boolean;
 }): ProductUpsertInput {
   const sym = 'S/';
-  const saleText = `${sym} ${input.price.toFixed(2)}`;
+  const saleText = `${sym} ${formatAmount(input.price)}`;
   const purchaseText =
     input.trackInventory && input.purchasePrice.trim() !== ''
-      ? `${sym} ${(Number.parseFloat(input.purchasePrice) || 0).toFixed(2)}`
+      ? `${sym} ${formatAmount((Number.parseFloat(input.purchasePrice) || 0))}`
       : '';
 
   const unit = input.productKind === 'product' ? 'NIU' : input.serviceUnit;

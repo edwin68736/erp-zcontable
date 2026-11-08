@@ -30,6 +30,7 @@ import {
   documentBalanceAmount,
   stripLegacyMigrationNotes,
 } from '../utils/documentDebtUi';
+import { formatAmount } from '../utils/format';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el pago';
@@ -103,7 +104,7 @@ function debtSelectLabel(d: Document, opts?: { omitAmount?: boolean }): string {
   let label = joinDebtDescAndPeriod(desc || 'Sin descripción', period);
   if (!omitAmount) {
     const bal = documentBalanceAmount(d);
-    label = `${label} · S/ ${bal.toFixed(2)}`;
+    label = `${label} · S/ ${formatAmount(bal)}`;
   }
   return label;
 }
@@ -880,7 +881,7 @@ const PaymentForm = () => {
                 value={companyId}
                 onChange={setCompanyId}
                 placeholder="Selecciona una empresa…"
-                searchPlaceholder="Buscar empresa..."
+                searchPlaceholder="Buscar empresa…"
                 options={companies.map((c) => ({ value: String(c.id), label: c.business_name }))}
               />
             </div>
@@ -943,7 +944,7 @@ const PaymentForm = () => {
                       }
                     }}
                     placeholder="Selecciona una deuda…"
-                    searchPlaceholder="Buscar deuda..."
+                    searchPlaceholder="Buscar deuda…"
                     options={singleDebtSelectOptions}
                   />
                 </div>
@@ -1024,17 +1025,17 @@ const PaymentForm = () => {
                       <>
                         <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                           <dt className="text-slate-600">Suma de líneas</dt>
-                          <dd className="font-semibold tabular-nums text-slate-900">S/ {manualImputationSum.toFixed(2)}</dd>
+                          <dd className="font-semibold tabular-nums text-slate-900">S/ {formatAmount(manualImputationSum)}</dd>
                         </div>
                         {discountNumForSummary > 0 ? (
                           <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                             <dt className="text-slate-600">Descuento</dt>
-                            <dd className="font-semibold tabular-nums text-amber-800">− S/ {discountNumForSummary.toFixed(2)}</dd>
+                            <dd className="font-semibold tabular-nums text-amber-800">− S/ {formatAmount(discountNumForSummary)}</dd>
                           </div>
                         ) : null}
                         <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                           <dt className="text-slate-600">Monto del pago</dt>
-                          <dd className="font-semibold tabular-nums text-slate-900">S/ {amountNumForSummary.toFixed(2)}</dd>
+                          <dd className="font-semibold tabular-nums text-slate-900">S/ {formatAmount(amountNumForSummary)}</dd>
                         </div>
                         {discountNumForSummary > 0 ? (
                           Math.abs(manualImputationSum - discountNumForSummary - amountNumForSummary) <= 0.02 ? (
@@ -1056,19 +1057,19 @@ const PaymentForm = () => {
                     {applyMode === 'single' && selectedDebtTotal != null ? (
                       <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                         <dt className="text-slate-600">Saldo deuda seleccionada</dt>
-                        <dd className="font-semibold tabular-nums text-slate-900">S/ {selectedDebtTotal.toFixed(2)}</dd>
+                        <dd className="font-semibold tabular-nums text-slate-900">S/ {formatAmount(selectedDebtTotal)}</dd>
                       </div>
                     ) : null}
                     {applyMode === 'single' ? (
                       <div className="flex flex-wrap justify-between gap-2 py-1.5 border-b border-slate-100">
                         <dt className="text-slate-600">Este pago</dt>
-                        <dd className="font-semibold tabular-nums text-slate-900">S/ {amountNumForSummary.toFixed(2)}</dd>
+                        <dd className="font-semibold tabular-nums text-slate-900">S/ {formatAmount(amountNumForSummary)}</dd>
                       </div>
                     ) : null}
                     {applyMode === 'fifo' ? (
                       <div className="flex flex-wrap justify-between gap-2 py-1.5">
                         <dt className="text-slate-600">Monto a distribuir (FIFO)</dt>
-                        <dd className="font-semibold tabular-nums text-slate-900">S/ {amountNumForSummary.toFixed(2)}</dd>
+                        <dd className="font-semibold tabular-nums text-slate-900">S/ {formatAmount(amountNumForSummary)}</dd>
                       </div>
                     ) : null}
                   </dl>
@@ -1236,7 +1237,7 @@ const PaymentForm = () => {
                 <div className="mt-auto pt-3 border-t border-slate-200">
                   <div className="flex justify-between gap-2 text-sm py-1.5 rounded-lg bg-slate-50 px-3 border border-slate-100">
                     <span className="text-slate-600">Anticipo / a cuenta</span>
-                    <span className="font-semibold tabular-nums">S/ {amountNumForSummary.toFixed(2)}</span>
+                    <span className="font-semibold tabular-nums">S/ {formatAmount(amountNumForSummary)}</span>
                   </div>
                 </div>
               ) : null}
@@ -1290,7 +1291,7 @@ const PaymentForm = () => {
             className="inline-flex w-full sm:w-auto items-center justify-center px-6 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 rounded-full bg-primary-600 text-white text-sm font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 disabled:opacity-60"
           >
             <i className="fas fa-save mr-2 text-xs"></i>
-            {saving ? 'Guardando...' : uploading ? 'Subiendo...' : isEdit ? 'Guardar cambios' : 'Registrar pago'}
+            {saving ? 'Guardando…' : uploading ? 'Subiendo…' : isEdit ? 'Guardar cambios' : 'Registrar pago'}
           </button>
         </footer>
       </form>

@@ -1,4 +1,5 @@
 import type { Document } from '../types/dashboard';
+import { formatAmount } from './format';
 
 export type CollectionSituation =
   | 'all'
@@ -72,7 +73,7 @@ export function documentDebtSelectLabel(d: Document, opts?: { omitAmount?: boole
   const period = documentPeriodLabel(d);
   let label = joinDebtDescAndPeriod(desc, period);
   if (!omitAmount) {
-    label = `${label} · S/ ${documentBalanceAmount(d).toFixed(2)}`;
+    label = `${label} · S/ ${formatAmount(documentBalanceAmount(d))}`;
   }
   const dateStr = (d.issue_date ?? '').slice(0, 10);
   const parts = [d.number, dateStr].filter(Boolean).join(' · ');
@@ -127,7 +128,7 @@ export function debtCollectionBadge(doc: Document): DebtBadgeInfo {
 
 export function formatMoneyPen(n: number | null | undefined): string {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : 0;
-  return `S/ ${v.toFixed(2)}`;
+  return `S/ ${formatAmount(v)}`;
 }
 
 /** Quita marcas internas de migración legacy en descripciones (consolidación DEU-LIQ). */
