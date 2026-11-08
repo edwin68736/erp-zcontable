@@ -39,6 +39,8 @@ import ItfCompanies from './pages/tools/itf/ItfCompanies';
 import ItfCompany from './pages/tools/itf/ItfCompany';
 import NpdCompanies from './pages/tools/npd/NpdCompanies';
 import NpdCompany from './pages/tools/npd/NpdCompany';
+import DamCompanies from './pages/tools/dam/DamCompanies';
+import DamCompany from './pages/tools/dam/DamCompany';
 import SireCompanies from './pages/tools/sire/SireCompanies';
 import SireCompany from './pages/tools/sire/SireCompany';
 import RhCompanies from './pages/tools/rh/RhCompanies';
@@ -134,6 +136,8 @@ function App() {
             <Route path="tools/consulta-itf/:companyId" element={guard(P.companyCredentialsView, <ItfCompany />)} />
             <Route path="tools/consulta-detracciones" element={guard(P.companyCredentialsView, <NpdCompanies />)} />
             <Route path="tools/consulta-detracciones/:companyId" element={guard(P.companyCredentialsView, <NpdCompany />)} />
+            <Route path="tools/consulta-dam" element={guard(P.companyCredentialsView, <DamCompanies />)} />
+            <Route path="tools/consulta-dam/:companyId" element={guard(P.companyCredentialsView, <DamCompany />)} />
             <Route path="tools/notificaciones-sunat" element={guard(P.companyCredentialsView, <BuzonCompanies />)} />
             <Route path="tools/notificaciones-sunat/:companyId" element={guard(P.companyCredentialsView, <BuzonCompany />)} />
             <Route path="tools/:slug" element={<ToolUnderConstruction />} />

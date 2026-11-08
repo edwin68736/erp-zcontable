@@ -56,7 +56,14 @@ export const TOOLS: ToolConfig[] = [
     permission: P.companyCredentialsView,
     ready: true,
   },
-  { slug: 'consulta-dam', label: 'Consulta DAM', icon: 'fas fa-box-open', description: 'Consulta de Declaraciones Aduaneras de Mercancías.' },
+  {
+    slug: 'consulta-dam',
+    label: 'Consulta DAM',
+    icon: 'fas fa-box-open',
+    description: 'Declaraciones Aduaneras de Mercancías de exportación.',
+    permission: P.companyCredentialsView,
+    ready: true,
+  },
   {
     slug: 'notificaciones-sunat',
     label: 'Notificaciones SUNAT',

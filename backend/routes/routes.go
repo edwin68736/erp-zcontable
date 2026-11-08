@@ -39,6 +39,7 @@ func Setup(app *fiber.App) {
 	buzonCtrl := controllers.NewSunatBuzonController()
 	itfCtrl := controllers.NewItfController()
 	npdCtrl := controllers.NewNpdController()
+	damCtrl := controllers.NewDamController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
@@ -400,6 +401,14 @@ func Setup(app *fiber.App) {
 	detr.Delete("/:companyId/history", npdCtrl.HistoryClearAPI)
 	detr.Get("/:companyId/history/:historyId", npdCtrl.HistoryGetAPI)
 	detr.Delete("/:companyId/history/:historyId", npdCtrl.HistoryDeleteAPI)
+
+	// Consulta DAM (Declaración Aduanera de Mercancías de exportación): se lee en SOL con la clave de la empresa, en segundo plano; solo lectura.
+	dam := api.Group("/tools/dam", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	dam.Post("/:companyId/consulta", damCtrl.StartAPI)
+	dam.Get("/:companyId/history", damCtrl.HistoryListAPI)
+	dam.Delete("/:companyId/history", damCtrl.HistoryClearAPI)
+	dam.Get("/:companyId/history/:historyId", damCtrl.HistoryGetAPI)
+	dam.Delete("/:companyId/history/:historyId", damCtrl.HistoryDeleteAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

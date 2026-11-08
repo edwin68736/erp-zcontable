@@ -39,7 +39,7 @@ describe('módulo Herramientas', () => {
       }
     }
     expect(findTool('sire')?.permission).toBe(P.companyCredentialsView);
-    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh', 'consulta-itf', 'consulta-detracciones', 'notificaciones-sunat']);
+    expect(TOOLS.filter((t) => t.permission).map((t) => t.slug)).toEqual(['sire', 'rh', 'consulta-itf', 'consulta-detracciones', 'consulta-dam', 'notificaciones-sunat']);
     expect(mod?.moduleGatePermission).toBeUndefined();
   });
 });
