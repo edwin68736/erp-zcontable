@@ -25,7 +25,7 @@ func setupAuthTest(t *testing.T) (*fiber.App, *gorm.DB) {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&models.User{}, &models.AuthEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AuthEvent{}, &models.UserSession{}); err != nil {
 		t.Fatal(err)
 	}
 	database.DB = db
@@ -112,7 +112,7 @@ func TestLogin_correctoDaTokenYQuedaRegistrado(t *testing.T) {
 	if code != 200 || out["token"] == nil || out["user"] == nil {
 		t.Fatalf("login: %d %v", code, out)
 	}
-	if strings.Contains(string(mustJSON(out)), "una-clave-segura-123") || strings.Contains(string(mustJSON(out)), "password") {
+	if strings.Contains(string(mustJSON(out)), "una-clave-segura-123") || strings.Contains(string(mustJSON(out)), `"password"`) {
 		t.Error("la respuesta no debe incluir contraseñas")
 	}
 	var ev models.AuthEvent

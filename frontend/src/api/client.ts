@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearTukifacSeriesSessionCache } from '../constants/tukifacSeriesSessionKeys';
+import { isUserActive } from '../utils/activity';
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? '').replace(/\/+$/, '');
 
@@ -47,6 +48,10 @@ client.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Solo el uso real de la persona mantiene viva la sesión (lo que la pantalla hace sola no cuenta).
+  if (isUserActive()) {
+    config.headers['X-Client-Active'] = '1';
+  }
   return config;
 });
 
@@ -54,7 +59,26 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
+    const code = error?.response?.data?.code as string | undefined;
+    // La contraseña la puso un administrador: hay que cambiarla antes de seguir (la pantalla «Mi cuenta» lo permite).
+    if (status === 403 && code === 'password_change_required') {
+      try {
+        window.sessionStorage.setItem('must_change_password', '1');
+      } catch {
+        /* sin almacenamiento */
+      }
+      if (window.location.pathname !== '/profile') window.location.href = '/profile';
+      return Promise.reject(error);
+    }
     if (status === 401) {
+      // Si la sesión se cerró (inactividad, otro equipo, administrador…), el login explica por qué.
+      if (code && code.startsWith('session_')) {
+        try {
+          window.sessionStorage.setItem('login_notice', String(error?.response?.data?.error ?? 'Su sesión se cerró. Inicie sesión de nuevo.'));
+        } catch {
+          /* sin almacenamiento */
+        }
+      }
       clearTukifacSeriesSessionCache();
       try {
         window.sessionStorage.removeItem('token');

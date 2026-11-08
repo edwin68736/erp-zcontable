@@ -68,14 +68,15 @@ func (ctrl *AuthController) LoginAPI(c fiber.Ctx) error {
 	}
 	services.Authz().InvalidateUser(user.ID)
 
-	token, err := ctrl.authService.GenerateToken(user)
+	token, _, err := ctrl.authService.IssueSession(user, 0, ip, ua)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error generando token"})
 	}
 	ctrl.security.Record(models.AuthEventLoginOK, user.ID, user.Username, ip, ua, "")
 
 	return c.JSON(fiber.Map{
-		"token": token,
+		"token":                token,
+		"must_change_password": user.MustChangePassword,
 		"user": fiber.Map{
 			"id":       user.ID,
 			"name":     user.Name,
@@ -115,6 +116,10 @@ func (ctrl *AuthController) ChangePasswordAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	ctrl.security.Record(models.AuthEventPasswordChange, uid, username, ip, ua, "")
+	services.Authz().InvalidateUser(uid)
+	// Si alguien más tenía la contraseña anterior, sus sesiones dejan de valer; la de quien la cambió sigue.
+	current, _ := c.Locals("session_id").(string)
+	services.Sessions().RevokeUser(uid, current, services.SessionRevokedPassword)
 	return c.JSON(fiber.Map{"message": "Contraseña actualizada"})
 }
 
@@ -139,6 +144,81 @@ func (ctrl *AuthController) SecurityEventsAPI(c fiber.Ctx) error {
 }
 
 func (ctrl *AuthController) LogoutAPI(c fiber.Ctx) error {
-	// En API stateless el cliente debe eliminar el token
+	// Se cierra la sesión en el servidor: el token deja de servir aunque alguien lo hubiera copiado.
+	if sid, _ := c.Locals("session_id").(string); sid != "" {
+		services.Sessions().Revoke(sid, services.SessionRevokedLogout)
+		uid, _ := getUserID(c)
+		username, _ := c.Locals("user_username").(string)
+		ctrl.security.Record(models.AuthEventLogout, uid, username, clientIP(c), c.Get("User-Agent"), "")
+	}
 	return c.JSON(fiber.Map{"message": "Sesión cerrada"})
+}
+
+// MySessionsAPI GET /me/sessions — las sesiones abiertas del propio usuario (la actual va marcada).
+func (ctrl *AuthController) MySessionsAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	rows, err := services.Sessions().ActiveSessions(uid)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudieron leer las sesiones"})
+	}
+	current, _ := c.Locals("session_id").(string)
+	type item struct {
+		ID           string    `json:"id"`
+		IP           string    `json:"ip"`
+		UserAgent    string    `json:"user_agent"`
+		CreatedAt    time.Time `json:"created_at"`
+		LastActiveAt time.Time `json:"last_active_at"`
+		Current      bool      `json:"current"`
+	}
+	out := make([]item, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, item{ID: r.ID, IP: r.IP, UserAgent: r.UserAgent, CreatedAt: r.CreatedAt, LastActiveAt: r.LastActiveAt, Current: r.ID == current})
+	}
+	return c.JSON(fiber.Map{"data": out})
+}
+
+// RevokeOtherSessionsAPI POST /me/sessions/revoke-others — cierra la sesión en todos los demás equipos.
+func (ctrl *AuthController) RevokeOtherSessionsAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	current, _ := c.Locals("session_id").(string)
+	n := services.Sessions().RevokeUser(uid, current, services.SessionRevokedOthers)
+	username, _ := c.Locals("user_username").(string)
+	ctrl.security.Record(models.AuthEventSessionRevoked, uid, username, clientIP(c), c.Get("User-Agent"), fmt.Sprintf("cerró %d sesión(es) en otros equipos", n))
+	return c.JSON(fiber.Map{"data": fiber.Map{"closed": n}})
+}
+
+// RevokeSessionAPI DELETE /me/sessions/:id — cierra una sesión propia concreta.
+func (ctrl *AuthController) RevokeSessionAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	id := c.Params("id")
+	rows, _ := services.Sessions().ActiveSessions(uid)
+	for _, r := range rows {
+		if r.ID == id {
+			services.Sessions().Revoke(id, services.SessionRevokedOthers)
+			return c.JSON(fiber.Map{"data": fiber.Map{"closed": 1}})
+		}
+	}
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Sesión no encontrada"})
+}
+
+// AdminRevokeSessionsAPI POST /users/:id/revoke-sessions — un administrador cierra todas las sesiones de un usuario.
+func (ctrl *AuthController) AdminRevokeSessionsAPI(c fiber.Ctx) error {
+	target, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil || target == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID inválido"})
+	}
+	n := services.Sessions().RevokeUser(uint(target), "", services.SessionRevokedAdmin)
+	actor, _ := getUserID(c)
+	ctrl.security.Record(models.AuthEventSessionRevoked, uint(target), "", clientIP(c), c.Get("User-Agent"),
+		fmt.Sprintf("el usuario #%d cerró %d sesión(es)", actor, n))
+	return c.JSON(fiber.Map{"data": fiber.Map{"closed": n}})
 }

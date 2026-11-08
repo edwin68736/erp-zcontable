@@ -165,6 +165,7 @@ func StartAuthEventsPurgeLoop() {
 		svc := NewAuthSecurityService()
 		for {
 			svc.PurgeOlderThan(authEventsRetention)
+			Sessions().PurgeExpired()
 			time.Sleep(24 * time.Hour)
 		}
 	}()

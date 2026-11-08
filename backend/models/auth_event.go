@@ -10,6 +10,9 @@ const (
 	AuthEventPasswordChange  = "password_change"
 	AuthEventPasswordChangeX = "password_change_fail" // intento fallido de cambiar la contraseña propia
 	AuthEventPasswordReset   = "password_reset"       // un administrador cambió la contraseña de otro usuario
+	AuthEventLogout          = "logout"
+	AuthEventSessionRevoked  = "session_revoked" // se cerró una sesión desde el servidor (otro equipo, admin, cambio de contraseña)
+	AuthEventIdleLogout      = "idle_logout"     // sesión cerrada por inactividad
 )
 
 // AuthEvent bitácora de seguridad: quién intentó entrar (o cambiar su contraseña), desde dónde y con qué resultado.

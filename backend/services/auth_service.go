@@ -100,7 +100,28 @@ func (s *AuthService) ChangeOwnPassword(userID uint, current, next string) error
 	if err := user.SetPassword(next); err != nil {
 		return err
 	}
-	return database.DB.Model(&user).Update("password", user.Password).Error
+	return database.DB.Model(&user).Updates(map[string]any{"password": user.Password, "must_change_password": false}).Error
+}
+
+// IssueSession abre una sesión del servidor para el usuario y devuelve el token que la identifica (vale lo que dure
+// la sesión: máximo 12 horas, y se cierra antes por inactividad o desde el servidor).
+func (s *AuthService) IssueSession(user *models.User, deviceID uint, ip, userAgent string) (string, *models.UserSession, error) {
+	sess, err := Sessions().Create(user.ID, deviceID, ip, userAgent)
+	if err != nil {
+		return "", nil, err
+	}
+	claims := &authclaims.Claims{
+		UserID: user.ID, Username: user.Username, Email: user.EmailString(), Name: user.Name, SessionID: sess.ID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(sess.ExpiresAt),
+			IssuedAt:  jwt.NewNumericDate(sess.CreatedAt),
+		},
+	}
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(config.AppConfig.JWTSecret))
+	if err != nil {
+		return "", nil, err
+	}
+	return token, sess, nil
 }
 
 func (s *AuthService) GenerateToken(user *models.User) (string, error) {

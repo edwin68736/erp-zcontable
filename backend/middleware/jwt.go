@@ -5,6 +5,7 @@ import (
 
 	"miappfiber/authclaims"
 	"miappfiber/config"
+	"miappfiber/models"
 	"miappfiber/services"
 
 	"github.com/gofiber/fiber/v3"
@@ -43,13 +44,36 @@ func JWTProtected() fiber.Handler {
 			})
 		}
 
+		// La sesión del token debe seguir abierta: no cerrada desde el servidor, no vencida y con actividad reciente
+		// de la persona (la pantalla manda X-Client-Active cuando hubo uso real; lo automático no cuenta).
+		switch services.Sessions().Check(claims.SessionID, claims.UserID, c.Get("X-Client-Active") == "1") {
+		case services.SessionOK:
+		case services.SessionIdle:
+			services.NewAuthSecurityService().Record(models.AuthEventIdleLogout, claims.UserID, claims.Username,
+				services.ClientIP(c.IP(), c.Get("X-Forwarded-For")), c.Get("User-Agent"), "sin actividad por 30 minutos")
+			return sessionError(c, "Su sesión se cerró por inactividad. Inicie sesión de nuevo.", "session_idle")
+		case services.SessionRevoked:
+			return sessionError(c, "Su sesión fue cerrada. Inicie sesión de nuevo.", "session_revoked")
+		case services.SessionExpired:
+			return sessionError(c, "Su sesión venció. Inicie sesión de nuevo.", "session_expired")
+		default: // sin sesión: token anterior al sistema de sesiones
+			return sessionError(c, "Inicie sesión de nuevo.", "session_missing")
+		}
+
 		// Un usuario desactivado o eliminado pierde el acceso enseguida, aunque su token no haya vencido.
-		if !services.Authz().UserActive(claims.UserID) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Sesión no válida: el usuario está inactivo",
+		active, mustChange := services.Authz().UserAccess(claims.UserID)
+		if !active {
+			return sessionError(c, "Sesión no válida: el usuario está inactivo", "user_inactive")
+		}
+		// Si otra persona puso su contraseña, solo puede cambiarla (y cerrar sesión) antes de usar el sistema.
+		if mustChange && !allowedWhileMustChangePassword(c.Path()) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Debe cambiar su contraseña antes de continuar.",
+				"code":  "password_change_required",
 			})
 		}
 
+		c.Locals("session_id", claims.SessionID)
 		c.Locals("user_id", claims.UserID)
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_username", claims.Username)
@@ -85,4 +109,13 @@ func AuthWeb() fiber.Handler {
 		}
 		return c.Next()
 	}
+}
+
+func sessionError(c fiber.Ctx, msg, code string) error {
+	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": msg, "code": code})
+}
+
+// allowedWhileMustChangePassword lo único que se puede hacer mientras falta cambiar la contraseña.
+func allowedWhileMustChangePassword(path string) bool {
+	return path == "/api/logout" || strings.HasPrefix(path, "/api/me/")
 }

@@ -8,6 +8,16 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  // Si la sesión se cerró sola (inactividad, otro equipo, administrador), se explica aquí una vez.
+  const [notice] = useState(() => {
+    try {
+      const n = window.sessionStorage.getItem('login_notice') ?? '';
+      window.sessionStorage.removeItem('login_notice');
+      return n;
+    } catch {
+      return '';
+    }
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,8 +25,8 @@ const Login = () => {
     setError('');
 
     try {
-      await auth.login(username.trim(), password);
-      navigate('/');
+      const res = await auth.login(username.trim(), password);
+      navigate(res.must_change_password ? '/profile' : '/');
     } catch (err: unknown) {
       console.error(err);
       const ax = err as { response?: { data?: { error?: string } } };
@@ -39,6 +49,12 @@ const Login = () => {
               />
               <p className="text-slate-500 text-sm">Inicia sesión para continuar</p>
             </div>
+
+            {notice && !error && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900" role="status">
+                {notice}
+              </div>
+            )}
 
             {error && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-left">

@@ -127,6 +127,8 @@ func (s *UserService) Create(username, name, emailStr, password string, roleID u
 		Username: username,
 		Email:    emailPtr,
 		Active:   active,
+		// La contraseña la eligió quien crea la cuenta (o se generó sola): la persona la cambia al entrar.
+		MustChangePassword: true,
 		DNI:      dni,
 		Phone:    phone,
 		Address:  address,
@@ -209,6 +211,8 @@ func (s *UserService) Update(id uint, username, name, emailStr, password string,
 		if err := u.SetPassword(password); err != nil {
 			return nil, err
 		}
+		// La puso un administrador: la persona debe cambiarla antes de seguir usando el sistema.
+		u.MustChangePassword = true
 	}
 
 	if err := database.DB.Save(u).Error; err != nil {

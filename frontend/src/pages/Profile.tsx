@@ -1,8 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import PageHeading from '../components/ui/PageHeading';
 import { auth } from '../services/auth';
-import { apiErrorMessage, securityService } from '../services/security';
+import { apiErrorMessage, securityService, type MySession } from '../services/security';
+import { describeUserAgent } from './settings/securityUi';
+import { timeAgo } from './tools/buzon/buzonUi';
 import { checkPassword, passwordOk } from '../utils/passwordPolicy';
 
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
@@ -20,7 +23,86 @@ function Rule({ ok, children }: { ok: boolean; children: string }) {
  * Mi cuenta: datos del usuario y cambio de contraseña. Cada persona cambia su propia contraseña (hay que escribir la
  * actual). Los campos no piden al navegador que recuerde la contraseña.
  */
+/** Mis sesiones: dónde está abierta mi cuenta ahora y botón para cerrar las demás. */
+function SessionsCard() {
+  const [rows, setRows] = useState<MySession[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await securityService.mySessions());
+      setError('');
+    } catch (e) {
+      setError(apiErrorMessage(e, 'No se pudieron leer las sesiones.'));
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const closeOthers = async () => {
+    setBusy(true);
+    try {
+      await securityService.revokeOtherSessions();
+      await load();
+    } catch (e) {
+      setError(apiErrorMessage(e, 'No se pudieron cerrar las demás sesiones.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeOne = async (id: string) => {
+    try {
+      await securityService.revokeSession(id);
+      await load();
+    } catch (e) {
+      setError(apiErrorMessage(e, 'No se pudo cerrar la sesión.'));
+    }
+  };
+
+  const others = rows.filter((r) => !r.current).length;
+  return (
+    <div className="max-w-xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-slate-800">Mis sesiones</h2>
+        <Button variant="secondary" className="!py-1.5 text-xs" disabled={busy || others === 0} onClick={() => void closeOthers()}>
+          <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-right-from-bracket'} mr-1.5`} aria-hidden />
+          Cerrar las demás
+        </Button>
+      </div>
+      <p className="text-xs text-slate-500">Equipos donde su cuenta está abierta ahora. Si no reconoce alguno, ciérrelo y cambie su contraseña.</p>
+      {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+      <ul className="divide-y divide-slate-100">
+        {rows.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-slate-800">
+                {describeUserAgent(r.user_agent)}
+                {r.current ? <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Este equipo</span> : null}
+              </p>
+              <p className="text-xs text-slate-500">
+                IP {r.ip || '—'} · activa {timeAgo(r.last_active_at)}
+              </p>
+            </div>
+            {!r.current ? (
+              <button type="button" onClick={() => void closeOne(r.id)} className="rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
+                Cerrar
+              </button>
+            ) : null}
+          </li>
+        ))}
+        {rows.length === 0 && !error ? <li className="py-3 text-center text-xs text-slate-400">Cargando…</li> : null}
+      </ul>
+    </div>
+  );
+}
+
 const Profile = () => {
+  const navigate = useNavigate();
+  const forced = auth.mustChangePassword();
   const user = auth.getUser();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -41,6 +123,12 @@ const Profile = () => {
     setDone(false);
     try {
       await securityService.changePassword(current, next);
+      if (forced) {
+        // Ya la cambió: se puede usar el sistema.
+        auth.clearMustChangePassword();
+        navigate('/', { replace: true });
+        return;
+      }
       setDone(true);
       setCurrent('');
       setNext('');
@@ -58,6 +146,12 @@ const Profile = () => {
         <PageHeading>Mi cuenta</PageHeading>
         <p className="mt-1 text-sm text-slate-500">Sus datos de acceso y su contraseña.</p>
       </div>
+
+      {forced ? (
+        <div className="max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+          <strong>Debe cambiar su contraseña para continuar.</strong> La que usa ahora la puso otra persona. Escriba la actual y elija una nueva que solo usted conozca.
+        </div>
+      ) : null}
 
       <div className="max-w-xl space-y-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold uppercase text-slate-400">Usuario</p>
@@ -136,6 +230,8 @@ const Profile = () => {
           Cambiar contraseña
         </Button>
       </form>
+
+      {!forced ? <SessionsCard /> : null}
     </div>
   );
 };

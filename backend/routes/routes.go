@@ -51,6 +51,9 @@ func Setup(app *fiber.App) {
 	api.Get("/logout", authCtrl.LogoutAPI)
 	// Seguridad de la cuenta: cada usuario cambia su propia contraseña; la bitácora la ve quien tenga el permiso.
 	api.Post("/me/password", authCtrl.ChangePasswordAPI)
+	api.Get("/me/sessions", authCtrl.MySessionsAPI)
+	api.Post("/me/sessions/revoke-others", authCtrl.RevokeOtherSessionsAPI)
+	api.Delete("/me/sessions/:id", authCtrl.RevokeSessionAPI)
 	api.Get("/security/events", middleware.RequirePermission(rbac.SecurityEventsView), authCtrl.SecurityEventsAPI)
 
 	api.Get("/me/permissions", meCtrl.PermissionsAPI)
@@ -136,6 +139,7 @@ func Setup(app *fiber.App) {
 	api.Get("/users/:id", middleware.RequirePermission(rbac.UsersView), userCtrl.GetAPI)
 	api.Post("/users", middleware.RequirePermission(rbac.UsersCreate), userCtrl.CreateAPI)
 	api.Put("/users/:id", middleware.RequirePermission(rbac.UsersUpdate), userCtrl.UpdateAPI)
+	api.Post("/users/:id/revoke-sessions", middleware.RequirePermission(rbac.UsersUpdate), authCtrl.AdminRevokeSessionsAPI)
 	api.Delete("/users/:id", middleware.RequirePermission(rbac.UsersDelete), userCtrl.DeleteAPI)
 
 	// Reports API

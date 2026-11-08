@@ -100,6 +100,7 @@ func AutoMigrate() error {
 		&models.DamHistory{},
 		&models.ExchangeRate{},
 		&models.AuthEvent{},
+		&models.UserSession{},
 		&models.SunatDueDateCalendarRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},

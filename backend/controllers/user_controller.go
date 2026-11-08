@@ -115,6 +115,14 @@ func (ctrl *UserController) UpdateAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	// Si lo desactivaron, o le cambiaron la contraseña, sus sesiones abiertas se cierran enseguida.
+	if (body.Active != nil && !*body.Active) || body.Password != "" {
+		reason := services.SessionRevokedPassword
+		if body.Active != nil && !*body.Active {
+			reason = services.SessionRevokedDeactivate
+		}
+		services.Sessions().RevokeUser(u.ID, "", reason)
+	}
 	// Bitácora de seguridad: un administrador cambió la contraseña de otro usuario.
 	if body.Password != "" {
 		actor, _ := getUserID(c)

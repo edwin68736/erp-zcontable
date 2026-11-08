@@ -11,7 +11,11 @@ export interface AuthUser {
 export interface LoginResponse {
   token: string;
   user?: AuthUser;
+  /** La contraseña la puso un administrador: debe cambiarla antes de seguir. */
+  must_change_password?: boolean;
 }
+
+const MUST_CHANGE_KEY = 'must_change_password';
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
@@ -74,6 +78,13 @@ export const auth = {
     clearTukifacSeriesSessionCache();
 
     try {
+      if (res.data.must_change_password) window.sessionStorage.setItem(MUST_CHANGE_KEY, '1');
+      else window.sessionStorage.removeItem(MUST_CHANGE_KEY);
+    } catch {
+      /* sin almacenamiento */
+    }
+
+    try {
       window.sessionStorage.setItem(TOKEN_KEY, token);
       window.localStorage.removeItem(TOKEN_KEY);
     } catch {
@@ -122,11 +133,33 @@ export const auth = {
     return res.data;
   },
 
+  /** ¿Debe cambiar su contraseña antes de usar el sistema? */
+  mustChangePassword(): boolean {
+    try {
+      return window.sessionStorage.getItem(MUST_CHANGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  },
+
+  clearMustChangePassword(): void {
+    try {
+      window.sessionStorage.removeItem(MUST_CHANGE_KEY);
+    } catch {
+      /* sin almacenamiento */
+    }
+  },
+
   async logout(): Promise<void> {
     try {
       await client.get('/logout');
     } finally {
       clearTukifacSeriesSessionCache();
+      try {
+        window.sessionStorage.removeItem(MUST_CHANGE_KEY);
+      } catch {
+        /* sin almacenamiento */
+      }
       try {
         window.sessionStorage.removeItem(TOKEN_KEY);
         window.sessionStorage.removeItem(USER_KEY);

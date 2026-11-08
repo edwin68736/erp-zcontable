@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
+import IdleLogoutGuard from '../components/IdleLogoutGuard';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
 
@@ -127,6 +128,11 @@ const Layout = () => {
     reader.readAsDataURL(file);
   };
 
+  // La contraseña la puso un administrador: no se puede usar el sistema hasta cambiarla.
+  if (auth.mustChangePassword() && pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
+  }
+
   return (
     <div
       className="bg-gradient-to-b from-slate-50 to-slate-100 h-screen overflow-hidden text-slate-800 font-sans"
@@ -201,6 +207,7 @@ const Layout = () => {
               }`}
             >
               <Outlet />
+              <IdleLogoutGuard />
             </div>
           </main>
         </div>

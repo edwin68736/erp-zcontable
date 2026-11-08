@@ -8,5 +8,7 @@ type Claims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Name     string `json:"name"`
+	// SessionID sesión del servidor a la que pertenece el token (se puede cerrar desde el servidor).
+	SessionID string `json:"sid,omitempty"`
 	jwt.RegisteredClaims
 }

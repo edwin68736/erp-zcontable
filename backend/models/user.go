@@ -8,18 +8,20 @@ import (
 )
 
 type User struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	Name      string         `gorm:"size:255;not null" json:"name"`
-	Username  string         `gorm:"size:100;uniqueIndex" json:"username"`
-	Email     *string        `gorm:"size:255;uniqueIndex" json:"email,omitempty"`
-	DNI       string         `gorm:"size:20" json:"dni"`
-	Phone     string         `gorm:"size:50" json:"phone"`
-	Address   string         `gorm:"size:255" json:"address"`
-	Password  string         `gorm:"size:255;not null" json:"-"`
-	Active    bool           `gorm:"not null;default:true" json:"active"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID       uint    `gorm:"primaryKey" json:"id"`
+	Name     string  `gorm:"size:255;not null" json:"name"`
+	Username string  `gorm:"size:100;uniqueIndex" json:"username"`
+	Email    *string `gorm:"size:255;uniqueIndex" json:"email,omitempty"`
+	DNI      string  `gorm:"size:20" json:"dni"`
+	Phone    string  `gorm:"size:50" json:"phone"`
+	Address  string  `gorm:"size:255" json:"address"`
+	Password string  `gorm:"size:255;not null" json:"-"`
+	Active   bool    `gorm:"not null;default:true" json:"active"`
+	// MustChangePassword la contraseña la puso otra persona (un administrador): debe cambiarla antes de seguir.
+	MustChangePassword bool           `gorm:"not null;default:false" json:"must_change_password"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Roles RBAC (N:M) — única fuente de roles del usuario.
 	Roles []Role `gorm:"many2many:user_roles;" json:"roles,omitempty"`

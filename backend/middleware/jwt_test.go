@@ -23,7 +23,7 @@ func jwtTestApp(t *testing.T) (*fiber.App, *gorm.DB, string, uint) {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&models.User{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.UserSession{}, &models.AuthEvent{}); err != nil {
 		t.Fatal(err)
 	}
 	database.DB = db
@@ -31,7 +31,7 @@ func jwtTestApp(t *testing.T) (*fiber.App, *gorm.DB, string, uint) {
 	u := models.User{Name: "Maria", Username: "maria", Active: true}
 	_ = u.SetPassword("una-clave-segura-123")
 	db.Create(&u)
-	token, err := services.NewAuthService().GenerateToken(&u)
+	token, _, err := services.NewAuthService().IssueSession(&u, 0, "1.1.1.1", "ua")
 	if err != nil {
 		t.Fatal(err)
 	}

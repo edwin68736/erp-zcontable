@@ -12,8 +12,9 @@ import (
 const userActiveTTL = 30 * time.Second
 
 type userActiveEntry struct {
-	active bool
-	at     time.Time
+	active     bool
+	mustChange bool
+	at         time.Time
 }
 
 // AuthorizationService resuelve permisos con caché en memoria por usuario.
@@ -51,18 +52,25 @@ func (s *AuthorizationService) InvalidateUser(userID uint) {
 // UserActive true si el usuario existe y está activo. Un usuario desactivado o eliminado pierde el acceso aunque su
 // token todavía no haya vencido (el resultado se recuerda 30 s y se descarta al editar al usuario).
 func (s *AuthorizationService) UserActive(userID uint) bool {
+	active, _ := s.UserAccess(userID)
+	return active
+}
+
+// UserAccess indica si el usuario está activo y si debe cambiar su contraseña antes de seguir (la puso un administrador).
+func (s *AuthorizationService) UserAccess(userID uint) (active bool, mustChangePassword bool) {
 	s.mu.RLock()
 	e, ok := s.active[userID]
 	s.mu.RUnlock()
 	if ok && s.now().Sub(e.at) < userActiveTTL {
-		return e.active
+		return e.active, e.mustChange
 	}
 	var u models.User
-	active := database.DB.Select("id", "active").First(&u, userID).Error == nil && u.Active
+	found := database.DB.Select("id", "active", "must_change_password").First(&u, userID).Error == nil
+	entry := userActiveEntry{active: found && u.Active, mustChange: found && u.MustChangePassword, at: s.now()}
 	s.mu.Lock()
-	s.active[userID] = userActiveEntry{active: active, at: s.now()}
+	s.active[userID] = entry
 	s.mu.Unlock()
-	return active
+	return entry.active, entry.mustChange
 }
 
 // InvalidateAll vacía toda la caché (p. ej. cambio masivo de permisos).
