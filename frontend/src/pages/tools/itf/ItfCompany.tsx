@@ -302,7 +302,7 @@ const ItfCompany = () => {
   const totalRegistros = resp ? resp.acumulados.registros + resp.contra_asientos.registros + resp.exoneraciones.registros : 0;
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <Link to="/tools/consulta-itf" title="Volver a la lista" aria-label="Volver a la lista" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">

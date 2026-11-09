@@ -378,7 +378,7 @@ const RhCompany = () => {
   }
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-3">
       <div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <Link to="/tools/rh" title="Volver a la lista" aria-label="Volver a la lista" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">
@@ -402,86 +402,153 @@ const RhCompany = () => {
       ) : null}
 
       {company && !missing ? (
-        <>
-          <Alert variant="info">
-            Esta consulta usa la <strong>Plataforma de confirmación del RHE y de la FE</strong> de SUNAT. Muestra solo los comprobantes que están en esa
-            plataforma: pendientes, subsanados o pendientes por reinicio (compras) y disconformes (ventas). No es el registro completo de recibos por
-            honorarios. SUNAT permite 15 días por consulta: un rango mayor se consulta por tramos automáticamente.
-          </Alert>
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
+          <aside className="min-w-0 space-y-4">
+            <Card title="Consulta en SUNAT" subtitle="Elija el tipo de consulta, las fechas y los estados.">
+              <div className="space-y-3">
+                <div>
+                  <span className="mb-0.5 block text-xs text-slate-600">Tipo de consulta</span>
+                  <div className="flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Tipo de consulta">
+                    {(
+                      [
+                        ['C', 'Recibidos (compras)'],
+                        ['V', 'Emitidos (ventas)'],
+                      ] as const
+                    ).map(([v, label], i) => (
+                      <button
+                        key={v}
+                        type="button"
+                        aria-pressed={tipo === v}
+                        onClick={() => changeTipo(v)}
+                        className={`flex-1 px-3 py-2 text-sm font-semibold ${i > 0 ? 'border-l border-slate-300 ' : ''}${tipo === v ? 'bg-blue-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
-          <div className="min-w-0 space-y-5">
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Tipo de consulta">
-                {(
-                  [
-                    ['C', 'Recibidos (compras)'],
-                    ['V', 'Emitidos (ventas)'],
-                  ] as const
-                ).map(([v, label]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={tipo === v}
-                    onClick={() => changeTipo(v)}
-                    className={`px-4 py-2 text-sm font-semibold ${tipo === v ? 'bg-blue-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <label className="text-xs text-slate-600">
-                <span className="mb-0.5 block">Comprobante</span>
-                <select value={codCpe} onChange={(e) => setCodCpe(e.target.value as '02' | '01')} className={SELECT_CLS}>
-                  <option value="02">Recibo por honorarios</option>
-                  <option value="01">Factura</option>
-                </select>
-              </label>
-              <label className="text-xs text-slate-600">
-                <span className="mb-0.5 block">Emisión desde</span>
-                <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={INPUT_CLS} />
-              </label>
-              <label className="text-xs text-slate-600">
-                <span className="mb-0.5 block">Hasta</span>
-                <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={INPUT_CLS} />
-              </label>
-              <div className="flex gap-1" aria-label="Rangos rápidos">
-                {RANGES.map((r) => (
-                  <button
-                    key={r.days}
-                    type="button"
-                    onClick={() => {
-                      setDesde(daysAgo(r.days));
-                      setHasta(daysAgo(0));
-                    }}
-                    className="rounded-lg border border-slate-300 px-2.5 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="text-xs font-medium text-slate-500">Estados:</span>
-              {RH_ESTADOS[tipo].map((e) => (
-                <label key={e.value} className="flex items-center gap-1.5 text-sm text-slate-700">
-                  <input type="checkbox" checked={estados.includes(e.value)} onChange={() => toggleEstado(e.value)} />
-                  {e.label}
+                <label className="block text-xs text-slate-600">
+                  <span className="mb-0.5 block">Comprobante</span>
+                  <select value={codCpe} onChange={(e) => setCodCpe(e.target.value as '02' | '01')} className={`${SELECT_CLS} w-full`}>
+                    <option value="02">Recibo por honorarios</option>
+                    <option value="01">Factura</option>
+                  </select>
                 </label>
-              ))}
-              <Button className="ml-auto" disabled={loading || !!rangeError} onClick={() => void run()}>
-                <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5`} aria-hidden />
-                Consultar en SUNAT
-              </Button>
-            </div>
-            {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
-          </div>
 
-          {loading ? <Spinner label="Consultando SUNAT (los rangos largos se consultan por tramos de 15 días)…" /> : null}
-          {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs text-slate-600">
+                    <span className="mb-0.5 block">Emisión desde</span>
+                    <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={`${INPUT_CLS} w-full`} />
+                  </label>
+                  <label className="text-xs text-slate-600">
+                    <span className="mb-0.5 block">Hasta</span>
+                    <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={`${INPUT_CLS} w-full`} />
+                  </label>
+                </div>
 
-          {resp && queried && !loading ? (
+                <div className="flex flex-wrap items-center gap-1" aria-label="Rangos rápidos">
+                  <span className="mr-1 text-xs text-slate-500">Últimos:</span>
+                  {RANGES.map((r) => (
+                    <button
+                      key={r.days}
+                      type="button"
+                      onClick={() => {
+                        setDesde(daysAgo(r.days));
+                        setHasta(daysAgo(0));
+                      }}
+                      className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+
+                <fieldset>
+                  <legend className="mb-1 text-xs text-slate-600">Estados</legend>
+                  <div className="space-y-1">
+                    {RH_ESTADOS[tipo].map((e) => (
+                      <label key={e.value} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" checked={estados.includes(e.value)} onChange={() => toggleEstado(e.value)} />
+                        {e.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <Button className="w-full" disabled={loading || !!rangeError} onClick={() => void run()}>
+                  <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5`} aria-hidden />
+                  Consultar en SUNAT
+                </Button>
+                {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
+
+                <details className="text-xs text-slate-500">
+                  <summary className="cursor-pointer font-medium text-primary-700 hover:underline">¿Qué muestra esta consulta?</summary>
+                  <p className="mt-1.5 leading-relaxed">
+                    Usa la <strong>Plataforma de confirmación del RHE y de la FE</strong>: muestra solo los comprobantes pendientes, subsanados o pendientes por
+                    reinicio (compras) y disconformes (ventas), no el registro completo. SUNAT permite 15 días por consulta; un rango mayor se consulta por
+                    tramos automáticamente.
+                  </p>
+                </details>
+              </div>
+            </Card>
+
+            <Card
+                title="Historial de consultas"
+                subtitle="Quedan guardadas por empresa: ábralas sin volver a consultar a SUNAT."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      {history.length}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      className="!px-3 !py-1.5 text-xs"
+                      disabled={history.length === 0 || loading}
+                      onClick={() => void clearHistory()}
+                    >
+                      <i className="fas fa-broom mr-1.5" aria-hidden />
+                      Limpiar
+                    </Button>
+                  </div>
+                }
+              >
+                {historyError ? (
+                  <div className="mb-3">
+                    <SireErrorBox
+                      error={historyError}
+                      onRetry={() => void loadHistory()}
+                    />
+                  </div>
+                ) : null}
+                {history.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">
+                    Aún no hay consultas. Elija las fechas y pulse «Consultar en
+                    SUNAT»: aquí quedará el resultado.
+                  </p>
+                ) : (
+                  <ul className="max-h-[45vh] space-y-2 overflow-y-auto pr-0.5">
+                    {history.map((it) => (
+                      <HistoryEntry
+                        key={it.id}
+                        item={it}
+                        active={activeId === it.id}
+                        busy={loading || opening}
+                        onOpen={(x) => void openSaved(x)}
+                        onRemove={(x) => void removeSaved(x)}
+                        onRetry={retrySaved}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </Card>
+          </aside>
+
+          <div className="min-w-0 space-y-4">
+            {loading ? <Spinner label="Consultando SUNAT (los rangos largos se consultan por tramos de 15 días)…" /> : null}
+            {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
+
+            {resp && queried && !loading ? (
             <Card
               title={`${resp.data.total} comprobante${resp.data.total === 1 ? '' : 's'}`}
               subtitle={`Emisión del ${fmtDay(queried.desde)} al ${fmtDay(queried.hasta)} · ${resp.data.consultas} consultas a SUNAT${savedAt ? ` · guardada ${timeAgo(savedAt)} (no se volvió a consultar)` : ''}`}
@@ -549,7 +616,7 @@ const RhCompany = () => {
                     <table className="min-w-full border-collapse text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 uppercase">
-                          {['', 'Estado', 'Comprobante', 'RUC emisor', 'Emisión', 'Puesta a disp.', isRhe ? 'Honorarios' : 'Importe', ...(isRhe ? ['Retención', 'Neto'] : ['Pendiente'])].map(
+                          {['', 'Estado', 'Comprobante', 'RUC emisor', 'Emisión', isRhe ? 'Honorarios' : 'Importe', ...(isRhe ? ['Retención', 'Neto'] : ['Pendiente'])].map(
                             (h, i) => (
                               <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-slate-200 px-2 py-1.5 font-semibold">
                                 {h}
@@ -584,7 +651,6 @@ const RhCompany = () => {
                                 <td className="whitespace-nowrap px-2 py-2 font-mono">{docLabel(r)}</td>
                                 <td className="whitespace-nowrap px-2 py-2 font-mono">{r.ruc_emisor}</td>
                                 <td className="whitespace-nowrap px-2 py-2">{fmtDay(r.fec_emision)}</td>
-                                <td className="whitespace-nowrap px-2 py-2">{fmtDay(r.fec_puesta_disposicion)}</td>
                                 {isRhe ? (
                                   <>
                                     <td className="whitespace-nowrap px-2 py-2 text-right">{fmtMoney(r.total_honorarios, r.moneda)}</td>
@@ -601,7 +667,7 @@ const RhCompany = () => {
                               {expanded ? (
                                 <tr className="border-b border-slate-100 bg-slate-50/70">
                                   <td />
-                                  <td colSpan={isRhe ? 8 : 7} className="px-2 py-3">
+                                  <td colSpan={isRhe ? 7 : 6} className="px-2 py-3">
                                     <Detail r={r} motivos={resp.motivos} />
                                   </td>
                                 </tr>
@@ -611,7 +677,7 @@ const RhCompany = () => {
                         })}
                         {items.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="px-2 py-6 text-center text-slate-500">
+                            <td colSpan={8} className="px-2 py-6 text-center text-slate-500">
                               Ningún comprobante coincide con el filtro.
                             </td>
                           </tr>
@@ -623,61 +689,17 @@ const RhCompany = () => {
               )}
             </Card>
           ) : null}
-          </div>
 
-          <aside className="lg:sticky lg:top-2">
-              <Card
-                title="Historial de consultas"
-                subtitle="Quedan guardadas por empresa: ábralas sin volver a consultar a SUNAT."
-                actions={
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                      {history.length}
-                    </span>
-                    <Button
-                      variant="secondary"
-                      className="!px-3 !py-1.5 text-xs"
-                      disabled={history.length === 0 || loading}
-                      onClick={() => void clearHistory()}
-                    >
-                      <i className="fas fa-broom mr-1.5" aria-hidden />
-                      Limpiar
-                    </Button>
-                  </div>
-                }
-              >
-                {historyError ? (
-                  <div className="mb-3">
-                    <SireErrorBox
-                      error={historyError}
-                      onRetry={() => void loadHistory()}
-                    />
-                  </div>
-                ) : null}
-                {history.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-500">
-                    Aún no hay consultas. Elija las fechas y pulse «Consultar en
-                    SUNAT»: aquí quedará el resultado.
-                  </p>
-                ) : (
-                  <ul className="max-h-[70vh] space-y-2 overflow-y-auto pr-0.5">
-                    {history.map((it) => (
-                      <HistoryEntry
-                        key={it.id}
-                        item={it}
-                        active={activeId === it.id}
-                        busy={loading || opening}
-                        onOpen={(x) => void openSaved(x)}
-                        onRemove={(x) => void removeSaved(x)}
-                        onRetry={retrySaved}
-                      />
-                    ))}
-                  </ul>
-                )}
+            {!(resp && queried) && !loading && !error ? (
+              <Card title="Resultados" subtitle="Aquí verá los comprobantes y podrá descargar el Excel.">
+                <p className="py-10 text-center text-sm text-slate-500">
+                  Elija el tipo de consulta y las fechas, y pulse «Consultar en SUNAT». También puede abrir una consulta guardada del historial sin volver a
+                  consultar a SUNAT.
+                </p>
               </Card>
-            </aside>
+            ) : null}
           </div>
-        </>
+        </div>
       ) : null}
     </div>
   );
