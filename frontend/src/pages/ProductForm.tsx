@@ -197,7 +197,7 @@ const ProductForm = () => {
       setCatModalOpen(false);
       void notify.success('Categoría creada');
     } catch {
-      setCatError('No se pudo crear la categoría');
+      notify.error('No se pudo crear la categoría');
     } finally {
       setCatSaving(false);
     }
@@ -239,7 +239,7 @@ const ProductForm = () => {
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'Error al guardar';
-      setError(typeof msg === 'string' ? msg : 'Error al guardar');
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo guardar');
     }
   };
 

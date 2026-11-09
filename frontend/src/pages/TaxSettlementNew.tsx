@@ -495,7 +495,7 @@ const TaxSettlementNew = () => {
           : e instanceof Error
             ? e.message
             : 'Error al guardar';
-      setError(typeof msg === 'string' ? msg : 'Error al guardar');
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo guardar');
     } finally {
       setSaving(false);
     }

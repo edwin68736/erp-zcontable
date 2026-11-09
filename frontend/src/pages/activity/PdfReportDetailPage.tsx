@@ -27,26 +27,15 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 type PdfReportDetailPageProps = {
   workspace: ActivityWorkspace;
   slug: PdfReportSlug;
 };
 
-type Tone = 'success' | 'error' | 'info';
-
 const MAX_BYTES = 10 * 1024 * 1024;
 
-function msgBannerClass(tone: Tone): string {
-  if (tone === 'success') return 'bg-primary-50 border-primary-200 text-primary-800';
-  if (tone === 'error') return 'bg-red-50 border-red-200 text-red-700';
-  return 'bg-slate-50 border-slate-200 text-slate-700';
-}
-function msgBannerIcon(tone: Tone): string {
-  if (tone === 'success') return 'fa-check-circle';
-  if (tone === 'error') return 'fa-exclamation-circle';
-  return 'fa-info-circle';
-}
 
 function isPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -75,8 +64,6 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
   const [attachment, setAttachment] = useState<SupervisorAttachment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
-  const [msgTone, setMsgTone] = useState<Tone>('info');
   const [fechaEntrega, setFechaEntrega] = useState(todayDateStr());
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -93,11 +80,6 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
   const locked = !!declaration && PDF_REPORT_TERMINAL_STATUSES.has(declaration.status);
   const showRevisionSupervisor = workspace === 'supervisor' && (canApprove || canObserve);
   const canSubmit = canUpload && !locked && !suspendida;
-
-  const showMsg = (text: string, tone: Tone = 'info') => {
-    setMsg(text);
-    setMsgTone(tone);
-  };
 
   const loadAttachment = useCallback(async (declarationId: number) => {
     const rows = await supervisorsService.listAttachments(0, declarationId);
@@ -154,35 +136,31 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
     if (!detail || !canSubmit || !files?.length) return;
     // Un solo archivo: si se sueltan varios, se rechaza en vez de elegir uno por el usuario.
     if (files.length > 1) {
-      showMsg('Solo se puede cargar un archivo a la vez.', 'error');
+      notify.warning('Revise los datos', 'Solo se puede cargar un archivo a la vez.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     const file = files[0];
     if (!isPdf(file)) {
-      showMsg('Solo se permite un archivo PDF.', 'error');
+      notify.warning('Revise los datos', 'Solo se permite un archivo PDF.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     if (file.size > MAX_BYTES) {
-      showMsg('El archivo supera el máximo de 10 MB.', 'error');
+      notify.warning('Revise los datos', 'El archivo supera el máximo de 10 MB.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     try {
       setUploading(true);
-      showMsg('');
       const replaced = !!attachment;
       const updated = await pdfReportService.submit(slug, companyId, periodYm, file, fechaEntrega);
       setDetail(updated);
       await loadAttachment(updated.declaration.id);
       setFechaEntrega(todayDateStr());
-      showMsg(
-        replaced ? 'Archivo reemplazado — queda por revisar.' : 'Archivo cargado — queda por revisar.',
-        'success',
-      );
+      void notify.success(replaced ? 'Archivo reemplazado' : 'Archivo cargado', 'Queda por revisar.');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo cargar el archivo.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo cargar el archivo.'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -200,11 +178,10 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
     if (!declaration || !canApprove) return;
     try {
       setActionLoading(true);
-      showMsg('');
       refreshDeclaration(await supervisorsService.approveDeclaration(declaration.id));
-      showMsg('Entrega aprobada.', 'success');
+      notify.success('Entrega aprobada');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo aprobar.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo aprobar.'));
     } finally {
       setActionLoading(false);
     }
@@ -214,17 +191,16 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
     if (!declaration || !canObserve) return;
     const notes = supervisorNotes.trim();
     if (!notes) {
-      showMsg('Ingrese el texto de la observación.', 'error');
+      notify.warning('Revise los datos', 'Ingrese el texto de la observación.');
       return;
     }
     try {
       setActionLoading(true);
-      showMsg('');
       refreshDeclaration(await supervisorsService.observeDeclaration(declaration.id, notes));
       setSupervisorNotes('');
-      showMsg('Observación registrada.', 'success');
+      notify.success('Observación registrada');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo observar.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo observar.'));
     } finally {
       setActionLoading(false);
     }
@@ -234,18 +210,17 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
     if (!declaration || !canReopen) return;
     const reason = reopenReason.trim();
     if (!reason) {
-      showMsg('Ingrese el motivo de la reapertura.', 'error');
+      notify.warning('Revise los datos', 'Ingrese el motivo de la reapertura.');
       return;
     }
     try {
       setActionLoading(true);
-      showMsg('');
       refreshDeclaration(await supervisorsService.reopenDeclaration(declaration.id, reason));
       setReopenReason('');
       setReopenOpen(false);
-      showMsg('Entrega reabierta — volvió a "Por revisar".', 'success');
+      notify.success('Entrega reabierta — volvió a "Por revisar"');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo reabrir.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo reabrir.'));
     } finally {
       setActionLoading(false);
     }
@@ -290,13 +265,6 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
-
-      {msg ? (
-        <div className={`flex items-center gap-2 p-3 border rounded-lg text-sm font-medium ${msgBannerClass(msgTone)}`}>
-          <i className={`fas ${msgBannerIcon(msgTone)}`} aria-hidden />
-          {msg}
-        </div>
-      ) : null}
 
       {declaration.status === 'observado' && declaration.notes ? (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">

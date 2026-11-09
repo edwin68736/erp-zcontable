@@ -6,6 +6,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import Pagination from '../../components/Pagination';
 import PageHeading from '../../components/ui/PageHeading';
 import { notify } from '../../utils/notify';
+import Alert from '../../components/ui/Alert';
 
 const SupervisorPeriods = () => {
   const canView = useMemo(() => auth.hasPermission(P.supervisorsPeriodsView), []);
@@ -53,13 +54,12 @@ const SupervisorPeriods = () => {
       setNewYm('');
       setNewNotes('');
       if (bootstrap) {
-        setMsg(`Periodo creado. Controles generados: ${bootstrap.created} (omitidas: ${bootstrap.skipped}).`);
+        notify.fromMessage('success', `Periodo creado. Controles generados: ${bootstrap.created} (omitidas: ${bootstrap.skipped}).`);
       } else {
-        setMsg('');
       }
       void load();
     } catch {
-      setMsg('No se pudo crear el periodo');
+      notify.error('No se pudo crear el periodo');
     }
   };
 
@@ -67,10 +67,10 @@ const SupervisorPeriods = () => {
     try {
       setBootstrapLoadingId(periodId);
       const r = await supervisorsService.bootstrapPeriodControls(periodId);
-      setMsg(`Controles generados: ${r.created}. Ya existían: ${r.skipped}.`);
+      notify.fromMessage('success', `Controles generados: ${r.created}. Ya existían: ${r.skipped}.`);
       void load();
     } catch {
-      setMsg('No se pudieron generar los controles masivos');
+      notify.error('No se pudieron generar los controles masivos');
     } finally {
       setBootstrapLoadingId(null);
     }
@@ -82,7 +82,7 @@ const SupervisorPeriods = () => {
       void notify.success('Periodo cerrado');
       void load();
     } catch {
-      setMsg('No se pudo cerrar el periodo (revise controles pendientes)');
+      notify.error('No se pudo cerrar el periodo (revise controles pendientes)');
     }
   };
 
@@ -94,7 +94,7 @@ const SupervisorPeriods = () => {
       setDeleteId(null);
       void load();
     } catch {
-      setMsg('No se pudo eliminar');
+      notify.error('No se pudo eliminar');
     }
   };
 
@@ -114,10 +114,10 @@ const SupervisorPeriods = () => {
       await supervisorsService.updatePeriod(id, editNotes);
       setEditingId(null);
       setEditNotes('');
-      setMsg('Notas actualizadas.');
+      notify.success('Notas actualizadas');
       void load();
     } catch {
-      setMsg('No se pudieron guardar las notas');
+      notify.error('No se pudieron guardar las notas');
     } finally {
       setSavingNotesId(null);
     }
@@ -133,13 +133,7 @@ const SupervisorPeriods = () => {
         <PageHeading hint="Apertura y cierre mensual del módulo supervisores.">Periodos contables</PageHeading>
       </div>
 
-      {msg ? (
-        <p
-          className={`text-sm ${msg.startsWith('Periodo') || msg.includes('generados') || msg.includes('Notas') ? 'text-primary-700' : 'text-red-600'}`}
-        >
-          {msg}
-        </p>
-      ) : null}
+      {msg ? <Alert variant="error">{msg}</Alert> : null}
 
       {canCreate ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap gap-3 items-end">

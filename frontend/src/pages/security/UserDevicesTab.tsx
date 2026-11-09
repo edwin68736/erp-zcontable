@@ -56,7 +56,7 @@ export default function UserDevicesTab() {
       void notify.success('Equipo quitado', 'Se cerró la sesión abierta desde ese equipo.');
       await load(userId);
     } catch (e) {
-      setError(apiErrorMessage(e, 'No se pudo quitar el equipo.'));
+      notify.fromMessage('error', apiErrorMessage(e, 'No se pudo quitar el equipo.'));
     }
   };
 
@@ -69,7 +69,7 @@ export default function UserDevicesTab() {
       void notify.success('Seguridad reiniciada', `${selected.name || selected.username} tendrá que configurar su app y verificar cada equipo.`);
       await load(userId);
     } catch (e) {
-      setError(apiErrorMessage(e, 'No se pudo reiniciar al usuario.'));
+      notify.fromMessage('error', apiErrorMessage(e, 'No se pudo reiniciar al usuario.'));
     } finally {
       setBusy(false);
     }

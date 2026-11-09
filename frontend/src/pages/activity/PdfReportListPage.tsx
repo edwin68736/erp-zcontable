@@ -26,6 +26,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPdfReportExcel } from '../../utils/pdfReportExcelExport';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -75,7 +76,6 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
 
   useEffect(() => {
@@ -148,12 +148,11 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
     try {
       setExportingExcel(true);
       setError('');
-      setMsg('');
       const exportRows = await pdfReportService.fetchExportData(slug, filters());
       await exportPdfReportExcel({ module: mod, periodYm, rows: exportRows, workspace });
-      setMsg('Excel generado correctamente.');
+      notify.success('Excel generado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
       setExportingExcel(false);
     }
@@ -222,12 +221,6 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
         </div>
       </div>
 
-      {msg ? (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
-          <i className="fas fa-check-circle" aria-hidden />
-          {msg}
-        </div>
-      ) : null}
 
       {error ? (
         <Alert variant="error">{error}</Alert>

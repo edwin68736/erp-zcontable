@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { notify } from '../../utils/notify';
 
 type PastedPreview = {
   file: File;
@@ -106,7 +107,7 @@ export default function ClipboardPasteUploadModal({
       reset();
       onClose();
     } catch {
-      setError('No se pudo guardar el archivo. Intente de nuevo.');
+      notify.error('No se pudo guardar el archivo. Intente de nuevo');
     }
   };
 

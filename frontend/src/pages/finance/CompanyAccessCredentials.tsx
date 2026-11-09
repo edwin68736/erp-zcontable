@@ -316,7 +316,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const [importBannerKind, setImportBannerKind] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [importValidateLoading, setImportValidateLoading] = useState(false);
   const [importCommitLoading, setImportCommitLoading] = useState(false);
-  const [listNotice, setListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [sunatModal, setSunatModal] = useState<{ row: CompanyAccessCredentialRow; target: SunatAccessTarget } | null>(null);
   // Llave (validar clave SOL) y enchufe (generar credenciales de API) en curso, por empresa.
   const [apiBusy, setApiBusy] = useState<Record<number, 'validate' | 'generate'>>({});
@@ -326,10 +325,9 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const handleOpenSunat = (row: CompanyAccessCredentialRow, target: SunatAccessTarget = 'sunat') => {
     const missing = solMissing(row);
     if (missing) {
-      setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
+      notify.warning('Faltan datos', `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".`);
       return;
     }
-    setListNotice(null);
     setSunatModal({ row, target });
   };
 
@@ -351,18 +349,17 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const handleValidateSol = async (row: CompanyAccessCredentialRow) => {
     const missing = solMissing(row);
     if (missing) {
-      setListNotice({ kind: 'error', message: `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".` });
+      notify.warning('Faltan datos', `${row.business_name || 'La empresa'} no tiene ${missing} cargado: complételo con "Editar".`);
       return;
     }
-    setListNotice(null);
     setBusy(row.company_id, 'validate');
     try {
       await companyAccessCredentialsService.validateSol(row.company_id);
       setRows((prev) => prev.map((r) => (r.company_id === row.company_id ? { ...r, sol_validada: true } : r)));
-      setListNotice({ kind: 'success', message: `${row.business_name || 'La empresa'}: SUNAT aceptó la clave SOL. Ya puede generar sus credenciales de API.` });
+      notify.success('Clave SOL validada', `${row.business_name || 'La empresa'}: SUNAT aceptó la clave SOL. Ya puede generar sus credenciales de API.`);
     } catch (e) {
       setRows((prev) => prev.map((r) => (r.company_id === row.company_id ? { ...r, sol_validada: false } : r)));
-      setListNotice({ kind: 'error', message: apiErrorMessage(row, e) });
+      notify.fromMessage('error', apiErrorMessage(row, e));
     } finally {
       setBusy(row.company_id, null);
     }
@@ -370,7 +367,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
   /** Enchufe: el servidor entra a SOL, crea o completa la aplicación de API SUNAT y guarda el ID y la clave. */
   const handleGenerateApi = async (row: CompanyAccessCredentialRow) => {
-    setListNotice(null);
     setBusy(row.company_id, 'generate');
     try {
       const res = await companyAccessCredentialsService.generateApiCredentials(row.company_id);
@@ -380,10 +376,10 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
           ? 'Se completó la aplicación de API existente en SUNAT'
           : 'La aplicación de API ya estaba completa en SUNAT';
       const warn = res.warnings?.length ? ` Aviso: ${res.warnings.join(' ')}` : '';
-      setListNotice({ kind: 'success', message: `${row.business_name || 'La empresa'}: ${what} y se guardó su Client ID y Secret.${warn}` });
+      notify.success('Credenciales de API listas', `${row.business_name || 'La empresa'}: ${what} y se guardó su Client ID y Secret.${warn}`);
       void load();
     } catch (e) {
-      setListNotice({ kind: 'error', message: apiErrorMessage(row, e) });
+      notify.fromMessage('error', apiErrorMessage(row, e));
     } finally {
       setBusy(row.company_id, null);
     }
@@ -610,7 +606,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
       const msg = `Se actualizaron ${updated} empresa(s).${
         unmatched.length > 0 ? ` ${unmatched.length} RUC no registrado(s) se omitieron.` : ''
       }`;
-      setListNotice({ kind: 'success', message: msg });
       showToast('success', msg);
     } catch (e: unknown) {
       console.error(e);
@@ -785,33 +780,6 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
       {error ? (
         <Alert variant="error">{error}</Alert>
-      ) : null}
-
-      {listNotice ? (
-        <div
-          className={`p-4 rounded-xl text-sm flex items-start justify-between gap-3 ${
-            listNotice.kind === 'success'
-              ? 'bg-primary-50 border border-primary-200 text-primary-900'
-              : 'bg-red-50 border border-red-200 text-red-900'
-          }`}
-          role="status"
-        >
-          <span>
-            <i
-              className={`fas ${listNotice.kind === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2`}
-              aria-hidden
-            />
-            {listNotice.message}
-          </span>
-          <button
-            type="button"
-            className="shrink-0 text-slate-500 hover:text-slate-800"
-            aria-label="Cerrar aviso"
-            onClick={() => setListNotice(null)}
-          >
-            <i className="fas fa-times" aria-hidden />
-          </button>
-        </div>
       ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

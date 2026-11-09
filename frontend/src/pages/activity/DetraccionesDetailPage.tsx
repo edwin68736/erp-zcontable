@@ -26,6 +26,7 @@ import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { downloadRemoteFile } from '../../utils/downloadFile';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 type DetraccionesDetailPageProps = {
   workspace: ActivityWorkspace;
@@ -65,7 +66,6 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -118,22 +118,21 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     const file = files[0];
     const validationError = validatePdfClient(file);
     if (validationError) {
-      setMsg(validationError);
+      notify.warning('Revise los datos', validationError);
       return;
     }
     if (!detraccionesAllowsUpload(status)) {
-      setMsg('No se puede cargar PDF en el estado actual.');
+      notify.warning('Revise los datos', 'No se puede cargar PDF en el estado actual.');
       return;
     }
     try {
       setUploading(true);
-      setMsg('');
       const updated = await detraccionesService.uploadPdf(companyId, periodYm, file);
       setDetail(updated);
       await loadAttachments(updated.declaration.id);
-      setMsg('PDF cargado correctamente.');
+      notify.success('PDF cargado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'Error al subir el PDF.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir el PDF'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -144,12 +143,11 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     if (!declaration || !canVerify || workspace !== 'supervisor') return;
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await detraccionesService.verify(declaration.id);
       refreshDeclaration(updated);
-      setMsg('Registro verificado.');
+      notify.success('Registro verificado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo verificar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo verificar.'));
     } finally {
       setActionLoading(false);
     }
@@ -159,13 +157,12 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     if (!declaration || workspace !== 'supervisor' || !canVerify) return;
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await detraccionesService.setSupervisorStatus(declaration.id, next);
       refreshDeclaration(updated);
       setStatusModalOpen(false);
-      setMsg('Estado actualizado.');
+      notify.success('Estado actualizado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo cambiar el estado.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo cambiar el estado.'));
     } finally {
       setActionLoading(false);
     }
@@ -175,12 +172,11 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
     if (!canSuspend) return;
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await detraccionesService.setSuspendida(companyId, periodYm, next);
       setDetail(updated);
-      setMsg(next ? 'Empresa marcada como suspendida.' : 'Empresa reactivada.');
+      notify.fromMessage('success', next ? 'Empresa marcada como suspendida.' : 'Empresa reactivada.');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo actualizar la suspensión.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo actualizar la suspensión.'));
     } finally {
       setActionLoading(false);
     }
@@ -239,9 +235,6 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
         </Alert>
       ) : null}
 
-      {msg ? (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{msg}</div>
-      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">

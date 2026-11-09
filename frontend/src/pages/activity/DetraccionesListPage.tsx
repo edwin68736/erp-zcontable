@@ -85,8 +85,6 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [actionError, setActionError] = useState('');
-  const [msg, setMsg] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
 
   // Modal de arrastre de suspensión entre periodos (§5.9.9) — "cualquier usuario" puede resolverlo
@@ -198,7 +196,6 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     try {
       setExportingExcel(true);
       setError('');
-      setMsg('');
       const exportRows = await detraccionesService.fetchExportData({
         period_ym: periodYm,
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
@@ -207,31 +204,29 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         supervisor_user_id: filterSupervisorId ?? undefined,
       });
       await exportDetraccionesReportExcel({ periodYm, rows: exportRows, workspace });
-      setMsg('Excel generado correctamente.');
+      notify.success('Excel generado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
       setExportingExcel(false);
     }
   };
 
   const handleUpload = async (companyId: number, file: File) => {
-    setActionError('');
     try {
       await detraccionesService.uploadPdf(companyId, periodYm, file);
       void notify.success('Comprobante cargado');
     } catch (err) {
-      setActionError(extractApiErrorMessage(err, 'No se pudo subir el PDF.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir el PDF.'));
       throw err;
     }
   };
 
   const handleVerify = async (declarationId: number) => {
-    setActionError('');
     try {
       await detraccionesService.verify(declarationId);
     } catch (err) {
-      setActionError(extractApiErrorMessage(err, 'No se pudo verificar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo verificar.'));
       throw err;
     }
   };
@@ -241,7 +236,6 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     declarationId: number | undefined,
     status: 'sin_clave' | 'no_corresponde',
   ) => {
-    setActionError('');
     try {
       let id = declarationId;
       if (!id) {
@@ -251,7 +245,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
       await detraccionesService.setSupervisorStatus(id, status);
       void notify.success('Estado actualizado');
     } catch (err) {
-      setActionError(extractApiErrorMessage(err, 'No se pudo cambiar el estado.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo cambiar el estado.'));
       throw err;
     }
   };
@@ -314,17 +308,8 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         </button>
       </div>
 
-      {msg ? (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
-          <i className="fas fa-check-circle" aria-hidden />
-          {msg}
-        </div>
-      ) : null}
       {error ? (
         <Alert variant="error">{error}</Alert>
-      ) : null}
-      {actionError ? (
-        <Alert variant="warning">{actionError}</Alert>
       ) : null}
       {!periodEnabled ? (
         <Alert variant="warning">

@@ -95,7 +95,7 @@ const SunatDueDatesCalendar = () => {
       setEditing(null);
       notify.success('Cronograma actualizado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo guardar el cronograma.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo guardar el cronograma.'));
       notify.error('No se pudo guardar el cronograma');
     } finally {
       setSaving(false);

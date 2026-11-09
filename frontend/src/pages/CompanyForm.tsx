@@ -237,7 +237,7 @@ const CompanyForm = () => {
         console.error(e);
         const ax = e as { response?: { data?: { error?: string } } };
         const msg = ax.response?.data?.error ?? 'No se pudo validar el RUC';
-        setError(msg);
+        notify.fromMessage('error', msg);
         notify.fromMessage('error', msg);
       } finally {
         rucLookupInFlight.current = false;
@@ -304,7 +304,7 @@ const CompanyForm = () => {
         setNewContact({ full_name: '', position: '', phone: '', email: '', priority: '', notes: '' });
       } catch (e) {
         console.error(e);
-        setError('Error al registrar el contacto');
+        notify.error('No se pudo registrar el contacto');
       } finally {
         setContactsLoading(false);
       }

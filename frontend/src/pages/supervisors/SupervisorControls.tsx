@@ -15,6 +15,7 @@ import {
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
 import { formatDate } from '../../utils/format';
 import { notify } from '../../utils/notify';
+import Alert from '../../components/ui/Alert';
 
 type SupervisorControlsProps = {
   /** Ruta base para enlazar al detalle (p. ej. /assistant/controls). */
@@ -92,7 +93,7 @@ const SupervisorControls = ({
       void notify.success('Control creado');
       void load();
     } catch {
-      setMsg('No se pudo crear el control (¿ya existe para esa empresa/periodo?)');
+      notify.error('No se pudo crear el control (¿ya existe para esa empresa/periodo?)');
     }
   };
 
@@ -104,7 +105,7 @@ const SupervisorControls = ({
       setDeleteId(null);
       void load();
     } catch {
-      setMsg('No se pudo eliminar');
+      notify.error('No se pudo eliminar');
     }
   };
 
@@ -135,7 +136,7 @@ const SupervisorControls = ({
         ) : null}
       </div>
 
-      {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
+      {msg ? <Alert variant="error">{msg}</Alert> : null}
 
       <ActivityHubNav workspace={workspace} />
 

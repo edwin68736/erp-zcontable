@@ -39,7 +39,7 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
       apply(await securityService.saveSettings({ device_trust_mode: mode, device_trust_days: days, enforce_from: mode === 'learn' ? from : '' }));
       void notify.success('Configuración guardada');
     } catch (err) {
-      setError(apiErrorMessage(err, 'No se pudo guardar.'));
+      notify.fromMessage('error', apiErrorMessage(err, 'No se pudo guardar.'));
     } finally {
       setBusy(false);
     }

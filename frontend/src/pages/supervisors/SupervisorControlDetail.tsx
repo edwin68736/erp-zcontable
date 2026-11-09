@@ -30,6 +30,7 @@ import {
 } from '../../utils/supervisorLabels';
 import { formatAmount, formatDate, formatDateTime } from '../../utils/format';
 import { notify } from '../../utils/notify';
+import Alert from '../../components/ui/Alert';
 
 function supervisorUserLabel(u?: { full_name?: string; username?: string }): string {
   return u?.full_name || u?.username || '—';
@@ -141,7 +142,6 @@ const SupervisorControlDetail = () => {
           setLiquidation(null);
         }
       }
-      setMsg('');
     } catch {
       setMsg('No se pudo cargar el control');
     }
@@ -189,9 +189,8 @@ const SupervisorControlDetail = () => {
     try {
       const updated = await supervisorsService.updateControl(control.id, patch);
       setControl(updated);
-      setMsg('');
     } catch {
-      setMsg('Error al actualizar el control');
+      notify.error('No se pudo actualizar el control');
     }
   };
 
@@ -203,7 +202,7 @@ const SupervisorControlDetail = () => {
       setNewObservation('');
       await loadAudit();
     } catch {
-      setMsg('No se pudo registrar la observación');
+      notify.error('No se pudo registrar la observación');
     }
   };
 
@@ -218,7 +217,7 @@ const SupervisorControlDetail = () => {
         await loadAudit();
       }
     } catch {
-      setMsg('Error al subir el archivo');
+      notify.error('No se pudo subir el archivo');
     }
   };
 
@@ -235,9 +234,9 @@ const SupervisorControlDetail = () => {
         approver_user_id: liqForm.approver_user_id ? Number(liqForm.approver_user_id) : 0,
       });
       await load();
-      setMsg('Liquidación guardada.');
+      notify.success('Liquidación guardada');
     } catch {
-      setMsg('Error al guardar liquidación');
+      notify.error('No se pudo guardar liquidación');
     }
   };
 
@@ -269,7 +268,7 @@ const SupervisorControlDetail = () => {
         </p>
       </div>
 
-      {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
+      {msg ? <Alert variant="error">{msg}</Alert> : null}
 
       {canUpdateControl ? (
         <div className="flex flex-wrap gap-2">
@@ -278,7 +277,7 @@ const SupervisorControlDetail = () => {
             onClick={() => {
               void supervisorsService.registerInfoReceived(control.id).then((c) => {
                 setControl(c);
-                setMsg('Información registrada como recibida.');
+                notify.success('Información registrada como recibida');
               });
             }}
             className="px-4 py-2 rounded-lg border border-primary-200 text-primary-800 text-sm font-medium hover:bg-primary-50"

@@ -492,7 +492,7 @@ const SupervisorLiquidacionCreatePage = () => {
       navigate(listBackTo);
       return true;
     } catch (err) {
-      setError(extractApiErrorMessage(err, isEdit ? 'No se pudo actualizar la liquidación.' : 'No se pudo crear la liquidación.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, isEdit ? 'No se pudo actualizar la liquidación.' : 'No se pudo crear la liquidación.'));
       return false;
     } finally {
       setSaving(false);

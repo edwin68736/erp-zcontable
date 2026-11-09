@@ -40,6 +40,7 @@ import { useElementHeight } from '../../hooks/useElementHeight';
 import { Z_HEAD_ROW, Z_HEAD_ROW1, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -96,7 +97,6 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
   const [headRow1Ref, headRow1H] = useElementHeight<HTMLTableCellElement>();
@@ -226,12 +226,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
 
   const handleUpload = async (companyId: number, slotIndex: number, mailboxType: MailboxType, file: File) => {
     try {
-      setMsg('');
       const slot = await sunatInboxService.uploadCapture(companyId, slotIndex, file, mailboxType, periodYm, weekStart);
       patchRowSlot(companyId, slotIndex, slot);
-      setMsg('Archivo subido correctamente.');
+      notify.success('Archivo subido');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'Error al subir archivo.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir archivo'));
     }
   };
 
@@ -241,15 +240,13 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       return;
     }
     try {
-      setMsg('');
       setVerifyError('');
       const slot = await sunatInboxService.verifyCapture(slotId, mailboxType);
       patchRowSlot(companyId, slot.slot_index, slot);
-      setMsg('Buzón verificado.');
+      notify.success('Buzón verificado');
     } catch (err) {
       const text = extractApiErrorMessage(err, 'No se pudo verificar.');
       setVerifyError(text);
-      setMsg('');
     }
   };
 
@@ -257,7 +254,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
     patchRowSlot(companyId, slot.slot_index, slot);
     setVerifyError('');
-    setMsg('Captura observada: el asistente verá el motivo.');
+    notify.success('Captura observada: el asistente verá el motivo');
   };
 
   // Vista "Mes completo": cada celda pertenece a una semana distinta, así que a diferencia de
@@ -286,12 +283,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     file: File,
   ) => {
     try {
-      setMsg('');
       const slot = await sunatInboxService.uploadCapture(companyId, slotIndex, file, mailboxType, periodYm, weekStartKey);
       patchMonthRowSlot(companyId, weekStartKey, slotIndex, slot);
-      setMsg('Archivo subido correctamente.');
+      notify.success('Archivo subido');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'Error al subir archivo.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir archivo'));
     }
   };
 
@@ -301,15 +297,13 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
       return;
     }
     try {
-      setMsg('');
       setVerifyError('');
       const slot = await sunatInboxService.verifyCapture(slotId, mailboxType);
       patchMonthRowSlot(companyId, weekStartKey, slot.slot_index, slot);
-      setMsg('Buzón verificado.');
+      notify.success('Buzón verificado');
     } catch (err) {
       const text = extractApiErrorMessage(err, 'No se pudo verificar.');
       setVerifyError(text);
-      setMsg('');
     }
   };
 
@@ -317,7 +311,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
     patchMonthRowSlot(companyId, weekStartKey, slot.slot_index, slot);
     setVerifyError('');
-    setMsg('Captura observada: el asistente verá el motivo.');
+    notify.success('Captura observada: el asistente verá el motivo');
   };
 
   const handleExportExcel = async () => {
@@ -343,7 +337,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         workspace,
         scope,
       });
-      setMsg('Excel generado correctamente.');
+      notify.success('Excel generado');
     } catch (err) {
       const text = extractApiErrorMessage(err, 'No se pudo exportar a Excel.');
       setError(text);
@@ -488,9 +482,6 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
         <Alert variant="error">{verifyError}</Alert>
       ) : null}
 
-      {msg ? (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{msg}</div>
-      ) : null}
 
       {error ? (
         <Alert variant="error">{error}</Alert>

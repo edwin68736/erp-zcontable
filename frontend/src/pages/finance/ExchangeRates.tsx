@@ -19,6 +19,7 @@ import {
   shiftMonth,
 } from './exchangeRates/exchangeRatesUi';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const INPUT_CLS = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -73,7 +74,7 @@ const ExchangeRates = () => {
       saveAs(new Blob([bytes as BlobPart], { type: 'application/pdf' }), exchangeRatesPdfFileName(data.year, data.month));
     } catch (e) {
       console.error(e);
-      setError('No se pudo generar el PDF.');
+      notify.error('No se pudo generar el PDF');
     } finally {
       setPdfBusy(false);
     }

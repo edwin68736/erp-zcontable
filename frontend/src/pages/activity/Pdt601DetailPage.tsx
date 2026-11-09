@@ -32,6 +32,7 @@ import { downloadRemoteFile } from '../../utils/downloadFile';
 import Button from '../../components/ui/Button';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const EMPTY_PLANILLA: Pdt601PlanillaInput = {
   sin_planilla: false,
@@ -138,25 +139,6 @@ const TICKET_AFP_OPTIONS = ['', 'Enviado', 'No corresponde'];
 const PLANILLA_INPUT =
   'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-500';
 
-/** Clase + ícono del banner de mensaje según resultado (éxito/error/info) — para que se note
- * claramente si una acción (guardar, cambiar estado, aprobar, observar) funcionó o no. */
-function msgBannerClass(tone: 'success' | 'error' | 'info'): string {
-  if (tone === 'success') return 'bg-primary-50 border-primary-200 text-primary-800';
-  if (tone === 'error') return 'bg-red-50 border-red-200 text-red-700';
-  return 'bg-slate-50 border-slate-200 text-slate-700';
-}
-function msgBannerIcon(tone: 'success' | 'error' | 'info'): string {
-  if (tone === 'success') return 'fa-check-circle';
-  if (tone === 'error') return 'fa-exclamation-circle';
-  return 'fa-info-circle';
-}
-/** Solo el color de texto (sin fondo/borde) — para repetir el mensaje junto al botón "Guardar". */
-function msgTextClass(tone: 'success' | 'error' | 'info'): string {
-  if (tone === 'success') return 'text-primary-700';
-  if (tone === 'error') return 'text-red-700';
-  return 'text-slate-600';
-}
-
 type Pdt601DetailPageProps = {
   workspace: ActivityWorkspace;
 };
@@ -182,8 +164,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
-  const [msgTone, setMsgTone] = useState<'success' | 'error' | 'info'>('info');
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
@@ -234,11 +214,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     (planilla.rta_4ta || 0) +
     (planilla.rta_5ta || 0) +
     (planilla.sctr || 0);
-
-  const showMsg = (text: string, tone: 'success' | 'error' | 'info' = 'info') => {
-    setMsg(text);
-    setMsgTone(tone);
-  };
 
   const patchPlanilla = (patch: Partial<Pdt601PlanillaInput>) => {
     setPlanilla((prev) => ({ ...prev, ...patch }));
@@ -310,19 +285,18 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     if (!declaration || !canReopen) return;
     const reason = reopenReason.trim();
     if (!reason) {
-      showMsg('Ingrese el motivo de la reapertura.', 'error');
+      notify.warning('Revise los datos', 'Ingrese el motivo de la reapertura.');
       return;
     }
     try {
       setActionLoading(true);
-      showMsg('');
       const updated = await supervisorsService.reopenDeclaration(declaration.id, reason);
       refreshDeclaration(updated);
       setReopenReason('');
       setReopenOpen(false);
-      showMsg('Declaración reabierta — volvió a "Por revisar".', 'success');
+      notify.success('Declaración reabierta — volvió a "Por revisar"');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo reabrir.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo reabrir.'));
     } finally {
       setActionLoading(false);
     }
@@ -334,19 +308,18 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     // guardar el nuevo (SaveAttachment), así que acá solo se sube — el reemplazo ya no depende de
     // la lista que tenga esta pantalla ni de que no haya dos subidas a la vez.
     if (files.length > 1) {
-      showMsg('Solo se puede cargar un archivo a la vez.', 'error');
+      notify.warning('Revise los datos', 'Solo se puede cargar un archivo a la vez.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     const file = files[0];
     try {
       setUploading(true);
-      showMsg('');
       await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
       await loadAttachments(declaration.id);
-      showMsg('Archivo cargado correctamente.', 'success');
+      notify.success('Archivo cargado');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'Error al subir archivo.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir archivo'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -362,12 +335,11 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     if (!(await confirmDialog({ message: `¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       setRemovingId(attachment.id);
-      showMsg('');
       await supervisorsService.deleteAttachment(attachment.id);
       await loadAttachments(declaration.id);
-      showMsg('Archivo quitado.', 'success');
+      notify.success('Archivo quitado');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo quitar el archivo.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo quitar el archivo.'));
     } finally {
       setRemovingId(null);
     }
@@ -386,24 +358,23 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     // seguimiento del supervisor): se muestra y edita en la tarjeta "Empresa", visible para ambos
     // workspaces — salvo con "Sin planilla": sin trabajadores no hay régimen que declarar.
     if (!planilla.sin_planilla && !planilla.regimen_laboral) {
-      showMsg('Seleccione el régimen laboral.', 'error');
+      notify.warning('Revise los datos', 'Seleccione el régimen laboral.');
       return;
     }
     // NPS/Ticket AFP los completa el supervisor en el seguimiento posterior — el asistente no
     // puede editarlos (quedan readonly), así que exigirlos acá lo dejaría sin poder guardar nunca.
     if (!planilla.sin_planilla && !controlSuspendida && workspace !== 'assistant') {
       if (!planilla.nps) {
-        showMsg('Seleccione un valor para NPS.', 'error');
+        notify.warning('Revise los datos', 'Seleccione un valor para NPS.');
         return;
       }
       if (!planilla.ticket_afp) {
-        showMsg('Seleccione un valor para Ticket AFP.', 'error');
+        notify.warning('Revise los datos', 'Seleccione un valor para Ticket AFP.');
         return;
       }
     }
     try {
       setPlanillaSaving(true);
-      showMsg('');
       const updated = await pdt601Service.savePlanilla(companyId, periodYm, planilla);
       // El guardado puede haber disparado la entrega automática (Pendiente/Observado → Por revisar,
       // docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — se refleja acá también el estado y la
@@ -420,9 +391,9 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           : d,
       );
       setPlanilla(planillaToInput(updated.planilla));
-      showMsg('Planilla guardada correctamente.', 'success');
+      notify.success('Planilla guardada');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo guardar la planilla.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo guardar la planilla.'));
     } finally {
       setPlanillaSaving(false);
     }
@@ -432,12 +403,11 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     if (!declaration || !canApprove) return;
     try {
       setActionLoading(true);
-      showMsg('');
       const updated = await supervisorsService.approveDeclaration(declaration.id);
       refreshDeclaration(updated);
-      showMsg('Declaración aprobada.', 'success');
+      notify.success('Declaración aprobada');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo aprobar.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo aprobar.'));
     } finally {
       setActionLoading(false);
     }
@@ -447,18 +417,17 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
     if (!declaration || !canObserve) return;
     const notes = supervisorNotes.trim();
     if (!notes) {
-      showMsg('Ingrese el texto de la observación.', 'error');
+      notify.warning('Revise los datos', 'Ingrese el texto de la observación.');
       return;
     }
     try {
       setActionLoading(true);
-      showMsg('');
       const updated = await supervisorsService.observeDeclaration(declaration.id, notes);
       refreshDeclaration(updated);
       setSupervisorNotes('');
-      showMsg('Observación registrada.', 'success');
+      notify.success('Observación registrada');
     } catch (err) {
-      showMsg(extractApiErrorMessage(err, 'No se pudo observar.'), 'error');
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo observar.'));
     } finally {
       setActionLoading(false);
     }
@@ -501,13 +470,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
-
-      {msg ? (
-        <div className={`flex items-center gap-2 p-3 border rounded-lg text-sm font-medium ${msgBannerClass(msgTone)}`}>
-          <i className={`fas ${msgBannerIcon(msgTone)}`} aria-hidden />
-          {msg}
-        </div>
-      ) : null}
 
       <div className={`grid gap-4 ${showRevisionSupervisor ? 'lg:grid-cols-2' : ''}`}>
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
@@ -951,15 +913,6 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
         {canUpdate ? (
           <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
-            {/* Mismo mensaje que arriba, repetido acá: el botón queda al final de un formulario
-                largo — sin esto, guardar no parecía hacer nada porque la confirmación aparecía
-                fuera de la vista, arriba de todo. */}
-            {msg ? (
-              <span className={`flex items-center gap-1.5 text-sm font-medium ${msgTextClass(msgTone)}`}>
-                <i className={`fas ${msgBannerIcon(msgTone)}`} aria-hidden />
-                {msg}
-              </span>
-            ) : null}
             <Button disabled={planillaSaving || formLocked} onClick={() => void handleSavePlanilla()}>
               {planillaSaving ? 'Guardando…' : 'Guardar planilla'}
             </Button>

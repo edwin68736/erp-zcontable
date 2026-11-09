@@ -36,6 +36,7 @@ import type { Company, User } from '../../types/dashboard';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { confirmDialog } from '../../utils/confirmDialog';
+import { notify } from '../../utils/notify';
 
 const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
 const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
@@ -125,7 +126,6 @@ const SupervisorDashboardView = () => {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState<number | null>(null);
-  const [actionMsg, setActionMsg] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -211,12 +211,11 @@ const SupervisorDashboardView = () => {
     if (!(await confirmDialog({ message: `¿Aprobar la entrega de ${item.company} (${item.module_label})?`, confirmLabel: 'Aprobar' }))) return;
     try {
       setApprovingId(item.declaration_id);
-      setActionMsg('');
       await supervisorsService.approveDeclaration(item.declaration_id);
-      setActionMsg(`Entrega de ${item.company} aprobada.`);
+      notify.fromMessage('success', `Entrega de ${item.company} aprobada.`);
       setReloadKey((k) => k + 1);
     } catch (err) {
-      setActionMsg(extractApiErrorMessage(err, 'No se pudo aprobar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo aprobar.'));
     } finally {
       setApprovingId(null);
     }
@@ -620,7 +619,6 @@ const SupervisorDashboardView = () => {
                     </h2>
                   </div>
                   <p className="mb-2 mt-0 text-[11px] text-slate-500">Entregas de tus asistentes esperando tu visto bueno.</p>
-                  {actionMsg ? <p className="mb-2 text-[11px] font-semibold text-[#0A5A3A]">{actionMsg}</p> : null}
                   {(review?.items.length ?? 0) === 0 ? (
                     <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "No hay entregas por revisar."}</p>
                   ) : (

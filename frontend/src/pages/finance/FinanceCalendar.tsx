@@ -26,6 +26,7 @@ import {
   type ActivityDatePatch,
   type CalendarCell,
 } from './calendar/calendarUtils';
+import { notify } from '../../utils/notify';
 
 const FinanceCalendar = () => {
   const canManage = useMemo(() => auth.hasPermission(P.financeCalendarManage), []);
@@ -123,12 +124,10 @@ const FinanceCalendar = () => {
               }
             : d,
         );
-        setMsg('Actividad reprogramada correctamente');
-        setMsgType('success');
+        notify.success('Actividad reprogramada');
       } catch {
         setActivities(snapshot);
-        setMsg('No se pudo reprogramar. Se restauró la posición anterior.');
-        setMsgType('error');
+        notify.error('No se pudo reprogramar. Se restauró la posición anterior');
       }
     },
     [activities, periodYm],
@@ -179,8 +178,7 @@ const FinanceCalendar = () => {
       setSelectedActivityId(activityId);
       setCompliance(await financeCalendarService.compliance(activityId, periodYm));
     } catch {
-      setMsg('No se pudo cargar el cumplimiento');
-      setMsgType('error');
+      notify.error('No se pudo cargar el cumplimiento');
     } finally {
       setComplianceLoading(false);
     }
@@ -281,8 +279,7 @@ const FinanceCalendar = () => {
         });
       } else {
         if (!data.activity_template_id) {
-          setMsg('Seleccione una plantilla del catálogo.');
-          setMsgType('error');
+          notify.warning('Revise los datos', 'Seleccione una plantilla del catálogo.');
           return;
         }
         await financeCalendarService.addActivity(detail.id, {
@@ -294,11 +291,9 @@ const FinanceCalendar = () => {
       }
       setActivityModal({ open: false });
       await loadDetail();
-      setMsg(activityModal.edit ? 'Actividad actualizada' : 'Actividad creada');
-      setMsgType('success');
+      notify.fromMessage('success', activityModal.edit ? 'Actividad actualizada' : 'Actividad creada');
     } catch {
-      setMsg('No se pudo guardar la actividad');
-      setMsgType('error');
+      notify.error('No se pudo guardar la actividad');
     } finally {
       setSaving(false);
     }
@@ -312,11 +307,9 @@ const FinanceCalendar = () => {
       const bytes = await buildFinanceCalendarPdf(detail, { firmLogoUrl: firm?.logo_url });
       const blob = new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
       saveAs(blob, financeCalendarPdfFilename(detail.period_ym));
-      setMsg('PDF generado correctamente');
-      setMsgType('success');
+      notify.success('PDF generado');
     } catch {
-      setMsg('No se pudo generar el PDF');
-      setMsgType('error');
+      notify.error('No se pudo generar el PDF');
     } finally {
       setPdfLoading(false);
     }
@@ -329,11 +322,9 @@ const FinanceCalendar = () => {
       await financeCalendarService.close(detail.id);
       setConfirmCloseCal(false);
       await loadDetail();
-      setMsg('Calendario cerrado. Ya no se puede editar hasta abrirlo de nuevo.');
-      setMsgType('success');
+      notify.success('Calendario cerrado', 'Ya no se puede editar hasta abrirlo de nuevo');
     } catch {
-      setMsg('No se pudo cerrar el calendario');
-      setMsgType('error');
+      notify.error('No se pudo cerrar el calendario');
     } finally {
       setSaving(false);
     }
@@ -345,11 +336,9 @@ const FinanceCalendar = () => {
     try {
       await financeCalendarService.reopen(detail.id);
       await loadDetail();
-      setMsg('Calendario abierto. Puede editarlo nuevamente.');
-      setMsgType('success');
+      notify.success('Calendario abierto', 'Puede editarlo nuevamente');
     } catch {
-      setMsg('No se pudo abrir el calendario');
-      setMsgType('error');
+      notify.error('No se pudo abrir el calendario');
     } finally {
       setSaving(false);
     }
@@ -362,11 +351,9 @@ const FinanceCalendar = () => {
     try {
       await financeCalendarService.updateNotes(detail.id, notes);
       await loadDetail();
-      setMsg('Notas actualizadas');
-      setMsgType('success');
+      notify.success('Notas actualizadas');
     } catch {
-      setMsg('No se pudieron guardar las notas');
-      setMsgType('error');
+      notify.error('No se pudieron guardar las notas');
     }
   };
 
@@ -541,11 +528,9 @@ const FinanceCalendar = () => {
                 } else {
                   await loadDetail(ym);
                 }
-                setMsg('Calendario creado');
-                setMsgType('success');
+                notify.success('Calendario creado');
               } catch (e: unknown) {
-                setMsg(e instanceof Error ? e.message : 'No se pudo crear el calendario');
-                setMsgType('error');
+                notify.fromMessage('error', e instanceof Error ? e.message : 'No se pudo crear el calendario');
               } finally {
                 setSaving(false);
               }
@@ -564,11 +549,9 @@ const FinanceCalendar = () => {
                 setDuplicateOpen(false);
                 setPeriodYm(toYm);
                 await loadDetail(toYm);
-                setMsg('Calendario duplicado correctamente');
-                setMsgType('success');
+                notify.success('Calendario duplicado');
               } catch {
-                setMsg('No se pudo duplicar el calendario');
-                setMsgType('error');
+                notify.error('No se pudo duplicar el calendario');
               } finally {
                 setSaving(false);
               }
@@ -614,11 +597,9 @@ const FinanceCalendar = () => {
             await financeCalendarService.remove(detail.id);
             setConfirmDeleteCal(false);
             setDetail(null);
-            setMsg('Calendario eliminado');
-            setMsgType('success');
+            notify.success('Calendario eliminado');
           } catch {
-            setMsg('No se pudo eliminar');
-            setMsgType('error');
+            notify.error('No se pudo eliminar');
           } finally {
             setSaving(false);
           }
@@ -640,11 +621,9 @@ const FinanceCalendar = () => {
             await financeCalendarService.removeActivity(confirmDeleteAct.id);
             setConfirmDeleteAct(null);
             await loadDetail();
-            setMsg('Actividad eliminada');
-            setMsgType('success');
+            notify.success('Actividad eliminada');
           } catch {
-            setMsg('No se pudo eliminar la actividad');
-            setMsgType('error');
+            notify.error('No se pudo eliminar la actividad');
           } finally {
             setSaving(false);
           }

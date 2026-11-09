@@ -16,6 +16,7 @@ import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils
 import Pagination from '../../components/Pagination';
 import PageHeading from '../../components/ui/PageHeading';
 import { formatAmount, formatDateTime } from '../../utils/format';
+import { notify } from '../../utils/notify';
 
 const REPORT_TABS: { kind: SupervisorReportKind; label: string }[] = [
   { kind: 'monthly', label: 'Mensual' },
@@ -265,7 +266,7 @@ const SupervisorReports = () => {
         `reporte-supervisores-${kind}-${periodYm}.xlsx`,
       );
     } catch {
-      setError('No se pudo exportar a Excel');
+      notify.error('No se pudo exportar a Excel');
     } finally {
       setExportingExcel(false);
     }
@@ -339,7 +340,7 @@ const SupervisorReports = () => {
       const blob = await pdf(PdfDoc).toBlob();
       saveAs(blob, `reporte-supervisores-${kind}-${periodYm}.pdf`);
     } catch {
-      setError('No se pudo exportar a PDF');
+      notify.error('No se pudo exportar a PDF');
     } finally {
       setExportingPdf(false);
     }

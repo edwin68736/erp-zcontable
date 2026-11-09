@@ -32,7 +32,7 @@ export default function DevicesCard() {
       void notify.success('Equipo quitado');
       await load();
     } catch (e) {
-      setError(apiErrorMessage(e, 'No se pudo quitar el equipo.'));
+      notify.fromMessage('error', apiErrorMessage(e, 'No se pudo quitar el equipo.'));
     }
   };
 

@@ -81,7 +81,7 @@ const CompanyContactForm = () => {
       navigate(`/companies/${companyId}/contacts`, { replace: true });
     } catch (e) {
       console.error(e);
-      setError('Error al guardar el contacto');
+      notify.error('No se pudo guardar el contacto');
     }
   };
 

@@ -129,7 +129,7 @@ const ActivityConfigurationSettings = () => {
       notify.success('Regla guardada');
     } catch (err) {
       console.error(err);
-      setError('No se pudo guardar la regla. Revise los datos.');
+      notify.error('No se pudo guardar la regla. Revise los datos');
     } finally {
       setSaving(false);
     }
@@ -151,7 +151,7 @@ const ActivityConfigurationSettings = () => {
       await loadRules();
     } catch (err) {
       console.error(err);
-      setError('No se pudo desactivar la regla.');
+      notify.error('No se pudo desactivar la regla');
     }
   };
 
@@ -182,7 +182,7 @@ const ActivityConfigurationSettings = () => {
       notify.success('Regla asignada a la actividad');
     } catch (err) {
       console.error(err);
-      setError('No se pudo guardar la regla de la actividad.');
+      notify.error('No se pudo guardar la regla de la actividad');
     } finally {
       setSavingTemplateId(null);
     }

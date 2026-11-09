@@ -29,6 +29,7 @@ import Pdt621RecepcionarButton from '../../components/activity/Pdt621Recepcionar
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function formatEntrega(fecha?: string | null, hora?: string | null): string {
   if (!fecha) return '';
@@ -95,7 +96,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const [attachments, setAttachments] = useState<SupervisorAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -204,19 +204,18 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     if (!declaration || !canReopen) return;
     const reason = reopenReason.trim();
     if (!reason) {
-      setMsg('Ingrese el motivo de la reapertura.');
+      notify.warning('Revise los datos', 'Ingrese el motivo de la reapertura.');
       return;
     }
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await supervisorsService.reopenDeclaration(declaration.id, reason);
       refreshDeclaration(updated);
       setReopenReason('');
       setReopenOpen(false);
-      setMsg('Declaración reabierta — volvió a "Por revisar".');
+      notify.success('Declaración reabierta — volvió a "Por revisar"');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo reabrir.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo reabrir.'));
     } finally {
       setActionLoading(false);
     }
@@ -227,19 +226,18 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     // Solo se carga un archivo de PDT 621 por declaración: el backend borra los anteriores al
     // guardar el nuevo (SaveAttachment), así que acá solo se sube.
     if (files.length > 1) {
-      setMsg('Solo se puede cargar un archivo a la vez.');
+      notify.warning('Revise los datos', 'Solo se puede cargar un archivo a la vez.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     const file = files[0];
     try {
       setUploading(true);
-      setMsg('');
       await supervisorsService.uploadAttachment(detail!.control_id, declaration.id, file);
       await loadAttachments(declaration.id);
-      setMsg('Archivo cargado correctamente.');
+      notify.success('Archivo cargado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'Error al subir archivo.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir archivo'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -255,12 +253,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     if (!(await confirmDialog({ message: `¿Quitar el archivo "${attachment.file_name}"? Esta acción no se puede deshacer.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       setRemovingId(attachment.id);
-      setMsg('');
       await supervisorsService.deleteAttachment(attachment.id);
       await loadAttachments(declaration.id);
-      setMsg('Archivo quitado.');
+      notify.success('Archivo quitado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo quitar el archivo.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo quitar el archivo.'));
     } finally {
       setRemovingId(null);
     }
@@ -277,12 +274,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     if (!declaration || !canApprove) return;
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await supervisorsService.approveDeclaration(declaration.id);
       refreshDeclaration(updated);
-      setMsg('Declaración aprobada.');
+      notify.success('Declaración aprobada');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo aprobar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo aprobar.'));
     } finally {
       setActionLoading(false);
     }
@@ -292,12 +288,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
     if (!declaration || !canObserve) return;
     const notes = supervisorNotes.trim();
     if (!notes) {
-      setMsg('Ingrese el motivo de la observación.');
+      notify.warning('Revise los datos', 'Ingrese el motivo de la observación.');
       return;
     }
     try {
       setActionLoading(true);
-      setMsg('');
       const updated = await supervisorsService.observeDeclaration(declaration.id, notes);
       refreshDeclaration(updated);
       const me = auth.getUser();
@@ -312,9 +307,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           : d,
       );
       setSupervisorNotes('');
-      setMsg('Archivador observado.');
+      notify.success('Archivador observado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo observar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo observar.'));
     } finally {
       setActionLoading(false);
     }
@@ -332,7 +327,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         : d,
     );
     setRecord(recordToInput(updated.record));
-    setMsg(message);
+    notify.fromMessage('success', message);
   };
 
   const patchRecord = (patch: Partial<Pdt621RecordInput>) => {
@@ -342,12 +337,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const handleSaveRecord = async () => {
     if (!canUpdate || formLocked) return;
     if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) {
-      setMsg('Ingrese el motivo por el que no se envió SIRE.');
+      notify.warning('Revise los datos', 'Ingrese el motivo por el que no se envió SIRE.');
       return;
     }
     try {
       setRecordSaving(true);
-      setMsg('');
       const updated = await pdt621Service.saveRecord(companyId, periodYm, record);
       setDetail((d) =>
         d
@@ -361,9 +355,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           : d,
       );
       setRecord(recordToInput(updated.record));
-      setMsg('Registro guardado.');
+      notify.success('Registro guardado');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
     } finally {
       setRecordSaving(false);
     }
@@ -406,10 +400,6 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
       </div>
-
-      {msg ? (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{msg}</div>
-      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
@@ -623,7 +613,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                           businessName={detail.business_name}
                           entrega={entrega}
                           onDone={handleRecepcionado}
-                          onError={setMsg}
+                          onError={(m) => notify.fromMessage('error', m)}
                         />
                       ) : entregaPorRecepcionar === entrega && !fecha ? (
                         <span className="text-sm text-slate-500">Pendiente de recepción por el supervisor</span>

@@ -120,7 +120,7 @@ const FiscalDocumentSeries = () => {
       const msg =
         err.response?.data?.error ??
         (e instanceof Error ? e.message : 'Error al guardar');
-      setError(msg);
+      notify.fromMessage('error', msg);
     } finally {
       setSaving(false);
     }

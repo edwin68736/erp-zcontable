@@ -56,7 +56,7 @@ const Users = () => {
         e && typeof e === 'object' && 'response' in e
           ? ((e as { response?: { data?: unknown } }).response?.data as { error?: unknown } | undefined)?.error
           : undefined;
-      setError(typeof msg === 'string' && msg.trim() ? msg : 'Error al eliminar usuario');
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar usuario');
     }
   };
 

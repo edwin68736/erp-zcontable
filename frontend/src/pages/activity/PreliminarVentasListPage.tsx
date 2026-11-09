@@ -196,7 +196,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         slots: excelSlots === 'both' ? [1, 2] : [Number(excelSlots) as 1 | 2],
       });
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
       setExportingExcel(false);
     }

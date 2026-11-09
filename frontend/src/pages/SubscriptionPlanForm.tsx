@@ -114,7 +114,7 @@ const SubscriptionPlanForm = () => {
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'Error al guardar';
-      setError(typeof msg === 'string' ? msg : 'Error al guardar');
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo guardar');
     }
   };
 

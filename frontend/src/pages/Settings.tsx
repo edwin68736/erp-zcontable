@@ -50,7 +50,7 @@ const Settings = () => {
         setDigColorMap(parseDigColorMap(cfg.claves_sol_dig_colors_json));
       } catch (e) {
         console.error(e);
-        setError('Error cargando configuración');
+        notify.error('No se pudo completar', 'Error cargando configuración');
       } finally {
         setLoading(false);
       }
@@ -100,7 +100,7 @@ const Settings = () => {
       notify.success('Configuración guardada');
     } catch (e2) {
       console.error(e2);
-      setError('Error al guardar configuración');
+      notify.error('No se pudo guardar configuración');
       notify.error('No se pudo guardar configuración');
     } finally {
       setSaving(false);
@@ -121,7 +121,7 @@ const Settings = () => {
       notify.success('Logo actualizado');
     } catch (e) {
       console.error(e);
-      setError('Error al subir el logo');
+      notify.error('No se pudo subir el logo');
       notify.error('No se pudo subir el logo');
     } finally {
       setUploading(false);
@@ -138,7 +138,7 @@ const Settings = () => {
       notify.success('Logo del banco actualizado');
     } catch (e) {
       console.error(e);
-      setError('Error al subir el logo del banco');
+      notify.error('No se pudo subir el logo del banco');
       notify.error('No se pudo subir el logo del banco');
     } finally {
       setUploadingStatement(null);
@@ -155,7 +155,7 @@ const Settings = () => {
       notify.success('QR de pagos actualizado');
     } catch (e) {
       console.error(e);
-      setError('Error al subir el QR');
+      notify.error('No se pudo subir el QR');
       notify.error('No se pudo subir el QR');
     } finally {
       setUploadingStatement(null);
@@ -172,7 +172,7 @@ const Settings = () => {
       notify.success('Logo del banco (Factura) actualizado');
     } catch (e) {
       console.error(e);
-      setError('Error al subir el logo del banco (Factura)');
+      notify.error('No se pudo subir el logo del banco (Factura)');
       notify.error('No se pudo subir el logo del banco (Factura)');
     } finally {
       setUploadingStatement(null);
@@ -189,7 +189,7 @@ const Settings = () => {
       notify.success('QR de pagos (Factura) actualizado');
     } catch (e) {
       console.error(e);
-      setError('Error al subir el QR (Factura)');
+      notify.error('No se pudo subir el QR (Factura)');
       notify.error('No se pudo subir el QR (Factura)');
     } finally {
       setUploadingStatement(null);

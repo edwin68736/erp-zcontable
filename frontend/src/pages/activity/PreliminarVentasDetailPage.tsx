@@ -32,6 +32,7 @@ import {
 } from '../../utils/companyTaxRegime';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 /** Fecha de corte por defecto: HOY (hora del navegador). La fecha de corte debe caer dentro del mes
  * del periodo (el servidor lo exige), así que si el periodo es otro mes se usa el último día de un
@@ -288,7 +289,6 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   const [record, setRecord] = useState<PreliminarVentasRecordInput>({ ...EMPTY_RECORD });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const [markingSent, setMarkingSent] = useState(false);
   const [pdfBusy, setPdfBusy] = useState<'download' | 'view' | null>(null);
@@ -350,14 +350,13 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     if (!canUpdate || formLocked) return;
     try {
       setSaving(true);
-      setMsg('');
       setError('');
       const updated = await preliminarVentasService.saveSlotRecord(companyId, periodYm, slotIndex, record);
       setDetail(updated);
       setRecord(withDefaultCutoff(updated.record, periodYm));
-      setMsg('Registro guardado correctamente.');
+      notify.success('Registro guardado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
     } finally {
       setSaving(false);
     }
@@ -367,13 +366,12 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
     if (!canMarkSentRole || formLocked || !canMarkSent) return;
     try {
       setMarkingSent(true);
-      setMsg('');
       setError('');
       const updated = await preliminarVentasService.markSlotSent(companyId, periodYm, slotIndex);
       setDetail(updated);
-      setMsg('Entrega marcada como enviada.');
+      notify.success('Entrega marcada como enviada');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo marcar como enviada.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo marcar como enviada.'));
     } finally {
       setMarkingSent(false);
     }
@@ -394,7 +392,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       const blob = await buildPdfBlob();
       if (blob) saveAs(blob, preliminarVentasPdfFilename(detail));
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo generar el PDF.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo generar el PDF.'));
     } finally {
       setPdfBusy(null);
     }
@@ -411,7 +409,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       // generación del PDF es asíncrona y para cuando termina, ya pasó ese margen.
       if (blob) setPreviewUrl(URL.createObjectURL(blob));
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo generar el PDF.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo generar el PDF.'));
     } finally {
       setPdfBusy(null);
     }
@@ -509,9 +507,6 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       </div>
 
       {error ? <Alert variant="error">{error}</Alert> : null}
-      {msg ? (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800">{msg}</div>
-      ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-slate-800">Empresa</h2>

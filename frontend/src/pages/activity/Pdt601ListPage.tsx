@@ -38,6 +38,7 @@ import {
 } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 /**
  * Columnas congeladas de ESTA tabla únicamente: se agrega "Régimen" entre RUC y Asistente. No se
@@ -133,7 +134,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
 
   // Altura real de la 1ª fila del encabezado — medida sobre la celda "N° de trabajadores"
@@ -217,7 +217,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
     try {
       setExportingExcel(true);
       setError('');
-      setMsg('');
       const exportRows = await pdt601Service.fetchExportData({
         period_ym: periodYm,
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
@@ -227,9 +226,9 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
         supervisor_user_id: filterSupervisorId ?? undefined,
       });
       await exportPdt601ReportExcel({ periodYm, rows: exportRows, workspace });
-      setMsg('Excel generado correctamente.');
+      notify.success('Excel generado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
       setExportingExcel(false);
     }
@@ -302,12 +301,6 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
         </div>
       </div>
 
-      {msg ? (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
-          <i className="fas fa-check-circle" aria-hidden />
-          {msg}
-        </div>
-      ) : null}
 
       {error ? (
         <Alert variant="error">{error}</Alert>

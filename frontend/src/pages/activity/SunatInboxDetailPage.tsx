@@ -20,6 +20,7 @@ import { defaultWeekStartForPeriod, formatMailboxWeekContext, formatWeekOptionLa
 import { summarizeMailboxSlots } from '../../utils/mailboxCaptureUtils';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 type SunatInboxDetailPageProps = {
   workspace: ActivityWorkspace;
@@ -47,7 +48,6 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
   const [detail, setDetail] = useState<SunatInboxDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
     if (!Number.isFinite(companyId) || companyId <= 0) {
@@ -98,7 +98,6 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
 
   const handleUpload = async (slotIndex: number, mailboxType: MailboxType, file: File) => {
     try {
-      setMsg('');
       const slot = await sunatInboxService.uploadCapture(
         companyId,
         slotIndex,
@@ -108,25 +107,24 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
         weekStart,
       );
       patchSlot(slot);
-      setMsg('Archivo subido correctamente.');
+      notify.success('Archivo subido');
     } catch (err) {
-      setMsg(extractApiErrorMessage(err, 'Error al subir archivo.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo subir archivo'));
     }
   };
 
   const handleVerify = async (slotId: number, mailboxType: MailboxType) => {
     if (!slotId) {
-      setError('No hay slot de captura registrado.');
+      notify.warning('Revise los datos', 'No hay slot de captura registrado.');
       return;
     }
     try {
-      setMsg('');
       setError('');
       const slot = await sunatInboxService.verifyCapture(slotId, mailboxType);
       patchSlot(slot);
-      setMsg('Buzón verificado.');
+      notify.success('Buzón verificado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo verificar.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo verificar.'));
     }
   };
 
@@ -134,7 +132,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
     const slot = await sunatInboxService.observeCapture(slotId, mailboxType, observation);
     patchSlot(slot);
     setError('');
-    setMsg('Captura observada: el asistente verá el motivo.');
+    notify.success('Captura observada: el asistente verá el motivo');
   };
 
   if (loading) {
@@ -195,9 +193,6 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
         </div>
       </div>
 
-      {msg ? (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{msg}</div>
-      ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">

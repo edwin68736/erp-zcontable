@@ -53,7 +53,7 @@ function SessionsCard() {
       void notify.success('Sesiones cerradas', closed > 0 ? `Se cerró su cuenta en ${closed} equipo(s).` : undefined);
       await load();
     } catch (e) {
-      setError(apiErrorMessage(e, 'No se pudieron cerrar las demás sesiones.'));
+      notify.fromMessage('error', apiErrorMessage(e, 'No se pudieron cerrar las demás sesiones.'));
     } finally {
       setBusy(false);
     }
@@ -65,7 +65,7 @@ function SessionsCard() {
       void notify.success('Sesión cerrada');
       await load();
     } catch (e) {
-      setError(apiErrorMessage(e, 'No se pudo cerrar la sesión.'));
+      notify.fromMessage('error', apiErrorMessage(e, 'No se pudo cerrar la sesión.'));
     }
   };
 
@@ -138,7 +138,7 @@ const Profile = () => {
       setNext('');
       setAgain('');
     } catch (err) {
-      setError(apiErrorMessage(err, 'No se pudo cambiar la contraseña. Intente de nuevo.'));
+      notify.fromMessage('error', apiErrorMessage(err, 'No se pudo cambiar la contraseña. Intente de nuevo.'));
     } finally {
       setBusy(false);
     }

@@ -38,6 +38,7 @@ import {
 } from '../../components/activity/stickyTable';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -133,7 +134,6 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
 
   // Altura real de la 1ª fila del encabezado — medida sobre la celda "1ra entrega" (colSpan, NO
@@ -212,7 +212,6 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
     try {
       setExportingExcel(true);
       setError('');
-      setMsg('');
       const exportRows = await pdt621Service.fetchExportData({
         period_ym: periodYm,
         q: debouncedQ.trim().length >= 2 ? debouncedQ.trim() : undefined,
@@ -222,9 +221,9 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
         supervisor_user_id: filterSupervisorId ?? undefined,
       });
       await exportPdt621ReportExcel({ periodYm, rows: exportRows, workspace });
-      setMsg('Excel generado correctamente.');
+      notify.success('Excel generado');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
+      notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo exportar a Excel.'));
     } finally {
       setExportingExcel(false);
     }
@@ -297,12 +296,6 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
         </div>
       </div>
 
-      {msg ? (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 flex items-center gap-2">
-          <i className="fas fa-check-circle" aria-hidden />
-          {msg}
-        </div>
-      ) : null}
 
       {error ? (
         <Alert variant="error">{error}</Alert>
@@ -394,11 +387,10 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                         entrega={entrega}
                         onDone={(_, message) => {
                           setError('');
-                          setMsg(message);
+                          notify.fromMessage('success', message);
                           void load();
                         }}
                         onError={(message) => {
-                          setMsg('');
                           setError(message);
                         }}
                       />
