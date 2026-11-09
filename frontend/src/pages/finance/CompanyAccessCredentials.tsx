@@ -1096,6 +1096,13 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
                       className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-50"
                     />
                   </label>
+                  {form.sol_usuario.trim().length > 8 || form.sol_clave.trim().length > 12 ? (
+                    <p className="sm:col-span-2 -mt-1 text-xs text-amber-700" role="status">
+                      SUNAT solo admite usuario de 8 caracteres y clave de hasta 12.
+                      {form.sol_usuario.trim().length > 8 ? ' El usuario tiene de más.' : ''}
+                      {form.sol_clave.trim().length > 12 ? ' La clave tiene de más.' : ''} Revise que no se haya copiado un carácter extra.
+                    </p>
+                  ) : null}
                   <p className="sm:col-span-2 mt-1 text-xs font-semibold uppercase text-slate-500">
                     API SUNAT · SIRE (Herramientas → SIRE)
                   </p>

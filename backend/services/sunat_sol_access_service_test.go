@@ -19,9 +19,9 @@ type fakeSunat struct {
 	// sessionCookie: si no está vacío, el login deja la cookie SessionID (como SUNAT) con ese valor.
 	sessionCookie string
 	// validaStatus/validaBody: respuesta de valida-session (0 = no existe la ruta); sinCodigoStatus: estado de sin-código (0 = 200).
-	validaStatus     int
-	validaBody       string
-	sinCodigoStatus  int
+	validaStatus    int
+	validaBody      string
+	sinCodigoStatus int
 	// requireNumRuc: como SUNAT, responde 500 si la petición no trae el header numRuc.
 	requireNumRuc bool
 	numRucSeen    string
@@ -169,8 +169,8 @@ func TestSunatLogin_RespuestaSinEnlaceNoFiltraValores(t *testing.T) {
 func TestExtractAccessURL(t *testing.T) {
 	cases := map[string]string{
 		`{"a":{"b":["https://otro.com/x","https://e-menu.sunat.gob.pe/cl/ok?c=1"]}}`: "https://e-menu.sunat.gob.pe/cl/ok?c=1",
-		`{"url":"https://api-seguridad.sunat.gob.pe/algo"}`:                        "https://api-seguridad.sunat.gob.pe/algo",
-		`location.href='https:\/\/e-menu.sunat.gob.pe\/cl\/abc?x=1';`:             "https://e-menu.sunat.gob.pe/cl/abc?x=1",
+		`{"url":"https://api-seguridad.sunat.gob.pe/algo"}`:                          "https://api-seguridad.sunat.gob.pe/algo",
+		`location.href='https:\/\/e-menu.sunat.gob.pe\/cl\/abc?x=1';`:                "https://e-menu.sunat.gob.pe/cl/abc?x=1",
 		`{"sin":"enlace"}`: "",
 	}
 	for in, want := range cases {
@@ -411,5 +411,21 @@ func TestSunatGenerate_LaPausaMuestraElMotivoDelRechazo(t *testing.T) {
 	}
 	if strings.Contains(ae.Detail, "clave") {
 		t.Errorf("el detalle no debe incluir datos de la credencial: %q", ae.Detail)
+	}
+}
+
+func TestBrowserSolInput_ComoElFormularioDeSunat(t *testing.T) {
+	cases := []struct{ u, c, wantU, wantC string }{
+		{"usuario1", "clave-sol", "USUARIO1", "clave-sol"},            // usuario en minúsculas → mayúsculas; la clave no se toca
+		{"  USUARIO1 ", " Clave1234 ", "USUARIO1", "Clave1234"},       // espacios sobrantes
+		{"71930460", "abcdefghijkl", "71930460", "abcdefghijkl"},      // ya válidos: sin cambios
+		{"USUARIO12345", "abcdefghijklm", "USUARIO1", "abcdefghijkl"}, // de más: el navegador recorta a 8 y 12
+		{"06766848", "Ab1", "06766848", "Ab1"},                        // el cero inicial se conserva
+	}
+	for _, c := range cases {
+		gu, gc := browserSolInput(c.u, c.c)
+		if gu != c.wantU || gc != c.wantC {
+			t.Errorf("browserSolInput(%q,%q) = %q,%q; quiero %q,%q", c.u, c.c, gu, gc, c.wantU, c.wantC)
+		}
 	}
 }

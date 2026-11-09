@@ -224,6 +224,7 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 		return nil, accessErr(SunatAccessOutOfScope, "No tiene acceso a esta empresa.", err.Error())
 	}
 	ruc, usuario, clave := strings.TrimSpace(row.RUC), strings.TrimSpace(row.SolUsuario), row.SolClave
+	usuario, clave = browserSolInput(usuario, clave)
 	switch {
 	case ruc == "":
 		return nil, accessErr(SunatAccessMissingData, "La empresa no tiene RUC cargado.", "")
@@ -316,6 +317,29 @@ func (t sunatSolTarget) isFinalHost(u *url.URL) bool {
 		}
 	}
 	return false
+}
+
+// Límites del formulario de login de SUNAT (campos maxlength) y su transformación del usuario.
+const (
+	sunatSolUserMaxLen = 8
+	sunatSolPassMaxLen = 12
+)
+
+// browserSolInput deja usuario y clave como los envía el formulario de SUNAT desde un navegador: el usuario pasa
+// a MAYÚSCULAS (onblur/onchange del campo) y ambos campos tienen maxlength (usuario 8, clave 12), así que un
+// navegador recorta en silencio lo que se pega. Con credenciales válidas (SUNAT exige usuario de 8 y clave de 6 a 12)
+// esto no cambia nada; con una clave guardada con un carácter de más o un usuario en minúsculas, es la diferencia
+// entre entrar a mano y que el servidor reciba «credenciales rechazadas».
+func browserSolInput(usuario, clave string) (string, string) {
+	u := []rune(strings.ToUpper(strings.TrimSpace(usuario)))
+	if len(u) > sunatSolUserMaxLen {
+		u = u[:sunatSolUserMaxLen]
+	}
+	c := []rune(strings.TrimSpace(clave))
+	if len(c) > sunatSolPassMaxLen {
+		c = c[:sunatSolPassMaxLen]
+	}
+	return string(u), string(c)
 }
 
 func credKey(companyID uint, parts ...string) string {
