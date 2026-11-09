@@ -102,15 +102,18 @@ describe('seguimiento de tareas', () => {
 });
 
 describe('aviso al terminar', () => {
-  it('con la persona en la pantalla de la consulta: queda vista y no se abre ninguna alerta', () => {
+  it('con la persona en la pantalla de la consulta: queda vista y sale la alerta de éxito con el resumen', () => {
     const t = startTask(meta());
-    finishTask(t.id);
+    finishTask(t.id, { summary: '3 comprobantes' });
     expect(taskFor('rh:7')?.seen).toBe(true);
-    expect(getState().current).toBeNull();
+    expect(getState().current).toMatchObject({ kind: 'success', title: 'Consulta lista', text: '3 comprobantes' });
+  });
+
+  it('con la persona en la pantalla de la consulta: un error también sale como alerta', () => {
     const e = startTask(meta({ companyId: 8, href: '/tools/rh/8' }));
     at('/tools/rh/8/');
     failTask(e.id, 'x');
-    expect(getState().current).toBeNull();
+    expect(getState().current).toMatchObject({ kind: 'error', title: 'No se pudo completar la consulta', text: 'x' });
   });
 
   it('en otra pantalla, un éxito corto solo cambia el indicador', () => {

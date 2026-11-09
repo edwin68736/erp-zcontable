@@ -253,7 +253,7 @@ const ItfCompany = () => {
     ownTask.current = t.id;
     try {
       const r = await itfService.query(companyId, params.desde, params.hasta);
-      finishTask(t.id, { resultId: r.history_id ?? undefined });
+      finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `ITF de ${periodToMonth(params.desde)} a ${periodToMonth(params.hasta)}` });
       setResp(r.data);
       setActiveId(r.history_id ?? null);
     } catch (e) {

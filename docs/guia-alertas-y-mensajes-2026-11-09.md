@@ -80,7 +80,7 @@ que se iniciaron antes de recargar la página (el tiempo «Lleva» sale de `crea
 
 **Qué avisa al terminar:**
 
-- La persona sigue en la pantalla de la consulta: el resultado o el error aparece ahí; nada más (el indicador queda como «visto»).
+- La persona sigue en la pantalla de la consulta: el resultado o el error aparece en la página y además sale la alerta central: «Consulta lista» con un resumen (`finishTask(id, { summary: '3 comprobantes' })`, se cierra sola) o «No se pudo completar la consulta» (pide aceptar; el detalle y «Reintentar» siguen en la página).
 - Está en otra pantalla y fue un **error**: alerta central «No se pudo completar la consulta» con «Ver detalle» / «Cerrar».
 - Está en otra pantalla y fue un **éxito que tardó 2 min o más**: alerta central «Consulta lista» con «Ver resultado» / «Cerrar».
 - Está en otra pantalla y fue un éxito corto: solo cambia el indicador de la cabecera (no se interrumpe a nadie).

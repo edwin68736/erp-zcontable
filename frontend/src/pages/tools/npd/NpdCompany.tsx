@@ -197,7 +197,7 @@ const NpdCompany = () => {
     ownTask.current = t.id;
     try {
       const r = await npdService.query(companyId, params.desde, params.hasta);
-      finishTask(t.id, { resultId: r.history_id ?? undefined });
+      finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `${r.data.total} NPD` });
       setResp(r.data);
       setActiveId(r.history_id ?? null);
     } catch (e) {

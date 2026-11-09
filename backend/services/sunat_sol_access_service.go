@@ -150,6 +150,9 @@ type SunatSolAccessService struct {
 	mu       sync.Mutex
 	inFlight map[uint]bool
 	badUntil map[string]time.Time
+	// badWhy motivo del último rechazo que activó la pausa (código y recorrido, sin datos sensibles): la pausa lo
+	// muestra para saber qué pasó en realidad (clave rechazada, captcha, bloqueo…).
+	badWhy map[string]string
 	// attempts intentos fallidos del acceso directo por empresa, destino y credenciales (se reinician al acertar,
 	// al cambiar la clave o pasada la ventana). Es del servidor: vale para todos los usuarios y navegadores.
 	attempts map[string]sunatAttemptState
@@ -182,6 +185,7 @@ func NewSunatSolAccessService() *SunatSolAccessService {
 		creds:    NewCompanyAccessCredentialService(),
 		inFlight: map[uint]bool{},
 		badUntil: map[string]time.Time{},
+		badWhy:   map[string]string{},
 		attempts: map[string]sunatAttemptState{},
 	}
 }
@@ -235,9 +239,14 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 	s.mu.Lock()
 	used := s.attemptsUsed(attemptsKey)
 	if until, ok := s.badUntil[key]; ok && time.Now().Before(until) {
+		why := s.badWhy[key]
 		s.mu.Unlock()
+		detail := ""
+		if why != "" {
+			detail = "Último rechazo: " + why
+		}
 		ae := accessErr(SunatAccessCooldown,
-			"SUNAT rechazó estas credenciales hace poco. Se pausó el reintento para no bloquear la clave: corrija el usuario o la clave SOL (botón Editar), inicie sesión a mano o espere unos minutos.", "")
+			"SUNAT rechazó estas credenciales hace poco. Se pausó el reintento para no bloquear la clave: corrija el usuario o la clave SOL (botón Editar), inicie sesión a mano o espere unos minutos.", detail)
 		ae.AttemptsLeft = 0
 		return nil, ae
 	}
@@ -265,6 +274,10 @@ func (s *SunatSolAccessService) Generate(companyID uint, allowed []uint, userID 
 			s.mu.Lock()
 			if ae.Code == SunatAccessBadCreds || ae.Code == SunatAccessCaptcha || ae.Code == SunatAccessLocked {
 				s.badUntil[key] = time.Now().Add(sunatSolBadCredsCooldown)
+				if s.badWhy == nil {
+					s.badWhy = map[string]string{}
+				}
+				s.badWhy[key] = ae.Code + " | " + ae.Detail
 			}
 			// Cuentan los fallos que llegaron a SUNAT (no una caída de red: ahí SUNAT no vio ningún intento).
 			if ae.Code != SunatAccessUnavailable {

@@ -303,7 +303,7 @@ const RhCompany = () => {
     ownTask.current = t.id;
     try {
       const r = await rheService.list(companyId, params);
-      finishTask(t.id, { resultId: r.history_id ?? undefined });
+      finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `${r.data.total} comprobante${r.data.total === 1 ? '' : 's'}` });
       setResp(r);
       setQueried({
         tipo: params.tipo,

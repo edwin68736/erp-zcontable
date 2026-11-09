@@ -383,3 +383,33 @@ func TestSunatGenerate_ElConteoSeReiniciaPasadaLaVentana(t *testing.T) {
 		t.Errorf("attemptsLeft no baja de 0: %d", got)
 	}
 }
+
+func TestSunatGenerate_LaPausaMuestraElMotivoDelRechazo(t *testing.T) {
+	db := setupCompanyRucTestDB(t)
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}); err != nil {
+		t.Fatal(err)
+	}
+	co := models.Company{RUC: "20123456789", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}
+	db.Create(&co)
+	db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, SolUsuario: "USUARIO1", SolClave: "clave"})
+
+	f := newFakeSunat(t, "/oauth2/error?x=1", "", "")
+	svc := newTestSunatService(f.srv.URL)
+	svc.creds = NewCompanyAccessCredentialService()
+
+	var ae *SunatSolAccessError
+	if _, err := svc.Generate(co.ID, nil, 1, ""); !errors.As(err, &ae) || ae.Code != SunatAccessBadCreds {
+		t.Fatalf("el primer intento debía ser rechazado: %v", err)
+	}
+	// El segundo intento cae en la pausa y debe decir por qué se pausó (sin repetir la llamada a SUNAT).
+	_, err := svc.Generate(co.ID, nil, 1, "")
+	if !errors.As(err, &ae) || ae.Code != SunatAccessCooldown {
+		t.Fatalf("esperaba la pausa: %v", err)
+	}
+	if !strings.Contains(ae.Detail, "Último rechazo: "+SunatAccessBadCreds) {
+		t.Errorf("la pausa debe traer el motivo original, obtuve %q", ae.Detail)
+	}
+	if strings.Contains(ae.Detail, "clave") {
+		t.Errorf("el detalle no debe incluir datos de la credencial: %q", ae.Detail)
+	}
+}

@@ -255,7 +255,7 @@ const SireCompany = () => {
           const msg = failed[0].error_message || 'No se pudo completar la consulta.';
           return { status: 'error', message: failed.length > 1 ? `${failed.length} periodos fallaron. ${msg}` : msg };
         }
-        return { status: 'done' };
+        return { status: 'done', summary: `${rows.length} ${rows.length === 1 ? 'periodo' : 'periodos'}` };
       },
     );
   }, [hasRunning, task?.status, items, companyId, company?.business_name]);

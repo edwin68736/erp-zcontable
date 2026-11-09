@@ -109,11 +109,9 @@ const BuzonCompany = () => {
     ownTask.current = t.id;
     try {
       const st = await sunatBuzonService.sync(companyId);
-      finishTask(t.id);
-      void notify.success(
-        'Buzón sincronizado',
-        st.nuevos > 0 ? `${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'}.` : 'No hay novedades desde la última vez.',
-      );
+      finishTask(t.id, {
+        summary: st.nuevos > 0 ? `${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'} en el buzón` : 'Buzón sincronizado, sin novedades',
+      });
       setFilters((f) => ({ ...f, page: 1 }));
       await load();
     } catch (e) {

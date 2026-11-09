@@ -11,7 +11,8 @@
  *
  * Para consultas que el servidor ya hace en segundo plano (SIRE, DAM) use `trackAsync`: el propio registro las sondea.
  *
- * Aviso al terminar: si la persona sigue en la pantalla de la consulta, el resultado aparece ahí y no se avisa nada más.
+ * Aviso al terminar: si la persona sigue en la pantalla de la consulta, el resultado aparece ahí y además sale una alerta
+ * central («Consulta lista» se cierra sola; un error pide aceptar).
  * Si está en otra pantalla: los errores y los éxitos que tardaron más de LONG_SUCCESS_MS abren una alerta central con
  * «Ver»; los demás éxitos solo cambian el indicador de la cabecera.
  */
@@ -37,6 +38,8 @@ export interface LongTask {
   errorMessage?: string;
   /** Id de la consulta guardada en el historial del servidor, si la hay. */
   resultId?: number;
+  /** Resumen corto del resultado para el aviso («3 comprobantes»). */
+  summary?: string;
   /** La persona ya vio el resultado (estaba en la pantalla o pulsó «Ver»). */
   seen: boolean;
 }
@@ -123,8 +126,13 @@ function stopPoller(id: number) {
 }
 
 function announce(task: LongTask) {
-  if (isOnTaskPage(task)) return;
   const who = `${task.toolLabel} de ${task.companyName}`;
+  if (isOnTaskPage(task)) {
+    // En la misma pantalla el resultado ya aparece en la página; además se confirma con la alerta central (se cierra sola).
+    if (task.status === 'error') void notify.error('No se pudo completar la consulta', task.errorMessage ?? 'SUNAT no respondió.');
+    else void notify.success('Consulta lista', task.summary ?? who);
+    return;
+  }
   if (task.status === 'error') {
     void notify
       .confirm({ icon: 'error', title: 'No se pudo completar la consulta', message: `${who}: ${task.errorMessage ?? 'SUNAT no respondió.'}`, confirmLabel: 'Ver detalle', cancelLabel: 'Cerrar' })
@@ -135,18 +143,18 @@ function announce(task: LongTask) {
   }
   if ((task.finishedAt ?? 0) - task.startedAt >= LONG_SUCCESS_MS) {
     void notify
-      .confirm({ icon: 'success', title: 'Consulta lista', message: `${who}. Quedó guardada en el historial.`, confirmLabel: 'Ver resultado', cancelLabel: 'Cerrar' })
+      .confirm({ icon: 'success', title: 'Consulta lista', message: `${who}${task.summary ? `: ${task.summary}` : ''}. Quedó guardada en el historial.`, confirmLabel: 'Ver resultado', cancelLabel: 'Cerrar' })
       .then((ok) => {
         if (ok) viewTask(task.id);
       });
   }
 }
 
-export function finishTask(id: number, result: { resultId?: number } = {}): void {
+export function finishTask(id: number, result: { resultId?: number; summary?: string } = {}): void {
   const t = tasks.find((x) => x.id === id);
   if (!t || t.status !== 'running') return;
   stopPoller(id);
-  const done: LongTask = { ...t, status: 'done', finishedAt: Date.now(), resultId: result.resultId, seen: isOnTaskPage(t) };
+  const done: LongTask = { ...t, status: 'done', finishedAt: Date.now(), resultId: result.resultId, summary: result.summary, seen: isOnTaskPage(t) };
   emit(tasks.map((x) => (x.id === id ? done : x)));
   announce(done);
 }
@@ -164,6 +172,7 @@ export interface AsyncCheck {
   status: LongTaskStatus;
   message?: string;
   resultId?: number;
+  summary?: string;
 }
 
 /**
@@ -179,7 +188,7 @@ export function trackAsync(meta: TaskMeta, check: () => Promise<AsyncCheck>, int
     busy = true;
     try {
       const r = await check();
-      if (r.status === 'done') finishTask(task.id, { resultId: r.resultId });
+      if (r.status === 'done') finishTask(task.id, { resultId: r.resultId, summary: r.summary });
       else if (r.status === 'error') failTask(task.id, r.message);
     } catch {
       /* un fallo de red al sondear no termina la tarea: se reintenta en el siguiente ciclo */

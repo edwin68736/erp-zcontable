@@ -188,7 +188,7 @@ const DamCompany = () => {
         if (rows.some((h) => h.status === 'en_proceso')) return { status: 'running' };
         const failed = rows.find((h) => h.status === 'error');
         if (failed) return { status: 'error', message: failed.error_message || 'No se pudo completar la consulta.' };
-        return { status: 'done', resultId: rows[0]?.id };
+        return { status: 'done', resultId: rows[0]?.id, summary: `${rows[0]?.total ?? 0} DAM` };
       },
     );
   }, [running, task?.status, history, companyId, company?.business_name]);
