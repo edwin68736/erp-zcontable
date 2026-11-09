@@ -1,45 +1,30 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { confirmDialog, registerConfirmPrompt } from './confirmDialog';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { confirmDialog } from './confirmDialog';
+import { __resetNotifyForTests, close, getState, registerNotifyHost } from './notify';
 
+beforeEach(() => __resetNotifyForTests());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('confirmDialog', () => {
-  it('usa el diálogo registrado y devuelve su respuesta', async () => {
-    const prompt = vi.fn(() => Promise.resolve(true));
-    const off = registerConfirmPrompt(prompt);
-    expect(await confirmDialog({ message: '¿Seguro?', danger: true })).toBe(true);
-    expect(prompt).toHaveBeenCalledWith({ message: '¿Seguro?', danger: true });
-    off();
+  it('con el componente de dibujo muestra una pregunta y devuelve la respuesta', async () => {
+    registerNotifyHost();
+    const p = confirmDialog({ message: '¿Seguro?', danger: true, confirmLabel: 'Quitar' });
+    expect(getState().current).toMatchObject({ kind: 'question', text: '¿Seguro?', danger: true, confirmLabel: 'Quitar' });
+    close(true);
+    expect(await p).toBe(true);
+    const q = confirmDialog({ message: 'otra' });
+    close(false);
+    expect(await q).toBe(false);
   });
 
-  it('cancelar devuelve false', async () => {
-    const off = registerConfirmPrompt(() => Promise.resolve(false));
-    expect(await confirmDialog({ message: 'x' })).toBe(false);
-    off();
-  });
-
-  it('si el diálogo falla, no se confirma nada', async () => {
-    const off = registerConfirmPrompt(() => Promise.reject(new Error('boom')));
-    expect(await confirmDialog({ message: 'x' })).toBe(false);
-    off();
-  });
-
-  it('sin diálogo registrado cae al confirm del navegador', async () => {
+  it('sin componente de dibujo cae al confirm del navegador', async () => {
     const confirm = vi.fn(() => true);
     vi.stubGlobal('window', { confirm });
     expect(await confirmDialog({ message: 'hola' })).toBe(true);
     expect(confirm).toHaveBeenCalledWith('hola');
   });
 
-  it('sin diálogo ni navegador, la respuesta es no', async () => {
+  it('sin componente ni navegador, la respuesta es no', async () => {
     expect(await confirmDialog({ message: 'x' })).toBe(false);
-  });
-
-  it('quitar un diálogo viejo no quita el nuevo', async () => {
-    const offOld = registerConfirmPrompt(() => Promise.resolve(false));
-    const offNew = registerConfirmPrompt(() => Promise.resolve(true));
-    offOld();
-    expect(await confirmDialog({ message: 'x' })).toBe(true);
-    offNew();
   });
 });

@@ -58,3 +58,24 @@ html[data-density='compact'] th[class*='py-2.5'] {
   outline: 2px solid #10b981;
   outline-offset: 1px;
 }
+
+/* Alertas centradas (components/NotifyHost.tsx): aparición, trazo del icono y barra de tiempo del éxito. */
+@keyframes notify-pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes notify-draw {
+  from { stroke-dashoffset: 60; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes notify-bar {
+  from { width: 100%; }
+  to { width: 0; }
+}
+.notify-pop { animation: notify-pop 0.2s ease-out; }
+.notify-draw { stroke-dasharray: 60; animation: notify-draw 0.45s 0.15s ease-out both; }
+.notify-bar { animation-name: notify-bar; animation-timing-function: linear; animation-fill-mode: forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .notify-pop, .notify-draw { animation: none; }
+  .notify-draw { stroke-dashoffset: 0; }
+}

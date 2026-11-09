@@ -7,18 +7,11 @@ import DensityPicker from '../components/DensityPicker';
 import { DENSITY_KEY, parseDensityPref, resolveDensity, type DensityPref } from '../utils/density';
 import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref';
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
-import ConfirmHost from '../components/ConfirmHost';
+import NotifyHost from '../components/NotifyHost';
+import { showLegacyToast } from '../utils/notify';
 import ReauthDialog from '../components/ReauthDialog';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
-
-type ToastType = 'success' | 'error' | 'info';
-
-type ToastItem = {
-  id: string;
-  type: ToastType;
-  message: string;
-};
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -87,7 +80,6 @@ const Layout = () => {
       /* sin almacenamiento: no se recuerda la elección */
     }
   };
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const user = auth.getUser();
   const hasThemeBg = Boolean(layoutThemeBg);
 
@@ -129,21 +121,9 @@ const Layout = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isThemeModalOpen]);
 
+  // Avisos antiguos (`miweb:toast`): se muestran como alertas centradas (utils/notify.ts).
   useEffect(() => {
-    const handleToast = (event: Event) => {
-      const e = event as CustomEvent<{ type?: ToastType; message?: string }>;
-      const message = typeof e.detail?.message === 'string' ? e.detail.message.trim() : '';
-      const type = e.detail?.type ?? 'info';
-      if (!message) return;
-
-      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      setToasts((prev) => [...prev, { id, type, message }]);
-
-      window.setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3500);
-    };
-
+    const handleToast = (event: Event) => showLegacyToast((event as CustomEvent<{ type?: string; message?: string }>).detail);
     window.addEventListener('miweb:toast', handleToast);
     return () => window.removeEventListener('miweb:toast', handleToast);
   }, []);
@@ -184,40 +164,6 @@ const Layout = () => {
           : undefined
       }
     >
-      <div className="fixed top-4 right-4 z-toast space-y-2 pointer-events-none">
-        {toasts.map((t) => {
-          const icon =
-            t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
-          const ring =
-            t.type === 'success'
-              ? 'border-primary-200 bg-primary-50 text-primary-900'
-              : t.type === 'error'
-                ? 'border-red-200 bg-red-50 text-red-900'
-                : 'border-slate-200 bg-white text-slate-900';
-          return (
-            <div
-              key={t.id}
-              className={`pointer-events-auto w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border shadow-lg px-4 py-3 text-sm ${ring}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="pt-0.5">
-                  <i className={`fas ${icon}`}></i>
-                </div>
-                <div className="flex-1 leading-5">{t.message}</div>
-                <button
-                  type="button"
-                  aria-label="Cerrar"
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/5"
-                  onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-                >
-                  <i className="fas fa-times text-xs"></i>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       <div className="flex h-full p-2 lg:p-3 gap-3">
         <Sidebar
           isOpen={isSidebarOpen}
@@ -243,9 +189,6 @@ const Layout = () => {
               }`}
             >
               <Outlet />
-              <IdleLogoutGuard />
-              <ReauthDialog />
-              <ConfirmHost />
             </div>
           </main>
         </div>
@@ -341,6 +284,10 @@ const Layout = () => {
         </div>
       ) : null}
 
+      {/* Fuera del panel de contenido: su `backdrop-blur` haría que estos diálogos se centraran en el panel y no en la pantalla. */}
+      <IdleLogoutGuard />
+      <ReauthDialog />
+      <NotifyHost />
       <TodayCalendarReminder />
     </div>
   );

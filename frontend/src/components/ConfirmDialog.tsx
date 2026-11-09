@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import NotifyIcon from './notify/NotifyIcon';
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -20,6 +21,10 @@ type ConfirmDialogProps = {
   confirmDisabled?: boolean;
 };
 
+/**
+ * Confirmación controlada por estado (con `loading`, campos extra y botón deshabilitable). Comparte el aspecto de las
+ * alertas centradas (components/NotifyHost.tsx); para una pregunta simple use `confirmDialog()` de utils/confirmDialog.
+ */
 const ConfirmDialog = ({
   open,
   title,
@@ -45,39 +50,34 @@ const ConfirmDialog = ({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-dialog flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-        onClick={() => !loading && onClose()}
-        aria-label="Cerrar diálogo"
-      />
+    <div
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-slate-900/50 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !loading) onClose();
+      }}
+    >
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-desc"
-        className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col"
+        className="notify-pop relative w-full max-w-md rounded-xl bg-white px-6 pb-6 pt-7 text-center shadow-2xl"
       >
-        <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-slate-100">
-          <h2 id="confirm-dialog-title" className="text-base font-semibold text-slate-900">
-            {title}
-          </h2>
-          <p
-            id="confirm-dialog-desc"
-            className="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line"
-          >
-            {message}
-          </p>
-          {children ? <div className="mt-3">{children}</div> : null}
-        </div>
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 py-3 sm:px-5 sm:py-4 bg-slate-50/80 rounded-b-2xl sm:rounded-b-2xl">
+        <NotifyIcon kind="question" danger={danger} />
+        <h2 id="confirm-dialog-title" className="text-xl font-bold text-slate-800">
+          {title}
+        </h2>
+        <p id="confirm-dialog-desc" className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-600">
+          {message}
+        </p>
+        {children ? <div className="mt-3 text-left">{children}</div> : null}
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
           <button
             type="button"
             disabled={loading}
             onClick={onClose}
             autoFocus={danger}
-            className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -86,7 +86,7 @@ const ConfirmDialog = ({
             disabled={loading || confirmDisabled}
             onClick={onConfirm}
             autoFocus={!danger}
-            className={`inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-sm disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-50 ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'
             }`}
           >
