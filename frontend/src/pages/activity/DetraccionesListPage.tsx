@@ -36,6 +36,7 @@ import { Z_HEAD_ROW, frozenIdBodyCellStyle, frozenIdHeadCellStyle } from '../../
 import PageHeading from '../../components/ui/PageHeading';
 import { formatDateTime } from '../../utils/format';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -167,6 +168,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
       setCarryOverSaving(true);
       setCarryOverError('');
       await detraccionesService.applySuspensionCarryOver(periodYm, keepSuspendedCompanyIds);
+      void notify.success('Decisión aplicada');
       setCarryOverOpen(false);
       await load();
     } catch (err) {
@@ -217,6 +219,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     setActionError('');
     try {
       await detraccionesService.uploadPdf(companyId, periodYm, file);
+      void notify.success('Comprobante cargado');
     } catch (err) {
       setActionError(extractApiErrorMessage(err, 'No se pudo subir el PDF.'));
       throw err;
@@ -246,6 +249,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         id = detail.declaration.id;
       }
       await detraccionesService.setSupervisorStatus(id, status);
+      void notify.success('Estado actualizado');
     } catch (err) {
       setActionError(extractApiErrorMessage(err, 'No se pudo cambiar el estado.'));
       throw err;

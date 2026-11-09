@@ -26,6 +26,7 @@ import {
 } from './itfUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 /** Atajos de rango: (mes actual) → [desde, hasta] en «AAAA-MM». */
 const RANGES: { label: string; make: (cur: string) => [string, string] }[] = [
@@ -276,6 +277,7 @@ const ItfCompany = () => {
   const removeSaved = async (it: ItfHistoryItem) => {
     try {
       await itfService.removeHistory(companyId, it.id);
+      void notify.success('Consulta quitada');
       setHistory((c) => c.filter((x) => x.id !== it.id));
       if (activeId === it.id) setActiveId(null);
     } catch (e) {
@@ -286,6 +288,7 @@ const ItfCompany = () => {
   const clearHistory = async () => {
     try {
       await itfService.clearHistory(companyId);
+      void notify.success('Historial limpiado');
       setHistory([]);
       setActiveId(null);
     } catch (e) {

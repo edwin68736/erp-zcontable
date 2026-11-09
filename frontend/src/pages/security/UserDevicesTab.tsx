@@ -7,6 +7,7 @@ import { VIA_LABEL } from './deviceUi';
 import { formatDate } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 
@@ -52,6 +53,7 @@ export default function UserDevicesTab() {
     if (!(await confirmDialog({ message: `¿Quitar «${d.label}»? Se cerrará la sesión abierta desde ese equipo.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       await securityService.revokeDevice(d.id);
+      void notify.success('Equipo quitado', 'Se cerró la sesión abierta desde ese equipo.');
       await load(userId);
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudo quitar el equipo.'));
@@ -64,6 +66,7 @@ export default function UserDevicesTab() {
     setBusy(true);
     try {
       await securityService.resetUser(selected.id);
+      void notify.success('Seguridad reiniciada', `${selected.name || selected.username} tendrá que configurar su app y verificar cada equipo.`);
       await load(userId);
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudo reiniciar al usuario.'));

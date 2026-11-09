@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { RheComprobante, RheTipo } from '../../../services/rhe';
+import { notify } from '../../../utils/notify';
 
 /** Estados de la plataforma de confirmación según el tipo de consulta. */
 export const RH_ESTADOS: Record<RheTipo, { value: string; label: string }[]> = {
@@ -143,4 +144,5 @@ export async function exportRheExcel(
     new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
     `RH-${meta.ruc}-${meta.tipo === 'C' ? 'compras' : 'ventas'}-${meta.desde}_${meta.hasta}.xlsx`,
   );
+  void notify.success('Excel descargado');
 }

@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { NpdItem, NpdResult } from '../../../services/npd';
+import { notify } from '../../../utils/notify';
 
 /** SUNAT permite consultar hasta 12 meses por vez. */
 export const NPD_MAX_DAYS = 365;
@@ -81,4 +82,5 @@ export async function exportNpdExcel(res: NpdResult, meta: { empresa: string; ru
   sheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `NPD-${meta.ruc}-${res.desde}_${res.hasta}.xlsx`);
+  void notify.success('Excel descargado');
 }

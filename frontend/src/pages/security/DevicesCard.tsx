@@ -5,6 +5,7 @@ import { VIA_LABEL } from './deviceUi';
 import { formatDate } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 /** Mis dispositivos: equipos de los que el sistema ya no pide verificación. Se pueden quitar uno por uno. */
 export default function DevicesCard() {
@@ -28,6 +29,7 @@ export default function DevicesCard() {
     if (!(await confirmDialog({ message: `¿Quitar «${d.label || 'este equipo'}»? Se cerrará su sesión y volverá a pedir verificación.`, confirmLabel: 'Quitar', danger: true }))) return;
     try {
       await securityService.revokeMyDevice(d.id);
+      void notify.success('Equipo quitado');
       await load();
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudo quitar el equipo.'));

@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { DamItem, DamResult } from '../../../services/dam';
 import { fmtDay } from '../npd/npdUi';
+import { notify } from '../../../utils/notify';
 
 /** La búsqueda de Aduanas es lenta: se limita a 3 meses por consulta. */
 export const DAM_MAX_DAYS = 92;
@@ -56,4 +57,5 @@ export async function exportDamExcel(res: DamResult, meta: { empresa: string; ru
   sheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `DAM-${meta.ruc}-${res.desde}_${res.hasta}.xlsx`);
+  void notify.success('Excel descargado');
 }

@@ -6,6 +6,7 @@ import type { PlanCategory, PlanTier } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
+import { notify } from '../utils/notify';
 
 type TierRow = { min_billing: string; max_billing: string; monthly_price: string; sort_order: string };
 
@@ -106,6 +107,7 @@ const SubscriptionPlanForm = () => {
           tiers: tierPayload,
         });
       }
+      void notify.success(editId ? 'Plan actualizado' : 'Plan creado');
       navigate('/subscription-plans', { replace: true });
     } catch (err: unknown) {
       const msg =

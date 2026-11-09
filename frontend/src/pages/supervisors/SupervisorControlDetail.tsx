@@ -29,6 +29,7 @@ import {
   riskLevelLabel,
 } from '../../utils/supervisorLabels';
 import { formatAmount, formatDate, formatDateTime } from '../../utils/format';
+import { notify } from '../../utils/notify';
 
 function supervisorUserLabel(u?: { full_name?: string; username?: string }): string {
   return u?.full_name || u?.username || '—';
@@ -198,6 +199,7 @@ const SupervisorControlDetail = () => {
     if (!controlId || !newObservation.trim()) return;
     try {
       await supervisorsService.createObservation({ monthly_control_id: controlId, body: newObservation.trim() });
+      void notify.success('Observación registrada');
       setNewObservation('');
       await loadAudit();
     } catch {
@@ -209,6 +211,7 @@ const SupervisorControlDetail = () => {
     if (!controlId) return;
     try {
       await supervisorsService.uploadAttachment(controlId, declarationId, file);
+      void notify.success('Archivo cargado');
       if (declarationId > 0) {
         await load();
       } else {

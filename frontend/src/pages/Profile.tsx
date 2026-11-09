@@ -10,6 +10,7 @@ import { checkPassword, passwordOk } from '../utils/passwordPolicy';
 import DevicesCard from './security/DevicesCard';
 import TotpCard from './security/TotpCard';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
@@ -48,7 +49,8 @@ function SessionsCard() {
   const closeOthers = async () => {
     setBusy(true);
     try {
-      await securityService.revokeOtherSessions();
+      const closed = await securityService.revokeOtherSessions();
+      void notify.success('Sesiones cerradas', closed > 0 ? `Se cerró su cuenta en ${closed} equipo(s).` : undefined);
       await load();
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudieron cerrar las demás sesiones.'));
@@ -60,6 +62,7 @@ function SessionsCard() {
   const closeOne = async (id: string) => {
     try {
       await securityService.revokeSession(id);
+      void notify.success('Sesión cerrada');
       await load();
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudo cerrar la sesión.'));
@@ -112,7 +115,6 @@ const Profile = () => {
   const [again, setAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
 
   const check = checkPassword(next, user?.username);
   const mismatch = again !== '' && again !== next;
@@ -123,16 +125,15 @@ const Profile = () => {
     if (!canSubmit) return;
     setBusy(true);
     setError('');
-    setDone(false);
     try {
       await securityService.changePassword(current, next);
+      void notify.success('Contraseña actualizada', forced ? undefined : 'Úsela la próxima vez que inicie sesión.');
       if (forced) {
         // Ya la cambió: se puede usar el sistema.
         auth.clearMustChangePassword();
         navigate('/', { replace: true });
         return;
       }
-      setDone(true);
       setCurrent('');
       setNext('');
       setAgain('');
@@ -221,11 +222,6 @@ const Profile = () => {
         </label>
 
         {error ? <Alert variant="error">{error}</Alert> : null}
-        {done ? (
-          <Alert variant="success">
-            Contraseña actualizada. Úsela la próxima vez que inicie sesión.
-          </Alert>
-        ) : null}
 
         <Button type="submit" disabled={!canSubmit}>
           <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-key'} mr-1.5`} aria-hidden />

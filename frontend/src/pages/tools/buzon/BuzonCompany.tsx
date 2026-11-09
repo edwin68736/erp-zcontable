@@ -8,6 +8,7 @@ import { Card, Spinner } from '../sire/SireShared';
 import { INPUT_CLS, SELECT_CLS } from '../sire/sireUi';
 import { ETIQUETA_BADGE, buzonBadge, fmtDateTime, timeAgo } from './buzonUi';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 const PER_PAGE = 25;
 
@@ -48,7 +49,6 @@ const BuzonCompany = () => {
   const [listError, setListError] = useState<BuzonApiError | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<BuzonApiError | null>(null);
-  const [syncedNote, setSyncedNote] = useState('');
   const [filters, setFilters] = useState<BuzonFilters>({ tipo: 0, page: 1, per_page: PER_PAGE });
   const [qInput, setQInput] = useState('');
 
@@ -93,13 +93,11 @@ const BuzonCompany = () => {
   const sync = async () => {
     setSyncing(true);
     setSyncError(null);
-    setSyncedNote('');
     try {
       const st = await sunatBuzonService.sync(companyId);
-      setSyncedNote(
-        st.nuevos > 0
-          ? `Sincronizado: ${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'}.`
-          : 'Sincronizado: no hay novedades desde la última vez.',
+      void notify.success(
+        'Buzón sincronizado',
+        st.nuevos > 0 ? `${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'}.` : 'No hay novedades desde la última vez.',
       );
       setFilters((f) => ({ ...f, page: 1 }));
       await load();
@@ -114,6 +112,7 @@ const BuzonCompany = () => {
   const markSeen = async () => {
     try {
       await sunatBuzonService.markSeen(companyId);
+      void notify.success('Novedades marcadas como vistas');
       await load();
     } catch (e) {
       setListError(e as BuzonApiError);
@@ -201,7 +200,6 @@ const BuzonCompany = () => {
         </Alert>
       ) : null}
       {syncing ? <Spinner label="Entrando a SUNAT con la clave de la empresa y leyendo el buzón (puede tardar unos segundos)…" /> : null}
-      {syncedNote && !syncError ? <Alert variant="success">{syncedNote}</Alert> : null}
       {syncError ? <BuzonError error={syncError} /> : null}
       {!syncError && !blocked && state?.status === 'error' && state.error_message ? (
         <Alert variant="warning">

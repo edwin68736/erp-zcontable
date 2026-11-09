@@ -5,6 +5,7 @@ import type { SubscriptionPlan } from '../types/dashboard';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
+import { notify } from '../utils/notify';
 
 const SubscriptionPlansList = () => {
   const canEdit = useMemo(
@@ -15,7 +16,6 @@ const SubscriptionPlansList = () => {
 
   const [list, setList] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [liqMsg, setLiqMsg] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -31,13 +31,13 @@ const SubscriptionPlansList = () => {
 
   const runLiq = async () => {
     try {
-      setLiqMsg('');
       const r = await subscriptionPlansService.runLiquidation();
-      setLiqMsg(`Liquidación: ${r.created_documents} cargo(s) generados, ${r.skipped} omitidos.`);
+      const summary = `${r.created_documents} cargo(s) generados, ${r.skipped} omitidos.`;
       const errs = r.errors ?? [];
-      if (errs.length) setLiqMsg((m) => m + ' Errores: ' + errs.join('; '));
+      if (errs.length) void notify.warning('Liquidación con errores', `${summary} Errores: ${errs.join('; ')}`);
+      else void notify.success('Liquidación ejecutada', summary);
     } catch {
-      setLiqMsg('Error al ejecutar liquidación');
+      void notify.error('No se pudo ejecutar la liquidación');
     }
   };
 
@@ -68,7 +68,6 @@ const SubscriptionPlansList = () => {
           ) : null}
         </div>
       </div>
-      {liqMsg ? <div className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2">{liqMsg}</div> : null}
       {loading ? (
         <div className="text-sm text-slate-500">Cargando…</div>
       ) : (

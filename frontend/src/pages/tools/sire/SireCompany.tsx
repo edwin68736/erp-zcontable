@@ -23,6 +23,7 @@ import { Card, SireErrorBox, Spinner } from './SireShared';
 import { SELECT_CLS, sireMissing } from './sireUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 const MAX_RANGE = 12;
 const POLL_MS = 3000;
@@ -258,6 +259,7 @@ const SireCompany = () => {
     setActionError(null);
     try {
       saveBlobAs(await sireService.downloadBlob(companyId, it.id), sirePropuestaFileName(company.ruc, it.period, it.libro));
+      void notify.success('Excel descargado');
     } catch (e) {
       setActionError(e as SireApiError);
     } finally {
@@ -270,6 +272,7 @@ const SireCompany = () => {
     try {
       await sireService.removeDownload(companyId, it.id);
       setItems((cur) => cur.filter((x) => x.id !== it.id));
+      void notify.success('Consulta quitada');
     } catch (e) {
       setActionError(e as SireApiError);
     }
@@ -280,6 +283,7 @@ const SireCompany = () => {
     try {
       await sireService.clearDownloads(companyId);
       await loadHistory();
+      void notify.success('Historial limpiado');
     } catch (e) {
       setActionError(e as SireApiError);
     }
@@ -297,6 +301,7 @@ const SireCompany = () => {
       for (const it of sorted) parts.push({ period: it.period, blob: await sireService.downloadBlob(companyId, it.id) });
       const merged = await mergePeriodExcels(parts);
       saveBlobAs(merged, sirePropuestaFileName(company.ruc, `${sorted[0].period}-${sorted[sorted.length - 1].period}`, libro));
+      void notify.success('Excel unido', `Se juntaron ${sorted.length} periodos en un solo libro.`);
     } catch (e) {
       setActionError(e as SireApiError);
     } finally {

@@ -11,6 +11,7 @@ import { INPUT_CLS } from '../sire/sireUi';
 import { NPD_ESTADOS, NPD_ESTADO_BADGE, NPD_MAX_DAYS, daysAgo, daysSpan, exportNpdExcel, fmtDay, fmtMoney, totalsByEstado } from './npdUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 const RANGES = [
   { label: '30 días', days: 29 },
@@ -222,6 +223,7 @@ const NpdCompany = () => {
   const removeSaved = async (it: NpdHistoryItem) => {
     try {
       await npdService.removeHistory(companyId, it.id);
+      void notify.success('Consulta quitada');
       setHistory((c) => c.filter((x) => x.id !== it.id));
       if (activeId === it.id) setActiveId(null);
     } catch (e) {
@@ -232,6 +234,7 @@ const NpdCompany = () => {
   const clearHistory = async () => {
     try {
       await npdService.clearHistory(companyId);
+      void notify.success('Historial limpiado');
       setHistory([]);
       setActiveId(null);
     } catch (e) {

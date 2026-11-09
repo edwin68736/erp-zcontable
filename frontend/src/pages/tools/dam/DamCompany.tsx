@@ -12,6 +12,7 @@ import { INPUT_CLS } from '../sire/sireUi';
 import { DAM_MAX_DAYS, exportDamExcel, filterDams, fmtDamAmount, hasRegularizacion } from './damUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 const POLL_MS = 4000;
 
@@ -250,6 +251,7 @@ const DamCompany = () => {
   const removeSaved = async (it: DamHistoryItem) => {
     try {
       await damService.removeHistory(companyId, it.id);
+      void notify.success('Consulta quitada');
       setHistory((c) => c.filter((x) => x.id !== it.id));
       if (activeId === it.id) setActiveId(null);
       if (watching.current === it.id) watching.current = null;
@@ -261,6 +263,7 @@ const DamCompany = () => {
   const clearHistory = async () => {
     try {
       await damService.clearHistory(companyId);
+      void notify.success('Historial limpiado');
       await loadHistory();
       setActiveId(null);
     } catch (e) {

@@ -14,6 +14,7 @@ import {
 } from '../../navigation/activityRoutes';
 import { controlStatusLabel, currentPeriodYM, riskLevelLabel } from '../../utils/supervisorLabels';
 import { formatDate } from '../../utils/format';
+import { notify } from '../../utils/notify';
 
 type SupervisorControlsProps = {
   /** Ruta base para enlazar al detalle (p. ej. /assistant/controls). */
@@ -88,6 +89,7 @@ const SupervisorControls = ({
         risk_level: 'bajo',
       });
       setShowCreate(false);
+      void notify.success('Control creado');
       void load();
     } catch {
       setMsg('No se pudo crear el control (¿ya existe para esa empresa/periodo?)');
@@ -98,6 +100,7 @@ const SupervisorControls = ({
     if (!deleteId) return;
     try {
       await supervisorsService.deleteControl(deleteId);
+      void notify.success('Control eliminado');
       setDeleteId(null);
       void load();
     } catch {

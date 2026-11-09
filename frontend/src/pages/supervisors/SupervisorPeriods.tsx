@@ -5,6 +5,7 @@ import { P } from '../../rbac/codes';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import Pagination from '../../components/Pagination';
 import PageHeading from '../../components/ui/PageHeading';
+import { notify } from '../../utils/notify';
 
 const SupervisorPeriods = () => {
   const canView = useMemo(() => auth.hasPermission(P.supervisorsPeriodsView), []);
@@ -78,6 +79,7 @@ const SupervisorPeriods = () => {
   const handleClose = async (id: number) => {
     try {
       await supervisorsService.closePeriod(id);
+      void notify.success('Periodo cerrado');
       void load();
     } catch {
       setMsg('No se pudo cerrar el periodo (revise controles pendientes)');
@@ -88,6 +90,7 @@ const SupervisorPeriods = () => {
     if (!deleteId) return;
     try {
       await supervisorsService.deletePeriod(deleteId);
+      void notify.success('Periodo eliminado');
       setDeleteId(null);
       void load();
     } catch {

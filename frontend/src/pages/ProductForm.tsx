@@ -10,6 +10,7 @@ import Input from '../components/ui/Input';
 import { SUNAT_PRODUCT_UNIT_LABEL, SUNAT_SERVICE_UNITS } from '../constants/sunatUnitOfMeasure';
 import { formatAmount } from '../utils/format';
 import PageHeading from '../components/ui/PageHeading';
+import { notify } from '../utils/notify';
 
 /** Contenedor: crece con el viewport en pantallas grandes; mantiene márgenes cómodos en móvil. */
 const PAGE_CLASS =
@@ -194,6 +195,7 @@ const ProductForm = () => {
       setCategoryIdStr(String(created.id));
       setNewCatName('');
       setCatModalOpen(false);
+      void notify.success('Categoría creada');
     } catch {
       setCatError('No se pudo crear la categoría');
     } finally {
@@ -230,6 +232,7 @@ const ProductForm = () => {
       } else {
         await productsService.create(payload);
       }
+      void notify.success(editId ? 'Ítem actualizado' : 'Ítem creado');
       navigate('/products', { replace: true });
     } catch (err: unknown) {
       const msg =

@@ -3,6 +3,7 @@ import { apiErrorMessage, securityService, type PendingApproval } from '../../se
 import { timeAgo } from '../tools/buzon/buzonUi';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 /** Equipos nuevos que esperan que un administrador los apruebe (la persona está mirando la pantalla de espera). */
 export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApproval[] | null; onChanged: () => void }) {
@@ -15,6 +16,7 @@ export default function ApprovalsTab({ rows, onChanged }: { rows: PendingApprova
     setError('');
     try {
       await securityService.decideApproval(r.id, approve);
+      void notify.success(approve ? 'Equipo aprobado' : 'Equipo rechazado', `${r.name || r.username} · ${r.device_label}`);
       onChanged();
     } catch (e) {
       setError(apiErrorMessage(e, 'No se pudo registrar su decisión.'));

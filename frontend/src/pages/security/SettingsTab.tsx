@@ -3,6 +3,7 @@ import Button from '../../components/ui/Button';
 import { apiErrorMessage, securityService, type DeviceTrustMode, type SecuritySettings } from '../../services/security';
 import { MODE_HELP, MODE_LABEL, dateInputValue } from './deviceUi';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const INPUT = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';
 const MODES: DeviceTrustMode[] = ['off', 'learn', 'enforce'];
@@ -14,7 +15,6 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
   const [days, setDays] = useState(30);
   const [from, setFrom] = useState('');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const apply = (s: SecuritySettings) => {
@@ -35,10 +35,9 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
     e.preventDefault();
     setBusy(true);
     setError('');
-    setSaved(false);
     try {
       apply(await securityService.saveSettings({ device_trust_mode: mode, device_trust_days: days, enforce_from: mode === 'learn' ? from : '' }));
-      setSaved(true);
+      void notify.success('Configuración guardada');
     } catch (err) {
       setError(apiErrorMessage(err, 'No se pudo guardar.'));
     } finally {
@@ -99,7 +98,6 @@ export default function SettingsTab({ canEdit }: { canEdit: boolean }) {
       ) : null}
 
       {error ? <Alert variant="error">{error}</Alert> : null}
-      {saved ? <Alert variant="success">Configuración guardada.</Alert> : null}
 
       {canEdit ? (
         <Button type="submit" disabled={busy || (mode !== 'off' && !daysOk)}>

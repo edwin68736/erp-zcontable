@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { ItfResult, ItfTable } from '../../../services/itf';
+import { notify } from '../../../utils/notify';
 
 /** SUNAT no consulta periodos anteriores a marzo de 2004. */
 export const ITF_MIN_MONTH = '2004-03';
@@ -142,4 +143,5 @@ export async function exportItfExcel(res: ItfResult, meta: { empresa: string; ru
 
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `ITF-${meta.ruc}-${res.desde}_${res.hasta}.xlsx`);
+  void notify.success('Excel descargado');
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Button from '../../../components/ui/Button';
 import { sireService, type SireApiError } from '../../../services/sire';
 import { INPUT_CLS } from './sireUi';
+import { notify } from '../../../utils/notify';
 
 type Props = {
   open: boolean;
@@ -53,6 +54,7 @@ const SireCredentialsModal = ({ open, companyId, companyName, onClose, onSaved }
     setError(null);
     try {
       await sireService.saveCredentials(companyId, { client_id: clientId.trim(), client_secret: secret.trim() });
+      void notify.success('Credenciales guardadas', 'Ya puede consultar el SIRE de esta empresa.');
       onSaved();
       onClose();
     } catch (err) {

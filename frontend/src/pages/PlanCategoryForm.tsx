@@ -4,6 +4,7 @@ import { planCategoriesService } from '../services/planCategories';
 import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
+import { notify } from '../utils/notify';
 
 const PlanCategoryForm = () => {
   const navigate = useNavigate();
@@ -59,6 +60,7 @@ const PlanCategoryForm = () => {
           active,
         });
       }
+      void notify.success(editId ? 'Categoría actualizada' : 'Categoría creada');
       navigate('/plan-categories', { replace: true });
     } catch (err: unknown) {
       const msg =

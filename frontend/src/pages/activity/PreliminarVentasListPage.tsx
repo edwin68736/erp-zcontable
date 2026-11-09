@@ -31,6 +31,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import { exportPreliminarVentasReportExcel } from '../../utils/preliminarVentasExcelExport';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function formatDueDate(iso?: string): string {
   if (!iso) return 'Sin fecha configurada';
@@ -157,6 +158,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
       setCarryOverSaving(true);
       setCarryOverError('');
       await detraccionesService.applySuspensionCarryOver(periodYm, keepSuspendedCompanyIds);
+      void notify.success('Decisión aplicada');
       setCarryOverOpen(false);
       await load();
     } catch (err) {

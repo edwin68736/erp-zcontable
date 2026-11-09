@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button';
 import { apiErrorMessage, securityService, type TotpStatus } from '../../services/security';
 import { recoveryCodesText } from './deviceUi';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
@@ -59,6 +60,7 @@ export default function TotpCard({ username }: { username?: string }) {
     setError('');
     try {
       setRecovery(await securityService.totpEnable(code.trim()));
+      void notify.success('Verificación en dos pasos activada', 'Guarde sus códigos de recuperación.');
       setSetup(null);
       setCode('');
       await load();
@@ -76,6 +78,7 @@ export default function TotpCard({ username }: { username?: string }) {
     setError('');
     try {
       await securityService.totpDisable(password);
+      void notify.success('Verificación en dos pasos desactivada');
       setDisabling(false);
       setPassword('');
       await load();

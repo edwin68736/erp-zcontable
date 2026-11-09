@@ -130,6 +130,7 @@ const FiscalDocumentSeries = () => {
     if (!canManage) return;
     try {
       await fiscalDocumentSeriesService.update(row.id, { active: !row.active });
+      void notify.success(row.active ? 'Serie desactivada' : 'Serie activada');
       await load();
     } catch (e) {
       console.error(e);

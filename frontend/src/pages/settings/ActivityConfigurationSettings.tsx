@@ -147,6 +147,7 @@ const ActivityConfigurationSettings = () => {
         grace_days: row.grace_days,
         active: false,
       });
+      void notify.success('Regla desactivada');
       await loadRules();
     } catch (err) {
       console.error(err);

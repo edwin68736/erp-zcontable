@@ -23,6 +23,7 @@ import {
 } from './rhUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
+import { notify } from '../../../utils/notify';
 
 const RANGES = [
   { label: '15 días', days: 15 },
@@ -347,6 +348,7 @@ const RhCompany = () => {
   const removeSaved = async (it: RheHistoryItem) => {
     try {
       await rheService.removeHistory(companyId, it.id);
+      void notify.success('Consulta quitada');
       setHistory((cur) => cur.filter((x) => x.id !== it.id));
       if (activeId === it.id) setActiveId(null);
     } catch (e) {
@@ -357,6 +359,7 @@ const RhCompany = () => {
   const clearHistory = async () => {
     try {
       await rheService.clearHistory(companyId);
+      void notify.success('Historial limpiado');
       setHistory([]);
       setActiveId(null);
     } catch (e) {

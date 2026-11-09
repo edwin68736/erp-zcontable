@@ -9,6 +9,7 @@ import {
 } from '../../navigation/activityRoutes';
 import PageHeading from '../../components/ui/PageHeading';
 import { formatDateTime } from '../../utils/format';
+import { notify } from '../../utils/notify';
 
 const SupervisorNotifications = () => {
   const location = useLocation();
@@ -38,6 +39,7 @@ const SupervisorNotifications = () => {
 
   const markRead = async (id: number) => {
     await supervisorsService.markNotificationRead(id);
+    void notify.success('Notificación marcada como leída');
     void load();
   };
 
