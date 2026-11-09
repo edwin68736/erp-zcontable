@@ -20,6 +20,9 @@ import { timeAgo } from '../buzon/buzonUi';
 import { mergePeriodExcels, periodsBetween } from './sireExcel';
 import SireCredentialsModal from './SireCredentialsModal';
 import { Card, SireErrorBox, Spinner } from './SireShared';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { taskKey, trackAsync } from '../../../utils/longTasks';
+import { useTask } from '../../../utils/useLongTasks';
 import { SELECT_CLS, sireMissing } from './sireUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
@@ -227,6 +230,35 @@ const SireCompany = () => {
 
   // Mientras alguna consulta siga en proceso, el historial se refresca solo.
   const hasRunning = items.some((i) => i.status === 'en_proceso');
+  // El registro global sigue las descargas (header + aviso si la persona se fue a otra pantalla).
+  const task = useTask(taskKey('sire', companyId));
+  useEffect(() => {
+    if (!hasRunning || task?.status === 'running') return;
+    const pending = items.filter((i) => i.status === 'en_proceso');
+    const ids = new Set(pending.map((i) => i.id));
+    const oldest = Math.min(...pending.map((i) => Date.parse(i.created_at) || Date.now()));
+    trackAsync(
+      {
+        tool: 'sire',
+        toolLabel: 'SIRE',
+        companyId,
+        companyName: company?.business_name || `Empresa ${companyId}`,
+        detail: `${pending[0].libro === 'ventas' ? 'Ventas' : 'Compras'} · ${pending.length} ${pending.length === 1 ? 'periodo' : 'periodos'}`,
+        href: `/tools/sire/${companyId}`,
+        startedAt: oldest,
+      },
+      async () => {
+        const rows = (await sireService.downloads(companyId)).filter((i) => ids.has(i.id));
+        if (rows.some((i) => i.status === 'en_proceso')) return { status: 'running' };
+        const failed = rows.filter((i) => i.status === 'error');
+        if (failed.length > 0) {
+          const msg = failed[0].error_message || 'No se pudo completar la consulta.';
+          return { status: 'error', message: failed.length > 1 ? `${failed.length} periodos fallaron. ${msg}` : msg };
+        }
+        return { status: 'done' };
+      },
+    );
+  }, [hasRunning, task?.status, items, companyId, company?.business_name]);
   useEffect(() => {
     if (!hasRunning) return;
     const id = window.setInterval(() => void loadHistory(), POLL_MS);
@@ -486,6 +518,8 @@ const SireCompany = () => {
                 {periodsError ? <SireErrorBox error={periodsError} onRetry={() => void loadPeriods()} /> : null}
               </div>
             </Card>
+
+            <LongTaskPanel task={task} title="Descargando propuestas de SUNAT" hint="Cada periodo se pide, se espera y se genera en SUNAT. Puede seguir usando el sistema; las descargas aparecen abajo al terminar." />
 
             <Card
               title="Descargas activas"

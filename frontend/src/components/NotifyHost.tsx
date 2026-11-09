@@ -80,7 +80,7 @@ const NotifyHost = () => {
         onClick={!blocking && canDismiss ? dismiss : undefined}
         className={`notify-pop relative w-full max-w-sm overflow-hidden rounded-xl bg-white px-6 pb-6 pt-7 text-center shadow-2xl outline-none ${!blocking && canDismiss ? 'cursor-pointer' : ''}`}
       >
-        <NotifyIcon kind={kind} danger={danger} />
+        <NotifyIcon kind={current.icon ?? kind} danger={danger} />
         <h2 id={titleId} className="text-xl font-bold text-slate-800">
           {title}
         </h2>

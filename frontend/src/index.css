@@ -74,8 +74,14 @@ html[data-density='compact'] th[class*='py-2.5'] {
 }
 .notify-pop { animation: notify-pop 0.2s ease-out; }
 .notify-draw { stroke-dasharray: 60; animation: notify-draw 0.45s 0.15s ease-out both; }
+@keyframes long-task-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.long-task-bar { animation: long-task-bar 1.6s ease-in-out infinite; }
 .notify-bar { animation-name: notify-bar; animation-timing-function: linear; animation-fill-mode: forwards; }
 @media (prefers-reduced-motion: reduce) {
   .notify-pop, .notify-draw { animation: none; }
   .notify-draw { stroke-dashoffset: 0; }
+  .long-task-bar { animation: none; transform: none; width: 100%; opacity: 0.4; }
 }

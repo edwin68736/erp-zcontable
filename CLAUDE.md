@@ -72,3 +72,5 @@ datos', ...)`, `await notify.confirm({ ..., danger: true })`. No usar `window.co
 `miweb:toast`, ni banners propios para el resultado de una acción (una prueba guardiana lo verifica). Los estados de la
 pantalla y los errores de carga van en línea con `<Alert>`. Importes y fechas con `utils/format.ts`. Reglas de redacción
 y catálogo de títulos: `docs/guia-alertas-y-mensajes-2026-11-09.md`.
+Las consultas largas a SUNAT (SIRE, RH, ITF, NPD, DAM, Buzón) NO usan alerta modal ni spinner propio: se siguen con
+`utils/longTasks.ts` + `LongTaskPanel` (en la página) + `TaskIndicator` (cabecera); ver la guía, sección 2.

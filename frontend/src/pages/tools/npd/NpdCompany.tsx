@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
@@ -6,12 +6,15 @@ import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from
 import { npdService, type NpdHistoryItem, type NpdResult } from '../../../services/npd';
 import type { SireApiError } from '../../../services/sire';
 import { timeAgo } from '../buzon/buzonUi';
-import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
+import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { NPD_ESTADOS, NPD_ESTADO_BADGE, NPD_MAX_DAYS, daysAgo, daysSpan, exportNpdExcel, fmtDay, fmtMoney, totalsByEstado } from './npdUi';
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
+import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
 const RANGES = [
   { label: '30 días', days: 29 },
@@ -119,7 +122,6 @@ const NpdCompany = () => {
   const [companyError, setCompanyError] = useState('');
   const [desde, setDesde] = useState(daysAgo(89));
   const [hasta, setHasta] = useState(daysAgo(0));
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SireApiError | null>(null);
   const [resp, setResp] = useState<NpdResult | null>(null);
   const [estado, setEstado] = useState('');
@@ -129,6 +131,10 @@ const NpdCompany = () => {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [savedAt, setSavedAt] = useState('');
   const [opening, setOpening] = useState(false);
+  // La consulta a SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
+  const task = useTask(taskKey('npd', companyId));
+  const loading = task?.status === 'running';
+  const ownTask = useRef<number | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -176,21 +182,30 @@ const NpdCompany = () => {
 
   const run = async (p?: { desde: string; hasta: string }) => {
     const params = p ?? { desde, hasta };
-    setLoading(true);
     setError(null);
     setSavedAt('');
     setEstado('');
     setFilter('');
+    const t = startTask({
+      tool: 'npd',
+      toolLabel: 'Detracciones',
+      companyId,
+      companyName: company?.business_name || `Empresa ${companyId}`,
+      detail: `${fmtDay(params.desde)} – ${fmtDay(params.hasta)}`,
+      href: `/tools/consulta-detracciones/${companyId}`,
+    });
+    ownTask.current = t.id;
     try {
       const r = await npdService.query(companyId, params.desde, params.hasta);
+      finishTask(t.id, { resultId: r.history_id ?? undefined });
       setResp(r.data);
       setActiveId(r.history_id ?? null);
     } catch (e) {
       setResp(null);
       setActiveId(null);
+      failTask(t.id, e);
       setError(e as SireApiError);
     } finally {
-      setLoading(false);
       void loadHistory();
     }
   };
@@ -219,6 +234,25 @@ const NpdCompany = () => {
       setOpening(false);
     }
   };
+
+  // Salió de la pantalla durante la consulta y volvió: el resultado está en el historial del servidor.
+  useTaskSettled(taskKey('npd', companyId), ownTask, (done) => {
+    if (done.status === 'error') {
+      setResp(null);
+      setError({ message: done.errorMessage ?? 'SUNAT no respondió. Intente de nuevo.' });
+      return;
+    }
+    void (async () => {
+      try {
+        const items = await npdService.history(companyId);
+        setHistory(items);
+        const it = items.find((x) => x.id === done.resultId) ?? items[0];
+        if (it) await openSaved(it);
+      } catch (e) {
+        setError(e as SireApiError);
+      }
+    })();
+  });
 
   const removeSaved = async (it: NpdHistoryItem) => {
     try {
@@ -321,7 +355,7 @@ const NpdCompany = () => {
                 {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
               </div>
 
-              {loading ? <Spinner label="Consultando los NPD en SUNAT (entra a SOL con la clave de la empresa)…" /> : null}
+              <LongTaskPanel task={task} hint="Entra a SOL con la clave de la empresa. Puede seguir usando el sistema; la consulta queda guardada en el historial." />
               {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 
               {resp && !loading ? (

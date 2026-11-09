@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
@@ -9,6 +9,7 @@ import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref'
 import IdleLogoutGuard from '../components/IdleLogoutGuard';
 import NotifyHost from '../components/NotifyHost';
 import { showLegacyToast } from '../utils/notify';
+import { registerNavigator } from '../utils/longTasks';
 import ReauthDialog from '../components/ReauthDialog';
 import { auth } from '../services/auth';
 import { ensureTukifacSeriesCached } from '../services/tukifacSeriesCache';
@@ -28,6 +29,12 @@ const Layout = () => {
   // En Inicio el menú arranca colapsado (la escena ocupa todo el ancho); el botón de la cabecera
   // lo expande solo mientras se siga en Inicio y no toca la preferencia guardada para el resto.
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  // «Ver» de una consulta larga navega dentro de la aplicación en vez de recargar la página.
+  useEffect(() => {
+    registerNavigator((to) => navigate(to));
+    return () => registerNavigator(null);
+  }, [navigate]);
   const isHome = pathname === '/';
   const [homeSidebarExpanded, setHomeSidebarExpanded] = useState(false);
   useEffect(() => {

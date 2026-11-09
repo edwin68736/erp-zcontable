@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
@@ -6,7 +6,7 @@ import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from
 import { rheService, type RheComprobante, type RheHistoryItem, type RheResponse, type RheTipo } from '../../../services/rhe';
 import type { SireApiError } from '../../../services/sire';
 import { timeAgo } from '../buzon/buzonUi';
-import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
+import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS, SELECT_CLS, sireMissing } from '../sire/sireUi';
 import {
   RH_ESTADOS,
@@ -24,6 +24,9 @@ import {
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
+import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
 const RANGES = [
   { label: '15 días', days: 15 },
@@ -219,7 +222,6 @@ const RhCompany = () => {
   const [desde, setDesde] = useState(daysAgo(30));
   const [hasta, setHasta] = useState(daysAgo(0));
   const [estados, setEstados] = useState<string[]>(() => RH_ESTADOS.C.map((e) => e.value));
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SireApiError | null>(null);
   const [resp, setResp] = useState<RheResponse | null>(null);
   const [queried, setQueried] = useState<{ tipo: RheTipo; desde: string; hasta: string } | null>(null);
@@ -231,6 +233,10 @@ const RhCompany = () => {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [savedAt, setSavedAt] = useState("");
   const [opening, setOpening] = useState(false);
+  // La consulta a SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
+  const task = useTask(taskKey('rh', companyId));
+  const loading = task?.status === 'running';
+  const ownTask = useRef<number | null>(null);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -283,12 +289,21 @@ const RhCompany = () => {
     estados: string[];
   }) => {
     const params = p ?? { tipo, cod_cpe: codCpe, desde, hasta, estados };
-    setLoading(true);
     setError(null);
     setOpen("");
     setSavedAt("");
+    const t = startTask({
+      tool: 'rh',
+      toolLabel: 'RH',
+      companyId,
+      companyName: company?.business_name || `Empresa ${companyId}`,
+      detail: `${params.tipo === 'C' ? 'Recibidos' : 'Emitidos'} · ${fmtDay(params.desde)} – ${fmtDay(params.hasta)}`,
+      href: `/tools/rh/${companyId}`,
+    });
+    ownTask.current = t.id;
     try {
       const r = await rheService.list(companyId, params);
+      finishTask(t.id, { resultId: r.history_id ?? undefined });
       setResp(r);
       setQueried({
         tipo: params.tipo,
@@ -299,9 +314,9 @@ const RhCompany = () => {
     } catch (e) {
       setResp(null);
       setActiveId(null);
+      failTask(t.id, e);
       setError(e as SireApiError);
     } finally {
-      setLoading(false);
       void loadHistory();
     }
   };
@@ -342,6 +357,25 @@ const RhCompany = () => {
       setOpening(false);
     }
   };
+
+  // Salió de la pantalla durante la consulta y volvió: el resultado está en el historial del servidor.
+  useTaskSettled(taskKey('rh', companyId), ownTask, (done) => {
+    if (done.status === 'error') {
+      setResp(null);
+      setError({ message: done.errorMessage ?? 'SUNAT no respondió. Intente de nuevo.' });
+      return;
+    }
+    void (async () => {
+      try {
+        const items = await rheService.history(companyId);
+        setHistory(items);
+        const it = items.find((x) => x.id === done.resultId) ?? items[0];
+        if (it) await openSaved(it);
+      } catch (e) {
+        setError(e as SireApiError);
+      }
+    })();
+  });
 
   const retrySaved = (it: RheHistoryItem) => void run(applyQuery(it));
 
@@ -548,7 +582,7 @@ const RhCompany = () => {
           </aside>
 
           <div className="min-w-0 space-y-4">
-            {loading ? <Spinner label="Consultando SUNAT (los rangos largos se consultan por tramos de 15 días)…" /> : null}
+            <LongTaskPanel task={task} hint="Los rangos largos se consultan por tramos de 15 días. Puede seguir usando el sistema; la consulta queda guardada en el historial." />
             {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 
             {resp && queried && !loading ? (

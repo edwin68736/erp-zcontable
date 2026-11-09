@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
@@ -9,6 +9,9 @@ import { INPUT_CLS, SELECT_CLS } from '../sire/sireUi';
 import { ETIQUETA_BADGE, buzonBadge, fmtDateTime, timeAgo } from './buzonUi';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
+import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
 const PER_PAGE = 25;
 
@@ -47,7 +50,10 @@ const BuzonCompany = () => {
   const [detail, setDetail] = useState<BuzonDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<BuzonApiError | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  // La sincronización con SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
+  const task = useTask(taskKey('buzon', companyId));
+  const syncing = task?.status === 'running';
+  const ownTask = useRef<number | null>(null);
   const [syncError, setSyncError] = useState<BuzonApiError | null>(null);
   const [filters, setFilters] = useState<BuzonFilters>({ tipo: 0, page: 1, per_page: PER_PAGE });
   const [qInput, setQInput] = useState('');
@@ -91,10 +97,19 @@ const BuzonCompany = () => {
   const otherRunning = !!detail && detail.running !== 0 && detail.running !== companyId;
 
   const sync = async () => {
-    setSyncing(true);
     setSyncError(null);
+    const t = startTask({
+      tool: 'buzon',
+      toolLabel: 'Buzón SOL',
+      companyId,
+      companyName: company?.business_name || `Empresa ${companyId}`,
+      detail: 'Sincronización del buzón',
+      href: `/tools/notificaciones-sunat/${companyId}`,
+    });
+    ownTask.current = t.id;
     try {
       const st = await sunatBuzonService.sync(companyId);
+      finishTask(t.id);
       void notify.success(
         'Buzón sincronizado',
         st.nuevos > 0 ? `${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'}.` : 'No hay novedades desde la última vez.',
@@ -102,12 +117,19 @@ const BuzonCompany = () => {
       setFilters((f) => ({ ...f, page: 1 }));
       await load();
     } catch (e) {
+      failTask(t.id, e);
       setSyncError(e as BuzonApiError);
       await load();
-    } finally {
-      setSyncing(false);
     }
   };
+
+  // Salió de la pantalla durante la sincronización y volvió: lo sincronizado ya está guardado en el servidor.
+  useTaskSettled(taskKey('buzon', companyId), ownTask, (done) => {
+    if (done.status === 'error') setSyncError({ message: done.errorMessage ?? 'SUNAT no respondió. Intente de nuevo.' } as BuzonApiError);
+    else void notify.success('Buzón sincronizado');
+    setFilters((f) => ({ ...f, page: 1 }));
+    void load();
+  });
 
   const markSeen = async () => {
     try {
@@ -199,7 +221,7 @@ const BuzonCompany = () => {
           Se está sincronizando otra empresa. Espere a que termine para sincronizar esta.
         </Alert>
       ) : null}
-      {syncing ? <Spinner label="Entrando a SUNAT con la clave de la empresa y leyendo el buzón (puede tardar unos segundos)…" /> : null}
+      <LongTaskPanel task={task} title="Sincronizando el buzón con SUNAT" hint="Entra a SOL con la clave de la empresa y lee el buzón. Puede seguir usando el sistema." />
       {syncError ? <BuzonError error={syncError} /> : null}
       {!syncError && !blocked && state?.status === 'error' && state.error_message ? (
         <Alert variant="warning">

@@ -40,10 +40,54 @@ Regla práctica: si el mensaje describe **el resultado de lo que la persona acab
 
 ### Consultas largas a SUNAT
 
-SIRE, RH, ITF, NPD, DAM y Buzón SOL tardan segundos o minutos. **No** usan el modal central de «cargando» (bloquearía la
-pantalla): siguen con el indicador dentro de la página. Al terminar sí avisan con `notify.success` / `notify.error`.
-`notify.loading(...)` existe para operaciones cortas que deban bloquear; se cierra con el `close()` que devuelve, en un
-`finally`. Está pendiente definir el tratamiento específico de las consultas largas.
+SIRE, RH, ITF, NPD, DAM y Buzón SOL tardan segundos o minutos. **No** usan el modal central ni `notify.loading` (bloquearían
+la pantalla): tienen un tratamiento propio, sin tocar el servidor.
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| Registro `utils/longTasks.ts` | memoria de la aplicación (fuera de los componentes) | Sigue cada consulta aunque la persona cambie de pantalla. Una consulta por herramienta y empresa (`rh:42`). |
+| `LongTaskPanel` | dentro de la página, donde luego aparece el resultado | Título, empresa y rango, «Lleva m:ss», barra indeterminada, aviso ámbar a los 45 s («SUNAT está tardando más de lo normal»), enlace «Seguir en segundo plano». **No** hay botón de cancelar: no se puede abortar la llamada a SUNAT. |
+| `TaskIndicator` | cabecera, junto a la campana | «N consultas en curso» / «N lista(s)» / «N con error» y una lista desplegable con «Ver». |
+
+Cómo se usa en una pantalla:
+
+```ts
+const task = useTask(taskKey('rh', companyId));          // la consulta en curso o la última terminada
+const loading = task?.status === 'running';
+const ownTask = useRef<number | null>(null);
+
+const run = async () => {
+  const t = startTask({ tool: 'rh', toolLabel: 'RH', companyId, companyName, detail: 'Recibidos · 10/05 – 09/11', href: `/tools/rh/${companyId}` });
+  ownTask.current = t.id;
+  try {
+    const r = await rheService.list(...);
+    finishTask(t.id, { resultId: r.history_id });          // la pantalla muestra r como siempre
+  } catch (e) {
+    failTask(t.id, e);                                     // y muestra su error en línea (SireErrorBox)
+  }
+};
+
+// «Salí y volví»: la pantalla se montó de nuevo y no tiene la respuesta; la lee del historial del servidor.
+useTaskSettled(taskKey('rh', companyId), ownTask, (done) => { /* abrir done.resultId o mostrar done.errorMessage */ });
+
+// En el JSX, en el lugar del resultado:
+<LongTaskPanel task={task} hint="…" />
+```
+
+SIRE y DAM ya son asíncronos en el servidor (el historial queda `en_proceso`): sus pantallas **adoptan** las filas
+en proceso con `trackAsync`, que sondea cada 5 s aunque la persona se haya ido. Así también se siguen las consultas
+que se iniciaron antes de recargar la página (el tiempo «Lleva» sale de `created_at`).
+
+**Qué avisa al terminar:**
+
+- La persona sigue en la pantalla de la consulta: el resultado o el error aparece ahí; nada más (el indicador queda como «visto»).
+- Está en otra pantalla y fue un **error**: alerta central «No se pudo completar la consulta» con «Ver detalle» / «Cerrar».
+- Está en otra pantalla y fue un **éxito que tardó 2 min o más**: alerta central «Consulta lista» con «Ver resultado» / «Cerrar».
+- Está en otra pantalla y fue un éxito corto: solo cambia el indicador de la cabecera (no se interrumpe a nadie).
+
+Límites conocidos: las tareas viven en memoria (si se recarga la página se pierden; las de SIRE/DAM se readoptan porque
+el servidor las guarda como «en proceso»; RH/ITF/NPD/Buzón dejan su resultado guardado, pero la petición en vuelo se
+pierde al recargar). Pasar RH/ITF/NPD/Buzón a asíncronos en el servidor (con progreso por tramo) queda como mejora futura.
 
 ## 3. Cómo se escribe
 
@@ -139,12 +183,13 @@ const eliminar = async () => {
 - envía el evento antiguo `miweb:toast` a mano (el Layout lo conserva solo por compatibilidad), o
 - usa `window.confirm` / `alert` del navegador.
 
+`frontend/src/utils/longTasks.test.ts` cubre el registro de consultas largas (en curso, terminada, error, sondeo, avisos).
 `frontend/src/utils/notify.test.ts` cubre la cola, los temporizadores, la pausa, los reemplazos y las confirmaciones.
 Las alertas se verificaron visualmente en navegador (éxito, error, advertencia, confirmación, cola y teclado).
 
 ## 7. Pendientes conocidos
 
-- Diseñar el tratamiento de las consultas largas a SUNAT (sección 2).
+- Consultas largas a SUNAT en el servidor (RH/ITF/NPD/Buzón asíncronos, progreso por tramo, resistir recargas): mejora futura; hoy es solo frontend.
 - Quedan ~10 avisos con íconos o botones dentro sin migrar a `Alert` y algunos textos antiguos en «tú» sin revisar.
 - Los errores de carga de datos siguen en línea; si en el futuro se quiere una forma única de «no se pudo cargar» con
   reintento, es un componente aparte (no una alerta).

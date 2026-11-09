@@ -23,6 +23,8 @@ export interface NotifyItem {
   cancelLabel?: string;
   /** Acción destructiva (confirmación): el botón de confirmar va en rojo y el foco empieza en «Cancelar». */
   danger?: boolean;
+  /** Icono que se dibuja si no es el de la clase de alerta (p. ej. una pregunta con check de «consulta lista»). */
+  icon?: NotifyKind;
   /** Se cierra solo pasados estos milisegundos (solo éxito e información). */
   autoCloseMs?: number;
 }
@@ -41,6 +43,8 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** Icono de la alerta (por defecto, el signo de interrogación). */
+  icon?: Exclude<NotifyKind, 'loading' | 'question'>;
 }
 
 /** Cuánto dura un aviso de éxito antes de cerrarse solo. */
@@ -201,6 +205,7 @@ export const notify = {
       confirmLabel: options.confirmLabel ?? (options.danger ? 'Eliminar' : 'Confirmar'),
       cancelLabel: options.cancelLabel ?? 'Cancelar',
       danger: options.danger,
+      icon: options.icon,
     });
   },
 

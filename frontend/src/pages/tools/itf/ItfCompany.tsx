@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
@@ -6,7 +6,7 @@ import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from
 import { itfService, type ItfHistoryItem, type ItfResult, type ItfTable } from '../../../services/itf';
 import type { SireApiError } from '../../../services/sire';
 import { timeAgo } from '../buzon/buzonUi';
-import { Card, SireErrorBox, Spinner } from '../sire/SireShared';
+import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import {
   ITF_COD_OPER,
@@ -27,6 +27,9 @@ import {
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
+import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
 /** Atajos de rango: (mes actual) → [desde, hasta] en «AAAA-MM». */
 const RANGES: { label: string; make: (cur: string) => [string, string] }[] = [
@@ -178,7 +181,6 @@ const ItfCompany = () => {
   const cur = currentMonth();
   const [desde, setDesde] = useState(addMonths(cur, -5));
   const [hasta, setHasta] = useState(cur);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SireApiError | null>(null);
   const [resp, setResp] = useState<ItfResult | null>(null);
   const [history, setHistory] = useState<ItfHistoryItem[]>([]);
@@ -186,6 +188,10 @@ const ItfCompany = () => {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [savedAt, setSavedAt] = useState('');
   const [opening, setOpening] = useState(false);
+  // La consulta a SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
+  const task = useTask(taskKey('itf', companyId));
+  const loading = task?.status === 'running';
+  const ownTask = useRef<number | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -234,19 +240,28 @@ const ItfCompany = () => {
 
   const run = async (p?: { desde: string; hasta: string }) => {
     const params = p ?? { desde: monthToPeriod(desde), hasta: monthToPeriod(hasta) };
-    setLoading(true);
     setError(null);
     setSavedAt('');
+    const t = startTask({
+      tool: 'itf',
+      toolLabel: 'ITF',
+      companyId,
+      companyName: company?.business_name || `Empresa ${companyId}`,
+      detail: `${periodToMonth(params.desde)} – ${periodToMonth(params.hasta)}`,
+      href: `/tools/consulta-itf/${companyId}`,
+    });
+    ownTask.current = t.id;
     try {
       const r = await itfService.query(companyId, params.desde, params.hasta);
+      finishTask(t.id, { resultId: r.history_id ?? undefined });
       setResp(r.data);
       setActiveId(r.history_id ?? null);
     } catch (e) {
       setResp(null);
       setActiveId(null);
+      failTask(t.id, e);
       setError(e as SireApiError);
     } finally {
-      setLoading(false);
       void loadHistory();
     }
   };
@@ -273,6 +288,25 @@ const ItfCompany = () => {
       setOpening(false);
     }
   };
+
+  // Salió de la pantalla durante la consulta y volvió: el resultado está en el historial del servidor.
+  useTaskSettled(taskKey('itf', companyId), ownTask, (done) => {
+    if (done.status === 'error') {
+      setResp(null);
+      setError({ message: done.errorMessage ?? 'SUNAT no respondió. Intente de nuevo.' });
+      return;
+    }
+    void (async () => {
+      try {
+        const items = await itfService.history(companyId);
+        setHistory(items);
+        const it = items.find((x) => x.id === done.resultId) ?? items[0];
+        if (it) await openSaved(it);
+      } catch (e) {
+        setError(e as SireApiError);
+      }
+    })();
+  });
 
   const removeSaved = async (it: ItfHistoryItem) => {
     try {
@@ -371,7 +405,7 @@ const ItfCompany = () => {
                 {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
               </div>
 
-              {loading ? <Spinner label="Consultando el ITF en SUNAT (entra a SOL con la clave de la empresa)…" /> : null}
+              <LongTaskPanel task={task} hint="Entra a SOL con la clave de la empresa. Puede seguir usando el sistema; la consulta queda guardada en el historial." />
               {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 
               {resp && !loading ? (

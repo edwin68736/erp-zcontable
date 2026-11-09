@@ -13,6 +13,9 @@ import { DAM_MAX_DAYS, exportDamExcel, filterDams, fmtDamAmount, hasRegularizaci
 import { formatDateTime } from '../../../utils/format';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import LongTaskPanel from '../../../components/LongTaskPanel';
+import { taskKey, trackAsync } from '../../../utils/longTasks';
+import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
 const POLL_MS = 4000;
 
@@ -162,6 +165,47 @@ const DamCompany = () => {
   }, [companyId, loadHistory]);
 
   const running = history.some((h) => h.status === 'en_proceso');
+  // El registro global sigue la consulta (header + aviso si la persona se fue a otra pantalla).
+  const task = useTask(taskKey('dam', companyId));
+  const ownTask = useRef<number | null>(null);
+  useEffect(() => {
+    if (!running || task?.status === 'running') return;
+    const pending = history.filter((h) => h.status === 'en_proceso');
+    const ids = new Set(pending.map((h) => h.id));
+    const oldest = Math.min(...pending.map((h) => Date.parse(h.created_at) || Date.now()));
+    trackAsync(
+      {
+        tool: 'dam',
+        toolLabel: 'DAM',
+        companyId,
+        companyName: company?.business_name || `Empresa ${companyId}`,
+        detail: `${fmtDay(pending[0].desde)} – ${fmtDay(pending[0].hasta)}`,
+        href: `/tools/consulta-dam/${companyId}`,
+        startedAt: oldest,
+      },
+      async () => {
+        const rows = (await damService.history(companyId)).filter((h) => ids.has(h.id));
+        if (rows.some((h) => h.status === 'en_proceso')) return { status: 'running' };
+        const failed = rows.find((h) => h.status === 'error');
+        if (failed) return { status: 'error', message: failed.error_message || 'No se pudo completar la consulta.' };
+        return { status: 'done', resultId: rows[0]?.id };
+      },
+    );
+  }, [running, task?.status, history, companyId, company?.business_name]);
+  // Salió de la pantalla durante la consulta y volvió: se abre el resultado (o el error) como si hubiera esperado aquí.
+  useTaskSettled(taskKey('dam', companyId), ownTask, (done) => {
+    void (async () => {
+      try {
+        const list = await damService.history(companyId);
+        setHistory(list);
+        const it = list.find((h) => h.id === done.resultId);
+        if (done.status === 'error') setError({ message: done.errorMessage ?? 'No se pudo completar la consulta.' });
+        else if (it && it.status === 'listo' && watching.current == null) await showSaved(it, false);
+      } catch (e) {
+        setError(e as SireApiError);
+      }
+    })();
+  });
   // Mientras alguna consulta siga en proceso, el historial se refresca solo.
   useEffect(() => {
     if (!running) return;
@@ -199,6 +243,7 @@ const DamCompany = () => {
     const it = history.find((h) => h.id === id);
     if (!it || it.status === 'en_proceso') return;
     watching.current = null;
+    ownTask.current = null;
     if (it.status === 'listo') {
       void showSaved(it, false);
     } else if (it.status === 'sin_datos') {
@@ -343,11 +388,12 @@ const DamCompany = () => {
                   </Button>
                 </div>
                 {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
-                {running ? (
+                {running && !task ? (
                   <p className="text-xs text-amber-700" role="status">
                     Hay una consulta en proceso en SUNAT Aduanas. Se mostrará aquí sola cuando termine.
                   </p>
                 ) : null}
+                <LongTaskPanel task={task} title="Consultando SUNAT Aduanas" hint="La consulta de Aduanas es lenta. Puede seguir usando el sistema; el resultado se abrirá aquí cuando termine." />
               </div>
 
               {error ? <SireErrorBox error={error} onRetry={() => void start()} /> : null}

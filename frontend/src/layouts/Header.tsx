@@ -14,6 +14,7 @@ import {
   resolveActivityWorkspace,
 } from '../navigation/activityRoutes';
 import { formatAmount, formatTime } from '../utils/format';
+import TaskIndicator from '../components/TaskIndicator';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -248,6 +249,7 @@ const Header = ({
       </div>
 
       <div className="flex items-center gap-4 sm:gap-6 pl-4">
+        <TaskIndicator />
         {/* Notification Icons */}
         <div className="flex items-center gap-2" ref={notificationsRef}>
           <div>
