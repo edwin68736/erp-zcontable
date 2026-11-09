@@ -1,0 +1,150 @@
+# Guía de alertas y mensajes (retroalimentación tras una acción)
+
+Estado: vigente desde la fase 5 de las alertas centradas (2026-11-09). Código: `frontend/src/utils/notify.ts`
+(núcleo y API), `frontend/src/components/NotifyHost.tsx` (dibujo, montado una vez en `layouts/Layout.tsx`) y
+`frontend/src/components/ui/Alert.tsx` (aviso en línea).
+
+## 1. Principio
+
+Toda acción de la persona (guardar, eliminar, aprobar, subir, descargar, exportar, activar/desactivar…) termina con
+**una señal visible y única, en el centro de la pantalla**. Antes cada pantalla avisaba a su manera (un aviso en la
+esquina, un banner en la página, un texto junto al botón o nada), y la misma acción se veía distinta según la vista.
+
+Las acciones triviales (copiar, marcar como visto, quitar un item del historial, descargar) usan el mismo sistema que las
+importantes: la consistencia importa más que el tamaño de la acción.
+
+## 2. Qué usar en cada caso
+
+| Situación | Qué se usa | Cómo se comporta |
+|---|---|---|
+| La acción salió bien | `notify.success(título, texto?)` | Se cierra sola a los 2,2 s (barra de tiempo). Un clic o Esc la cierra antes. Se pausa con el mouse encima. |
+| La acción falló | `notify.error(título, texto?)` | No se cierra sola: hay que aceptar. |
+| Falta un dato o no se puede hacer ahora (validación) | `notify.warning('Revise los datos', texto)` | Pide aceptar. |
+| Salió bien a medias | `notify.warning(título, texto)` | Ej.: «Pago guardado» / «No se pudo emitir el comprobante: …». |
+| Dato informativo sin acción | `notify.info(título, texto?)` | Se cierra sola a los 3,5 s. |
+| Preguntar antes de actuar | `await notify.confirm({ message, danger?, confirmLabel? })` o `confirmDialog(...)` | Devuelve `true`/`false`. En acciones destructivas el foco empieza en «Cancelar». |
+| Mensaje ya armado o del servidor | `notify.fromMessage('success' \| 'error' \| 'info', mensaje)` | Decide título y texto por el largo (ver 3.4). |
+| Confirmación con campos extra, `loading` o botón deshabilitable | `<ConfirmDialog …/>` (controlado por estado) | Mismo aspecto que las alertas. |
+
+### Qué NO va en una alerta (se queda en la página, con `Alert`)
+
+- **Estados de la pantalla:** «No hay calendario para este mes», «Empresa no válida», listas vacías.
+- **Errores de carga de datos:** «No se pudo cargar…» con su botón de reintento.
+- **Errores de campos de un formulario de acceso:** Login, cambio de contraseña, código de verificación en dos pasos,
+  confirmación de contraseña: el error se corrige ahí mismo.
+- **Errores estructurados** con detalle técnico o reintento (SIRE: `SireErrorBox`).
+- **Resultados persistentes de un proceso dentro de un modal** (por ejemplo la validación de un archivo de importación).
+
+Regla práctica: si el mensaje describe **el resultado de lo que la persona acaba de hacer**, es una alerta; si describe
+**cómo está la pantalla**, es un `Alert` en línea.
+
+### Consultas largas a SUNAT
+
+SIRE, RH, ITF, NPD, DAM y Buzón SOL tardan segundos o minutos. **No** usan el modal central de «cargando» (bloquearía la
+pantalla): siguen con el indicador dentro de la página. Al terminar sí avisan con `notify.success` / `notify.error`.
+`notify.loading(...)` existe para operaciones cortas que deban bloquear; se cierra con el `close()` que devuelve, en un
+`finally`. Está pendiente definir el tratamiento específico de las consultas largas.
+
+## 3. Cómo se escribe
+
+Reglas de redacción (voz del producto, español, sin primera persona):
+
+1. **Título corto, en pasado, sin punto final.** «Usuario guardado», «Empresa eliminada», «Excel descargado».
+2. **Sin relleno:** nada de «correctamente», «exitosamente», «con éxito», «por favor».
+3. **Un título de máximo ~60 caracteres.** Si hace falta más, va en el segundo parámetro (texto):
+   `notify.success('Cliente registrado', 'Ya puede usarlo en la venta')`.
+4. **Errores: qué pasó y, si se sabe, qué hacer.** Título «No se pudo eliminar la empresa» y debajo el motivo del servidor
+   o la acción: «Revise su conexión y vuelva a intentarlo». Nunca mostrar una excepción cruda.
+5. **«No se pudo…» en vez de «Error al…».** «No se pudo guardar la configuración», no «Error al guardar configuración».
+6. **Validaciones: título «Revise los datos»** y el texto dice qué falta: «Seleccione el régimen laboral».
+7. **Usted, no tú.** «Complete el usuario…», no «Completa…». (Hay textos antiguos con «tú»; al tocarlos se corrigen.)
+8. **«Periodo»**, sin tilde, como escribe SUNAT.
+9. **Importes y fechas** con `formatAmount` / `formatMoneyPen` / `formatDate*` de `utils/format.ts`
+   (`S/ 12,500.50`, `08/11/2026 15:30`), nunca `toFixed` ni `toLocaleString()` sin idioma.
+10. Una sola oración por título; no empezar con «Se ha…».
+
+### 3.1 Catálogo de títulos habituales
+
+| Acción | Éxito | Fallo |
+|---|---|---|
+| Crear | «X creado/a» | «No se pudo crear X» |
+| Guardar / actualizar | «X guardado/a» o «X actualizado/a» | «No se pudo guardar X» |
+| Eliminar | «X eliminado/a» | «No se pudo eliminar X» |
+| Activar / desactivar | «X activado/a» / «X desactivado/a» | «No se pudo cambiar el estado» |
+| Aprobar / rechazar | «Entrega aprobada» / «Equipo rechazado» | «No se pudo aprobar» |
+| Subir | «Archivo cargado» | «No se pudo subir el archivo» |
+| Descargar / exportar | «Excel descargado», «PDF generado» | «No se pudo generar el PDF» |
+| Quitar de un historial | «Consulta quitada» | «No se pudo quitar» |
+| Limpiar | «Historial limpiado» | «No se pudo limpiar» |
+
+### 3.2 Confirmaciones
+
+- Pregunta concreta que nombre lo que se afecta: «¿Eliminar este usuario?» + una línea con la consecuencia
+  («Maria Quispe perderá el acceso al sistema. Esta acción no se puede deshacer.»).
+- Botón de confirmar con el **verbo de la acción** («Eliminar», «Quitar», «Descartar», «Aprobar»), no «Aceptar».
+- `danger: true` solo si destruye o es irreversible (botón rojo, foco en «Cancelar»).
+
+### 3.3 Cuándo `success` y cuándo `info`
+
+`success` confirma algo que la persona hizo. `info` avisa algo que ocurrió o que debe saber y no es resultado de una
+acción suya (por ejemplo, otra persona está sincronizando la empresa).
+
+### 3.4 Mensajes del servidor (`fromMessage`)
+
+`notify.fromMessage(tipo, mensaje)` aplica la regla de los avisos antiguos: una frase de hasta 60 caracteres es el título;
+una más larga queda como texto bajo un título genérico («Listo», «Aviso»). En errores, el título es «No se pudo completar»
+y el mensaje va debajo (salvo que ya empiece con «No se pudo» y sea corto). Úselo para texto que llega armado; para
+mensajes que usted escribe, prefiera `success`/`error`/`warning` con título propio.
+
+## 4. Comportamiento y accesibilidad (ya resuelto en `NotifyHost`)
+
+- Una alerta a la vez; las demás esperan su turno. Un éxito nuevo reemplaza al éxito visible (no se apilan «Guardado»).
+  Un aviso idéntico al último pendiente no se repite.
+- Éxito/información: `role="status"`, no roban el foco. Error/advertencia/confirmación: `role="alertdialog"`, el foco
+  entra al botón seguro, Tab no sale del diálogo y el foco vuelve a donde estaba al cerrar. Escape cancela.
+- Con «reducir movimiento» del sistema, no hay animaciones.
+- Los diálogos se montan fuera del panel con `backdrop-blur` del Layout; dentro de él quedarían centrados en el panel y
+  no cubrirían la cabecera ni el menú.
+- Sin componente de dibujo (pruebas, o fuera del Layout) se cae al `alert`/`confirm` del navegador: nada se pierde.
+
+## 5. Cómo agregar un aviso en una pantalla nueva
+
+```ts
+import { notify } from '../utils/notify';
+
+const guardar = async () => {
+  try {
+    await usersService.update(id, payload);
+    void notify.success('Usuario guardado');
+  } catch (e) {
+    notify.fromMessage('error', extractApiErrorMessage(e, 'No se pudo guardar el usuario'));
+  }
+};
+
+const eliminar = async () => {
+  if (!(await notify.confirm({ message: '¿Eliminar este usuario?', confirmLabel: 'Eliminar', danger: true }))) return;
+  // …
+};
+```
+
+- Llame a `notify.*` **después** de que la acción termine, no antes.
+- Si va a navegar a otra pantalla, avise antes de `navigate(...)`: la alerta es global y sigue visible sobre la pantalla nueva.
+- `void` delante de `notify.success(...)` cuando no se espera; use `await notify.error(...)` si lo que sigue depende de que
+  la persona acepte.
+
+## 6. Qué impide que se vuelva atrás
+
+`frontend/src/utils/notify.guard.test.ts` falla si alguien:
+
+- envía el evento antiguo `miweb:toast` a mano (el Layout lo conserva solo por compatibilidad), o
+- usa `window.confirm` / `alert` del navegador.
+
+`frontend/src/utils/notify.test.ts` cubre la cola, los temporizadores, la pausa, los reemplazos y las confirmaciones.
+Las alertas se verificaron visualmente en navegador (éxito, error, advertencia, confirmación, cola y teclado).
+
+## 7. Pendientes conocidos
+
+- Diseñar el tratamiento de las consultas largas a SUNAT (sección 2).
+- Quedan ~10 avisos con íconos o botones dentro sin migrar a `Alert` y algunos textos antiguos en «tú» sin revisar.
+- Los errores de carga de datos siguen en línea; si en el futuro se quiere una forma única de «no se pudo cargar» con
+  reintento, es un componente aparte (no una alerta).

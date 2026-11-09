@@ -62,3 +62,13 @@ Este proyecto tiene DOS formas de desplegar, con mecanismos distintos. No mezcla
 - Este deploy es completamente independiente del de producción: no toca git, no
   hace push, no afecta el VPS de producción. Sirve para validar cambios antes de
   decidir si se autoriza el push a `main`.
+
+
+## Frontend: avisos tras una acción
+
+Toda acción (guardar, eliminar, aprobar, subir, exportar…) avisa con una alerta centrada vía `notify.*`
+(`frontend/src/utils/notify.ts`): `notify.success('Usuario guardado')`, `notify.error(...)`, `notify.warning('Revise los
+datos', ...)`, `await notify.confirm({ ..., danger: true })`. No usar `window.confirm`/`alert`, ni el evento antiguo
+`miweb:toast`, ni banners propios para el resultado de una acción (una prueba guardiana lo verifica). Los estados de la
+pantalla y los errores de carga van en línea con `<Alert>`. Importes y fechas con `utils/format.ts`. Reglas de redacción
+y catálogo de títulos: `docs/guia-alertas-y-mensajes-2026-11-09.md`.
