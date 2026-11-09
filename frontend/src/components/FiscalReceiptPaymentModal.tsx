@@ -10,6 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import Button from './ui/Button';
 import { formatAmount } from '../utils/format';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 type Props = {
   receipt: TukifacFiscalReceipt | null;
@@ -202,9 +203,7 @@ const FiscalReceiptPaymentModal = ({ receipt, onClose, onSuccess }: Props) => {
     try {
       setFiscalPaySaving(true);
       await fiscalReceiptsService.createPayment(receipt.id, body);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Pago registrado y comprobante vinculado.' } }),
-      );
+      notify.success('Pago registrado y comprobante vinculado');
       onSuccess();
       onClose();
     } catch (e: unknown) {

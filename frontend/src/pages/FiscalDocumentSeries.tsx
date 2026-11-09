@@ -8,6 +8,7 @@ import { auth } from '../services/auth';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
 import Button from '../components/ui/Button';
+import { notify } from '../utils/notify';
 
 const SUNAT_LABELS: Record<string, string> = {
   '00': 'Nota de venta (no SUNAT)',
@@ -113,9 +114,7 @@ const FiscalDocumentSeries = () => {
       }
       setModalOpen(false);
       await load();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Serie guardada.' } }),
-      );
+      notify.success('Serie guardada');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       const msg =

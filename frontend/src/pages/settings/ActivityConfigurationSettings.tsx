@@ -17,6 +17,7 @@ import {
 import { formatDateTime } from '../../utils/format';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const COMPARE_MODES: { value: ActivityRuleCompareMode; label: string }[] = [
   { value: 'date', label: 'Fecha (mismo día = a tiempo)' },
@@ -125,9 +126,7 @@ const ActivityConfigurationSettings = () => {
       }
       setModalOpen(false);
       await loadRules();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Regla guardada.' } }),
-      );
+      notify.success('Regla guardada');
     } catch (err) {
       console.error(err);
       setError('No se pudo guardar la regla. Revise los datos.');
@@ -179,9 +178,7 @@ const ActivityConfigurationSettings = () => {
       setError('');
       const updated = await activityConfigurationService.setTemplateRule(templateId, ruleId);
       setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, ...updated } : t)));
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Regla asignada a la actividad.' } }),
-      );
+      notify.success('Regla asignada a la actividad');
     } catch (err) {
       console.error(err);
       setError('No se pudo guardar la regla de la actividad.');

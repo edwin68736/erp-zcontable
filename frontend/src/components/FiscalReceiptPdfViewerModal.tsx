@@ -14,6 +14,7 @@ import {
 } from '../pdf/fiscalReceiptPdf';
 import type { FirmBranding } from '../pdf/fiscalReceiptPdf';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 type Props = {
   open: boolean;
@@ -210,11 +211,7 @@ const FiscalReceiptPdfViewerModal = ({ open, receiptId, initialFormat = 'a4', on
             disabled={busy || !previewBlob}
             onClick={() => {
               if (!previewBlob || !printFiscalReceiptPdfBlob(previewBlob)) {
-                window.dispatchEvent(
-                  new CustomEvent('miweb:toast', {
-                    detail: { type: 'error', message: 'No se pudo abrir la impresión' },
-                  }),
-                );
+                notify.error('No se pudo abrir la impresión');
               }
             }}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"

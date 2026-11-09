@@ -97,7 +97,7 @@ const Pdt621RecepcionarButton = ({ companyId, periodYm, businessName, entrega, c
     return () => window.removeEventListener('keydown', onKey);
   }, [open, saving]);
 
-  const confirm = async () => {
+  const confirmReception = async () => {
     try {
       setSaving(true);
       const detail = await pdt621Service.recepcionar(companyId, periodYm);
@@ -176,7 +176,7 @@ const Pdt621RecepcionarButton = ({ companyId, periodYm, businessName, entrega, c
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => void confirm()}
+                    onClick={() => void confirmReception()}
                     className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                   >
                     {saving ? 'Recepcionando…' : 'Confirmar recepción'}

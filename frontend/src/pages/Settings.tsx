@@ -14,6 +14,7 @@ import {
   type ClavesSolPaletteId,
 } from '../utils/clavesSolDigColors';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const Settings = () => {
   const canViewSettings = useMemo(() => auth.hasPermission(P.settingsFirmView), []);
@@ -96,15 +97,11 @@ const Settings = () => {
       setConfig(updated);
       setDigColorMap(parseDigColorMap(updated.claves_sol_dig_colors_json));
       setOperationsKeyDraft('');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Configuración guardada.' } }),
-      );
+      notify.success('Configuración guardada');
     } catch (e2) {
       console.error(e2);
       setError('Error al guardar configuración');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al guardar configuración' } }),
-      );
+      notify.error('No se pudo guardar configuración');
     } finally {
       setSaving(false);
     }
@@ -121,15 +118,11 @@ const Settings = () => {
       setError('');
       const res = await configService.uploadFirmLogo(file);
       setConfig(res.config);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Logo actualizado.' } }),
-      );
+      notify.success('Logo actualizado');
     } catch (e) {
       console.error(e);
       setError('Error al subir el logo');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el logo' } }),
-      );
+      notify.error('No se pudo subir el logo');
     } finally {
       setUploading(false);
     }
@@ -142,15 +135,11 @@ const Settings = () => {
       setError('');
       const res = await configService.uploadStatementBankLogo(file);
       setConfig(res.config);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Logo del banco actualizado.' } }),
-      );
+      notify.success('Logo del banco actualizado');
     } catch (e) {
       console.error(e);
       setError('Error al subir el logo del banco');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el logo del banco' } }),
-      );
+      notify.error('No se pudo subir el logo del banco');
     } finally {
       setUploadingStatement(null);
     }
@@ -163,15 +152,11 @@ const Settings = () => {
       setError('');
       const res = await configService.uploadStatementPaymentQr(file);
       setConfig(res.config);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'QR de pagos actualizado.' } }),
-      );
+      notify.success('QR de pagos actualizado');
     } catch (e) {
       console.error(e);
       setError('Error al subir el QR');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el QR' } }),
-      );
+      notify.error('No se pudo subir el QR');
     } finally {
       setUploadingStatement(null);
     }
@@ -184,15 +169,11 @@ const Settings = () => {
       setError('');
       const res = await configService.uploadStatementBankLogoFactura(file);
       setConfig(res.config);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Logo del banco (Factura) actualizado.' } }),
-      );
+      notify.success('Logo del banco (Factura) actualizado');
     } catch (e) {
       console.error(e);
       setError('Error al subir el logo del banco (Factura)');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el logo del banco (Factura)' } }),
-      );
+      notify.error('No se pudo subir el logo del banco (Factura)');
     } finally {
       setUploadingStatement(null);
     }
@@ -205,15 +186,11 @@ const Settings = () => {
       setError('');
       const res = await configService.uploadStatementPaymentQrFactura(file);
       setConfig(res.config);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'QR de pagos (Factura) actualizado.' } }),
-      );
+      notify.success('QR de pagos (Factura) actualizado');
     } catch (e) {
       console.error(e);
       setError('Error al subir el QR (Factura)');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al subir el QR (Factura)' } }),
-      );
+      notify.error('No se pudo subir el QR (Factura)');
     } finally {
       setUploadingStatement(null);
     }

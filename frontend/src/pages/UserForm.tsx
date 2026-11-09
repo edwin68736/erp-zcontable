@@ -8,6 +8,7 @@ import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el usuario';
@@ -175,18 +176,10 @@ const UserForm = () => {
       setError('');
       if (isEdit && userId) {
         await usersService.update(userId, payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Usuario actualizado correctamente.' },
-          }),
-        );
+        notify.success('Usuario actualizado');
       } else {
         await usersService.create(payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Usuario creado correctamente.' },
-          }),
-        );
+        notify.success('Usuario creado');
       }
       navigate('/users', { replace: true });
     } catch (e2) {

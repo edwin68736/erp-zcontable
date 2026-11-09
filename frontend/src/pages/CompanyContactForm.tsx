@@ -6,6 +6,7 @@ import type { Company } from '../types/dashboard';
 import SearchableSelect from '../components/SearchableSelect';
 import PageHeading from '../components/ui/PageHeading';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const CompanyContactForm = () => {
   const params = useParams();
@@ -76,11 +77,7 @@ const CompanyContactForm = () => {
         await contactsService.create(companyId, payload);
       }
 
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: isEdit ? 'Contacto actualizado correctamente.' : 'Contacto creado correctamente.' },
-        }),
-      );
+      notify.fromMessage('success', isEdit ? 'Contacto actualizado.' : 'Contacto creado.');
       navigate(`/companies/${companyId}/contacts`, { replace: true });
     } catch (e) {
       console.error(e);

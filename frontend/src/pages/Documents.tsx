@@ -47,6 +47,7 @@ import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 type DocumentWithPayments = Document & { payments?: Payment[] };
 
@@ -600,18 +601,12 @@ const Documents = () => {
     setDeleteLoading(true);
     try {
       await documentsService.delete(deleteTarget.id);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: 'Deuda eliminada correctamente.' },
-        }),
-      );
+      notify.success('Deuda eliminada');
       setDeleteTarget(null);
       fetchDocuments();
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al eliminar la deuda' } }),
-      );
+      notify.error('No se pudo eliminar la deuda');
     } finally {
       setDeleteLoading(false);
     }
@@ -626,14 +621,7 @@ const Documents = () => {
     if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
       if (!partialDateFilterWarned.current) {
         partialDateFilterWarned.current = true;
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: {
-              type: 'error',
-              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los registros.',
-            },
-          }),
-        );
+        notify.warning('Revise los datos', 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los registros.');
       }
       return;
     }
@@ -865,9 +853,7 @@ const Documents = () => {
         description: payDescription.trim() || undefined,
         notes: payNotes.trim() || undefined,
       });
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Pago registrado correctamente.' } }),
-      );
+      notify.success('Pago registrado');
       if (tryIssueAfterCreate) {
         try {
           const issueOut = await paymentsService.issueComprobanteFromPayment(created.id, {
@@ -877,11 +863,7 @@ const Documents = () => {
             payment_destination_id: 'cash',
             payment_reference: payMethod.trim() || payReference.trim() || 'Caja',
           });
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: { type: 'success', message: `Comprobante ${issueOut.receipt.number} emitido.` },
-            }),
-          );
+          notify.success(`Comprobante ${issueOut.receipt.number} emitido`);
           if (isLocalFiscalReceipt(issueOut.receipt.origin)) {
             const detail = await fiscalReceiptsService.getDetail(issueOut.receipt.id);
             closePayModal();
@@ -898,14 +880,7 @@ const Documents = () => {
           }
         } catch (te) {
           console.error(te);
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: {
-                type: 'error',
-                message: `Pago guardado. No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`,
-              },
-            }),
-          );
+          notify.warning('Pago guardado', `No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`);
         }
       }
       closePayModal();
@@ -915,7 +890,7 @@ const Documents = () => {
       const maybe = err as { response?: { data?: { error?: string } } };
       const msg = maybe?.response?.data?.error ? String(maybe.response.data.error) : 'Error al registrar el pago';
       setPayError(msg);
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }));
+      notify.fromMessage('error', msg);
     } finally {
       setPaySaving(false);
     }

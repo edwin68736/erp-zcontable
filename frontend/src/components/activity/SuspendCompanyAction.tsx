@@ -4,6 +4,7 @@ import { auth } from '../../services/auth';
 import { companySuspensionService } from '../../services/companySuspension';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { confirmDialog } from '../../utils/confirmDialog';
+import { notify } from '../../utils/notify';
 
 type Props = {
   companyId: number;
@@ -15,7 +16,7 @@ type Props = {
 };
 
 const toast = (type: 'success' | 'error', message: string) =>
-  window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type, message } }));
+  notify.fromMessage(type, message);
 
 /**
  * Botón de fila para marcar o quitar la SUSPENSIÓN de una empresa en el periodo, disponible en todos los

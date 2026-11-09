@@ -3,6 +3,7 @@ import { configService } from '../services/config';
 import { fiscalReceiptsService } from '../services/fiscalReceipts';
 import { downloadFiscalReceiptPdf, type ReceiptPdfFormat } from '../pdf/fiscalReceiptPdf';
 import FiscalReceiptPdfViewerModal from './FiscalReceiptPdfViewerModal';
+import { notify } from '../utils/notify';
 
 type Props = {
   receiptId: number;
@@ -26,11 +27,7 @@ const FiscalReceiptPdfActions = ({ receiptId, compact }: Props) => {
       await downloadFiscalReceiptPdf(receipt, firm, undefined, format);
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'error', message: 'No se pudo descargar el PDF' },
-        }),
-      );
+      notify.error('No se pudo descargar el PDF');
     } finally {
       setBusy(null);
     }

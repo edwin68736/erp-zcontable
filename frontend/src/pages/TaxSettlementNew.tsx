@@ -14,6 +14,7 @@ import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFi
 import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 import PageHeading from '../components/ui/PageHeading';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -469,14 +470,10 @@ const TaxSettlementNew = () => {
         });
         if (paymentDocumentType !== initialPaymentDocTypeRef.current) {
           await taxSettlementsService.updatePaymentDocumentType(editId, paymentDocumentType).catch(() => {
-            window.dispatchEvent(
-              new CustomEvent('miweb:toast', {
-                detail: { type: 'error', message: 'No se pudo actualizar el tipo de documento de cobro.' },
-              }),
-            );
+            notify.error('No se pudo actualizar el tipo de documento de cobro');
           });
         }
-        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación actualizada.' } }));
+        notify.success('Liquidación actualizada');
         navigate(`/tax-settlements/${updated.id}`);
         return;
       }
@@ -489,7 +486,7 @@ const TaxSettlementNew = () => {
         payment_document_type: paymentDocumentType,
         lines: payloadLines,
       });
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación en borrador creada.' } }));
+      notify.success('Liquidación en borrador creada');
       navigate(`/tax-settlements/${created.id}`);
     } catch (e: unknown) {
       const msg =

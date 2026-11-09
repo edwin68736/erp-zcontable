@@ -11,6 +11,7 @@ import { extractApiErrorMessage } from '../../utils/apiError';
 import Button from '../../components/ui/Button';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -92,14 +93,10 @@ const SunatDueDatesCalendar = () => {
       const updated = await sunatDueDatesService.update(payload);
       setRows(updated);
       setEditing(null);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Cronograma actualizado.' } }),
-      );
+      notify.success('Cronograma actualizado');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'No se pudo guardar el cronograma.'));
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo guardar el cronograma.' } }),
-      );
+      notify.error('No se pudo guardar el cronograma');
     } finally {
       setSaving(false);
     }

@@ -32,6 +32,7 @@ import {
 } from '../utils/documentDebtUi';
 import { formatAmount } from '../utils/format';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function getErrorMessage(e: unknown): string {
   if (!e || typeof e !== 'object') return 'Error al guardar el pago';
@@ -475,15 +476,7 @@ const PaymentForm = () => {
         if (cancelled) return;
         if (st.status !== 'emitida') {
           settlementLoadedRef.current = true;
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: {
-                type: 'warning',
-                message:
-                  'No se pueden registrar pagos vinculados a una liquidación en borrador. Emítala primero; puede registrar un pago para la empresa sin ese vínculo.',
-              },
-            }),
-          );
+          notify.warning('Revise los datos', 'No se pueden registrar pagos vinculados a una liquidación en borrador. Emítala primero; puede registrar un pago para la empresa sin ese vínculo.');
           navigate(`/payments/new?company_id=${st.company_id}`, { replace: true });
           return;
         }
@@ -702,18 +695,10 @@ const PaymentForm = () => {
       setError('');
       if (isEdit && paymentId) {
         await paymentsService.update(paymentId, payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Pago actualizado correctamente.' },
-          }),
-        );
+        notify.success('Pago actualizado');
       } else {
         const created = await paymentsService.create(payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Pago registrado correctamente.' },
-          }),
-        );
+        notify.success('Pago registrado');
         if (tryIssueAfterCreate) {
           try {
             const issueOut = await paymentsService.issueComprobanteFromPayment(created.id, {
@@ -723,11 +708,7 @@ const PaymentForm = () => {
               payment_destination_id: 'cash',
               payment_reference: method.trim() || reference.trim() || 'Caja',
             });
-            window.dispatchEvent(
-              new CustomEvent('miweb:toast', {
-                detail: { type: 'success', message: `Comprobante ${issueOut.receipt.number} emitido correctamente.` },
-              }),
-            );
+            notify.success(`Comprobante ${issueOut.receipt.number} emitido`);
             if (isLocalFiscalReceipt(issueOut.receipt.origin)) {
               const detail = await fiscalReceiptsService.getDetail(issueOut.receipt.id);
               setIssuedReceipt(detail);
@@ -740,14 +721,7 @@ const PaymentForm = () => {
             }
           } catch (te) {
             console.error(te);
-            window.dispatchEvent(
-              new CustomEvent('miweb:toast', {
-                detail: {
-                  type: 'error',
-                  message: `Pago guardado. No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`,
-                },
-              }),
-            );
+            notify.warning('Pago guardado', `No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`);
           }
         }
       }

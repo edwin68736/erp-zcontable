@@ -23,6 +23,7 @@ import {
 } from '../../utils/clavesSolDigColors';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 /** Mostrar las columnas Usuario SOL y Clave SOL en la lista (ocultas a propósito; ver showSolColumns). */
 const SHOW_SOL_COLUMNS = false;
@@ -96,13 +97,9 @@ function CopyableCredentialCell({
       await navigator.clipboard.writeText(raw);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Copiado al portapapeles.' } }),
-      );
+      notify.success('Copiado al portapapeles');
     } catch {
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo copiar.' } }),
-      );
+      notify.error('No se pudo copiar');
     }
   };
 
@@ -491,9 +488,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
       void load();
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo guardar.' } }),
-      );
+      notify.error('No se pudo guardar');
     } finally {
       setSaving(false);
     }
@@ -512,7 +507,7 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
 
   const showToast = (type: 'success' | 'error', message: string) => {
     window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type, message } }));
+      notify.fromMessage(type, message);
     }, 150);
   };
 
@@ -530,14 +525,10 @@ const CompanyAccessCredentials = ({ variant = 'finance' }: CompanyAccessCredenti
   const handleDownloadTemplate = async () => {
     try {
       await companyAccessCredentialsService.downloadImportTemplate();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Plantilla descargada.' } }),
-      );
+      notify.success('Plantilla descargada');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo descargar la plantilla.' } }),
-      );
+      notify.error('No se pudo descargar la plantilla');
     }
   };
 

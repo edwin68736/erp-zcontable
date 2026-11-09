@@ -16,6 +16,7 @@ import { priorityBadgeClass } from './activityTemplates/priorityBadge';
 import ActivityTemplatesBreadcrumb from './activityTemplates/ActivityTemplatesBreadcrumb';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import PageHeading from '../../components/ui/PageHeading';
+import { notify } from '../../utils/notify';
 
 function parseActiveFilter(value: string | null): ActivityTemplateActiveFilter {
   if (value === 'active' || value === 'inactive') return value;
@@ -58,11 +59,7 @@ const ActivityTemplates = () => {
       setList(rows);
     } catch {
       setList([]);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'error', message: 'No se pudo cargar el catálogo de actividades.' },
-        }),
-      );
+      notify.error('No se pudo cargar el catálogo de actividades');
     } finally {
       setLoading(false);
     }
@@ -96,7 +93,7 @@ const ActivityTemplates = () => {
   };
 
   const toast = (type: 'success' | 'error', message: string) => {
-    window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type, message } }));
+    notify.fromMessage(type, message);
   };
 
   const handleToggleActive = async (row: ActivityTemplate) => {

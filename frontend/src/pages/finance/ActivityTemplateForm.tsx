@@ -17,6 +17,7 @@ import ActivityTemplatePreview from './activityTemplates/ActivityTemplatePreview
 import ActivityTemplatesBreadcrumb from './activityTemplates/ActivityTemplatesBreadcrumb';
 import PageHeading from '../../components/ui/PageHeading';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const ActivityTemplateForm = () => {
   const navigate = useNavigate();
@@ -132,11 +133,7 @@ const ActivityTemplateForm = () => {
       } else {
         await activityTemplatesService.create(payload);
       }
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: isEdit ? 'Plantilla actualizada.' : 'Plantilla creada.' },
-        }),
-      );
+      notify.fromMessage('success', isEdit ? 'Plantilla actualizada.' : 'Plantilla creada.');
       navigate('/finance/activity-templates', { replace: true });
     } catch (err) {
       setError(activityTemplateApiError(err, 'Error al guardar la plantilla.'));

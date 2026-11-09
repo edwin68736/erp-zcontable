@@ -16,6 +16,7 @@ import Button from '../components/ui/Button';
 import { formatAmount } from '../utils/format';
 import { confirmDialog } from '../utils/confirmDialog';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -245,14 +246,10 @@ const Comprobantes = () => {
     if (!(await confirmDialog({ message: '¿Descartar este comprobante? No se registrará pago.', confirmLabel: 'Descartar', danger: true }))) return;
     try {
       await fiscalReceiptsService.discard(id);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Comprobante descartado.' } }),
-      );
+      notify.success('Comprobante descartado');
       void fetchList();
     } catch {
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo descartar el comprobante.' } }),
-      );
+      notify.error('No se pudo descartar el comprobante');
     }
   };
 
@@ -298,9 +295,7 @@ const Comprobantes = () => {
     try {
       if (!linkSelect) {
         await fiscalReceiptsService.patchTaxSettlement(linkModal.id, { unlink: true });
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Vínculo con liquidación quitado.' } }),
-        );
+        notify.success('Vínculo con liquidación quitado');
       } else {
         const sid = Number(linkSelect);
         if (!Number.isFinite(sid) || sid <= 0) {
@@ -308,9 +303,7 @@ const Comprobantes = () => {
           return;
         }
         await fiscalReceiptsService.patchTaxSettlement(linkModal.id, { tax_settlement_id: sid });
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Comprobante vinculado a la liquidación.' } }),
-        );
+        notify.success('Comprobante vinculado a la liquidación');
       }
       setLinkModal(null);
       void fetchList();

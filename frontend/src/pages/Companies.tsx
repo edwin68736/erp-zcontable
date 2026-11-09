@@ -20,6 +20,7 @@ import PageHeading from '../components/ui/PageHeading';
 import { formatAmount } from '../utils/format';
 import { confirmDialog } from '../utils/confirmDialog';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -126,7 +127,7 @@ const Companies = () => {
             ? 'Empresa eliminada correctamente.'
             : '';
     if (message) {
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message } }));
+      notify.fromMessage('success', message);
     }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -142,9 +143,7 @@ const Companies = () => {
       await companiesService.patchStatus(company.id, next, newCode);
       // La empresa cambia de vista (activas ↔ inactivas): se recarga el listado en vez de mantenerla en la fila.
       void reloadCompanies();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Estado de la empresa actualizado.' } }),
-      );
+      notify.success('Estado de la empresa actualizado');
     } catch (e) {
       console.error(e);
       const ax = e as { response?: { data?: { error?: string; code_conflict?: boolean } } };
@@ -163,7 +162,7 @@ const Companies = () => {
         }
       } else {
         const msg = ax.response?.data?.error ?? 'No se pudo actualizar el estado';
-        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }));
+        notify.fromMessage('error', msg);
       }
       void reloadCompanies();
     } finally {
@@ -272,17 +271,13 @@ const Companies = () => {
             : c,
         ),
       );
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Equipo contable actualizado.' } }),
-      );
+      notify.success('Equipo contable actualizado');
       closeTeamModal();
     } catch (e) {
       console.error(e);
       const msg = extractApiErrorMessage(e, 'Error al guardar el equipo contable');
       setTeamError(msg);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }),
-      );
+      notify.fromMessage('error', msg);
     } finally {
       setTeamSaving(false);
     }
@@ -292,15 +287,11 @@ const Companies = () => {
     if ((await confirmDialog({ message: '¿Eliminar esta empresa?', confirmLabel: 'Eliminar', danger: true }))) {
       try {
         await companiesService.delete(id);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa eliminada correctamente.' } }),
-        );
+        notify.success('Empresa eliminada');
         void reloadCompanies();
       } catch (error) {
         console.error('Error deleting company:', error);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al eliminar la empresa' } }),
-        );
+        notify.error('No se pudo eliminar la empresa');
       }
     }
   };
@@ -373,14 +364,10 @@ const Companies = () => {
     try {
       setImportBanner('');
       await companiesService.downloadImportTemplate();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Plantilla descargada.' } }),
-      );
+      notify.success('Plantilla descargada');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo descargar la plantilla.' } }),
-      );
+      notify.error('No se pudo descargar la plantilla');
     }
   };
 
@@ -403,18 +390,10 @@ const Companies = () => {
       setImportErrors(res.errors ?? []);
       if (res.ok) {
         setImportValidatedOk(true);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: `Validación correcta: ${res.row_count} fila(s) lista(s) para importar.` },
-          }),
-        );
+        notify.success(`Validación correcta: ${res.row_count} fila(s) lista(s) para importar`);
       } else {
         setImportValidatedOk(false);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'error', message: 'Hay errores en el archivo. Corrígelos y vuelve a validar.' },
-          }),
-        );
+        notify.warning('Revise los datos', 'Hay errores en el archivo. Corrígelos y vuelve a validar.');
       }
     } catch (e: unknown) {
       console.error(e);
@@ -426,9 +405,7 @@ const Companies = () => {
         setImportRowCount(0);
       }
       setImportBanner(data?.error ?? 'No se pudo validar el archivo.');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: data?.error ?? 'Error al validar' } }),
-      );
+      notify.fromMessage('error', data?.error ?? 'No se pudo validar');
     } finally {
       setImportValidateLoading(false);
     }
@@ -440,11 +417,7 @@ const Companies = () => {
       setImportCommitLoading(true);
       setImportBanner('');
       const res = await companiesService.importCompaniesCommit(importFile);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: `Se importaron ${res.created} empresa(s).` },
-        }),
-      );
+      notify.success(`Se importaron ${res.created} empresa(s)`);
       closeImportModal();
       void reloadCompanies();
     } catch (e: unknown) {
@@ -456,9 +429,7 @@ const Companies = () => {
         setImportValidatedOk(false);
       }
       setImportBanner(data?.error ?? 'No se pudo completar la importación.');
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: data?.error ?? 'Error al importar' } }),
-      );
+      notify.fromMessage('error', data?.error ?? 'No se pudo importar');
     } finally {
       setImportCommitLoading(false);
     }

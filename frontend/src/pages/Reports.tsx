@@ -21,6 +21,7 @@ import {
   periodScoreSolidColor,
 } from '../utils/periodDebtScore';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const Reports = () => {
   const isAdmin = useMemo(() => auth.hasPermission(P.accessStudio), []);
@@ -133,11 +134,7 @@ const Reports = () => {
     if (filterDateFrom && filterDateTo && filterDateFrom > filterDateTo) {
       if (!financialInvalidDateRangeWarned.current) {
         financialInvalidDateRangeWarned.current = true;
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'error', message: 'La fecha desde no puede ser mayor que la fecha hasta.' },
-          }),
-        );
+        notify.warning('Revise los datos', 'La fecha desde no puede ser mayor que la fecha hasta.');
       }
       return;
     }
@@ -278,12 +275,10 @@ const Reports = () => {
         new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
         `reporte-financiero-${reportDateStr}.xlsx`,
       );
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Excel generado correctamente.' } }),
-      );
+      notify.success('Excel generado');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al generar Excel.' } }));
+      notify.error('No se pudo generar Excel');
     } finally {
       setExportingExcel(false);
     }
@@ -451,12 +446,10 @@ const Reports = () => {
 
       const blob = await pdf(PdfDoc).toBlob();
       saveAs(blob, `reporte-financiero-${reportDateStr}.pdf`);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'PDF generado correctamente.' } }),
-      );
+      notify.success('PDF generado');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al generar PDF.' } }));
+      notify.error('No se pudo generar PDF');
     } finally {
       setExportingPdf(false);
     }

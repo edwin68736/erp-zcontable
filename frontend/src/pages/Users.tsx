@@ -8,6 +8,7 @@ import { formatUserRolesDisplay } from '../rbac/userRoles';
 import PageHeading from '../components/ui/PageHeading';
 import { confirmDialog } from '../utils/confirmDialog';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const Users = () => {
   const canView = useMemo(() => auth.hasPermission(P.usersView), []);
@@ -48,9 +49,7 @@ const Users = () => {
       setError('');
       await usersService.delete(id);
       await fetchUsers();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Usuario eliminado correctamente.' } }),
-      );
+      notify.success('Usuario eliminado');
     } catch (e) {
       console.error(e);
       const msg =

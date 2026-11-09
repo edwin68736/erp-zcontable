@@ -27,6 +27,7 @@ import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
 import { confirmDialog } from '../utils/confirmDialog';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function toDateInput(value?: string): string {
   if (!value) return '';
@@ -204,9 +205,7 @@ const CompanyForm = () => {
       if (digits.length !== 11) {
         if (mode === 'manual') {
           setError('El RUC debe tener 11 dígitos');
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'El RUC debe tener 11 dígitos' } }),
-          );
+          notify.warning('Revise los datos', 'El RUC debe tener 11 dígitos');
         }
         return;
       }
@@ -230,27 +229,16 @@ const CompanyForm = () => {
           estado && estado !== 'ACTIVO'
             ? ` Estado SUNAT: ${data.estado}${data.condicion ? ` · ${data.condicion}` : ''}.`
             : '';
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: `Datos obtenidos desde SUNAT (ApiPeru.dev).${extra}` },
-          }),
-        );
+        notify.fromMessage('success', `Datos obtenidos desde SUNAT (ApiPeru.dev).${extra}`);
         if (estado && estado !== 'ACTIVO') {
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: {
-                type: 'info',
-                message: 'Revisa la razón social y el estado del contribuyente antes de guardar.',
-              },
-            }),
-          );
+          notify.info('Aviso', 'Revisa la razón social y el estado del contribuyente antes de guardar.');
         }
       } catch (e: unknown) {
         console.error(e);
         const ax = e as { response?: { data?: { error?: string } } };
         const msg = ax.response?.data?.error ?? 'No se pudo validar el RUC';
         setError(msg);
-        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: msg } }));
+        notify.fromMessage('error', msg);
       } finally {
         rucLookupInFlight.current = false;
         setValidatingRuc(false);
@@ -340,14 +328,10 @@ const CompanyForm = () => {
       setContactsLoading(true);
       await contactsService.delete(companyId, id);
       setContacts((prev) => prev.filter((c) => c.id !== id));
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Contacto eliminado correctamente.' } }),
-      );
+      notify.success('Contacto eliminado');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al eliminar contacto' } }),
-      );
+      notify.error('No se pudo eliminar contacto');
     } finally {
       setContactsLoading(false);
     }
@@ -423,41 +407,26 @@ const CompanyForm = () => {
       if (isEdit && companyId) {
         if (convertMode && clientType === 'externo') {
           await companiesService.convertToStudio(companyId, payload);
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: { type: 'success', message: 'Cliente convertido a cliente del estudio.' },
-            }),
-          );
+          notify.success('Cliente convertido a cliente del estudio');
           navigate('/companies', { replace: true });
           return;
         }
         await companiesService.update(companyId, payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa actualizada correctamente.' } }),
-        );
+        notify.success('Empresa actualizada');
         navigate('/companies', { replace: true });
         return;
       }
 
       setPendingPayload(payload);
       const created = await companiesService.create(payload);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa creada correctamente.' } }),
-      );
+      notify.success('Empresa creada');
 
       if (draftContacts.length > 0) {
         try {
           await Promise.all(draftContacts.map((c) => contactsService.create(created.id, c.payload)));
         } catch (e) {
           console.error(e);
-          window.dispatchEvent(
-            new CustomEvent('miweb:toast', {
-              detail: {
-                type: 'info',
-                message: 'Empresa creada, pero ocurrió un error al registrar algunos contactos. Revisa "Contactos".',
-              },
-            }),
-          );
+          notify.warning('Empresa creada', 'Pero ocurrió un error al registrar algunos contactos. Revise "Contactos".');
         }
       }
 
@@ -473,9 +442,7 @@ const CompanyForm = () => {
       }
       const message = extractApiErrorMessage(err, 'Error al guardar la empresa');
       setError(message);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message } }),
-      );
+      notify.fromMessage('error', message);
     }
   };
 
@@ -485,9 +452,7 @@ const CompanyForm = () => {
       setReactivating(true);
       setReactivateError('');
       const reactivated = await companiesService.reactivate(rucConflict.company_id, { ...pendingPayload, code: newCode });
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Empresa reactivada con los datos del formulario.' } }),
-      );
+      notify.success('Empresa reactivada con los datos del formulario');
       if (draftContacts.length > 0) {
         try {
           await Promise.all(draftContacts.map((c) => contactsService.create(reactivated.id, c.payload)));

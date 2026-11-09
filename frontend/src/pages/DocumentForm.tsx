@@ -15,6 +15,7 @@ import type { Product } from '../services/products';
 import PageHeading from '../components/ui/PageHeading';
 import Input from '../components/ui/Input';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const DEBT_TYPE_OPTIONS = [
   { value: 'nota_venta', label: 'Nota de venta' },
@@ -299,11 +300,7 @@ const DocumentForm = () => {
       } else {
         await documentsService.create(payload);
       }
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: isEdit ? 'Deuda actualizada correctamente.' : 'Deuda registrada correctamente.' },
-        }),
-      );
+      notify.fromMessage('success', isEdit ? 'Deuda actualizada.' : 'Deuda registrada.');
       navigate('/documents', { replace: true });
     } catch (e2) {
       console.error(e2);

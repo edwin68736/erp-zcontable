@@ -9,6 +9,7 @@ import RoleCrudModal from './RoleCrudModal';
 import PageHeading from '../../components/ui/PageHeading';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -199,9 +200,7 @@ const RolesAndPermissionsView = () => {
       setBaseline(new Set(next));
       const list = await rolesService.list();
       setRoles(list);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Permisos guardados correctamente.' } }),
-      );
+      notify.success('Permisos guardados');
     } catch (e) {
       console.error(e);
       setListError(getApiMessage(e));
@@ -235,9 +234,7 @@ const RolesAndPermissionsView = () => {
       setRoles(list);
       setRoleId(created.id);
       setModalMode(null);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Rol creado correctamente.' } }),
-      );
+      notify.success('Rol creado');
     } catch (e) {
       setModalError(getApiMessage(e));
     } finally {
@@ -253,9 +250,7 @@ const RolesAndPermissionsView = () => {
       const list = await rolesService.list();
       setRoles(list);
       setModalMode(null);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Rol actualizado correctamente.' } }),
-      );
+      notify.success('Rol actualizado');
     } catch (e) {
       setModalError(getApiMessage(e));
     } finally {
@@ -270,13 +265,9 @@ const RolesAndPermissionsView = () => {
       await rolesService.setDefault(r.id);
       const list = await rolesService.list();
       setRoles(list);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: `«${r.name}» es ahora el rol predeterminado.` } }),
-      );
+      notify.success(`«${r.name}» es ahora el rol predeterminado`);
     } catch (e) {
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: getApiMessage(e) } }),
-      );
+      notify.fromMessage('error', getApiMessage(e));
     } finally {
       setDefaultSavingId(null);
     }
@@ -302,9 +293,7 @@ const RolesAndPermissionsView = () => {
       setRoles(list);
       setRoleId(created.id);
       setCloneSource(null);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Rol clonado correctamente.' } }),
-      );
+      notify.success('Rol clonado');
     } catch (e) {
       setCloneError(getApiMessage(e));
     } finally {
@@ -324,13 +313,9 @@ const RolesAndPermissionsView = () => {
         if (prev !== deleteTarget.id) return prev;
         return list[0]?.id ?? null;
       });
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Rol eliminado correctamente.' } }),
-      );
+      notify.success('Rol eliminado');
     } catch (e) {
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: getApiMessage(e) } }),
-      );
+      notify.fromMessage('error', getApiMessage(e));
     } finally {
       setDeleteLoading(false);
     }

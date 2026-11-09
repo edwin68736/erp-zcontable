@@ -18,6 +18,7 @@ import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import { usePdfObjectUrl } from '../hooks/usePdfObjectUrl';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function formatPaymentDate(iso?: string): string {
   const d = peruDateInputFromApiDate(iso);
@@ -167,9 +168,7 @@ const Payments = () => {
     setDeleteLoading(true);
     try {
       await paymentsService.delete(deleteTarget.id, reason);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Pago eliminado correctamente.' } }),
-      );
+      notify.success('Pago eliminado');
       setDeleteTarget(null);
       setDeleteReason('');
       fetchPayments();
@@ -179,14 +178,7 @@ const Payments = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'Error al eliminar el pago',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar el pago');
     } finally {
       setDeleteLoading(false);
     }
@@ -201,14 +193,7 @@ const Payments = () => {
     if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
       if (!partialDateFilterWarned.current) {
         partialDateFilterWarned.current = true;
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: {
-              type: 'error',
-              message: 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los pagos.',
-            },
-          }),
-        );
+        notify.warning('Revise los datos', 'Indique ambas fechas (desde y hasta) o déjelas vacías para ver todos los pagos.');
       }
       return;
     }

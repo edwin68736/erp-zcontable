@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { posSalesService } from '../../services/posSales';
 import type { Company } from '../../types/dashboard';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 function docDigits(raw: string): string {
   return raw.replace(/\D/g, '');
@@ -59,21 +60,13 @@ const PosQuickClientModal = ({ open, initialSearch = '', onClose, onCreated }: P
         if (data.business_name) setBusinessName(data.business_name);
         if (data.address) setAddress(data.address);
         lastLookup.current = docDigits(data.ruc ?? digits);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Datos obtenidos desde SUNAT (ApiPeru.dev).' },
-          }),
-        );
+        notify.success('Datos obtenidos desde SUNAT (ApiPeru.dev)');
       } else {
         const data = await posSalesService.validateDni(digits);
         setDoc(data.dni ?? digits);
         if (data.full_name) setBusinessName(data.full_name);
         lastLookup.current = docDigits(data.dni ?? digits);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: { type: 'success', message: 'Datos obtenidos desde RENIEC (ApiPeru.dev).' },
-          }),
-        );
+        notify.success('Datos obtenidos desde RENIEC (ApiPeru.dev)');
       }
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { error?: string } } };
@@ -118,11 +111,7 @@ const PosQuickClientModal = ({ open, initialSearch = '', onClose, onCreated }: P
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
       });
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: 'Cliente registrado. Ya puede usarlo en la venta.' },
-        }),
-      );
+      notify.success('Cliente registrado', 'Ya puede usarlo en la venta');
       onCreated(created);
       onClose();
     } catch (err: unknown) {

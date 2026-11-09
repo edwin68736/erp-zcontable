@@ -12,6 +12,7 @@ import { usePermission } from '../rbac/hooks';
 import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -177,11 +178,7 @@ const TaxSettlements = () => {
     setDeleteLoading(true);
     try {
       const { voided_payments } = await taxSettlementsService.delete(deleteKeyTarget.id, operationKey);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}` },
-        }),
-      );
+      notify.fromMessage('success', `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}`);
       setDeleteKeyTarget(null);
       void fetchList();
     } catch (e: unknown) {
@@ -189,14 +186,7 @@ const TaxSettlements = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar la liquidación.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar la liquidación.');
     } finally {
       setDeleteLoading(false);
     }
@@ -220,14 +210,7 @@ const TaxSettlements = () => {
     setCloseLoading(true);
     try {
       await taxSettlementsService.close(closeTarget.id);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: 'Liquidación cerrada. Quedó como registro histórico; las deudas pendientes pueden incorporarse a una nueva liquidación.',
-          },
-        }),
-      );
+      notify.success('Liquidación cerrada', 'Quedó como registro histórico; las deudas pendientes pueden incorporarse a una nueva liquidación');
       setCloseTarget(null);
       void fetchList();
     } catch (e: unknown) {
@@ -235,14 +218,7 @@ const TaxSettlements = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo cerrar la liquidación.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo cerrar la liquidación.');
     } finally {
       setCloseLoading(false);
     }
@@ -253,14 +229,7 @@ const TaxSettlements = () => {
     setEditKeyLoading(true);
     try {
       const { voided_payments } = await taxSettlementsService.revertToDraft(editKeyTarget.id);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`,
-          },
-        }),
-      );
+      notify.fromMessage('success', `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`);
       const id = editKeyTarget.id;
       setEditKeyTarget(null);
       navigate(`/tax-settlements/${id}/edit`);
@@ -269,14 +238,7 @@ const TaxSettlements = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo preparar la edición.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo preparar la edición.');
     } finally {
       setEditKeyLoading(false);
     }

@@ -13,6 +13,7 @@ import {
   type ReceiptPdfFormat,
 } from '../../pdf/fiscalReceiptPdf';
 import { formatAmount } from '../../utils/format';
+import { notify } from '../../utils/notify';
 
 type PreviewTab = 'summary' | 'a4' | 'a5' | 'ticket';
 
@@ -380,17 +381,9 @@ const PosReceiptModal = ({ open, receipt, firm, onClose, variant = 'history' }: 
                 disabled={busy || !previewBlob || tab === 'summary'}
                 onClick={() => {
                   if (!previewBlob || !printFiscalReceiptPdfBlob(previewBlob)) {
-                    window.dispatchEvent(
-                      new CustomEvent('miweb:toast', {
-                        detail: {
-                          type: 'error',
-                          message:
-                            tab === 'summary'
+                    notify.fromMessage('error', tab === 'summary'
                               ? 'Abra la pestaña Vista A4, Vista A5 o Vista ticket para imprimir'
-                              : 'No se pudo abrir la impresión',
-                        },
-                      }),
-                    );
+                              : 'No se pudo abrir la impresión');
                   }
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"

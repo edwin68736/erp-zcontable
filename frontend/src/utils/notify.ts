@@ -204,6 +204,9 @@ export const notify = {
     });
   },
 
+  /** Mensaje de una sola frase con su tipo (para textos que llegan ya armados o del servidor). */
+  fromMessage: (type: 'success' | 'error' | 'info', message: string): void => showLegacyToast({ type, message }),
+
   /** Muestra «cargando» sin botones hasta que se llame a `close()` (úselo en un `finally`). */
   loading(title: string, text?: string): { close: () => void } {
     if (hosts === 0) return { close: () => undefined };

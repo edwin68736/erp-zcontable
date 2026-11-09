@@ -12,6 +12,7 @@ import {
 import DetraccionesStatusModal from './DetraccionesStatusModal';
 import type { DetraccionesListRow } from '../../services/detracciones';
 import type { ActivityWorkspace } from '../../navigation/activityRoutes';
+import { notify } from '../../utils/notify';
 
 type DetraccionesRowActionsProps = {
   row: DetraccionesListRow;
@@ -77,7 +78,7 @@ const DetraccionesRowActions = ({
     if (!file) return;
     const err = validatePdfClient(file);
     if (err) {
-      window.alert(err);
+      void notify.warning('Archivo no válido', err);
       return;
     }
     try {

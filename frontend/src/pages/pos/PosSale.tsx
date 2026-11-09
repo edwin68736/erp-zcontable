@@ -32,6 +32,7 @@ import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import PageHeading from '../../components/ui/PageHeading';
 import { formatAmount } from '../../utils/format';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 
 
@@ -533,11 +534,7 @@ const PosSale = () => {
 
       resetSaleForm();
 
-      window.dispatchEvent(
-
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: `Emitido ${rec.number}` } }),
-
-      );
+      notify.success(`Emitido ${rec.number}`);
 
     } catch (e: unknown) {
 

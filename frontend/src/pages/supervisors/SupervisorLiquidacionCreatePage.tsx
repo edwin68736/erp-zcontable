@@ -50,6 +50,7 @@ import {
   type LiquidationRentaRegime,
 } from '../../utils/companyTaxRegime';
 import Alert from '../../components/ui/Alert';
+import { notify } from '../../utils/notify';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const formatDateInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -476,27 +477,13 @@ const SupervisorLiquidacionCreatePage = () => {
       };
       if (isEdit && settlementId) {
         const updated = await supervisorTaxSettlementsService.update(settlementId, payload);
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: {
-              type: 'success',
-              message: `Liquidación ${updated.number || `#${updated.id}`} actualizada.`,
-            },
-          }),
-        );
+        notify.success(`Liquidación ${updated.number || `#${updated.id}`} actualizada`);
       } else {
         const created = await supervisorTaxSettlementsService.create({
           company_id: companyId,
           ...payload,
         });
-        window.dispatchEvent(
-          new CustomEvent('miweb:toast', {
-            detail: {
-              type: 'success',
-              message: `Liquidación ${created.number || `#${created.id}`} creada en borrador. Finanzas puede continuar el proceso.`,
-            },
-          }),
-        );
+        notify.fromMessage('success', `Liquidación ${created.number || `#${created.id}`} creada en borrador. Finanzas puede continuar el proceso.`);
       }
       // Independientes entre sí (tocan registros distintos, cada una traga sus propios errores):
       // en paralelo en vez de secuencial para no duplicar la latencia de guardado.
@@ -532,14 +519,7 @@ const SupervisorLiquidacionCreatePage = () => {
     setResyncing(true);
     try {
       await Promise.all([syncPdt601Planilla(companyId, lp), syncPdt621Record(companyId, lp)]);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: 'Control PDT 601/621 resincronizado con los datos de esta liquidación.',
-          },
-        }),
-      );
+      notify.success('Listo', 'Control PDT 601/621 resincronizado con los datos de esta liquidación.');
     } finally {
       setResyncing(false);
     }

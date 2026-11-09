@@ -20,6 +20,7 @@ import {
 } from '../pdf/companyAccountStatementPdf';
 import PageHeading from '../components/ui/PageHeading';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const DEFAULT_STATEMENT_WHATSAPP =
   'Puedes solicitar tu estado de cuenta a través del grupo de WhatsApp de tu empresa o comunicándote a los números oficiales de ZContable.';
@@ -735,11 +736,7 @@ const CompanyStatement = () => {
   const handleDownloadPdf = async () => {
     if (!data?.ledger || !companyId) return;
     if (filterMode === 'range' && dateFrom && dateTo && dateFrom > dateTo) {
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'error', message: 'Corrija el rango de fechas antes de descargar el PDF.' },
-        }),
-      );
+      notify.warning('Revise los datos', 'Corrija el rango de fechas antes de descargar el PDF.');
       return;
     }
     try {
@@ -755,7 +752,7 @@ const CompanyStatement = () => {
         statementPromise,
       ]);
       if (!fresh.ledger) {
-        window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Sin datos de libro para PDF.' } }));
+        notify.warning('Revise los datos', 'Sin datos de libro para PDF.');
         return;
       }
       const firmForPdf: FirmConfig | null = firm
@@ -784,16 +781,10 @@ const CompanyStatement = () => {
         if (prev?.url) URL.revokeObjectURL(prev.url);
         return { url: URL.createObjectURL(blob), filename, blob };
       });
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: 'Vista previa del PDF. Revise el documento y descárguelo si está correcto.' },
-        }),
-      );
+      notify.success('Vista previa del PDF', 'Revise el documento y descárguelo si está correcto');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo generar el PDF.' } }),
-      );
+      notify.error('No se pudo generar el PDF');
     } finally {
       setPdfLoading(false);
     }
@@ -930,9 +921,7 @@ const CompanyStatement = () => {
                       type="button"
                       onClick={() => {
                         saveAs(pdfPreview.blob, pdfPreview.filename);
-                        window.dispatchEvent(
-                          new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Descarga iniciada.' } }),
-                        );
+                        notify.success('Descarga iniciada');
                       }}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-medium hover:bg-slate-900"
                     >

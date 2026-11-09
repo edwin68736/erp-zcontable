@@ -28,6 +28,7 @@ import SupervisorFiscalDataPanel from '../components/taxSettlements/SupervisorFi
 import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData';
 import { formatAmount } from '../utils/format';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -119,17 +120,13 @@ const TaxSettlementDetail = () => {
       const updated = await taxSettlementsService.linkDebt(settlementId, documentId);
       setRow(updated);
       await reloadDebtsContext();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Deuda agregada a la liquidación.' } }),
-      );
+      notify.success('Deuda agregada a la liquidación');
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'No se pudo vincular la deuda';
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error' } }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo completar la operación');
     } finally {
       setLinkingDebtId(null);
     }
@@ -141,14 +138,7 @@ const TaxSettlementDetail = () => {
     try {
       await taxSettlementsService.writeOffDebt(writeoffTarget.documentId, writeoffTarget.action, writeoffMotivo);
       await reloadDebtsContext();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: writeoffTarget.action === 'exonerar' ? 'Deuda exonerada.' : 'Deuda eliminada (anulada).',
-          },
-        }),
-      );
+      notify.fromMessage('success', writeoffTarget.action === 'exonerar' ? 'Deuda exonerada.' : 'Deuda eliminada (anulada).');
       setWriteoffTarget(null);
       setWriteoffMotivo('');
     } catch (e: unknown) {
@@ -156,9 +146,7 @@ const TaxSettlementDetail = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'No se pudo procesar la baja de la deuda';
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error' } }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo completar la operación');
     } finally {
       setWriteoffLoading(false);
     }
@@ -222,22 +210,13 @@ const TaxSettlementDetail = () => {
       setRow(updated);
       setCloseDialogOpen(false);
       await reloadDebtsContext();
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: 'Liquidación cerrada. Quedó como registro histórico; las deudas pendientes pueden incorporarse a una nueva liquidación.',
-          },
-        }),
-      );
+      notify.success('Liquidación cerrada', 'Quedó como registro histórico; las deudas pendientes pueden incorporarse a una nueva liquidación');
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'Error al cerrar';
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error al cerrar' } }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo cerrar');
     } finally {
       setClosing(false);
     }
@@ -250,22 +229,13 @@ const TaxSettlementDetail = () => {
     try {
       const updated = await taxSettlementsService.updatePaymentDocumentType(settlementId, docType);
       setRow(updated);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Tipo de documento actualizado.' } }),
-      );
+      notify.success('Tipo de documento actualizado');
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo actualizar el tipo de documento.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo actualizar el tipo de documento.');
     } finally {
       setSavingPaymentDocType(false);
     }
@@ -278,13 +248,13 @@ const TaxSettlementDetail = () => {
       const updated = await taxSettlementsService.emit(settlementId);
       setRow(updated);
       setEmitDialogOpen(false);
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Liquidación emitida.' } }));
+      notify.success('Liquidación emitida');
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : 'Error al emitir';
-      window.dispatchEvent(new CustomEvent('miweb:toast', { detail: { type: 'error', message: typeof msg === 'string' ? msg : 'Error al emitir' } }));
+      notify.fromMessage('error', typeof msg === 'string' ? msg : 'No se pudo emitir');
     } finally {
       setEmitting(false);
     }
@@ -323,14 +293,10 @@ const TaxSettlementDetail = () => {
           ? await generateTaxSettlementPdfV2Blob(fresh, firm, logoPng, assets)
           : await generateTaxSettlementPdfBlob(fresh, firm, logoPng, assets);
       saveAs(blob, variant === 'v2' ? taxSettlementPdfV2Filename(fresh) : taxSettlementPdfFilename(fresh));
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'PDF listo para entregar al cliente.' } }),
-      );
+      notify.success('PDF listo para entregar al cliente');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'No se pudo generar el PDF.' } }),
-      );
+      notify.error('No se pudo generar el PDF');
     } finally {
       setBusy(false);
     }
@@ -352,11 +318,7 @@ const TaxSettlementDetail = () => {
     setDeleteLoading(true);
     try {
       const { voided_payments } = await taxSettlementsService.delete(settlementId, operationKey);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: { type: 'success', message: `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}` },
-        }),
-      );
+      notify.fromMessage('success', `Liquidación eliminada.${summarizeVoidedPayments(voided_payments)}`);
       setDeleteKeyOpen(false);
       setDeleteDialogOpen(false);
       navigate('/tax-settlements');
@@ -365,14 +327,7 @@ const TaxSettlementDetail = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar la liquidación.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo eliminar la liquidación.');
     } finally {
       setDeleteLoading(false);
     }
@@ -387,14 +342,7 @@ const TaxSettlementDetail = () => {
     setEditKeyLoading(true);
     try {
       const { voided_payments } = await taxSettlementsService.revertToDraft(settlementId);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'success',
-            message: `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`,
-          },
-        }),
-      );
+      notify.fromMessage('success', `Liquidación revertida a borrador.${summarizeVoidedPayments(voided_payments)}`);
       setEditKeyOpen(false);
       navigate(`/tax-settlements/${settlementId}/edit`);
     } catch (e: unknown) {
@@ -402,14 +350,7 @@ const TaxSettlementDetail = () => {
         e && typeof e === 'object' && 'response' in e
           ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
           : null;
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', {
-          detail: {
-            type: 'error',
-            message: typeof msg === 'string' && msg.trim() ? msg : 'No se pudo preparar la edición.',
-          },
-        }),
-      );
+      notify.fromMessage('error', typeof msg === 'string' && msg.trim() ? msg : 'No se pudo preparar la edición.');
     } finally {
       setEditKeyLoading(false);
     }

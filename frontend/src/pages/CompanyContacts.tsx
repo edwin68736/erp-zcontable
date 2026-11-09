@@ -6,6 +6,7 @@ import type { Company, Contact } from '../types/dashboard';
 import PageHeading from '../components/ui/PageHeading';
 import { confirmDialog } from '../utils/confirmDialog';
 import Alert from '../components/ui/Alert';
+import { notify } from '../utils/notify';
 
 const CompanyContacts = () => {
   const params = useParams();
@@ -48,14 +49,10 @@ const CompanyContacts = () => {
     try {
       await contactsService.delete(companyId, id);
       setContacts((prev) => prev.filter((c) => c.id !== id));
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'success', message: 'Contacto eliminado correctamente.' } }),
-      );
+      notify.success('Contacto eliminado');
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(
-        new CustomEvent('miweb:toast', { detail: { type: 'error', message: 'Error al eliminar contacto' } }),
-      );
+      notify.error('No se pudo eliminar contacto');
     }
   };
 
