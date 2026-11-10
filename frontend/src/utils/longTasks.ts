@@ -87,12 +87,18 @@ export function registerNavigator(fn: ((to: string) => void) | null): void {
   goTo = fn;
 }
 
-/** ¿La persona está mirando la pantalla de esa consulta ahora mismo? */
+/**
+ * ¿La persona está mirando la pantalla de esa consulta ahora mismo? Compara la ruta y, si la pantalla tiene pestañas
+ * (`?tab=`), también la pestaña: dos consultas de la misma ruta pueden ser de pestañas distintas.
+ */
 export function isOnTaskPage(task: Pick<LongTask, 'href'>): boolean {
   if (typeof window === 'undefined') return false;
+  const [targetPath, targetQuery = ''] = task.href.split('#')[0].split('?');
   const here = window.location.pathname.replace(/\/+$/, '');
-  const target = task.href.replace(/\/+$/, '');
-  return here === target || here.startsWith(target + '/');
+  const target = targetPath.replace(/\/+$/, '');
+  if (!(here === target || here.startsWith(target + '/'))) return false;
+  const tabOf = (q: string) => new URLSearchParams(q).get('tab') ?? '';
+  return tabOf(window.location.search ?? '') === tabOf(targetQuery);
 }
 
 export function errorText(e: unknown): string {

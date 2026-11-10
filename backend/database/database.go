@@ -96,6 +96,7 @@ func AutoMigrate() error {
 		&models.SireDownload{},
 		&models.RheHistory{},
 		&models.ItfHistory{},
+		&models.RheSolHistory{},
 		&models.NpdHistory{},
 		&models.DamHistory{},
 		&models.ExchangeRate{},

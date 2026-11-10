@@ -116,6 +116,20 @@ describe('aviso al terminar', () => {
     expect(getState().current).toMatchObject({ kind: 'error', title: 'No se pudo completar la consulta', text: 'x' });
   });
 
+  it('en una pantalla con pestañas, solo cuenta la pestaña de la consulta', () => {
+    const sol = startTask(meta());
+    const conf = startTask(meta({ tool: 'rhc', toolLabel: 'RH (confirmación)', href: '/tools/rh/7?tab=confirmacion' }));
+    vi.stubGlobal('window', { location: { pathname: '/tools/rh/7', search: '' } });
+    finishTask(sol.id);
+    finishTask(conf.id);
+    expect(taskFor('rh:7')?.seen).toBe(true); // pestaña por defecto: la persona la está viendo
+    expect(taskFor('rhc:7')?.seen).toBe(false); // la otra pestaña no
+    vi.stubGlobal('window', { location: { pathname: '/tools/rh/7', search: '?tab=confirmacion' } });
+    const again = startTask(meta({ tool: 'rhc', toolLabel: 'RH (confirmación)', href: '/tools/rh/7?tab=confirmacion' }));
+    finishTask(again.id);
+    expect(taskFor('rhc:7')?.seen).toBe(true);
+  });
+
   it('en otra pantalla, un éxito corto solo cambia el indicador', () => {
     const t = startTask(meta());
     at('/dashboard');

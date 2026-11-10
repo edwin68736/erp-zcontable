@@ -35,7 +35,7 @@ export const TOOLS: ToolConfig[] = [
     slug: 'rh',
     label: 'RH',
     icon: 'fas fa-file-signature',
-    description: 'Recibos por honorarios en la plataforma de confirmación de SUNAT.',
+    description: 'Recibos por honorarios recibidos (SUNAT Operaciones en Línea) y pendientes de confirmación.',
     permission: P.companyCredentialsView,
     ready: true,
   },

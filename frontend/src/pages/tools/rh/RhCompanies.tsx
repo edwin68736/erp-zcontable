@@ -4,7 +4,7 @@ import SireCompanies from '../sire/SireCompanies';
 const RhCompanies = () => (
   <SireCompanies
     title="RH"
-    subtitle="Recibos por honorarios en la plataforma de confirmación de SUNAT: elija una empresa para ver sus comprobantes pendientes, subsanados o disconformes."
+    subtitle="Recibos por honorarios recibidos por la empresa, leídos en SUNAT Operaciones en Línea, y comprobantes pendientes de confirmación: elija una empresa."
     basePath="/tools/rh"
     openLabel="Abrir RH"
     openIcon="fas fa-file-signature"

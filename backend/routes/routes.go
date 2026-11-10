@@ -38,6 +38,7 @@ func Setup(app *fiber.App) {
 	sireCtrl := controllers.NewSireController()
 	buzonCtrl := controllers.NewSunatBuzonController()
 	itfCtrl := controllers.NewItfController()
+	rheSolCtrl := controllers.NewRheSolController()
 	npdCtrl := controllers.NewNpdController()
 	damCtrl := controllers.NewDamController()
 	exchangeCtrl := controllers.NewExchangeRateController()
@@ -414,6 +415,14 @@ func Setup(app *fiber.App) {
 	rh.Delete("/:companyId/history", sireCtrl.RheHistoryClearAPI)
 	rh.Get("/:companyId/history/:historyId", sireCtrl.RheHistoryGetAPI)
 	rh.Delete("/:companyId/history/:historyId", sireCtrl.RheHistoryDeleteAPI)
+
+	// RH (SOL): recibos por honorarios recibidos, leídos en el Menú SOL con la clave de la empresa; el historial queda guardado.
+	rhSol := api.Group("/tools/rh-sol", middleware.RequirePermission(rbac.CompanyCredentialsView))
+	rhSol.Get("/:companyId/consulta", rheSolCtrl.QueryAPI)
+	rhSol.Get("/:companyId/history", rheSolCtrl.HistoryListAPI)
+	rhSol.Delete("/:companyId/history", rheSolCtrl.HistoryClearAPI)
+	rhSol.Get("/:companyId/history/:historyId", rheSolCtrl.HistoryGetAPI)
+	rhSol.Delete("/:companyId/history/:historyId", rheSolCtrl.HistoryDeleteAPI)
 
 	// Consulta de ITF (Impuesto a las Transacciones Financieras): se lee en SOL con la clave de la empresa; el historial queda guardado.
 	itf := api.Group("/tools/itf", middleware.RequirePermission(rbac.CompanyCredentialsView))
