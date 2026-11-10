@@ -163,7 +163,7 @@ const TodayCalendarReminder = () => {
 
   return (
     <div
-      className="pointer-events-none flex max-w-[calc(100vw-2rem)] flex-col items-end"
+      className="pointer-events-none flex min-h-0 max-w-[calc(100vw-2rem)] flex-col items-end"
       role="region"
       aria-live="polite"
       aria-label="Recordatorio de actividades del calendario para hoy"
@@ -171,8 +171,8 @@ const TodayCalendarReminder = () => {
       {panelState === 'minimized' ? (
         <MinimizedChip count={activities.length} onExpand={handleExpand} />
       ) : (
-        <div className="pointer-events-auto w-[min(100vw-2rem,380px)] origin-bottom-right animate-[reminder-enter_0.45s_cubic-bezier(0.16,1,0.3,1)_forwards] overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/95 via-white/92 to-slate-50/95 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl">
-          <div className="relative overflow-hidden px-4 py-3.5 sm:px-5">
+        <div className="pointer-events-auto flex min-h-0 w-[min(100vw-2rem,380px)] flex-col origin-bottom-right animate-[reminder-enter_0.45s_cubic-bezier(0.16,1,0.3,1)_forwards] overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/95 via-white/92 to-slate-50/95 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+          <div className="relative shrink-0 overflow-hidden px-4 py-3.5 sm:px-5">
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500 via-violet-500 to-primary-400"
               aria-hidden
@@ -201,13 +201,13 @@ const TodayCalendarReminder = () => {
             </div>
           </div>
 
-          <ul className="max-h-[min(50vh,280px)] space-y-2 overflow-y-auto px-3 pb-3 custom-scrollbar sm:px-4">
+          <ul className="min-h-[4.5rem] flex-1 space-y-2 overflow-y-auto px-3 pb-3 custom-scrollbar sm:px-4">
             {activities.map((act) => (
               <ActivityRow key={act.id} activity={act} dayNum={dayNum} />
             ))}
           </ul>
 
-          <div className="border-t border-slate-100/80 bg-slate-50/60 px-4 py-2.5 sm:px-5">
+          <div className="shrink-0 border-t border-slate-100/80 bg-slate-50/60 px-4 py-2.5 sm:px-5">
             <Link
               to="/finance/calendar"
               className="inline-flex items-center gap-2 text-xs font-semibold text-primary-700 transition hover:text-primary-800"

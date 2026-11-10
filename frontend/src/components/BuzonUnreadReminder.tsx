@@ -101,12 +101,12 @@ const BuzonUnreadReminder = () => {
 
   return (
     <div
-      className="pointer-events-auto w-[min(100vw-2rem,380px)] overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/95 via-white/92 to-amber-50/80 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl"
+      className="pointer-events-auto flex min-h-0 w-[min(100vw-2rem,380px)] flex-col overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/95 via-white/92 to-amber-50/80 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl"
       role="region"
       aria-live="polite"
       aria-label="Notificaciones de SUNAT sin leer"
     >
-      <div className="relative px-4 py-3">
+      <div className="relative shrink-0 px-4 py-3">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-500 via-red-500 to-amber-400" aria-hidden />
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/30">
@@ -137,7 +137,7 @@ const BuzonUnreadReminder = () => {
         </div>
       </div>
 
-      <ul className="max-h-[min(34vh,210px)] space-y-1.5 overflow-y-auto px-3 pb-2 custom-scrollbar">
+      <ul className="min-h-[4.5rem] flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 custom-scrollbar">
         {rows.map((c) => (
           <li key={c.company_id}>
             <Link
@@ -159,7 +159,7 @@ const BuzonUnreadReminder = () => {
         ))}
       </ul>
 
-      <div className="space-y-1 border-t border-slate-100/80 bg-slate-50/60 px-4 py-2.5">
+      <div className="shrink-0 space-y-1 border-t border-slate-100/80 bg-slate-50/60 px-4 py-2.5">
         {unchecked > 0 ? (
           <p className="text-2xs text-slate-500">
             <i className="fas fa-triangle-exclamation mr-1 text-amber-600" aria-hidden />
