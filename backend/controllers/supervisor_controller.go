@@ -2390,21 +2390,37 @@ func (ctrl *SupervisorController) DashboardOverviewAPI(c fiber.Ctx) error {
 }
 
 // AssistantOverviewAPI GET /api/supervisors/assistant/overview — "Mi panel" del asistente: su lista de
-// trabajo, avance por módulo, cumplimiento y vencimientos. Siempre sobre SUS empresas asignadas
-// (aunque el usuario tenga alcance de estudio, este panel es personal).
+// trabajo, avance por módulo, cumplimiento y vencimientos. Para asistentes y supervisores es siempre sobre SUS
+// empresas asignadas. Quien tiene alcance de todo el estudio (administrador) ve el estudio completo y puede filtrar
+// por `assistant_user_id` y `supervisor_user_id` (asignación de cada empresa).
 func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 	uid, err := getUserID(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
+	periodYM := c.Query("period_ym", time.Now().Format("2006-01"))
+
+	if hasStudioScope(c) {
+		ids, info, assistantOf, err := ctrl.svc.StudioAssistantScope(queryUserID(c, "assistant_user_id"), queryUserID(c, "supervisor_user_id"))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{PeriodYM: periodYM, AllowedCompanyIDs: ids})
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		data.Studio = info
+		for i := range data.Work {
+			data.Work[i].Assistant = assistantOf[data.Work[i].CompanyID]
+		}
+		return c.JSON(fiber.Map{"data": data})
+	}
+
 	ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 	}
-	data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{
-		PeriodYM:          c.Query("period_ym", time.Now().Format("2006-01")),
-		AllowedCompanyIDs: ids,
-	})
+	data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{PeriodYM: periodYM, AllowedCompanyIDs: ids})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

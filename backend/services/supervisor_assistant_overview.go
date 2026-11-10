@@ -36,6 +36,8 @@ type AssistantWorkItem struct {
 	Note        string `json:"note,omitempty"`
 	NoteBy      string `json:"note_by,omitempty"`
 	SubmittedAt string `json:"submitted_at,omitempty"`
+	// Assistant asistente asignado a la empresa; solo se llena en la vista del estudio.
+	Assistant string `json:"assistant,omitempty"`
 }
 
 type AssistantCounts struct {
@@ -65,6 +67,8 @@ type AssistantOverview struct {
 	Counts      AssistantCounts          `json:"counts"`
 	Work        []AssistantWorkItem      `json:"work"`
 	Upcoming    []DashboardUpcoming      `json:"upcoming"`
+	// Studio solo en la vista del estudio (administrador): las opciones de los filtros por asistente y supervisor.
+	Studio *AssistantStudioInfo `json:"studio,omitempty"`
 }
 
 var assistantWorkRank = map[string]int{"vencida": 0, "observada": 1, "pendiente": 2, "por_revisar": 3}

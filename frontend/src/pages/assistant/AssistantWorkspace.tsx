@@ -14,7 +14,7 @@ import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { MODULE_SLUG, workModuleLabel } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
-import { supervisorsService, type AssistantOverview, type AssistantWorkItem } from '../../services/supervisors';
+import { supervisorsService, type AssistantOverview, type AssistantStudioInfo, type AssistantWorkItem } from '../../services/supervisors';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 
@@ -73,9 +73,13 @@ const AssistantWorkspace = () => {
 
   const [periodYm, setPeriodYm] = useState(previousMonthPeriodYM());
   const [moduleFilter, setModuleFilter] = useState('');
+  const [assistantId, setAssistantId] = useState('');
+  const [supervisorId, setSupervisorId] = useState('');
   const [tab, setTab] = useState<Tab>('todas');
   const [showAll, setShowAll] = useState(false);
   const [data, setData] = useState<AssistantOverview | null>(null);
+  // Opciones de los filtros del administrador: se guardan aparte para que sigan a la vista aunque una consulta falle.
+  const [studio, setStudio] = useState<AssistantStudioInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -85,9 +89,15 @@ const AssistantWorkspace = () => {
     setLoading(true);
     setError('');
     void supervisorsService
-      .assistantOverview({ period_ym: periodYm })
+      .assistantOverview({
+        period_ym: periodYm,
+        ...(assistantId ? { assistant_user_id: Number(assistantId) } : {}),
+        ...(supervisorId ? { supervisor_user_id: Number(supervisorId) } : {}),
+      })
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (cancelled) return;
+        setData(res);
+        if (res.studio) setStudio(res.studio);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -100,7 +110,7 @@ const AssistantWorkspace = () => {
     return () => {
       cancelled = true;
     };
-  }, [allowed, periodYm]);
+  }, [allowed, periodYm, assistantId, supervisorId]);
 
   const work = useMemo(() => (data?.work ?? []).filter((w) => !moduleFilter || w.module_key === moduleFilter), [data, moduleFilter]);
   const counts = useMemo(
@@ -137,6 +147,9 @@ const AssistantWorkspace = () => {
     return <p className="p-6 text-center text-slate-600">Sin permiso para el panel de asistente.</p>;
   }
 
+  // Administrador: el panel es del estudio completo (con filtros por asistente y supervisor); el resto ve solo lo suyo.
+  const isStudio = studio != null;
+  const mineOr = (mine: string, all: string) => (isStudio ? all : mine);
   const cs = data?.compliance;
   // Un backend aún sin actualizar no manda `supervisors`: se tolera (la tarjeta dice "Sin supervisor asignado").
   const supervisors = data?.supervisors ?? [];
@@ -174,11 +187,12 @@ const AssistantWorkspace = () => {
           <p className="mt-1 text-[13px] text-slate-600">
             {data ? (
               <>
-                Tienes <strong className="text-red-700">{data.counts.overdue} {data.counts.overdue === 1 ? 'entrega vencida' : 'entregas vencidas'}</strong> y{' '}
-                <strong className="text-amber-700">{data.counts.due_this_week} que {data.counts.due_this_week === 1 ? 'vence' : 'vencen'} esta semana</strong> · {data.companies} empresas asignadas
+                {mineOr('Tienes', 'Hay')} <strong className="text-red-700">{data.counts.overdue} {data.counts.overdue === 1 ? 'entrega vencida' : 'entregas vencidas'}</strong> y{' '}
+                <strong className="text-amber-700">{data.counts.due_this_week} que {data.counts.due_this_week === 1 ? 'vence' : 'vencen'} esta semana</strong> ·{' '}
+                {data.companies} {mineOr('empresas asignadas', assistantId || supervisorId ? 'empresas con este filtro' : 'empresas del estudio')}
               </>
             ) : (
-              'Lo que tienes que hacer en el periodo.'
+              mineOr('Lo que tienes que hacer en el periodo.', 'Lo que hay por hacer en el estudio en el periodo.')
             )}
           </p>
         </div>
@@ -187,6 +201,44 @@ const AssistantWorkspace = () => {
             <span className="text-slate-500">Periodo</span>
             <input type="month" value={periodYm} onChange={(e) => setPeriodYm(e.target.value)} className="border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" />
           </label>
+          {studio ? (
+            <>
+              <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
+                <span className="text-slate-500">Asistente</span>
+                <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por asistente">
+                  <option value="">Todos</option>
+                  {studio.assistants.map((a) => (
+                    <option key={a.user_id} value={a.user_id}>
+                      {a.name} ({a.companies})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
+                <span className="text-slate-500">Supervisor</span>
+                <select value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por supervisor">
+                  <option value="">Todos</option>
+                  {studio.supervisors.map((s) => (
+                    <option key={s.user_id} value={s.user_id}>
+                      {s.name} ({s.companies})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {assistantId || supervisorId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistantId('');
+                    setSupervisorId('');
+                  }}
+                  className="rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[7px] text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Quitar filtros
+                </button>
+              ) : null}
+            </>
+          ) : null}
           <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
             <span className="text-slate-500">Módulo</span>
             <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className="border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none">
@@ -222,9 +274,9 @@ const AssistantWorkspace = () => {
                 <i className="fas fa-building" aria-hidden />
               </span>
               <span className="min-w-0">
-                <span className="block text-[11px] font-bold uppercase tracking-wide text-sky-800">Empresas asignadas</span>
+                <span className="block text-[11px] font-bold uppercase tracking-wide text-sky-800">{mineOr('Empresas asignadas', 'Empresas del estudio')}</span>
                 <span className="block text-[46px] font-extrabold leading-none tabular-nums text-slate-900">{data.companies}</span>
-                <span className="mt-1 block text-[12px] font-semibold text-sky-800">a tu cargo · ver mis empresas →</span>
+                <span className="mt-1 block text-[12px] font-semibold text-sky-800">{mineOr('a tu cargo · ver mis empresas →', assistantId || supervisorId ? 'con el filtro elegido · ver empresas →' : 'activas · ver empresas →')}</span>
               </span>
             </Link>
             <div className="flex min-w-0 items-center gap-4 rounded-2xl border px-5 py-4" style={{ flex: '1 1 300px', background: '#DCFCE7', borderColor: '#BBF7D0' }}>
@@ -233,7 +285,7 @@ const AssistantWorkspace = () => {
               </span>
               <span className="min-w-0">
                 <span className="block text-[11px] font-bold uppercase tracking-wide text-green-800">
-                  {supervisors.length > 1 ? 'Mis supervisores' : 'Mi supervisor'}
+                  {isStudio || supervisors.length > 1 ? mineOr('Mis supervisores', 'Supervisores') : 'Mi supervisor'}
                 </span>
                 {supervisors.length === 0 ? (
                   <span className="mt-1 block text-[16px] font-bold text-slate-700">Sin supervisor asignado</span>
@@ -266,13 +318,13 @@ const AssistantWorkspace = () => {
           <div className="flex flex-wrap gap-3">
             <HeroGauge
               pct={cs?.compliance_pct ?? 0}
-              title="Mi cumplimiento"
+              title={mineOr('Mi cumplimiento', 'Cumplimiento')}
               line1={trendDelta === null ? 'Cumplimiento del periodo' : `${trendDelta >= 0 ? '▲ +' : '▼ −'}${Math.abs(trendDelta)} pts vs. periodo anterior`}
               line2={cs ? `${cs.on_time} a tiempo de ${cs.on_time + cs.late + cs.missing} que cuentan` : undefined}
             />
             <KpiTile label="Por entregar" value={data.counts.to_deliver} delta="pendientes + vencidas" deltaTone="warn" icon="fas fa-clock" color="#B45309" soft="#FFFFFF" tint="#FEF3C7" tintBorder="#FDE68A" />
             <KpiTile label="Vencidas" value={data.counts.overdue} delta={`${data.counts.overdue_over_3_days} con más de 3 días`} deltaTone="bad" icon="fas fa-exclamation-triangle" color="#DC2626" soft="#FFFFFF" tint="#FEE2E2" tintBorder="#FECACA" />
-            <KpiTile label="Observadas" value={data.counts.observed} delta="te las devolvieron" deltaTone="warn" icon="fas fa-comment-dots" color="#C2410C" soft="#FFFFFF" tint="#FFEDD5" tintBorder="#FED7AA" />
+            <KpiTile label="Observadas" value={data.counts.observed} delta={mineOr('te las devolvieron', 'devueltas por supervisores')} deltaTone="warn" icon="fas fa-comment-dots" color="#C2410C" soft="#FFFFFF" tint="#FFEDD5" tintBorder="#FED7AA" />
             <KpiTile label="Por revisar" value={data.counts.in_review} delta="esperan al supervisor" deltaTone="neutral" icon="fas fa-clipboard-check" color="#4338CA" soft="#FFFFFF" tint="#E0E7FF" tintBorder="#C7D2FE" />
           </div>
 
@@ -281,7 +333,7 @@ const AssistantWorkspace = () => {
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h2 className="m-0 text-[15px] font-extrabold">Mi lista de trabajo</h2>
+                    <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mi lista de trabajo', 'Lista de trabajo')}</h2>
                     <p className="m-0 mt-[2px] text-[11.5px] text-slate-500">Ordenada por urgencia: lo vencido primero, luego lo que te devolvieron y lo que vence antes.</p>
                   </div>
                   {firstUrgent ? (
@@ -313,7 +365,7 @@ const AssistantWorkspace = () => {
                 </div>
                 {shown.length === 0 ? (
                   <p className="py-10 text-center text-sm text-slate-500">
-                    {counts.todas === 0 ? '¡Todo al día! No tienes entregas pendientes en este periodo.' : 'No hay entregas en esta pestaña.'}
+                    {counts.todas === 0 ? mineOr('¡Todo al día! No tienes entregas pendientes en este periodo.', '¡Todo al día! No hay entregas pendientes en este periodo.') : 'No hay entregas en esta pestaña.'}
                   </p>
                 ) : (
                   <div className="flex flex-col">
@@ -328,6 +380,12 @@ const AssistantWorkspace = () => {
                               <strong className="text-[13px]">{w.company}</strong>
                               <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-700">{workModuleLabel(w.module_label, w.slot, w.detail)}</span>
                               <span className="rounded-md px-[7px] py-px text-[10.5px] font-extrabold" style={{ background: st.bg, color: st.fg }}>{stateLabel(w)}</span>
+                              {w.assistant ? (
+                                <span className="rounded-md bg-sky-50 px-[7px] py-px text-[10.5px] font-bold text-sky-800" title="Asistente de la empresa">
+                                  <i className="fas fa-user mr-1 text-[9px]" aria-hidden />
+                                  {w.assistant}
+                                </span>
+                              ) : null}
                             </div>
                             <div className={`mt-[3px] text-[11.5px] ${due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>{due.text}</div>
                             {w.state === 'observada' && w.note ? (
@@ -357,8 +415,8 @@ const AssistantWorkspace = () => {
 
               <Card>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="m-0 text-[15px] font-extrabold">Mis módulos</h2>
-                  <span className="text-[11.5px] text-slate-500">avance de mis {data.companies} empresas</span>
+                  <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mis módulos', 'Módulos')}</h2>
+                  <span className="text-[11.5px] text-slate-500">{mineOr(`avance de mis ${data.companies} empresas`, `avance de ${data.companies} empresas`)}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-x-[22px] gap-y-[10px]">
                   {data.modules.map((m) => {
@@ -388,7 +446,7 @@ const AssistantWorkspace = () => {
 
               <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
                 <div className="min-w-0" style={{ flex: '1 1 280px' }}>
-                  <h2 className="m-0 text-sm font-extrabold">Cómo van mis empresas</h2>
+                  <h2 className="m-0 text-sm font-extrabold">{mineOr('Cómo van mis empresas', 'Cómo van las empresas')}</h2>
                   <p className="mb-[10px] mt-[2px] text-[11.5px] text-slate-500">{data.companies} empresas · {periodYm}</p>
                   <div className="flex items-center gap-[14px]">
                     <Donut slices={slices} size={112} center={data.companies} caption="empresas" label="Estado de mis empresas" />
@@ -397,7 +455,7 @@ const AssistantWorkspace = () => {
                 </div>
                 <div className="min-w-0 border-l border-[#EAF1ED] pl-[22px]" style={{ flex: '1.2 1 320px' }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="m-0 text-sm font-extrabold">Mi cumplimiento (6 meses)</h2>
+                    <h2 className="m-0 text-sm font-extrabold">{mineOr('Mi cumplimiento (6 meses)', 'Cumplimiento (6 meses)')}</h2>
                     {trendDelta !== null ? (
                       <span className="rounded-[7px] px-2 py-[2px] text-[11px] font-bold" style={{ background: trendDelta >= 0 ? '#E3F5EA' : '#FEE2E2', color: trendDelta >= 0 ? '#0A5A3A' : '#B91C1C' }}>
                         {trendDelta >= 0 ? '▲' : '▼'} {Math.abs(trendDelta)} pts
@@ -413,7 +471,7 @@ const AssistantWorkspace = () => {
               <Card accent="#F59E0B">
                 <div className="mb-[10px] flex items-center justify-between">
                   <h2 className="m-0 text-sm font-extrabold">Vencimientos de la semana</h2>
-                  <span className="text-[10.5px] text-slate-500">mis empresas sin entregar</span>
+                  <span className="text-[10.5px] text-slate-500">{mineOr('mis empresas sin entregar', 'empresas sin entregar')}</span>
                 </div>
                 {data.upcoming.length === 0 ? (
                   <p className="py-3 text-center text-xs text-slate-500">No hay vencimientos próximos con empresas pendientes.</p>
@@ -443,12 +501,12 @@ const AssistantWorkspace = () => {
 
               <Card accent="#EA580C">
                 <div className="mb-1 flex items-center justify-between">
-                  <h2 className="m-0 text-sm font-extrabold">Lo que te devolvió el supervisor</h2>
+                  <h2 className="m-0 text-sm font-extrabold">{mineOr('Lo que te devolvió el supervisor', 'Devueltas por supervisores')}</h2>
                   <span className="rounded-[7px] bg-orange-100 px-2 py-px text-[11.5px] font-extrabold text-orange-800">{data.counts.observed}</span>
                 </div>
                 <p className="mb-2 mt-0 text-[11px] text-slate-500">Corrige y vuelve a cargar: reemplaza el archivo anterior.</p>
                 {returned.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-slate-500">No tienes entregas devueltas.</p>
+                  <p className="py-3 text-center text-xs text-slate-500">{mineOr('No tienes entregas devueltas.', 'No hay entregas devueltas.')}</p>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {returned.map((r) => (

@@ -487,8 +487,11 @@ export const supervisorsService = {
     return res.data.data ?? [];
   },
 
-  /** "Mi panel" del asistente: su lista de trabajo, avance por módulo y vencimientos. */
-  async assistantOverview(params: { period_ym?: string }): Promise<AssistantOverview> {
+  /**
+   * "Mi panel" del asistente: su lista de trabajo, avance por módulo y vencimientos. Quien tiene alcance de todo el
+   * estudio (administrador) recibe el estudio completo y puede filtrar por asistente y supervisor; el resto, solo lo suyo.
+   */
+  async assistantOverview(params: { period_ym?: string; assistant_user_id?: number; supervisor_user_id?: number }): Promise<AssistantOverview> {
     const res = await client.get<{ data: AssistantOverview }>('/supervisors/assistant/overview', { params });
     return res.data.data;
   },
@@ -628,6 +631,20 @@ export interface AssistantWorkItem {
   days_left?: number;
   note?: string;
   note_by?: string;
+  /** Asistente de la empresa; solo viene en la vista del estudio (administrador). */
+  assistant?: string;
+}
+/** Un asistente o supervisor del estudio con cuántas empresas tiene asignadas (opciones de los filtros del administrador). */
+export interface AssistantStudioOption {
+  user_id: number;
+  name: string;
+  companies: number;
+}
+export interface AssistantStudioInfo {
+  assistants: AssistantStudioOption[];
+  supervisors: AssistantStudioOption[];
+  without_assistant: number;
+  without_supervisor: number;
 }
 /** Supervisor de (parte de) las empresas del asistente; user_id 0 = empresas sin supervisor asignado. */
 export interface AssistantSupervisorRef {
@@ -651,6 +668,8 @@ export interface AssistantOverview {
   };
   work: AssistantWorkItem[];
   upcoming: DashboardUpcoming[];
+  /** Presente solo para el administrador: el panel es del estudio completo y estas son las opciones de los filtros. */
+  studio?: AssistantStudioInfo;
 }
 
 /** Una fila por dígito de RUC (o el total) de un indicador. `on_time` = a tiempo, o revisado en el KPI de balances. */
