@@ -457,6 +457,7 @@ func Setup(app *fiber.App) {
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))
 	buzon.Get("/summary", buzonCtrl.SummaryAPI)
+	buzon.Get("/unread", buzonCtrl.UnreadAPI)
 	buzon.Get("/:companyId", buzonCtrl.GetAPI)
 	buzon.Post("/:companyId/sync", buzonCtrl.SyncAPI)
 	buzon.Post("/:companyId/seen", buzonCtrl.SeenAPI)

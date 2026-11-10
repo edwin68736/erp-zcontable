@@ -163,7 +163,7 @@ const TodayCalendarReminder = () => {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-toast flex max-w-[calc(100vw-2rem)] flex-col items-end sm:bottom-6 sm:right-6"
+      className="pointer-events-none flex max-w-[calc(100vw-2rem)] flex-col items-end"
       role="region"
       aria-live="polite"
       aria-label="Recordatorio de actividades del calendario para hoy"

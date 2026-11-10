@@ -74,6 +74,10 @@ type SunatBuzonSync struct {
 	Urgentes       int `gorm:"not null;default:0" json:"urgentes"`
 	Nuevos         int `gorm:"not null;default:0" json:"nuevos"`
 
+	// NotifNoLeidas (no se guarda) NOTIFICACIONES (tipo 2) sin leer en SUNAT que siguen en el buzón. `NoLeidas` junta notificaciones
+	// y mensajes; los mensajes son informativos y son la mayoría, así que lo que importa avisar son las notificaciones.
+	NotifNoLeidas int `gorm:"-" json:"notif_no_leidas"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

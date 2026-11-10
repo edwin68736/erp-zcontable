@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import PageHeading from '../../../components/ui/PageHeading';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
@@ -9,6 +9,8 @@ import { INPUT_CLS, SELECT_CLS } from '../sire/sireUi';
 import { ETIQUETA_BADGE, buzonBadge, fmtDateTime, timeAgo } from './buzonUi';
 import Alert from '../../../components/ui/Alert';
 import { notify } from '../../../utils/notify';
+import SunatAccessModal from '../../../components/finance/SunatAccessModal';
+import { emitBuzonUpdated } from '../../../utils/buzonUnread';
 import LongTaskPanel from '../../../components/LongTaskPanel';
 import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
 import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
@@ -55,7 +57,17 @@ const BuzonCompany = () => {
   const syncing = task?.status === 'running';
   const ownTask = useRef<number | null>(null);
   const [syncError, setSyncError] = useState<BuzonApiError | null>(null);
-  const [filters, setFilters] = useState<BuzonFilters>({ tipo: 0, page: 1, per_page: PER_PAGE });
+  // El aviso flotante y la lista de empresas abren esta pantalla ya filtrada: ?tipo=2&no_leidas=1.
+  const [params] = useSearchParams();
+  const [filters, setFilters] = useState<BuzonFilters>(() => ({
+    tipo: params.get('tipo') === '2' ? 2 : params.get('tipo') === '1' ? 1 : 0,
+    no_leidas: params.get('no_leidas') === '1',
+    page: 1,
+    per_page: PER_PAGE,
+  }));
+  // «Ingresar a SUNAT»: la persona lee ahí sus notificaciones (eso las marca como leídas en SUNAT) y luego actualiza aquí.
+  const [sunatOpen, setSunatOpen] = useState(false);
+  const [visitedSunat, setVisitedSunat] = useState(false);
   const [qInput, setQInput] = useState('');
 
   useEffect(() => {
@@ -113,7 +125,9 @@ const BuzonCompany = () => {
         summary: st.nuevos > 0 ? `${st.nuevos} ${st.nuevos === 1 ? 'novedad' : 'novedades'} en el buzón` : 'Buzón sincronizado, sin novedades',
       });
       setFilters((f) => ({ ...f, page: 1 }));
+      setVisitedSunat(false);
       await load();
+      emitBuzonUpdated();
     } catch (e) {
       failTask(t.id, e);
       setSyncError(e as BuzonApiError);
@@ -134,6 +148,7 @@ const BuzonCompany = () => {
       await sunatBuzonService.markSeen(companyId);
       void notify.success('Novedades marcadas como vistas');
       await load();
+      emitBuzonUpdated();
     } catch (e) {
       setListError(e as BuzonApiError);
     }
@@ -165,6 +180,12 @@ const BuzonCompany = () => {
 
       {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
+      {visitedSunat && !syncing ? (
+        <Alert variant="info">
+          Cuando termine de leer sus notificaciones en SUNAT, pulse <strong>Actualizar lo leído</strong> para que aquí queden como leídas. Al actualizar, el sistema entra a SUNAT con la clave de la empresa y cierra su sesión en SUNAT: hágalo al terminar.
+        </Alert>
+      ) : null}
+
       {company ? (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div>
@@ -176,12 +197,12 @@ const BuzonCompany = () => {
             <span className="text-sm font-medium text-slate-800" title={fmtDateTime(state?.last_success_at)}>
               {state?.last_success_at ? timeAgo(state.last_success_at) : 'nunca'}
             </span>
-            {state?.last_success_at ? <span className="ml-1 text-xs text-slate-500">({state.source === 'nocturna' ? 'nocturna' : 'manual'})</span> : null}
+            {state?.last_success_at ? <span className="ml-1 text-xs text-slate-500">({state.source === 'nocturna' ? 'nocturna' : state.source === 'programada' ? 'programada' : 'manual'})</span> : null}
           </div>
           {[
             ['Notificaciones', state?.notificaciones],
             ['Mensajes', state?.mensajes],
-            ['No leídas', state?.no_leidas],
+            ['Notif. sin leer', state?.notif_no_leidas],
             ['Urgentes sin leer', state?.urgentes],
             ['Nuevas', state?.nuevos],
           ].map(([label, v]) => (
@@ -190,10 +211,24 @@ const BuzonCompany = () => {
               <span className="text-sm font-bold text-slate-800">{state?.last_success_at ? (v as number) : '—'}</span>
             </div>
           ))}
-          <Button className="ml-auto" disabled={syncing || !hasKey || blocked || otherRunning} onClick={() => void sync()} title={!hasKey ? 'La empresa no tiene clave SOL' : undefined}>
-            <i className={`fas ${syncing ? 'fa-spinner fa-spin' : 'fa-rotate'} mr-1.5`} aria-hidden />
-            {syncing ? 'Sincronizando…' : 'Sincronizar'}
-          </Button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={!hasKey}
+              onClick={() => {
+                setSunatOpen(true);
+                setVisitedSunat(true);
+              }}
+              title={!hasKey ? 'La empresa no tiene clave SOL' : 'Entrar a SUNAT con la clave de la empresa para leer sus notificaciones'}
+            >
+              <i className="fas fa-arrow-up-right-from-square mr-1.5" aria-hidden />
+              Ingresar a SUNAT
+            </Button>
+            <Button disabled={syncing || !hasKey || blocked || otherRunning} onClick={() => void sync()} title={!hasKey ? 'La empresa no tiene clave SOL' : 'Leer de nuevo el buzón en SUNAT y ver qué quedó leído'}>
+              <i className={`fas ${syncing ? 'fa-spinner fa-spin' : 'fa-rotate'} mr-1.5`} aria-hidden />
+              {syncing ? 'Sincronizando…' : visitedSunat ? 'Actualizar lo leído' : 'Sincronizar'}
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -318,10 +353,11 @@ const BuzonCompany = () => {
               </thead>
               <tbody>
                 {detail.messages.rows.map((m) => (
-                  <tr key={m.id} className={`border-b border-slate-100 align-top ${m.es_nuevo ? 'bg-red-50/50' : ''}`}>
+                  <tr key={m.id} className={`border-b border-slate-100 align-top ${m.es_nuevo ? 'bg-red-50/50' : !m.leido ? 'bg-amber-50/60' : ''}`}>
                     <td className="whitespace-nowrap px-2 py-2 text-slate-600">{m.fec_publica_texto}</td>
                     <td className="whitespace-nowrap px-2 py-2">{m.tipo === 2 ? 'Notificación' : 'Mensaje'}</td>
                     <td className={`px-2 py-2 ${m.leido ? 'text-slate-700' : 'font-semibold text-slate-900'}`}>
+                      {!m.leido ? <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" title="Sin leer en SUNAT" aria-label="Sin leer en SUNAT" /> : null}
                       {m.es_nuevo ? <span className="mr-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">Nuevo</span> : null}
                       {m.urgente ? <i className="fas fa-flag mr-1 text-red-600" title="Urgente" aria-label="Urgente" /> : null}
                       {m.asunto}
@@ -376,6 +412,7 @@ const BuzonCompany = () => {
       ) : null}
       {loading && !detail ? <Spinner label="Cargando lo guardado…" /> : null}
       {listError && !detail ? <BuzonError error={listError} /> : null}
+      {sunatOpen && company ? <SunatAccessModal row={company} onClose={() => setSunatOpen(false)} /> : null}
     </div>
   );
 };

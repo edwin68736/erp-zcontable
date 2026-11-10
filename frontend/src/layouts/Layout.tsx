@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import TodayCalendarReminder from '../components/calendar/TodayCalendarReminder';
+import FloatingReminders from '../components/FloatingReminders';
 import DensityPicker from '../components/DensityPicker';
 import { DENSITY_KEY, parseDensityPref, resolveDensity, type DensityPref } from '../utils/density';
 import { SIDEBAR_PREF_KEY, initialSidebarCollapsed } from '../utils/sidebarPref';
@@ -295,7 +295,7 @@ const Layout = () => {
       <IdleLogoutGuard />
       <ReauthDialog />
       <NotifyHost />
-      <TodayCalendarReminder />
+      <FloatingReminders />
     </div>
   );
 };

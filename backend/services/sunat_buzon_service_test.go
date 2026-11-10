@@ -361,3 +361,143 @@ func TestBuzon_BuzonVacioInesperadoNoBorraLoGuardado(t *testing.T) {
 		t.Errorf("lo guardado debe seguir visible: %d", page.Total)
 	}
 }
+
+func TestParseBuzonHours(t *testing.T) {
+	got := parseBuzonHours(" 17, 1 ,8,13,8,25,x,-1,13 ")
+	if len(got) != 4 || got[0] != 1 || got[1] != 8 || got[2] != 13 || got[3] != 17 {
+		t.Fatalf("horas: %v", got)
+	}
+	if len(parseBuzonHours("")) != 0 || len(parseBuzonHours("a,b")) != 0 {
+		t.Error("sin horas válidas queda vacío")
+	}
+	if h := parseBuzonHours(buzonDefaultHours); len(h) != 4 || h[0] != 1 {
+		t.Errorf("por defecto: %v", h)
+	}
+}
+
+func TestNextBuzonRun(t *testing.T) {
+	loc := time.FixedZone("-05", -5*3600)
+	hours := []int{1, 8, 13, 17}
+	at := func(h, m int) time.Time { return time.Date(2026, 11, 10, h, m, 0, 0, loc) }
+	cases := []struct {
+		now      time.Time
+		wantHour int
+		wantDay  int
+	}{
+		{at(0, 30), 1, 10},
+		{at(1, 0), 8, 10}, // justo a la hora: la siguiente
+		{at(9, 15), 13, 10},
+		{at(13, 0), 17, 10},
+		{at(17, 5), 1, 11}, // pasó la última: la 1:00 de mañana
+	}
+	for _, c := range cases {
+		next, h := nextBuzonRun(c.now, hours, loc)
+		if h != c.wantHour || next.Day() != c.wantDay || next.Hour() != c.wantHour {
+			t.Errorf("desde %s: %s (hora %d), quería %d:00 del día %d", c.now.Format("15:04"), next.Format("02 15:04"), h, c.wantHour, c.wantDay)
+		}
+	}
+}
+
+// La sincronización manual tiene prioridad sobre una pasada programada: espera su turno (termina la empresa actual) en vez
+// de rechazarse con «en curso»; la pasada, a su vez, le cede el paso. Entre dos manuales sigue rechazándose.
+func TestBuzon_ManualTienePrioridadSobreLaPasadaProgramada(t *testing.T) {
+	f := newFakeSol(t)
+	f.notis = [][]string{{solRow(1001, 2, "Notificación A", 0, 0, "10")}}
+	svc, db := buzonTestService(t, f)
+	id := buzonCompany(t, db, "20111111111", "USER", "clave")
+
+	// Una pasada programada tiene tomado el turno.
+	svc.mu.Lock()
+	svc.curSource.Store(BuzonSourceScheduled)
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.SyncCompany(id, nil, BuzonSourceManual, 7, false)
+		done <- err
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for svc.manualWaiting.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if svc.manualWaiting.Load() != 1 {
+		t.Fatalf("la manual debía quedar esperando su turno, esperando=%d", svc.manualWaiting.Load())
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("la manual no debía terminar mientras la programada tiene el turno: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	// Termina la empresa de la pasada programada: la manual sigue y termina bien.
+	svc.curSource.Store("")
+	svc.mu.Unlock()
+	if err := <-done; err != nil {
+		t.Fatalf("la manual debía sincronizar: %v", err)
+	}
+	if svc.manualWaiting.Load() != 0 {
+		t.Errorf("nadie debe quedar esperando: %d", svc.manualWaiting.Load())
+	}
+	if got := svc.State(id); got == nil || got.Source != BuzonSourceManual {
+		t.Errorf("estado: %+v", got)
+	}
+}
+
+func TestBuzon_NotificacionesSinLeerPorAlcance(t *testing.T) {
+	f := newFakeSol(t)
+	svc, db := buzonTestService(t, f)
+	a := buzonCompany(t, db, "20111111111", "USER", "clave")
+	b := buzonCompany(t, db, "20222222222", "USER", "clave")
+	c := buzonCompany(t, db, "20333333333", "USER", "clave")
+	old := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	mk := func(company uint, cod uint64, tipo int, leido, urgente, enBuzon bool, pub time.Time) {
+		db.Create(&models.SunatBuzonMessage{CompanyID: company, CodMensaje: cod, Tipo: tipo, Asunto: "x", FecPublica: &pub, Leido: leido, Urgente: urgente, EnBuzon: enBuzon, FirstSeenAt: pub, LastSeenAt: pub})
+	}
+	// Empresa a: 2 notificaciones sin leer (una urgente) + 1 leída + 1 mensaje sin leer + 1 retirada del buzón.
+	mk(a, 1, 2, false, true, true, old)
+	mk(a, 2, 2, false, false, true, old.Add(48*time.Hour))
+	mk(a, 3, 2, true, false, true, old)
+	mk(a, 4, 1, false, false, true, old)
+	mk(a, 5, 2, false, false, false, old)
+	// (GORM aplica el default true al crear con false: se fuerza después)
+	db.Model(&models.SunatBuzonMessage{}).Where("cod_mensaje = ?", 5).Update("en_buzon", false)
+	// Empresa b: 1 sin leer. Empresa c: ninguna.
+	mk(b, 6, 2, false, false, true, old.Add(24*time.Hour))
+	db.Create(&models.SunatBuzonSync{CompanyID: c, Status: models.SunatBuzonStatusRechazadas})
+	db.Create(&models.SunatBuzonSync{CompanyID: b, Status: models.SunatBuzonStatusOK})
+
+	// Administrador (todo el estudio).
+	all, err := svc.UnreadSummary(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total != 3 || all.Urgent != 1 || len(all.Companies) != 2 || all.Companies[0].CompanyID != a || all.Companies[0].Unread != 2 || all.Companies[0].Urgent != 1 {
+		t.Fatalf("todo el estudio: %+v", all)
+	}
+	if all.Companies[0].Oldest == nil || all.Companies[1].CompanyID != b || all.Unchecked.Rejected != 1 || all.Unchecked.Error != 0 {
+		t.Errorf("antigüedad / sin revisar: %+v", all)
+	}
+	// Asistente o supervisor: solo las empresas que tienen asignadas.
+	mine, _ := svc.UnreadSummary([]uint{b, c})
+	if mine.Total != 1 || len(mine.Companies) != 1 || mine.Companies[0].CompanyID != b || mine.Unchecked.Rejected != 1 {
+		t.Errorf("solo sus empresas: %+v", mine)
+	}
+	only, _ := svc.UnreadSummary([]uint{b})
+	if only.Total != 1 || only.Unchecked.Rejected != 0 {
+		t.Errorf("lo no revisado también respeta el alcance: %+v", only)
+	}
+	none, err := svc.UnreadSummary([]uint{})
+	if err != nil || none.Total != 0 || len(none.Companies) != 0 {
+		t.Errorf("sin empresas asignadas no ve nada: %+v %v", none, err)
+	}
+	// El estado de cada empresa trae su conteo de notificaciones sin leer (no el de mensajes).
+	st := svc.State(a)
+	if st == nil {
+		db.Create(&models.SunatBuzonSync{CompanyID: a, Status: models.SunatBuzonStatusOK})
+		st = svc.State(a)
+	}
+	if st.NotifNoLeidas != 2 {
+		t.Errorf("notif_no_leidas = %d, quería 2", st.NotifNoLeidas)
+	}
+	states, _ := svc.States([]uint{a, b})
+	if states[b].NotifNoLeidas != 1 {
+		t.Errorf("States b: %+v", states[b])
+	}
+}

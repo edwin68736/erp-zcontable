@@ -14,6 +14,7 @@ import {
   resolveActivityWorkspace,
 } from '../navigation/activityRoutes';
 import { formatAmount, formatTime } from '../utils/format';
+import { useBuzonUnread } from '../utils/buzonUnread';
 import TaskIndicator from '../components/TaskIndicator';
 
 interface HeaderProps {
@@ -45,6 +46,8 @@ const Header = ({
   const [lastNotificationsFetchAt, setLastNotificationsFetchAt] = useState<number | null>(null);
   const canSupervisorNotif = useMemo(() => auth.hasPermission(P.supervisorsNotificationsView), []);
   const canDashboard = useMemo(() => auth.hasPermission(P.dashboardView), []);
+  const canBuzon = useMemo(() => auth.hasPermission(P.companyCredentialsView), []);
+  const { data: buzonUnread } = useBuzonUnread(canBuzon);
   const canSearchCompanies = useMemo(() => auth.hasPermission(P.companiesView), []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -167,7 +170,9 @@ const Header = ({
 
   const supervisorUnreadCount = supervisorNotifications.length;
 
-  const notificationsCount = financeNotificationsCount + (canSupervisorNotif ? supervisorUnreadCount : 0);
+  const buzonUnreadCount = canBuzon ? (buzonUnread?.total ?? 0) : 0;
+
+  const notificationsCount = financeNotificationsCount + (canSupervisorNotif ? supervisorUnreadCount : 0) + buzonUnreadCount;
 
   return (
     <header className="relative z-50 bg-white/70 backdrop-blur rounded-2xl shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] border border-slate-200/60 px-4 py-1.5 flex items-center justify-between mb-2 flex-shrink-0">
@@ -308,6 +313,30 @@ const Header = ({
                 <div className="px-4 py-4 text-sm text-red-700 bg-red-50 border-t border-red-100">{notificationsError}</div>
               ) : (
                 <div className="px-2 py-2">
+                  {canBuzon && buzonUnreadCount > 0 ? (
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-2xs font-bold uppercase tracking-wider text-slate-400">Notificaciones SUNAT sin leer</p>
+                        <Link to="/tools/notificaciones-sunat?pendientes=1" className="text-2xs font-semibold text-primary-700 hover:text-primary-800" onClick={() => setIsNotificationsOpen(false)}>
+                          Ver todas ({buzonUnreadCount})
+                        </Link>
+                      </div>
+                      <div className="space-y-1 mb-2">
+                        {(buzonUnread?.companies ?? []).slice(0, 3).map((c) => (
+                          <Link
+                            key={c.company_id}
+                            to={`/tools/notificaciones-sunat/${c.company_id}?tipo=2&no_leidas=1`}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                            onClick={() => setIsNotificationsOpen(false)}
+                          >
+                            <p className="min-w-0 flex-1 text-xs font-semibold text-slate-800 truncate">{c.business_name}</p>
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-800">{c.unread}</span>
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="h-px bg-slate-100 my-1" />
+                    </div>
+                  ) : null}
                   {canSupervisorNotif ? (
                     <div className="px-2 py-2">
                       <div className="flex items-center justify-between mb-2">

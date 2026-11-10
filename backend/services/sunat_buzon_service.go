@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +38,8 @@ import (
 const (
 	BuzonSourceManual  = "manual"
 	BuzonSourceNightly = "nocturna"
+	// BuzonSourceScheduled pasadas programadas durante el día (la de la madrugada se sigue llamando «nocturna»).
+	BuzonSourceScheduled = "programada"
 
 	buzonAccessTarget = "buzon"
 	buzonMaxPages     = 60
@@ -113,6 +116,11 @@ type SunatBuzonService struct {
 
 	mu      sync.Mutex // una sincronización a la vez
 	current atomic.Uint32
+	// curSource origen de la sincronización en curso («manual», «nocturna», «programada»).
+	curSource atomic.Value
+	// manualWaiting personas esperando su turno para una sincronización manual: la corrida programada les cede el paso
+	// antes de empezar con la siguiente empresa (una pasada de todo el estudio dura más de media hora).
+	manualWaiting atomic.Int32
 }
 
 var (
@@ -199,6 +207,7 @@ func (s *SunatBuzonService) State(companyID uint) *models.SunatBuzonSync {
 			st.Blocked = st.CredFingerprint == buzonFingerprint(strings.TrimSpace(cr.SolUsuario), strings.TrimSpace(cr.SolClave))
 		}
 	}
+	st.NotifNoLeidas = s.notifUnreadByCompany([]uint{companyID})[companyID]
 	return &st
 }
 
@@ -219,10 +228,12 @@ func (s *SunatBuzonService) States(companyIDs []uint) (map[uint]models.SunatBuzo
 			creds[c.CompanyID] = c
 		}
 	}
+	unread := s.notifUnreadByCompany(companyIDs)
 	for _, r := range rows {
 		if c, ok := creds[r.CompanyID]; ok && r.Status == models.SunatBuzonStatusRechazadas {
 			r.Blocked = r.CredFingerprint == buzonFingerprint(strings.TrimSpace(c.SolUsuario), strings.TrimSpace(c.SolClave))
 		}
+		r.NotifNoLeidas = unread[r.CompanyID]
 		out[r.CompanyID] = r
 	}
 	return out, nil
@@ -328,14 +339,28 @@ func (s *SunatBuzonService) syncCompany(companyID uint, allowed []uint, source s
 		return st, buzonErr(BuzonErrRejected, "SUNAT rechazó el usuario o la clave SOL de esta empresa. Corríjalos en Claves SOL (Editar) para volver a sincronizar.", ""), false
 	}
 
-	if wait {
+	switch {
+	case wait:
+		// Corrida programada: antes de empezar con otra empresa cede el paso a quien espera una sincronización manual.
+		for i := 0; i < 600 && s.manualWaiting.Load() > 0; i++ {
+			time.Sleep(200 * time.Millisecond)
+		}
 		s.mu.Lock()
-	} else if !s.mu.TryLock() {
-		return st, buzonErr(BuzonErrInProgress, s.busyMessage(), ""), false
+	case !s.mu.TryLock():
+		// Si lo que está corriendo es una pasada programada, la sincronización manual tiene prioridad: espera a que termine la
+		// empresa actual (segundos) en vez de rechazarse. Si es otra manual, se responde como siempre «en curso».
+		if src, _ := s.curSource.Load().(string); src == "" || src == BuzonSourceManual {
+			return st, buzonErr(BuzonErrInProgress, s.busyMessage(), ""), false
+		}
+		s.manualWaiting.Add(1)
+		s.mu.Lock()
+		s.manualWaiting.Add(-1)
 	}
 	defer s.mu.Unlock()
 	s.current.Store(uint32(companyID))
 	defer s.current.Store(0)
+	s.curSource.Store(source)
+	defer s.curSource.Store("")
 
 	started := time.Now()
 	now := started.Truncate(time.Second) // MySQL guarda las fechas sin fracción
@@ -686,28 +711,74 @@ func (s *SunatBuzonService) RunAll(source string) BuzonRunSummary {
 	return sum
 }
 
-// StartSunatBuzonNightlySync deja corriendo la sincronización de todas las empresas a la 1:00 a. m. (hora de Lima).
+// buzonDefaultHours horas (Lima) de las pasadas sobre todo el estudio: la madrugada y tres durante la jornada, para que los
+// avisos de «notificaciones sin leer» no tengan más de unas horas de retraso. Se cambia con BUZON_SYNC_HOURS («1,8,13,17»).
+const buzonDefaultHours = "1,8,13,17"
+
+// parseBuzonHours lee una lista de horas 0-23 separadas por coma (sin repetir, ordenadas); lo inválido se ignora.
+func parseBuzonHours(spec string) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, p := range strings.Split(spec, ",") {
+		h, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil || h < 0 || h > 23 || seen[h] {
+			continue
+		}
+		seen[h] = true
+		out = append(out, h)
+	}
+	sort.Ints(out)
+	return out
+}
+
+// nextBuzonRun la próxima pasada (la más cercana en el futuro entre las horas dadas) y su hora.
+func nextBuzonRun(now time.Time, hours []int, loc *time.Location) (time.Time, int) {
+	var best time.Time
+	bestHour := 0
+	for _, h := range hours {
+		n := nextDailyRun(now, h, loc)
+		if best.IsZero() || n.Before(best) {
+			best, bestHour = n, h
+		}
+	}
+	return best, bestHour
+}
+
+// StartSunatBuzonNightlySync deja corriendo la sincronización de todas las empresas a las horas programadas (hora de Lima):
+// por defecto 1:00, 8:00, 13:00 y 17:00. La de la madrugada se registra como «nocturna»; las demás, como «programada».
 // Se desactiva con BUZON_SYNC_NIGHTLY=false (p. ej. en el ambiente de pruebas, para no duplicar los ingresos a SOL).
 func StartSunatBuzonNightlySync() {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("BUZON_SYNC_NIGHTLY"))) {
 	case "false", "0", "off", "no":
-		log.Print("buzon: sincronización nocturna desactivada (BUZON_SYNC_NIGHTLY)")
+		log.Print("buzon: sincronización programada desactivada (BUZON_SYNC_NIGHTLY)")
 		return
 	}
 	loc := limaLoc
 	if loc == nil {
 		loc = time.UTC
 	}
+	spec := strings.TrimSpace(os.Getenv("BUZON_SYNC_HOURS"))
+	if spec == "" {
+		spec = buzonDefaultHours
+	}
+	hours := parseBuzonHours(spec)
+	if len(hours) == 0 {
+		hours = []int{buzonNightlyHour}
+	}
 	go func() {
 		svc := SharedSunatBuzonService()
 		for {
-			next := nextDailyRun(time.Now(), buzonNightlyHour, loc)
-			log.Printf("buzon: próxima sincronización nocturna: %s", next.Format("2006-01-02 15:04 MST"))
+			next, hour := nextBuzonRun(time.Now(), hours, loc)
+			source := BuzonSourceScheduled
+			if hour < 6 {
+				source = BuzonSourceNightly
+			}
+			log.Printf("buzon: próxima sincronización (%s): %s", source, next.Format("2006-01-02 15:04 MST"))
 			time.Sleep(time.Until(next))
 			started := time.Now()
-			sum := svc.RunAll(BuzonSourceNightly)
-			log.Printf("buzon: sincronización nocturna terminada en %s — empresas %d, ok %d, sin clave %d, rechazadas %d, con error %d, cortada %v",
-				time.Since(started).Round(time.Second), sum.Total, sum.OK, sum.SinClave, sum.Rechazadas, sum.Errores, sum.Cortada)
+			sum := svc.RunAll(source)
+			log.Printf("buzon: sincronización %s terminada en %s — empresas %d, ok %d, sin clave %d, rechazadas %d, con error %d, cortada %v",
+				source, time.Since(started).Round(time.Second), sum.Total, sum.OK, sum.SinClave, sum.Rechazadas, sum.Errores, sum.Cortada)
 		}
 	}()
 }

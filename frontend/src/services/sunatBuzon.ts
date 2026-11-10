@@ -10,13 +10,16 @@ export interface BuzonSync {
   error_message?: string;
   last_attempt_at?: string;
   last_success_at?: string;
-  source: 'manual' | 'nocturna';
+  /** manual, nocturna (1:00 a. m.) o programada (pasadas del día). */
+  source: 'manual' | 'nocturna' | 'programada';
   duration_ms: number;
   notificaciones: number;
   mensajes: number;
   no_leidas: number;
   urgentes: number;
   nuevos: number;
+  /** NOTIFICACIONES (no mensajes) sin leer en SUNAT que siguen en el buzón. */
+  notif_no_leidas: number;
   /** Las credenciales vigentes son las mismas que SUNAT rechazó: no se reintenta hasta corregirlas. */
   blocked: boolean;
 }
@@ -53,6 +56,28 @@ export interface BuzonDetail {
   etiquetas: Record<string, string>;
 }
 
+/** Las notificaciones de SUNAT sin leer de una empresa. */
+export interface BuzonUnreadCompany {
+  company_id: number;
+  code: string;
+  business_name: string;
+  ruc: string;
+  unread: number;
+  urgent: number;
+  /** Publicación de la más antigua sin leer. */
+  oldest?: string;
+  last_sync_at?: string;
+}
+
+/** Notificaciones sin leer de las empresas del alcance de quien consulta (asistente y supervisor: las suyas; administrador: todas). */
+export interface BuzonUnreadSummary {
+  total: number;
+  urgent: number;
+  companies: BuzonUnreadCompany[];
+  /** Empresas del alcance que no se pudieron revisar: ahí «sin avisos» no significa «sin notificaciones». */
+  unchecked: { rejected: number; error: number };
+}
+
 export interface BuzonFilters {
   tipo?: 0 | 1 | 2;
   etiqueta?: string;
@@ -87,6 +112,15 @@ export const sunatBuzonService = {
       return { data: res.data.data ?? {}, running: res.data.running ?? 0 };
     } catch (err) {
       throw toError(err, 'No se pudo leer el estado de las sincronizaciones.');
+    }
+  },
+
+  async unread(): Promise<BuzonUnreadSummary> {
+    try {
+      const res = await client.get<{ data: BuzonUnreadSummary }>('/tools/buzon/unread');
+      return res.data.data;
+    } catch (err) {
+      throw toError(err, 'No se pudieron leer las notificaciones sin leer.');
     }
   },
 

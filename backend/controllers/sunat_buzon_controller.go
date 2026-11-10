@@ -78,6 +78,20 @@ func (ctrl *SunatBuzonController) SummaryAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": states, "running": ctrl.svc.RunningCompany()})
 }
 
+// UnreadAPI GET /tools/buzon/unread — notificaciones de SUNAT sin leer de las empresas del alcance de quien consulta: el
+// asistente y el supervisor, solo las empresas que tienen asignadas; el administrador, todas. Alimenta el aviso flotante.
+func (ctrl *SunatBuzonController) UnreadAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowed(c)
+	if err != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "No tiene acceso"})
+	}
+	res, serr := ctrl.svc.UnreadSummary(allowed)
+	if serr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudieron leer las notificaciones sin leer."})
+	}
+	return c.JSON(fiber.Map{"data": res})
+}
+
 // GetAPI GET /tools/buzon/:companyId?tipo=&etiqueta=&no_leidas=1&urgentes=1&nuevos=1&q=&page=&per_page=
 // Devuelve lo ya guardado (sin llamar a SUNAT).
 func (ctrl *SunatBuzonController) GetAPI(c fiber.Ctx) error {
