@@ -37,8 +37,21 @@ Medido en real: 88 recibos de 10 meses en ~3 s; un mes con 11 recibos en ~1 s.
 «descargaArchivo» o «No se han encontrado registros». Las pruebas (`rhe_sol_service_test.go`) usan un SUNAT simulado con
 esta estructura.
 
+## Consulta Emisor (recibos emitidos por personas naturales)
+
+Implementada el 2026-11-10 sobre el mismo servicio (`RheSolService.Query(..., lado, ...)`, `lado=receptor|emisor`). Pestaña
+«Recibos emitidos» solo si el RUC empieza con 10. Diferencias con receptor (descubiertas en real con las empresas 176 y 192):
+
+- Opción `11.5.1.1.13`; búsqueda con `accion=CapturaCriterioBusqueda1` y los campos ocultos que trae la pantalla
+  (`proceso`, `indicadoralta`; hoy `31196ALTA` / `PNAT`) + `cod_docide=-`, `num_docide` vacío.
+- **Hasta 6 meses por búsqueda** (el formulario valida «más de 184 días»): tramos de 180 días.
+- Reporte con `accion=descargaConsultaEmisor`: mismas 16 columnas; la contraparte es el «usuario del servicio» (el cliente),
+  que se guarda en los campos `emisor_*` (nombres JSON conservados) y la pantalla rotula «Cliente».
+- Quien no es emisor electrónico recibe de SUNAT una «Página de Mensajes» con «Ud. no es Emisor Electrónico»: se muestra tal
+  cual como error (la «ó» ya viene dañada desde SUNAT y se corrige al leerla).
+- El historial se guarda por lado (`rhe_sol_history.lado`, default `receptor`).
+
 ## Pendiente
 
-- «Consulta Emisor» (`11.5.1.1.13`) para personas naturales que emiten recibos (misma pantalla con otro criterio).
 - Las notas de crédito y anulados no suman en los totales de la pantalla; si el estudio necesita otro criterio, se ajusta
   en `totalsByMoneda` (`rhSolUi.ts`).

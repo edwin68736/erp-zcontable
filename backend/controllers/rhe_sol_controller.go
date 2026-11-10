@@ -41,19 +41,19 @@ func (ctrl *RheSolController) scoped(c fiber.Ctx) (companyID uint, allowed []uin
 	return uint(id), allowed, nil
 }
 
-// QueryAPI GET /tools/rh-sol/:companyId/consulta?desde=AAAA-MM-DD&hasta=AAAA-MM-DD
+// QueryAPI GET /tools/rh-sol/:companyId/consulta?lado=receptor|emisor&desde=AAAA-MM-DD&hasta=AAAA-MM-DD
 func (ctrl *RheSolController) QueryAPI(c fiber.Ctx) error {
 	id, allowed, resp := ctrl.scoped(c)
 	if id == 0 {
 		return resp
 	}
 	uid, _ := getUserID(c)
-	desde, hasta := c.Query("desde"), c.Query("hasta")
-	res, err := ctrl.svc.Query(id, allowed, uid, desde, hasta)
+	lado, desde, hasta := c.Query("lado"), c.Query("desde"), c.Query("hasta")
+	res, err := ctrl.svc.Query(id, allowed, uid, lado, desde, hasta)
 	// Cada consulta (acertada o fallida) queda en el historial de la empresa; las de datos inválidos no.
 	var historyID uint
 	if !isInvalidParams(err) {
-		historyID = ctrl.svc.RecordHistory(id, uid, desde, hasta, res, err)
+		historyID = ctrl.svc.RecordHistory(id, uid, lado, desde, hasta, res, err)
 	}
 	if err != nil {
 		return sunatErrorResponse(c, err, "No se pudo consultar los recibos por honorarios")
@@ -72,7 +72,7 @@ func (ctrl *RheSolController) HistoryListAPI(c fiber.Ctx) error {
 	if id == 0 {
 		return resp
 	}
-	rows, err := ctrl.svc.ListHistory(id)
+	rows, err := ctrl.svc.ListHistory(id, c.Query("lado"))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo leer el historial."})
 	}

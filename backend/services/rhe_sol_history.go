@@ -16,8 +16,9 @@ const rheSolHistoryKeep = 100 // consultas que se conservan por empresa
 
 // RecordHistory guarda una consulta (acertada o fallida) en el historial de la empresa y devuelve su id.
 // `res` es nil cuando la consulta falló (`qerr`). Nunca interrumpe la consulta: si no se puede guardar, devuelve 0.
-func (s *RheSolService) RecordHistory(companyID, userID uint, desde, hasta string, res *RheSolResult, qerr error) uint {
-	row := models.RheSolHistory{CompanyID: companyID, Desde: truncateStr(desde, 10), Hasta: truncateStr(hasta, 10), RequestedBy: userID}
+func (s *RheSolService) RecordHistory(companyID, userID uint, lado, desde, hasta string, res *RheSolResult, qerr error) uint {
+	lado, _ = RheSolNormalizeLado(lado)
+	row := models.RheSolHistory{CompanyID: companyID, Lado: lado, Desde: truncateStr(desde, 10), Hasta: truncateStr(hasta, 10), RequestedBy: userID}
 	switch {
 	case qerr != nil:
 		row.Status = models.RheSolHistoryFailed
@@ -46,17 +47,18 @@ func (s *RheSolService) RecordHistory(companyID, userID uint, desde, hasta strin
 		return 0
 	}
 	var ids []uint
-	if err := database.DB.Model(&models.RheSolHistory{}).Where("company_id = ?", companyID).
+	if err := database.DB.Model(&models.RheSolHistory{}).Where("company_id = ? AND lado = ?", companyID, lado).
 		Order("created_at DESC, id DESC").Offset(rheSolHistoryKeep).Pluck("id", &ids).Error; err == nil && len(ids) > 0 {
 		_ = database.DB.Where("id IN ?", ids).Delete(&models.RheSolHistory{}).Error
 	}
 	return row.ID
 }
 
-// ListHistory historial de la empresa (lo más reciente primero), sin los resultados.
-func (s *RheSolService) ListHistory(companyID uint) ([]models.RheSolHistory, error) {
+// ListHistory historial de la empresa para un lado (lo más reciente primero), sin los resultados.
+func (s *RheSolService) ListHistory(companyID uint, lado string) ([]models.RheSolHistory, error) {
+	lado, _ = RheSolNormalizeLado(lado)
 	var rows []models.RheSolHistory
-	err := database.DB.Omit("data").Where("company_id = ?", companyID).Order("created_at DESC, id DESC").Limit(rheSolHistoryKeep).Find(&rows).Error
+	err := database.DB.Omit("data").Where("company_id = ? AND lado = ?", companyID, lado).Order("created_at DESC, id DESC").Limit(rheSolHistoryKeep).Find(&rows).Error
 	return rows, err
 }
 

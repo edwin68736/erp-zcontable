@@ -15,7 +15,8 @@ const (
 type RheSolHistory struct {
 	ID        uint   `gorm:"primaryKey" json:"id"`
 	CompanyID uint   `gorm:"not null;index:idx_rhe_sol_hist_company,priority:1" json:"company_id"`
-	Desde     string `gorm:"size:10;not null" json:"desde"` // AAAA-MM-DD (fecha de emisión)
+	Lado      string `gorm:"size:10;not null;default:receptor" json:"lado"` // receptor (recibidos) | emisor (emitidos)
+	Desde     string `gorm:"size:10;not null" json:"desde"`                 // AAAA-MM-DD (fecha de emisión)
 	Hasta     string `gorm:"size:10;not null" json:"hasta"`
 	Status    string `gorm:"size:12;not null" json:"status"`
 	Total     int    `gorm:"not null;default:0" json:"total"`

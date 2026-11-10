@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import type { RheSolItem } from '../../../services/rheSol';
+import type { RheSolItem, RheSolLado } from '../../../services/rheSol';
 import { notify } from '../../../utils/notify';
 import { fmtDay } from './rhUi';
 
@@ -42,14 +42,14 @@ export function totalsByMoneda(items: RheSolItem[]): RheSolTotals[] {
   return [...acc.values()];
 }
 
-const HEADERS = [
+const headers = (lado: RheSolLado) => [
   'FECHA EMISIÓN',
   'TIPO',
   'COMPROBANTE',
   'ESTADO',
-  'DOC. EMISOR',
-  'NRO. DOC. EMISOR',
-  'EMISOR',
+  lado === 'emisor' ? 'DOC. CLIENTE' : 'DOC. EMISOR',
+  lado === 'emisor' ? 'NRO. DOC. CLIENTE' : 'NRO. DOC. EMISOR',
+  lado === 'emisor' ? 'CLIENTE (USUARIO DEL SERVICIO)' : 'EMISOR',
   'TIPO DE RENTA',
   'GRATUITO',
   'DESCRIPCIÓN',
@@ -62,13 +62,14 @@ const HEADERS = [
 ];
 const WIDTHS = [13, 20, 14, 13, 10, 15, 38, 9, 9, 50, 30, 8, 14, 14, 14, 14];
 
-export async function exportRheSolExcel(items: RheSolItem[], meta: { empresa: string; ruc: string; desde: string; hasta: string }): Promise<void> {
+export async function exportRheSolExcel(items: RheSolItem[], meta: { empresa: string; ruc: string; desde: string; hasta: string; lado: RheSolLado }): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet('Recibos');
-  sheet.addRow([`Recibos por honorarios recibidos — ${meta.empresa} (RUC ${meta.ruc})`]).font = { bold: true, size: 12 };
-  sheet.addRow([`SUNAT Operaciones en Línea · Consulta Receptor · emisión del ${fmtDay(meta.desde)} al ${fmtDay(meta.hasta)}`]);
+  const emitidos = meta.lado === 'emisor';
+  sheet.addRow([`Recibos por honorarios ${emitidos ? 'emitidos' : 'recibidos'} — ${meta.empresa} (RUC ${meta.ruc})`]).font = { bold: true, size: 12 };
+  sheet.addRow([`SUNAT Operaciones en Línea · Consulta ${emitidos ? 'Emisor' : 'Receptor'} · emisión del ${fmtDay(meta.desde)} al ${fmtDay(meta.hasta)}`]);
   sheet.addRow([]);
-  const head = sheet.addRow(HEADERS);
+  const head = sheet.addRow(headers(meta.lado));
   head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   head.eachCell((c) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
@@ -102,7 +103,7 @@ export async function exportRheSolExcel(items: RheSolItem[], meta: { empresa: st
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(
     new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `RH-recibidos-${meta.ruc}-${meta.desde}_${meta.hasta}.xlsx`,
+    `RH-${emitidos ? 'emitidos' : 'recibidos'}-${meta.ruc}-${meta.desde}_${meta.hasta}.xlsx`,
   );
   void notify.success('Excel descargado');
 }

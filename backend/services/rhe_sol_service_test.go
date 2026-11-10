@@ -67,11 +67,11 @@ func TestParseRheSolReport_formatoInesperado(t *testing.T) {
 func TestRheSolWindows(t *testing.T) {
 	loc := limaLocation()
 	day := func(m time.Month, d int) time.Time { return time.Date(2026, m, d, 0, 0, 0, 0, loc) }
-	w := rheSolWindows(day(1, 1), day(1, 31))
+	w := rheSolWindows(day(1, 1), day(1, 31), 31)
 	if len(w) != 1 {
 		t.Fatalf("31 días caben en un tramo: %d", len(w))
 	}
-	w = rheSolWindows(day(1, 1), day(3, 15))
+	w = rheSolWindows(day(1, 1), day(3, 15), 31)
 	if len(w) != 3 || !w[0][1].Equal(day(1, 31)) || !w[1][0].Equal(day(2, 1)) || !w[2][1].Equal(day(3, 15)) {
 		t.Errorf("tramos: %v", w)
 	}
@@ -110,6 +110,9 @@ type fakeSunatRhe struct {
 	salio    bool
 	// reports por orden de búsqueda; un nil significa «sin registros»; la cadena "ERR" devuelve la página de error.
 	reports []any
+	// lastMenu último código de menú abierto; emisorMensaje hace que la pantalla de emisor responda con la «Página de Mensajes».
+	lastMenu      string
+	emisorMensaje string
 }
 
 func newFakeSunatRhe(t *testing.T, reports ...any) *fakeSunatRhe {
@@ -124,7 +127,18 @@ func newFakeSunatRhe(t *testing.T, reports ...any) *fakeSunatRhe {
 			_, _ = io.WriteString(w, "none")
 			return
 		}
-		if r.URL.Query().Get("action") == "execute" && r.URL.Query().Get("code") == rheSolMenuCode {
+		if r.URL.Query().Get("action") == "execute" {
+			code := r.URL.Query().Get("code")
+			if code == rheSolLados[RheSolEmisor].menuCode {
+				f.lastMenu = code
+				if f.emisorMensaje != "" {
+					http.Redirect(w, r, rheSolFormPath+"?msg=1", http.StatusFound)
+					return
+				}
+			}
+			if code == rheSolLados[RheSolReceptor].menuCode {
+				f.lastMenu = code
+			}
 			http.Redirect(w, r, rheSolFormPath, http.StatusFound)
 			return
 		}
@@ -132,12 +146,16 @@ func newFakeSunatRhe(t *testing.T, reports ...any) *fakeSunatRhe {
 	})
 	mux.HandleFunc(rheSolFormPath, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			_, _ = io.WriteString(w, `<html><title>Consulta Receptor</title><form name="lista"></form></html>`)
+			if r.URL.Query().Get("msg") != "" {
+				_, _ = io.WriteString(w, `<html><title>.:: Pagina de Mensajes ::.</title><style>a{}</style>Informaci&oacute;n adicional : - `+f.emisorMensaje+`</td></html>`)
+				return
+			}
+			_, _ = io.WriteString(w, `<html><title>Consulta</title><form name="lista"><input type="hidden" name="proceso" value="PROC123"><input type="hidden" name="indicadoralta" value="PNAT"></form></html>`)
 			return
 		}
 		r.ParseForm()
 		switch r.PostForm.Get("accion") {
-		case "CapturaCriterioConsulatRec1":
+		case "CapturaCriterioConsulatRec1", "CapturaCriterioBusqueda1":
 			m := map[string]string{}
 			for k := range r.PostForm {
 				m[k] = r.PostForm.Get(k)
@@ -157,7 +175,7 @@ func newFakeSunatRhe(t *testing.T, reports ...any) *fakeSunatRhe {
 				_ = v
 				_, _ = io.WriteString(w, `<html>1 a 2 de 2 <a href="javascript:descargaArchivo()">Descargar Reporte</a></html>`)
 			}
-		case "descargaConsultaReceptor":
+		case "descargaConsultaReceptor", "descargaConsultaEmisor":
 			f.downs++
 			if n := len(f.searches) - 1; n >= 0 && n < len(f.reports) {
 				if b, ok := f.reports[n].([]byte); ok {
@@ -191,7 +209,7 @@ func TestRheSolQuery_unaBusquedaPorTramoYBajaElReporte(t *testing.T) {
 	// Rango de 2 meses y medio → 3 tramos: el 1.º con datos, el 2.º sin registros, el 3.º con datos.
 	f := newFakeSunatRhe(t, rheSolReport(rheRow1), nil, rheSolReport(rheRow2))
 	svc, co := newRheSolTest(t, f)
-	res, err := svc.Query(co.ID, nil, 1, "2026-06-01", "2026-08-15")
+	res, err := svc.Query(co.ID, nil, 1, "", "2026-06-01", "2026-08-15")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,14 +237,14 @@ func TestRheSolQuery_unaBusquedaPorTramoYBajaElReporte(t *testing.T) {
 func TestRheSolQuery_sinRegistrosYErrorDeSunat(t *testing.T) {
 	f := newFakeSunatRhe(t, nil)
 	svc, co := newRheSolTest(t, f)
-	res, err := svc.Query(co.ID, nil, 1, "2026-10-01", "2026-10-31")
+	res, err := svc.Query(co.ID, nil, 1, "", "2026-10-01", "2026-10-31")
 	if err != nil || res.Total != 0 || len(res.Items) != 0 || f.downs != 0 {
 		t.Fatalf("sin registros: %+v %v descargas=%d", res, err, f.downs)
 	}
 	f2 := newFakeSunatRhe(t, "ERR")
 	svc2, co2 := newRheSolTest(t, f2)
 	var ae *SunatSolAccessError
-	if _, err := svc2.Query(co2.ID, nil, 1, "2026-10-01", "2026-10-31"); !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected || !strings.Contains(ae.Detail, "error") {
+	if _, err := svc2.Query(co2.ID, nil, 1, "", "2026-10-01", "2026-10-31"); !errors.As(err, &ae) || ae.Code != SunatAccessUnexpected || !strings.Contains(ae.Detail, "error") {
 		t.Errorf("la página de error de SUNAT debía salir como error con detalle: %v", err)
 	}
 }
@@ -236,15 +254,15 @@ func TestRheSolQuery_rangoInvalidoNoEntraASolYLoginFallido(t *testing.T) {
 	svc, co := newRheSolTest(t, f)
 	called := false
 	svc.linkFn = func(uint, []uint, uint) (string, error) { called = true; return "", nil }
-	if _, err := svc.Query(co.ID, nil, 1, "2026-10-31", "2026-10-01"); err == nil || called {
+	if _, err := svc.Query(co.ID, nil, 1, "", "2026-10-31", "2026-10-01"); err == nil || called {
 		t.Fatalf("debía fallar sin entrar a SOL: %v called=%v", err, called)
 	}
 	svc.linkFn = func(uint, []uint, uint) (string, error) { return "", accessErr(SunatAccessBadCreds, "rechazada", "") }
 	var ae *SunatSolAccessError
-	if _, err := svc.Query(co.ID, nil, 1, "2026-10-01", "2026-10-31"); !errors.As(err, &ae) || ae.Code != SunatAccessBadCreds {
+	if _, err := svc.Query(co.ID, nil, 1, "", "2026-10-01", "2026-10-31"); !errors.As(err, &ae) || ae.Code != SunatAccessBadCreds {
 		t.Fatalf("esperaba credenciales_rechazadas: %v", err)
 	}
-	if _, err := svc.Query(co.ID, []uint{9999}, 1, "2026-10-01", "2026-10-31"); err == nil {
+	if _, err := svc.Query(co.ID, []uint{9999}, 1, "", "2026-10-01", "2026-10-31"); err == nil {
 		t.Fatal("una empresa fuera del alcance no se puede consultar")
 	}
 }
@@ -252,17 +270,17 @@ func TestRheSolQuery_rangoInvalidoNoEntraASolYLoginFallido(t *testing.T) {
 func TestRheSolHistory_guardaListaYQuita(t *testing.T) {
 	f := newFakeSunatRhe(t, rheSolReport(rheRow1))
 	svc, co := newRheSolTest(t, f)
-	res, err := svc.Query(co.ID, nil, 1, "2026-06-01", "2026-06-30")
+	res, err := svc.Query(co.ID, nil, 1, "", "2026-06-01", "2026-06-30")
 	if err != nil {
 		t.Fatal(err)
 	}
-	id1 := svc.RecordHistory(co.ID, 3, "2026-06-01", "2026-06-30", res, nil)
-	id2 := svc.RecordHistory(co.ID, 3, "2026-05-01", "2026-05-31", &RheSolResult{}, nil)
-	id3 := svc.RecordHistory(co.ID, 3, "2026-04-01", "2026-04-30", nil, accessErr(SunatAccessUnavailable, "SUNAT no responde", "HTTP 503"))
+	id1 := svc.RecordHistory(co.ID, 3, "", "2026-06-01", "2026-06-30", res, nil)
+	id2 := svc.RecordHistory(co.ID, 3, "", "2026-05-01", "2026-05-31", &RheSolResult{}, nil)
+	id3 := svc.RecordHistory(co.ID, 3, "", "2026-04-01", "2026-04-30", nil, accessErr(SunatAccessUnavailable, "SUNAT no responde", "HTTP 503"))
 	if id1 == 0 || id2 == 0 || id3 == 0 {
 		t.Fatalf("debía guardar todas: %d %d %d", id1, id2, id3)
 	}
-	rows, err := svc.ListHistory(co.ID)
+	rows, err := svc.ListHistory(co.ID, "")
 	if err != nil || len(rows) != 3 || rows[0].ID != id3 || rows[0].Status != models.RheSolHistoryFailed || rows[0].ErrorCode != SunatAccessUnavailable {
 		t.Fatalf("historial: %+v %v", rows, err)
 	}
@@ -281,5 +299,57 @@ func TestRheSolHistory_guardaListaYQuita(t *testing.T) {
 	}
 	if n, err := svc.ClearHistory(co.ID); err != nil || n != 2 {
 		t.Errorf("limpiar: %d %v", n, err)
+	}
+}
+
+func TestRheSolQuery_emisorUsaSuPantallaYSusCampos(t *testing.T) {
+	f := newFakeSunatRhe(t, rheSolReport(rheRow1))
+	svc, co := newRheSolTest(t, f)
+	// 8 meses → 2 tramos de hasta 180 días (el formulario de emisor admite 6 meses).
+	res, err := svc.Query(co.ID, nil, 1, "emisor", "2026-03-01", "2026-10-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.lastMenu != "11.5.1.1.13" || res.Lado != "emisor" || len(f.searches) != 2 {
+		t.Fatalf("menú=%q lado=%q búsquedas=%d", f.lastMenu, res.Lado, len(f.searches))
+	}
+	first := f.searches[0]
+	if first["accion"] != "CapturaCriterioBusqueda1" || first["cod_docide"] != "-" || first["proceso"] != "PROC123" || first["indicadoralta"] != "PNAT" || first["ruc_emisor"] != "" {
+		t.Errorf("campos de la búsqueda de emisor: %v", first)
+	}
+	if first["fec_desde"] != "01/03/2026" || first["fec_hasta"] != "27/08/2026" { // 180 días
+		t.Errorf("primer tramo: %v", first)
+	}
+	if f.downs != 1 || res.Total != 1 {
+		t.Errorf("descargas=%d total=%d", f.downs, res.Total)
+	}
+}
+
+func TestRheSolQuery_noEsEmisorElectronico(t *testing.T) {
+	f := newFakeSunatRhe(t)
+	f.emisorMensaje = "Ud. no es Emisor Electrónico"
+	svc, co := newRheSolTest(t, f)
+	var ae *SunatSolAccessError
+	_, err := svc.Query(co.ID, nil, 1, "emisor", "2026-10-01", "2026-10-31")
+	if !errors.As(err, &ae) || !strings.Contains(ae.Message, "Ud. no es Emisor Electrónico") || len(f.searches) != 0 {
+		t.Fatalf("debía explicar que no es emisor electrónico sin buscar: %v búsquedas=%d", err, len(f.searches))
+	}
+	if _, err := svc.Query(co.ID, nil, 1, "otro", "2026-10-01", "2026-10-31"); !errors.As(err, &ae) || ae.Code != SunatAccessInvalidParams {
+		t.Errorf("un lado desconocido es un parámetro inválido: %v", err)
+	}
+}
+
+func TestRheSolHistory_separaRecibidosYEmitidos(t *testing.T) {
+	f := newFakeSunatRhe(t)
+	svc, co := newRheSolTest(t, f)
+	a := svc.RecordHistory(co.ID, 1, "receptor", "2026-06-01", "2026-06-30", &RheSolResult{Lado: "receptor"}, nil)
+	b := svc.RecordHistory(co.ID, 1, "emisor", "2026-06-01", "2026-06-30", &RheSolResult{Lado: "emisor"}, nil)
+	if a == 0 || b == 0 {
+		t.Fatal("debía guardar ambas")
+	}
+	rec, _ := svc.ListHistory(co.ID, "")
+	emi, _ := svc.ListHistory(co.ID, "emisor")
+	if len(rec) != 1 || rec[0].ID != a || rec[0].Lado != "receptor" || len(emi) != 1 || emi[0].ID != b || emi[0].Lado != "emisor" {
+		t.Errorf("cada lado ve solo lo suyo: %+v / %+v", rec, emi)
 	}
 }

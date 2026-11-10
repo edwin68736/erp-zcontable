@@ -8,20 +8,26 @@ import RhSolPanel from './RhSolPanel';
 
 const TABS = [
   { key: 'recibidos', label: 'Recibos recibidos', hint: 'Todos los recibos por honorarios emitidos a la empresa (SUNAT Operaciones en Línea)' },
+  { key: 'emitidos', label: 'Recibos emitidos', hint: 'Los recibos por honorarios que emitió la persona natural (SUNAT Operaciones en Línea)' },
   { key: 'confirmacion', label: 'Pendientes de confirmación', hint: 'Plataforma de confirmación del RHE y de la FE (API de SUNAT): solo comprobantes pendientes, subsanados o disconformes' },
 ] as const;
 
 /**
  * Herramientas → RH → una empresa. Dos fuentes de SUNAT, en pestañas:
  *  - «Recibos recibidos» (por defecto): lee en SOL la consulta de receptor, con todos los recibos por honorarios.
+ *  - «Recibos emitidos» (solo personas naturales, RUC 10): lee en SOL la consulta de emisor.
  *  - «Pendientes de confirmación»: la API de la plataforma de confirmación del RHE y de la FE (estados de confirmación).
  */
 const RhCompany = () => {
   const { companyId: rawId } = useParams();
   const companyId = Number(rawId);
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'confirmacion' ? 'confirmacion' : 'recibidos';
   const [company, setCompany] = useState<CompanyAccessCredentialRow | null>(null);
+  // «Recibos emitidos» solo existe para personas naturales (RUC 10): una empresa no es emisor de recibos por honorarios.
+  const isPerson = (company?.ruc ?? '').startsWith('10');
+  const tabs = TABS.filter((t) => t.key !== 'emitidos' || isPerson);
+  const rawTab = params.get('tab');
+  const tab = rawTab === 'confirmacion' ? 'confirmacion' : rawTab === 'emitidos' && isPerson ? 'emitidos' : 'recibidos';
   const [companyError, setCompanyError] = useState('');
 
   useEffect(() => {
@@ -66,7 +72,7 @@ const RhCompany = () => {
       {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
       <div role="tablist" aria-label="Fuente de los recibos" className="flex gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -83,7 +89,9 @@ const RhCompany = () => {
         ))}
       </div>
 
-      {tab === 'recibidos' ? <RhSolPanel companyId={companyId} company={company} /> : <RhConfirmPanel companyId={companyId} company={company} />}
+      {tab === 'recibidos' ? <RhSolPanel key="recibidos" companyId={companyId} company={company} /> : null}
+      {tab === 'emitidos' ? <RhSolPanel key="emitidos" companyId={companyId} company={company} lado="emisor" /> : null}
+      {tab === 'confirmacion' ? <RhConfirmPanel companyId={companyId} company={company} /> : null}
     </div>
   );
 };

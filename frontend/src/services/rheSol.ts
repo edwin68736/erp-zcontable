@@ -1,7 +1,13 @@
 import client from '../api/client';
 import type { SireApiError } from './sire';
 
-/** Un comprobante recibido (recibo por honorarios, nota de crédito u otro ingreso de 4.ª categoría), leído en SOL. */
+/** recibidos por la empresa (Consulta Receptor) o emitidos por la persona natural (Consulta Emisor). */
+export type RheSolLado = 'receptor' | 'emisor';
+
+/**
+ * Un comprobante (recibo por honorarios, nota de crédito u otro ingreso de 4.ª categoría), leído en SOL. Los campos
+ * `emisor_*` son la contraparte: quien emitió el recibo (receptor) o el usuario del servicio, el cliente (emisor).
+ */
 export interface RheSolItem {
   /** AAAA-MM-DD */
   fec_emision: string;
@@ -27,6 +33,7 @@ export interface RheSolItem {
 }
 
 export interface RheSolResult {
+  lado?: RheSolLado;
   items: RheSolItem[];
   total: number;
   /** Búsquedas hechas a SUNAT (una por tramo de 1 mes). */
@@ -45,6 +52,7 @@ export interface RheSolResponse {
 /** Una consulta guardada en el historial de la empresa (sin sus resultados). */
 export interface RheSolHistoryItem {
   id: number;
+  lado?: RheSolLado;
   desde: string;
   hasta: string;
   status: 'listo' | 'sin_datos' | 'error';
@@ -67,18 +75,18 @@ function toError(err: unknown): SireApiError {
 
 export const rheSolService = {
   /** Consulta los recibos recibidos por la empresa (fechas de emisión AAAA-MM-DD). El servidor entra a SOL con su clave. */
-  async query(companyId: number, desde: string, hasta: string): Promise<RheSolResponse> {
+  async query(companyId: number, lado: RheSolLado, desde: string, hasta: string): Promise<RheSolResponse> {
     try {
-      const res = await client.get<RheSolResponse>(`/tools/rh-sol/${companyId}/consulta`, { params: { desde, hasta }, timeout: 300000 });
+      const res = await client.get<RheSolResponse>(`/tools/rh-sol/${companyId}/consulta`, { params: { lado, desde, hasta }, timeout: 300000 });
       return res.data;
     } catch (err) {
       throw toError(err);
     }
   },
 
-  async history(companyId: number): Promise<RheSolHistoryItem[]> {
+  async history(companyId: number, lado: RheSolLado): Promise<RheSolHistoryItem[]> {
     try {
-      const res = await client.get<{ data: RheSolHistoryItem[] }>(`/tools/rh-sol/${companyId}/history`);
+      const res = await client.get<{ data: RheSolHistoryItem[] }>(`/tools/rh-sol/${companyId}/history`, { params: { lado } });
       return res.data.data ?? [];
     } catch (err) {
       throw toError(err);

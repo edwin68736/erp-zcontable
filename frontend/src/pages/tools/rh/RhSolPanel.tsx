@@ -4,7 +4,7 @@ import Alert from '../../../components/ui/Alert';
 import Button from '../../../components/ui/Button';
 import LongTaskPanel from '../../../components/LongTaskPanel';
 import type { CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
-import { rheSolService, type RheSolHistoryItem, type RheSolItem, type RheSolResponse } from '../../../services/rheSol';
+import { rheSolService, type RheSolHistoryItem, type RheSolItem, type RheSolLado, type RheSolResponse } from '../../../services/rheSol';
 import type { SireApiError } from '../../../services/sire';
 import { formatDateTime } from '../../../utils/format';
 import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
@@ -137,7 +137,10 @@ function ItemRow({ r }: { r: RheSolItem }) {
  * Herramientas → RH → una empresa → «Recibos recibidos»: lee en SOL (Consulta Receptor) todos los recibos por honorarios,
  * notas de crédito y otros ingresos de 4.ª categoría emitidos a la empresa. Solo lectura. Usa la clave SOL de la empresa.
  */
-const RhSolPanel = ({ companyId, company }: { companyId: number; company: CompanyAccessCredentialRow | null }) => {
+const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: number; company: CompanyAccessCredentialRow | null; lado?: RheSolLado }) => {
+  const emitidos = lado === 'emisor';
+  // Una consulta por herramienta, empresa y lado (recibidos y emitidos son consultas distintas).
+  const tool = emitidos ? 'rhm' : 'rh';
   const [desde, setDesde] = useState(daysAgo(89));
   const [hasta, setHasta] = useState(daysAgo(0));
   const [error, setError] = useState<SireApiError | null>(null);
@@ -150,18 +153,18 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
   const [savedAt, setSavedAt] = useState('');
   const [opening, setOpening] = useState(false);
   // La consulta a SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
-  const task = useTask(taskKey('rh', companyId));
+  const task = useTask(taskKey(tool, companyId));
   const loading = task?.status === 'running';
   const ownTask = useRef<number | null>(null);
 
   const loadHistory = useCallback(async () => {
     try {
-      setHistory(await rheSolService.history(companyId));
+      setHistory(await rheSolService.history(companyId, lado));
       setHistoryError(null);
     } catch (e) {
       setHistoryError(e as SireApiError);
     }
-  }, [companyId]);
+  }, [companyId, lado]);
 
   useEffect(() => {
     void loadHistory();
@@ -186,16 +189,16 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
     setSavedAt('');
     setFilter('');
     const t = startTask({
-      tool: 'rh',
-      toolLabel: 'RH',
+      tool,
+      toolLabel: emitidos ? 'RH emitidos' : 'RH',
       companyId,
       companyName: company?.business_name || `Empresa ${companyId}`,
-      detail: `Recibidos · ${fmtDay(params.desde)} – ${fmtDay(params.hasta)}`,
-      href: `/tools/rh/${companyId}`,
+      detail: `${emitidos ? 'Emitidos' : 'Recibidos'} · ${fmtDay(params.desde)} – ${fmtDay(params.hasta)}`,
+      href: emitidos ? `/tools/rh/${companyId}?tab=emitidos` : `/tools/rh/${companyId}`,
     });
     ownTask.current = t.id;
     try {
-      const r = await rheSolService.query(companyId, params.desde, params.hasta);
+      const r = await rheSolService.query(companyId, lado, params.desde, params.hasta);
       finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `${r.data.total} comprobante${r.data.total === 1 ? '' : 's'}` });
       setResp(r);
       setActiveId(r.history_id ?? null);
@@ -229,7 +232,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
   };
 
   // Salió de la pantalla durante la consulta y volvió: el resultado está en el historial del servidor.
-  useTaskSettled(taskKey('rh', companyId), ownTask, (done) => {
+  useTaskSettled(taskKey(tool, companyId), ownTask, (done) => {
     if (done.status === 'error') {
       setResp(null);
       setError({ message: done.errorMessage ?? 'SUNAT no respondió. Intente de nuevo.' });
@@ -237,7 +240,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
     }
     void (async () => {
       try {
-        const items = await rheSolService.history(companyId);
+        const items = await rheSolService.history(companyId, lado);
         setHistory(items);
         const it = items.find((x) => x.id === done.resultId) ?? items[0];
         if (it) await openSaved(it);
@@ -298,7 +301,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
       {company && hasKey ? (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
           <aside className="min-w-0 space-y-4">
-            <Card title="Consulta en SUNAT" subtitle="Recibos por honorarios recibidos, según su fecha de emisión.">
+            <Card title="Consulta en SUNAT" subtitle={`Recibos por honorarios ${emitidos ? 'emitidos' : 'recibidos'}, según su fecha de emisión.`}>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <label className="text-xs text-slate-600">
@@ -334,9 +337,19 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
                 <details className="text-xs text-slate-500">
                   <summary className="cursor-pointer font-medium text-primary-700 hover:underline">¿Qué muestra esta consulta?</summary>
                   <p className="mt-1.5 leading-relaxed">
-                    Entra a <strong>SUNAT Operaciones en Línea</strong> con la clave SOL de la empresa y abre <em>Recibos por Honorarios Electrónicos → Consulta
-                    Receptor</em>: lista <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría emitidos a la empresa, vigentes o
-                    anulados. SUNAT admite 1 mes por búsqueda; un rango mayor se consulta por tramos automáticamente.
+                    Entra a <strong>SUNAT Operaciones en Línea</strong> con la clave SOL y abre <em>Recibos por Honorarios Electrónicos →{' '}
+                    {emitidos ? 'Consulta Emisor' : 'Consulta Receptor'}</em>:{' '}
+                    {emitidos ? (
+                      <>
+                        lista <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría que la persona <strong>emitió</strong>, vigentes o
+                        anulados (solo si es emisor electrónico). SUNAT admite hasta 6 meses por búsqueda; un rango mayor se consulta por tramos automáticamente.
+                      </>
+                    ) : (
+                      <>
+                        lista <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría emitidos a la empresa, vigentes o anulados. SUNAT
+                        admite 1 mes por búsqueda; un rango mayor se consulta por tramos automáticamente.
+                      </>
+                    )}
                   </p>
                 </details>
               </div>
@@ -373,7 +386,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
           </aside>
 
           <div className="min-w-0 space-y-4">
-            <LongTaskPanel task={task} hint="SUNAT admite 1 mes por búsqueda, así que un rango largo se consulta por tramos. Puede seguir usando el sistema; la consulta queda guardada en el historial." />
+            <LongTaskPanel task={task} hint={`SUNAT admite ${emitidos ? 'hasta 6 meses' : '1 mes'} por búsqueda, así que un rango largo se consulta por tramos. Puede seguir usando el sistema; la consulta queda guardada en el historial.`} />
             {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 
             {resp && !loading ? (
@@ -385,7 +398,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
                     <Button
                       variant="secondary"
                       className="!py-1.5 text-xs"
-                      onClick={() => void exportRheSolExcel(items, { empresa: company.business_name, ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta })}
+                      onClick={() => void exportRheSolExcel(items, { empresa: company.business_name, ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta, lado })}
                     >
                       <i className="fas fa-file-excel mr-1.5" aria-hidden />
                       Excel
@@ -428,7 +441,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
                     <div className="flex flex-wrap items-end gap-3">
                       <label className="min-w-[14rem] flex-1 text-xs text-slate-600">
                         <span className="mb-0.5 block">Filtrar</span>
-                        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Serie-número, emisor, RUC o descripción…" className={`${INPUT_CLS} w-full`} />
+                        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={`Serie-número, ${emitidos ? 'cliente' : 'emisor'}, RUC o descripción…`} className={`${INPUT_CLS} w-full`} />
                       </label>
                       {anulados > 0 ? (
                         <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
@@ -443,7 +456,7 @@ const RhSolPanel = ({ companyId, company }: { companyId: number; company: Compan
                           <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
                             <th className="px-2 py-2 font-semibold">Emisión</th>
                             <th className="px-2 py-2 font-semibold">Comprobante</th>
-                            <th className="px-2 py-2 font-semibold">Emisor</th>
+                            <th className="px-2 py-2 font-semibold">{emitidos ? 'Cliente' : 'Emisor'}</th>
                             <th className="px-2 py-2 text-right font-semibold">Renta bruta</th>
                             <th className="px-2 py-2 text-right font-semibold">Imp. renta</th>
                             <th className="px-2 py-2 text-right font-semibold">Renta neta</th>
