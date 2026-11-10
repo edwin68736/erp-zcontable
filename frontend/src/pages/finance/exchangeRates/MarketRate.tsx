@@ -5,7 +5,7 @@ import { exchangeRatesService, type MarketPoint, type MarketRates } from '../../
 import { chartGeometry, convert, fmtConverted, fmtMarketRate, MARKET_RANGES, parseAmount, sliceRange, type MarketRangeKey } from './marketUi';
 
 const W = 560;
-const H = 230;
+const H = 165;
 
 const dateLabel = (iso: string): string => iso.split('-').reverse().join('/');
 
@@ -20,7 +20,7 @@ function updatedLabel(iso: string): string {
 function Chart({ points }: { points: MarketPoint[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const g = useMemo(() => chartGeometry(points, W, H), [points]);
-  if (!g) return <p className="py-16 text-center text-sm text-slate-500">No hay suficientes datos para este rango.</p>;
+  if (!g) return <p className="py-12 text-center text-sm text-slate-500">No hay suficientes datos para este rango.</p>;
   const last = g.coords[g.coords.length - 1];
   const hv = hover != null ? g.coords[hover] : null;
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -103,7 +103,6 @@ const MarketRate = () => {
   const rate = data?.spot?.rate ?? NaN;
   const points = useMemo(() => sliceRange(data?.series ?? [], range), [data, range]);
   const typed = parseAmount(edited.text);
-  const otherSide = edited.side === 'usd' ? 'pen' : 'usd';
   const computed = convert(typed, rate, edited.side);
   const valueOf = (side: 'usd' | 'pen') => (side === edited.side ? edited.text : fmtConverted(computed));
 
@@ -114,9 +113,9 @@ const MarketRate = () => {
         aria-label={side === 'usd' ? 'Importe en dólares' : 'Importe en soles'}
         value={valueOf(side)}
         onChange={(e) => setEdited({ side, text: e.target.value })}
-        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base text-slate-800 outline-none"
+        className="min-w-0 flex-1 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none"
       />
-      <span className="flex items-center border-l border-slate-200 px-3 text-sm font-medium text-slate-600">{side === 'usd' ? 'Dólar estadounidense' : 'Sol peruano'}</span>
+      <span className="flex items-center border-l border-slate-200 px-3 text-xs font-medium text-slate-600">{side === 'usd' ? 'Dólar estadounidense' : 'Sol peruano'}</span>
     </div>
   );
 
@@ -125,7 +124,8 @@ const MarketRate = () => {
   const delta = points.length >= 2 ? points[points.length - 1].value - points[0].value : NaN;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de cambio paralelo</p>
       {error ? (
         <div className="space-y-2">
           <Alert variant="error">{error}</Alert>
@@ -135,10 +135,10 @@ const MarketRate = () => {
           </Button>
         </div>
       ) : (
-        <div className={`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] ${loading ? 'opacity-60' : ''}`}>
+        <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)] ${loading ? 'opacity-60' : ''}`}>
           <div>
             <p className="text-sm text-slate-500">{usdTop ? '1 Dólar estadounidense es igual a' : '1 Sol peruano es igual a'}</p>
-            <p className="mt-1 text-3xl font-semibold text-slate-800">
+            <p className="text-2xl font-semibold leading-tight text-slate-800">
               {loading || !Number.isFinite(rate) ? '…' : usdTop ? `${fmtMarketRate(rate)} Sol peruano` : `${(1 / rate).toFixed(4)} Dólar estadounidense`}
             </p>
             {data?.spot ? (
@@ -146,7 +146,7 @@ const MarketRate = () => {
                 {updatedLabel(data.spot.updated_at)} · {data.spot.source}
               </p>
             ) : null}
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-1.5">
               {row(first)}
               <div className="flex justify-center">
                 <button
@@ -154,20 +154,18 @@ const MarketRate = () => {
                   onClick={() => setUsdTop((v) => !v)}
                   aria-label="Invertir monedas"
                   title="Invertir monedas"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-primary-700 hover:bg-slate-50"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-xs text-primary-700 hover:bg-slate-50"
                 >
                   <i className="fas fa-arrow-right-arrow-left rotate-90" aria-hidden />
                 </button>
               </div>
               {row(second)}
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              {edited.text.trim() !== '' && Number.isNaN(typed) ? 'Escriba un importe válido.' : `Se convierte ${otherSide === 'pen' ? 'a soles' : 'a dólares'} con la cotización de mercado de arriba.`}
-            </p>
+            {edited.text.trim() !== '' && Number.isNaN(typed) ? <p className="mt-1.5 text-xs text-amber-700">Escriba un importe válido.</p> : null}
           </div>
 
           <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Rango del gráfico">
                 {MARKET_RANGES.map((r, i) => (
                   <button
@@ -193,19 +191,18 @@ const MarketRate = () => {
                 </Button>
               </div>
             </div>
-            {loading && !data ? <p className="py-16 text-center text-sm text-slate-500">Cargando…</p> : <Chart points={points} />}
-            {data?.series_source ? <p className="mt-1 text-xs text-slate-400">Historial: {data.series_source}.</p> : null}
+            {loading && !data ? <p className="py-12 text-center text-sm text-slate-500">Cargando…</p> : <Chart points={points} />}
           </div>
         </div>
       )}
       {data?.warnings?.map((w) => (
-        <Alert key={w} variant="warning" className="mt-3">
+        <Alert key={w} variant="warning" className="mt-2">
           {w}
         </Alert>
       ))}
-      <p className="mt-3 text-xs text-slate-400">
-        El tipo de cambio de mercado no siempre coincide con el publicado por SUNAT (cierre de la SBS del día hábil anterior): úselo solo como referencia. Para
-        efectos tributarios rige el de SUNAT.
+      <p className="mt-2 text-2xs text-slate-400">
+        Referencia de mercado (no siempre coincide con SUNAT; para efectos tributarios rige el de SUNAT).
+        {data?.series_source ? ` Historial: ${data.series_source}.` : ''}
       </p>
     </div>
   );

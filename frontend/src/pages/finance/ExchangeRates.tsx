@@ -87,9 +87,8 @@ const ExchangeRates = () => {
         <PageHeading hint="Compra y venta de SUNAT por día (dólar americano). El valor de cada fecha es el cierre de la SBS del día hábil anterior.">Tipo de cambio</PageHeading>
       </div>
 
-      <h2 className="pt-1 text-lg font-semibold text-slate-800">Tipo de cambio SUNAT</h2>
-
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de cambio SUNAT</p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Cambiar de mes">
             <button type="button" onClick={() => setYm((k) => shiftMonth(k, -1))} aria-label="Mes anterior" className="px-3.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -225,7 +224,6 @@ const ExchangeRates = () => {
         </div>
       ) : null}
 
-      <h2 className="pt-2 text-lg font-semibold text-slate-800">Tipo de cambio paralelo</h2>
       <MarketRate />
     </div>
   );
