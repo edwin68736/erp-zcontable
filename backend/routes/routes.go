@@ -44,6 +44,7 @@ func Setup(app *fiber.App) {
 	exchangeCtrl := controllers.NewExchangeRateController()
 	deviceCtrl := controllers.NewDeviceController()
 	sunatDueDateCtrl := controllers.NewSunatDueDateController()
+	sunatOfficialDueDateCtrl := controllers.NewSunatOfficialDueDateController()
 
 	app.Post("/api/login", authCtrl.LoginAPI)
 	// Terminar un inicio de sesión desde un equipo nuevo (todavía no hay sesión: se identifica con la verificación).
@@ -463,4 +464,7 @@ func Setup(app *fiber.App) {
 	// Cronograma de vencimientos SUNAT (referencia del estudio; solo se edita, nunca se crea)
 	api.Get("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatDueDateCtrl.ListAPI)
 	api.Put("/finance/sunat-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesManage), sunatDueDateCtrl.UpdateAPI)
+	// Cronograma OFICIAL de SUNAT (distinto del del estudio de arriba); mismos permisos: ver y editar (administrador).
+	api.Get("/finance/sunat-official-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesView), sunatOfficialDueDateCtrl.ListAPI)
+	api.Put("/finance/sunat-official-due-dates", middleware.RequirePermission(rbac.FinanceSunatDueDatesManage), sunatOfficialDueDateCtrl.UpdateAPI)
 }

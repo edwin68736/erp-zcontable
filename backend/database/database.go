@@ -107,6 +107,7 @@ func AutoMigrate() error {
 		&models.LoginChallenge{},
 		&models.UserTOTP{},
 		&models.SunatDueDateCalendarRow{},
+		&models.SunatOfficialDueDateRow{},
 		&models.FiscalDocumentSeries{},
 		&models.FiscalReceiptLine{},
 		&models.FiscalReceiptPayment{},

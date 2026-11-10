@@ -10,8 +10,14 @@ type SunatDueDateController struct {
 	svc *services.SunatDueDateService
 }
 
+// NewSunatDueDateController calendario del ESTUDIO (/finance/sunat-due-dates).
 func NewSunatDueDateController() *SunatDueDateController {
 	return &SunatDueDateController{svc: services.NewSunatDueDateService()}
+}
+
+// NewSunatOfficialDueDateController calendario OFICIAL de SUNAT (/finance/sunat-official-due-dates).
+func NewSunatOfficialDueDateController() *SunatDueDateController {
+	return &SunatDueDateController{svc: services.NewSunatOfficialDueDateService()}
 }
 
 // ListAPI GET /api/finance/sunat-due-dates

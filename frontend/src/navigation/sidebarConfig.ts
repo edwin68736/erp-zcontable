@@ -108,7 +108,7 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           {
             to: '/finance/sunat-due-dates',
             icon: 'fas fa-calendar-check',
-            label: 'Vencimientos SUNAT',
+            label: 'Vencimientos',
             permission: P.financeSunatDueDatesView,
           },
         ],

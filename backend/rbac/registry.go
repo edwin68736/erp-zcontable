@@ -45,8 +45,8 @@ var registryDefs = []PermDef{
 	{CompanyCredentialsSolView, ModRecursos, "Claves de acceso", "Ver usuario y clave SOL"},
 	{CompanyCredentialsInactiveView, ModRecursos, "Claves de acceso", "Ver claves de empresas inactivas (filtro Solo inactivas)"},
 	{CompanyCredentialsSireEdit, ModRecursos, "Claves de acceso", "Registrar credenciales de API SIRE (solo Client ID y Secret)"},
-	{FinanceSunatDueDatesView, ModRecursos, "Vencimientos SUNAT", "Ver cronograma de vencimientos SUNAT"},
-	{FinanceSunatDueDatesManage, ModRecursos, "Vencimientos SUNAT", "Editar cronograma de vencimientos SUNAT"},
+	{FinanceSunatDueDatesView, ModRecursos, "Vencimientos", "Ver los vencimientos del estudio y el cronograma de SUNAT"},
+	{FinanceSunatDueDatesManage, ModRecursos, "Vencimientos", "Editar los vencimientos del estudio y el cronograma de SUNAT"},
 
 	// ───────────── Finanzas del estudio ─────────────
 	{DashboardView, ModFinanzas, "Dashboard", "Ver dashboard"},

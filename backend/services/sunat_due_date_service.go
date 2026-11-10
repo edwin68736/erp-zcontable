@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"miappfiber/database"
-	"miappfiber/models"
 
 	"gorm.io/gorm"
 )
@@ -25,9 +24,39 @@ type SunatDueDateUpdateInput struct {
 	Dates [10]string `json:"dates"`
 }
 
-type SunatDueDateService struct{}
+// Dos calendarios con el mismo servicio: el del ESTUDIO (fechas internas; lo usan las declaraciones PDT 621 y otros
+// controles) y el OFICIAL de SUNAT. Cada uno es su propia tabla de 12 filas.
+const (
+	sunatDueDateStudioTable   = "sunat_due_date_calendar_rows"
+	sunatDueDateOfficialTable = "sunat_official_due_date_rows"
+)
 
-func NewSunatDueDateService() *SunatDueDateService { return &SunatDueDateService{} }
+type SunatDueDateService struct {
+	table string
+}
+
+// NewSunatDueDateService calendario del estudio (el que ya existía).
+func NewSunatDueDateService() *SunatDueDateService {
+	return &SunatDueDateService{table: sunatDueDateStudioTable}
+}
+
+// NewSunatOfficialDueDateService calendario oficial de SUNAT.
+func NewSunatOfficialDueDateService() *SunatDueDateService {
+	return &SunatDueDateService{table: sunatDueDateOfficialTable}
+}
+
+// dueDateRecord las columnas comunes de las dos tablas (solo para leer y escribir; las tablas se crean con sus modelos).
+type dueDateRecord struct {
+	ID              uint `gorm:"primaryKey"`
+	Month           int
+	DatesJSON       string `gorm:"column:dates_json"`
+	UpdatedByUserID *uint
+	UpdatedAt       time.Time
+}
+
+func (s *SunatDueDateService) tx(db *gorm.DB) *gorm.DB {
+	return db.Model(&dueDateRecord{}).Table(s.table)
+}
 
 // sunatDueDateSeedDefaults valores iniciales = cronograma oficial SUNAT 2026 (referencia del
 // estudio al momento de construir esta vista). El mes 12 (diciembre) vence en enero del año
@@ -51,7 +80,7 @@ var sunatDueDateSeedDefaults = map[int][10]string{
 // filas ya presentes, ni siquiera con datos "más nuevos" — la edición es siempre manual).
 func (s *SunatDueDateService) EnsureSeeded() error {
 	var count int64
-	if err := database.DB.Model(&models.SunatDueDateCalendarRow{}).Count(&count).Error; err != nil {
+	if err := s.tx(database.DB).Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
@@ -63,8 +92,8 @@ func (s *SunatDueDateService) EnsureSeeded() error {
 			if err != nil {
 				return err
 			}
-			row := models.SunatDueDateCalendarRow{Month: month, DatesJSON: string(raw)}
-			if err := tx.Create(&row).Error; err != nil {
+			row := dueDateRecord{Month: month, DatesJSON: string(raw)}
+			if err := tx.Table(s.table).Create(&row).Error; err != nil {
 				return fmt.Errorf("sembrar mes %d: %w", month, err)
 			}
 		}
@@ -72,7 +101,7 @@ func (s *SunatDueDateService) EnsureSeeded() error {
 	})
 }
 
-func rowToDTO(r models.SunatDueDateCalendarRow) SunatDueDateRow {
+func rowToDTO(r dueDateRecord) SunatDueDateRow {
 	var dates [10]string
 	_ = json.Unmarshal([]byte(r.DatesJSON), &dates)
 	return SunatDueDateRow{
@@ -87,8 +116,8 @@ func (s *SunatDueDateService) List() ([]SunatDueDateRow, error) {
 	if err := s.EnsureSeeded(); err != nil {
 		return nil, err
 	}
-	var rows []models.SunatDueDateCalendarRow
-	if err := database.DB.Order("month ASC").Find(&rows).Error; err != nil {
+	var rows []dueDateRecord
+	if err := database.DB.Table(s.table).Order("month ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]SunatDueDateRow, 0, len(rows))
@@ -130,11 +159,12 @@ func (s *SunatDueDateService) Update(userID uint, rows []SunatDueDateUpdateInput
 			if err != nil {
 				return err
 			}
-			res := tx.Model(&models.SunatDueDateCalendarRow{}).
+			res := s.tx(tx).
 				Where("month = ?", r.Month).
 				Updates(map[string]interface{}{
 					"dates_json":         string(raw),
 					"updated_by_user_id": userID,
+					"updated_at":         time.Now(),
 				})
 			if res.Error != nil {
 				return res.Error
