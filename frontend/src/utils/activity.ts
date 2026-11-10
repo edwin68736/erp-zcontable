@@ -15,14 +15,54 @@ export const IDLE_WARNING_MS = 2 * 60 * 1000;
 /** Una petición cuenta como «actividad» si la persona hizo algo en los últimos 2 minutos. */
 export const ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 
+/** Cada cuánto, mientras la persona usa el sistema, se avisa al servidor aunque la pantalla no haya hecho peticiones. */
+export const HEARTBEAT_MS = 4 * 60 * 1000;
+
 let lastActivity = Date.now();
 let started = false;
 const listeners = new Set<() => void>();
 
+// La actividad se comparte entre las pestañas del mismo navegador y usuario (localStorage): quien trabaja en una
+// pestaña no debe perder la sesión porque OTRA pestaña abierta (con la misma sesión) lleva rato sin tocarse.
+const SHARED_KEY = 'zc_last_activity';
+const SHARED_WRITE_EVERY_MS = 5000;
+let lastSharedWrite = 0;
+
+function sharedKey(): string {
+  try {
+    const u = JSON.parse(window.sessionStorage.getItem('user') ?? 'null') as { id?: number } | null;
+    return `${SHARED_KEY}:${u?.id ?? 'anon'}`;
+  } catch {
+    return `${SHARED_KEY}:anon`;
+  }
+}
+
+function readShared(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const v = Number(window.localStorage.getItem(sharedKey()));
+    return Number.isFinite(v) ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeShared(at: number, force = false): void {
+  if (typeof window === 'undefined') return;
+  if (!force && at - lastSharedWrite < SHARED_WRITE_EVERY_MS) return;
+  lastSharedWrite = at;
+  try {
+    window.localStorage.setItem(sharedKey(), String(at));
+  } catch {
+    /* sin almacenamiento: queda la actividad de esta pestaña */
+  }
+}
+
 const EVENTS: (keyof WindowEventMap)[] = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'wheel', 'click'];
 
-function mark() {
+function mark(force = false) {
   lastActivity = Date.now();
+  writeShared(lastActivity, force);
   listeners.forEach((l) => l());
 }
 
@@ -42,10 +82,13 @@ export function startActivityTracking(): void {
 
 /** Registra actividad a mano (por ejemplo, al pulsar «Seguir conectado»). */
 export function markActivity(): void {
-  mark();
+  mark(true);
 }
 
-export const msSinceActivity = (now = Date.now()): number => now - lastActivity;
+/** Última actividad de la persona en cualquiera de sus pestañas. */
+export const lastActivityAt = (): number => Math.max(lastActivity, readShared());
+
+export const msSinceActivity = (now = Date.now()): number => now - lastActivityAt();
 
 /** ¿La persona está usando el sistema ahora? */
 export const isUserActive = (now = Date.now()): boolean => msSinceActivity(now) < ACTIVE_WINDOW_MS;

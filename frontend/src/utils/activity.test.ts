@@ -23,3 +23,37 @@ describe('activity', () => {
     expect(secondsToIdleLogout(40 * 60 * 1000)).toBe(0);
   });
 });
+
+describe('actividad compartida entre pestañas', () => {
+  it('manda un aviso periódico al servidor, bastante antes del límite de inactividad', async () => {
+    const { HEARTBEAT_MS } = await import('./activity');
+    expect(HEARTBEAT_MS).toBeLessThan(IDLE_LIMIT_MS / 4);
+    expect(HEARTBEAT_MS).toBeGreaterThanOrEqual(ACTIVE_WINDOW_MS);
+  });
+
+  it('la última actividad es la más reciente entre esta pestaña y las demás', async () => {
+    const { vi } = await import('vitest');
+    const store = new Map<string, string>();
+    vi.stubGlobal('window', {
+      sessionStorage: { getItem: () => JSON.stringify({ id: 7 }) },
+      localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) },
+      addEventListener: () => undefined,
+    });
+    try {
+      vi.resetModules();
+      const act = await import('./activity');
+      // Otra pestaña del mismo usuario tocó algo hace 10 s; esta lleva mucho sin actividad propia.
+      store.set('zc_last_activity:7', String(Date.now() - 10_000));
+      expect(act.msSinceActivity()).toBeLessThan(15_000);
+      act.markActivity();
+      expect(Number(store.get('zc_last_activity:7'))).toBeGreaterThan(Date.now() - 2000);
+      // Otro usuario en el mismo navegador no cuenta.
+      store.clear();
+      store.set('zc_last_activity:99', String(Date.now() + 1_000_000));
+      expect(act.msSinceActivity()).toBeLessThan(IDLE_LIMIT_MS);
+      expect(act.lastActivityAt()).toBeLessThanOrEqual(Date.now());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

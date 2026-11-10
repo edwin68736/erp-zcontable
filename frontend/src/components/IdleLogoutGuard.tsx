@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../services/auth';
 import client from '../api/client';
-import { IDLE_LIMIT_MS, LOGIN_NOTICE_KEY, idleState, markActivity, msSinceActivity, secondsToIdleLogout, startActivityTracking } from '../utils/activity';
+import { HEARTBEAT_MS, IDLE_LIMIT_MS, LOGIN_NOTICE_KEY, idleState, isUserActive, markActivity, msSinceActivity, secondsToIdleLogout, startActivityTracking } from '../utils/activity';
 
 /**
  * Cierra la sesión tras 30 minutos sin que la persona toque nada, con un aviso 2 minutos antes («Seguir conectado»).
@@ -31,7 +31,15 @@ const IdleLogoutGuard = () => {
     };
     tick();
     const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
+    // Mientras la persona usa el sistema se avisa al servidor cada pocos minutos: una pantalla que no hace peticiones
+    // (formularios largos, tablas, lectura) no debe hacer que el servidor cierre la sesión por «inactividad».
+    const beat = window.setInterval(() => {
+      if (isUserActive()) void client.get('/me/sessions').catch(() => undefined);
+    }, HEARTBEAT_MS);
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(beat);
+    };
   }, [navigate]);
 
   if (seconds === null) return null;
