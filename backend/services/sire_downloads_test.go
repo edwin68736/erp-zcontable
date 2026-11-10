@@ -247,3 +247,37 @@ func TestSireDownload_BorrarLimpiarYCaducar(t *testing.T) {
 		t.Fatalf("debe quedar solo la que sigue en proceso: %+v", left)
 	}
 }
+
+// Un periodo sin comprobantes: el ticket termina y anuncia un archivo, pero SUNAT responde 2244 «El archivo solicitado no
+// existe» al pedirlo (caso real de una empresa nueva). Debe quedar como «sin datos», no como error.
+func TestSireDownload_ArchivoInexistente2244EsSinMovimientos(t *testing.T) {
+	f := newFakeSire(t)
+	base := sireDlHandler("06", true, nil)
+	f.handler = func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "archivoreporte") {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"cod":"422","msg":"Unprocessable Entity - Se presentaron errores de validación que impidieron completar el Request","errors":[{"cod":"2244","msg":"El archivo solicitado no existe."}]}`))
+			return
+		}
+		base(w, r)
+	}
+	svc, ss, companyID, _ := sireDlSetup(t, f)
+	row, _ := svc.StartDownload(ss, companyID, 1, "compras", "202609", "")
+	if d := sireDlWait(t, row.ID); d.Status != models.SireDownloadNoData || d.ErrorCode != "" {
+		t.Fatalf("2244 debía ser sin datos: %+v", d)
+	}
+
+	// Otro 422 del archivo sigue siendo un error.
+	f.handler = func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "archivoreporte") {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"cod":"422","msg":"x","errors":[{"cod":"9999","msg":"Otro problema"}]}`))
+			return
+		}
+		base(w, r)
+	}
+	row, _ = svc.StartDownload(ss, companyID, 1, "ventas", "202609", "")
+	if d := sireDlWait(t, row.ID); d.Status != models.SireDownloadFailed || d.ErrorCode != SireErrValidation {
+		t.Fatalf("otro error debía seguir siendo error: %+v", d)
+	}
+}

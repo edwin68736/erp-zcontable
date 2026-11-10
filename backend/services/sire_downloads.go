@@ -177,6 +177,14 @@ func (s *SireService) runDownload(ss *SireSession, id, userID uint) {
 	s.updateDownload(id, map[string]any{"step": "generando"})
 	data, ferr := ss.TicketFile(TicketFileParams{Libro: row.Libro, Name: fileName, TypeCode: fileType, Period: row.Period, Proceso: procCode, Ticket: ticket})
 	if ferr != nil {
+		// Un periodo sin comprobantes: SUNAT da el ticket por «Terminado» y anuncia un archivo, pero no lo genera y al
+		// pedirlo responde el error 2244 «El archivo solicitado no existe». Es «sin movimientos», no un fallo.
+		var se *SireError
+		if errors.As(ferr, &se) && se.Code == SireErrValidation && strings.Contains(se.Detail, "2244") {
+			finish(map[string]any{"status": models.SireDownloadNoData})
+			s.LogAccessTarget(sireAccessTarget, row.CompanyID, userID, nil)
+			return
+		}
 		fail(ferr)
 		return
 	}
