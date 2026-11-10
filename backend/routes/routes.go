@@ -450,6 +450,8 @@ func Setup(app *fiber.App) {
 
 	// Tipo de cambio (Recursos): calendario mensual de SUNAT guardado en la base y completado desde ApiPeru.dev; lo ve cualquier usuario autenticado.
 	api.Get("/exchange-rates/month", exchangeCtrl.MonthAPI)
+	// Tipo de cambio paralelo (de mercado): cotización de hoy + historial interbancario del BCRP; solo informativo.
+	api.Get("/exchange-rates/market", exchangeCtrl.MarketAPI)
 
 	// Notificaciones SUNAT: buzón electrónico guardado por empresa + sincronización (entra a SOL con la clave guardada).
 	buzon := api.Group("/tools/buzon", middleware.RequirePermission(rbac.CompanyCredentialsView))

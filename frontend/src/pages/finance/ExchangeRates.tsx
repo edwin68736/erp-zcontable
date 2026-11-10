@@ -5,9 +5,8 @@ import Button from '../../components/ui/Button';
 import PageHeading from '../../components/ui/PageHeading';
 import { buildExchangeRatesPdf, exchangeRatesPdfFileName } from '../../pdf/exchangeRatesPdfBuild';
 import { exchangeRatesService, type ExchangeMonth } from '../../services/exchangeRates';
+import MarketRate from './exchangeRates/MarketRate';
 import {
-  EXCHANGE_NOTES,
-  EXCHANGE_SOURCE_NOTE,
   MONTH_NAMES,
   WEEKDAYS_SUN,
   buildRateWeeks,
@@ -87,6 +86,8 @@ const ExchangeRates = () => {
       <div>
         <PageHeading hint="Compra y venta de SUNAT por día (dólar americano). El valor de cada fecha es el cierre de la SBS del día hábil anterior.">Tipo de cambio</PageHeading>
       </div>
+
+      <h2 className="pt-1 text-lg font-semibold text-slate-800">Tipo de cambio SUNAT</h2>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
@@ -224,17 +225,8 @@ const ExchangeRates = () => {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
-        <p className="mb-1 font-semibold text-slate-800">Notas</p>
-        <ol className="list-inside space-y-0.5">
-          {EXCHANGE_NOTES.map((n, i) => (
-            <li key={n}>
-              {i + 1}.- {n}
-            </li>
-          ))}
-        </ol>
-        <p className="mt-2 text-slate-400">{EXCHANGE_SOURCE_NOTE}</p>
-      </div>
+      <h2 className="pt-2 text-lg font-semibold text-slate-800">Tipo de cambio paralelo</h2>
+      <MarketRate />
     </div>
   );
 };

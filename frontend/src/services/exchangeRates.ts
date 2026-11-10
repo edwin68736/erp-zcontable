@@ -25,6 +25,21 @@ export interface ExchangeMonth {
   warning_code?: 'sin_token' | 'token_invalido' | 'limite' | 'parcial' | 'sin_conexion' | 'sin_publicar';
 }
 
+/** Un día del historial del tipo de cambio de mercado (cierre). */
+export interface MarketPoint {
+  /** AAAA-MM-DD */
+  date: string;
+  value: number;
+}
+
+/** Tipo de cambio «paralelo» (de mercado, el que muestra Google): cotización de ahora e historial diario. */
+export interface MarketRates {
+  spot?: { rate: number; updated_at: string; source: string };
+  series: MarketPoint[];
+  series_source?: string;
+  warnings?: string[];
+}
+
 export const exchangeRatesService = {
   /**
    * Tipo de cambio de un mes. Con `fetch` el servidor trae antes (de ApiPeru.dev) los días que falten y los guarda:
@@ -35,6 +50,12 @@ export const exchangeRatesService = {
       params: { year, month, currency: 'USD', fetch: fetch ? 1 : 0 },
       timeout: 90000,
     });
+    return res.data.data;
+  },
+
+  /** Tipo de cambio de mercado (USD → PEN): cotización de ahora e historial para el gráfico. Solo informativo. */
+  async market(): Promise<MarketRates> {
+    const res = await client.get<{ data: MarketRates }>('/exchange-rates/market', { timeout: 30000 });
     return res.data.data;
   },
 };
