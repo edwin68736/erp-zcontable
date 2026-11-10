@@ -131,6 +131,8 @@ func NewSunatBuzonService() *SunatBuzonService {
 	return &SunatBuzonService{
 		creds: NewCompanyAccessCredentialService(),
 		loginFn: func(ruc, usuario, clave string) (string, error) {
+			// Igual que el formulario de SUNAT: usuario en mayúsculas y recortado a 8, clave a 12 (ver browserSolInput).
+			usuario, clave = browserSolInput(usuario, clave)
 			return sol.login(sunatSolTargets[sunatAccessTargetSunat], ruc, usuario, clave)
 		},
 		timeout: 40 * time.Second,

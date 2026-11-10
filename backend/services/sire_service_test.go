@@ -439,3 +439,15 @@ func TestSire_SesionDesdeLaBaseDeDatos(t *testing.T) {
 		t.Errorf("bitácora: %+v", logs)
 	}
 }
+
+func TestSessionFromCreds_NormalizaUsuarioYClaveComoSunat(t *testing.T) {
+	svc := NewSireService()
+	// Usuario en minúsculas y clave con un carácter de más (SUNAT: usuario de 8 en mayúsculas, clave de hasta 12).
+	ss, err := svc.SessionFromCreds(SireCreds{CompanyID: 1, RUC: " 20123456789 ", SolUsuario: " usuario1 ", SolClave: " Clave1234567 X ", ClientID: "cid", ClientSecret: "sec"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.creds.SolUsuario != "USUARIO1" || ss.creds.SolClave != "Clave1234567" || ss.creds.RUC != "20123456789" {
+		t.Errorf("credenciales normalizadas: %q %q %q", ss.creds.RUC, ss.creds.SolUsuario, ss.creds.SolClave)
+	}
+}

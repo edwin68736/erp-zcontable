@@ -170,6 +170,9 @@ func (s *SireService) Session(companyID uint, allowed []uint) (*SireSession, err
 // SessionFromCreds permite construir la sesión con credenciales ya conocidas (pruebas).
 func (s *SireService) SessionFromCreds(c SireCreds) (*SireSession, error) {
 	c.RUC, c.SolUsuario, c.SolClave = strings.TrimSpace(c.RUC), strings.TrimSpace(c.SolUsuario), strings.TrimSpace(c.SolClave)
+	// Usuario SOL en mayúsculas y recortado a 8, clave a 12: lo que SUNAT admite (ver browserSolInput). Una clave guardada
+	// con un carácter de más nunca coincidiría con la real y SUNAT la rechazaría aunque a mano sí entre.
+	c.SolUsuario, c.SolClave = browserSolInput(c.SolUsuario, c.SolClave)
 	c.ClientID, c.ClientSecret = strings.TrimSpace(c.ClientID), strings.TrimSpace(c.ClientSecret)
 	if m := c.missing(); m != "" {
 		return nil, sireErr(SireErrMissingData, "Falta "+m+" de esta empresa. Complételo en Claves SOL con el botón Editar.", "")
