@@ -1,4 +1,5 @@
--- Tipar las actividades del calendario que alimentan PDT 601, PDT 621 y Siscont balances.
+-- Tipar las actividades del calendario que alimentan PDT 601, PDT 621, Estado cta. detracciones, Informe detracciones
+-- y Siscont balances.
 --
 -- Problema: esas plantillas estaban con tipo `nps` y sin grupo de dígitos de RUC, así que el sistema no encontraba
 -- su fecha límite (PDT 621 salía «Sin fecha límite configurada», nunca vencido) y, aun tipadas, todas habrían sido
@@ -10,11 +11,14 @@
 --      porque el calendario congela el tipo y los dígitos al crearse.
 -- No toca fechas, reglas de cumplimiento ni ninguna otra plantilla. Se identifica por CÓDIGO de plantilla (ACn).
 --
--- Correspondencia (según el nombre de cada plantilla):
---   PDT 621          AC9..AC14  «Declaración y envío de liquidación de impuestos RUC 0 / 1 / 2 y 3 / 4 y 5 / 6 y 7 / 8 y 9»
---   PDT 601          AC4, AC6   «Declaración de planillas RUC 0 al 4 / 5 al 9»                      (probable, por confirmar)
---   Siscont balances AC16..AC27 «Asist. balances 2026 RUC 0..9»                                      (probable, por confirmar)
--- SIN TOCAR (pendiente de confirmar): «Informe detracciones» (módulo) y «Compras y ventas Siscont».
+-- Correspondencia (confirmada por el estudio el 2026-11-11):
+--   PDT 621                AC9..AC14  «Declaración y envío de liquidación de impuestos RUC 0 / 1 / 2 y 3 / 4 y 5 / 6 y 7 / 8 y 9»
+--   PDT 601                AC4, AC6   «Declaración de planillas RUC 0 al 4 / 5 al 9»
+--   Estado cta. detracciones AC1      «Descarga e impresión de estados de cta. detracciones»   -> tipo `detracciones`
+--   Informe detracciones   AC17       «Informe detracciones» (actividad aparte)                  -> tipo `informe_detracciones`
+--   Siscont balances       AC16..AC27 «Asist. balances 2026 RUC 0..9»
+-- NO se controlan (no se tocan): «Compras y ventas Siscont», «Elaboración de planillas», envío de NPS y boletas.
+-- AC17 estaba como `detracciones` y AC1 como `nps`: aquí se intercambian, y el módulo de detracciones pasa a medirse con AC1.
 --
 -- Uso:  mysql -h… -u… -p BASE < 2026-11-10-tipar-actividades-calendario.sql
 
@@ -24,11 +28,13 @@ DROP TEMPORARY TABLE IF EXISTS _tipar_map;
 CREATE TEMPORARY TABLE _tipar_map (
   code VARCHAR(20) NOT NULL PRIMARY KEY,
   tipo VARCHAR(30) NOT NULL,
-  d1   INT NOT NULL,
-  d2   INT NOT NULL
+  d1   INT NULL,
+  d2   INT NULL
 );
 
 INSERT INTO _tipar_map (code, tipo, d1, d2) VALUES
+  ('AC1',  'detracciones', NULL, NULL),
+  ('AC17', 'informe_detracciones', NULL, NULL),
   ('AC9',  'pdt_621', 0, 0),
   ('AC10', 'pdt_621', 1, 1),
   ('AC11', 'pdt_621', 2, 3),
@@ -68,7 +74,7 @@ WHERE a.deleted_at IS NULL;
 SELECT c.period_ym AS periodo, a.activity_type_snapshot AS tipo, COUNT(*) AS actividades
 FROM finance_calendar_activities a
 JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL
-WHERE a.deleted_at IS NULL AND a.activity_type_snapshot IN ('pdt_621', 'pdt_601', 'siscont_balances')
+WHERE a.deleted_at IS NULL AND a.activity_type_snapshot IN ('pdt_621', 'pdt_601', 'siscont_balances', 'detracciones', 'informe_detracciones')
 GROUP BY c.period_ym, a.activity_type_snapshot
 ORDER BY c.period_ym, a.activity_type_snapshot;
 
