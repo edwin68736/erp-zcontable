@@ -2,6 +2,8 @@
 export const MODULE_SLUG: Record<string, string> = {
   pdt_601: 'pdt-601',
   pdt_621: 'pdt-621',
+  // Declaración del PDT 621 (tarea del supervisor): se registra en el mismo detalle del PDT 621.
+  pdt_621_declaracion: 'pdt-621',
   detracciones: 'detracciones',
   sunat_inbox: 'sunat-inbox',
   informe_detracciones: 'informe-detracciones',

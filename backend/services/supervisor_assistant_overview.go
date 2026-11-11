@@ -40,6 +40,8 @@ type AssistantWorkItem struct {
 	Assistant string `json:"assistant,omitempty"`
 	// Owner responsable de la tarea: asistente | supervisor.
 	Owner string `json:"owner,omitempty"`
+	// Hint aclaración corta bajo la tarea (por ejemplo «Falta enviarla al cliente»).
+	Hint string `json:"hint,omitempty"`
 }
 
 type AssistantCounts struct {
@@ -200,7 +202,10 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 			build, err = s.assistantBuild(p.PeriodYM, companies, p.IncludeSupervisorTasks, p.ModuleKey, true)
 			return
 		},
-		func() error { trend = s.assistantProgressTrend(p, p.IncludeSupervisorTasks, p.ModuleKey, 6); return nil },
+		func() error {
+			trend = s.assistantProgressTrend(p, p.IncludeSupervisorTasks, p.ModuleKey, 6)
+			return nil
+		},
 		func() error { up = s.dashboardUpcoming(p.PeriodYM, companies); return nil },
 	}
 	if err := runParallel(3, tasks); err != nil {

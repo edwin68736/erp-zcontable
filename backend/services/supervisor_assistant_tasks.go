@@ -288,11 +288,10 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			case r.DeclarationTimeliness == TimelinessMissing:
 				st = assistantTaskOverdue
 			}
-			detail := ""
-			if !declared && r.Status == models.SupervisorDeclPendiente {
-				detail = "Falta que el asistente entregue el archivador"
+			it := record(pdt621DeclarationKey, "PDT 621 · Declaración", assistantOwnerSupervisor, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, due, "")
+			if it != nil && r.Status == models.SupervisorDeclPendiente {
+				it.Hint = "Falta que el asistente entregue el archivador"
 			}
-			record(pdt621DeclarationKey, "PDT 621 · Declaración", assistantOwnerSupervisor, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, due, detail)
 		}
 	}
 
@@ -347,8 +346,9 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		}
 		if wantWork && w.Status == models.PreliminarVentasRegistrado {
 			// Ya cuenta como entregada, pero sigue en la lista hasta enviarla al cliente.
-			extra := newItem(models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", assistantOwnerAssistant, w.Company.ID, w.Company.BusinessName, w.Company.RUC, nil, assistantTaskPending, w.Timeliness.DueAt, "Falta enviarla al cliente")
+			extra := newItem(models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", assistantOwnerAssistant, w.Company.ID, w.Company.BusinessName, w.Company.RUC, nil, assistantTaskPending, w.Timeliness.DueAt, "")
 			extra.Slot = w.SlotIndex
+			extra.Hint = "Ya registrada: falta enviarla al cliente"
 			items = append(items, extra)
 		}
 	}

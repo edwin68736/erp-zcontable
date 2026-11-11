@@ -491,7 +491,13 @@ export const supervisorsService = {
    * "Mi panel" del asistente: su lista de trabajo, avance por módulo y vencimientos. Quien tiene alcance de todo el
    * estudio (administrador) recibe el estudio completo y puede filtrar por asistente y supervisor; el resto, solo lo suyo.
    */
-  async assistantOverview(params: { period_ym?: string; assistant_user_id?: number; supervisor_user_id?: number }): Promise<AssistantOverview> {
+  async assistantOverview(params: {
+    period_ym?: string;
+    assistant_user_id?: number;
+    supervisor_user_id?: number;
+    /** Limita porcentaje, totales, pestañas y lista a una actividad. */
+    module_key?: string;
+  }): Promise<AssistantOverview> {
     const res = await client.get<{ data: AssistantOverview }>('/supervisors/assistant/overview', { params });
     return res.data.data;
   },
@@ -633,6 +639,10 @@ export interface AssistantWorkItem {
   note_by?: string;
   /** Asistente de la empresa; solo viene en la vista del estudio (administrador). */
   assistant?: string;
+  /** Responsable de la tarea: el asistente o el supervisor (la declaración del PDT 621). */
+  owner?: 'asistente' | 'supervisor';
+  /** Aclaración corta bajo la tarea (p. ej. «Ya registrada: falta enviarla al cliente»). */
+  hint?: string;
 }
 /** Un asistente o supervisor del estudio con cuántas empresas tiene asignadas (opciones de los filtros del administrador). */
 export interface AssistantStudioOption {
@@ -652,13 +662,45 @@ export interface AssistantSupervisorRef {
   name: string;
   companies: number;
 }
+/**
+ * Conteo de tareas de un conjunto (un módulo o todo el panel). `total` = tareas que aplican (las suspendidas y «sin planilla»
+ * no entran). `pct` = completadas ÷ total. Completada = entregada, a tiempo o fuera de fecha.
+ */
+export interface AssistantProgress {
+  total: number;
+  completed: number;
+  on_time: number;
+  late: number;
+  in_review: number;
+  pending: number;
+  overdue: number;
+  observed: number;
+  not_applicable: number;
+  pct: number;
+}
+export interface AssistantModuleProgress extends AssistantProgress {
+  key: string;
+  label: string;
+  owner: 'asistente' | 'supervisor';
+}
+export interface AssistantTrendPoint {
+  period_ym: string;
+  pct: number;
+  /** 0 = ese mes no tiene tareas medidas («sin datos»). */
+  total: number;
+  completed: number;
+}
 export interface AssistantOverview {
   companies: number;
   supervisors: AssistantSupervisorRef[];
-  compliance: ComplianceSummary;
-  trend: ComplianceTrendPoint[];
-  modules: DashboardModuleRow[];
+  progress: AssistantProgress;
+  trend: AssistantTrendPoint[];
+  modules: AssistantModuleProgress[];
+  /** Todas las actividades elegibles en el filtro de módulo (no se encogen al aplicar uno). */
+  module_options: Array<{ key: string; label: string }>;
   counts: {
+    /** Toda la lista de trabajo: las pestañas cuentan sobre esto. */
+    all: number;
     to_deliver: number;
     overdue: number;
     overdue_over_3_days: number;
@@ -667,6 +709,8 @@ export interface AssistantOverview {
     due_this_week: number;
   };
   work: AssistantWorkItem[];
+  /** La lista se recortó por tamaño; los conteos y el avance siguen siendo de todo. */
+  work_truncated?: boolean;
   upcoming: DashboardUpcoming[];
   /** Presente solo para el administrador: el panel es del estudio completo y estas son las opciones de los filtros. */
   studio?: AssistantStudioInfo;
