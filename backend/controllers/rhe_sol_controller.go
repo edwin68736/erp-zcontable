@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/base64"
 	"strconv"
 
 	"miappfiber/services"
@@ -123,4 +124,28 @@ func (ctrl *RheSolController) HistoryClearAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo limpiar el historial."})
 	}
 	return c.JSON(fiber.Map{"data": fiber.Map{"removed": n}})
+}
+
+// FilesAPI POST /tools/rh-sol/:companyId/archivos — {"items":[{"comprobante":"E001-20","fec_emision":"2026-10-06","emisor_doc":"10…"}],"kinds":["pdf","xml"]}.
+// Baja de SUNAT el PDF y/o el XML de cada recibo recibido y los devuelve en un ZIP (en base64) con el resumen.
+func (ctrl *RheSolController) FilesAPI(c fiber.Ctx) error {
+	id, allowed, resp := ctrl.scoped(c)
+	if id == 0 {
+		return resp
+	}
+	var body struct {
+		Items []services.RheSolFileRef `json:"items"`
+		Kinds []string                 `json:"kinds"`
+	}
+	if berr := c.Bind().Body(&body); berr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	uid, _ := getUserID(c)
+	res, err := ctrl.svc.FetchFiles(id, allowed, uid, body.Items, body.Kinds)
+	if err != nil {
+		return sunatErrorResponse(c, err, "No se pudieron bajar los archivos de los recibos")
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{
+		"zip_base64": base64.StdEncoding.EncodeToString(res.Zip), "ok": res.OK, "files": res.Files, "failed": res.Failed, "errors": res.Errors,
+	}})
 }

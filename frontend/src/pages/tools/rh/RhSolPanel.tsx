@@ -14,7 +14,8 @@ import { timeAgo } from '../buzon/buzonUi';
 import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { daysAgo, daysBetween, fmtDay, fmtMoney } from './rhUi';
-import { RH_SOL_MAX_DAYS, exportRheSolExcel, tipoLabel, totalsByMoneda } from './rhSolUi';
+import { RH_SOL_MAX_DAYS, exportRheSolExcel, exportRheSolTxt, tipoLabel, totalsByMoneda } from './rhSolUi';
+import RhFilesDialog from './RhFilesDialog';
 
 const QUICK_RANGES = [
   { label: '30 días', days: 29 },
@@ -152,6 +153,7 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
   const [activeId, setActiveId] = useState<number | null>(null);
   const [savedAt, setSavedAt] = useState('');
   const [opening, setOpening] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   // La consulta a SUNAT la sigue el registro global (utils/longTasks): sobrevive a un cambio de pantalla.
   const task = useTask(taskKey(tool, companyId));
   const loading = task?.status === 'running';
@@ -386,6 +388,7 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
           </aside>
 
           <div className="min-w-0 space-y-4">
+            {filesOpen && resp && company ? <RhFilesDialog companyId={companyId} ruc={company.ruc} items={resp.data.items} desde={resp.data.desde} hasta={resp.data.hasta} onClose={() => setFilesOpen(false)} /> : null}
             <LongTaskPanel task={task} hint={`SUNAT admite ${emitidos ? 'hasta 6 meses' : '1 mes'} por búsqueda, así que un rango largo se consulta por tramos. Puede seguir usando el sistema; la consulta queda guardada en el historial.`} />
             {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 
@@ -395,14 +398,26 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
                 subtitle={`Emisión del ${fmtDay(resp.data.desde)} al ${fmtDay(resp.data.hasta)} · ${resp.data.consultas} búsqueda${resp.data.consultas === 1 ? '' : 's'} en SUNAT${savedAt ? ` · guardada ${timeAgo(savedAt)} (no se volvió a consultar)` : ''}`}
                 actions={
                   resp.data.total > 0 ? (
-                    <Button
-                      variant="secondary"
-                      className="!py-1.5 text-xs"
-                      onClick={() => void exportRheSolExcel(items, { empresa: company.business_name, ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta, lado })}
-                    >
-                      <i className="fas fa-file-excel mr-1.5" aria-hidden />
-                      Excel
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!emitidos ? (
+                        <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setFilesOpen(true)} title="Bajar de SUNAT el PDF y el XML de los recibos">
+                          <i className="fas fa-file-pdf mr-1.5 text-red-600" aria-hidden />
+                          PDF / XML
+                        </Button>
+                      ) : null}
+                      <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => exportRheSolTxt(items, { ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta, lado })} title="El reporte en texto con «|», igual que el de SUNAT">
+                        <i className="fas fa-file-lines mr-1.5" aria-hidden />
+                        TXT
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="!py-1.5 text-xs"
+                        onClick={() => void exportRheSolExcel(items, { empresa: company.business_name, ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta, lado })}
+                      >
+                        <i className="fas fa-file-excel mr-1.5" aria-hidden />
+                        Excel
+                      </Button>
+                    </div>
                   ) : null
                 }
               >

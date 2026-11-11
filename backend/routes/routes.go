@@ -428,6 +428,7 @@ func Setup(app *fiber.App) {
 	// RH (SOL): recibos por honorarios recibidos, leídos en el Menú SOL con la clave de la empresa; el historial queda guardado.
 	rhSol := api.Group("/tools/rh-sol", middleware.RequirePermission(rbac.CompanyCredentialsView))
 	rhSol.Get("/:companyId/consulta", rheSolCtrl.QueryAPI)
+	rhSol.Post("/:companyId/archivos", rheSolCtrl.FilesAPI)
 	rhSol.Get("/:companyId/history", rheSolCtrl.HistoryListAPI)
 	rhSol.Delete("/:companyId/history", rheSolCtrl.HistoryClearAPI)
 	rhSol.Get("/:companyId/history/:historyId", rheSolCtrl.HistoryGetAPI)

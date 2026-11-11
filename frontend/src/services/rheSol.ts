@@ -73,12 +73,50 @@ function toError(err: unknown): SireApiError {
   return { message: 'No se pudo consultar a SUNAT. Intente de nuevo.', detail: net.message };
 }
 
+/** Resultado de bajar el PDF y/o el XML de varios recibos recibidos. */
+export interface RheSolFilesResult {
+  blob: Blob;
+  /** Recibos de los que se bajó al menos un archivo. */
+  ok: number;
+  /** Archivos dentro del ZIP. */
+  files: number;
+  /** Recibos de los que SUNAT no entregó nada. */
+  failed: number;
+  /** Motivo de cada recibo o archivo que no se pudo bajar. */
+  errors: string[];
+}
+
+export type RheSolFileKind = 'pdf' | 'xml';
+
+/** El servidor entrega el ZIP en base64 (junto con el resumen) para poder leer el resumen sin cabeceras especiales. */
+function base64ToBlob(b64: string, type: string): Blob {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
 export const rheSolService = {
   /** Consulta los recibos recibidos por la empresa (fechas de emisión AAAA-MM-DD). El servidor entra a SOL con su clave. */
   async query(companyId: number, lado: RheSolLado, desde: string, hasta: string): Promise<RheSolResponse> {
     try {
       const res = await client.get<RheSolResponse>(`/tools/rh-sol/${companyId}/consulta`, { params: { lado, desde, hasta }, timeout: 300000 });
       return res.data;
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  /** Baja de SUNAT el PDF y/o el XML de los recibos recibidos indicados (máximo 100 por vez) y los entrega en un ZIP. */
+  async files(companyId: number, items: { comprobante: string; fec_emision: string; emisor_doc: string }[], kinds: RheSolFileKind[]): Promise<RheSolFilesResult> {
+    try {
+      const res = await client.post<{ data: { zip_base64: string; ok: number; files: number; failed: number; errors: string[] | null } }>(
+        `/tools/rh-sol/${companyId}/archivos`,
+        { items, kinds },
+        { timeout: 600000 },
+      );
+      const d = res.data.data;
+      return { blob: base64ToBlob(d.zip_base64, 'application/zip'), ok: d.ok, files: d.files, failed: d.failed, errors: d.errors ?? [] };
     } catch (err) {
       throw toError(err);
     }
