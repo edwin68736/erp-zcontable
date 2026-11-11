@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ModulePendingModal from '../../components/assistant/ModulePendingModal';
 import { Card, HeroGauge, TrendArea } from '../../components/supervisors/dashboard/DashboardParts';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { MODULE_SLUG, workModuleLabel } from '../../navigation/moduleSlugs';
@@ -14,18 +15,12 @@ import {
 } from '../../services/supervisors';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
+import { STATE_STYLE, dueText, shortDate, stateLabel } from './assistantUi';
 
 const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
 const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
 
 type Tab = 'todas' | 'vencidas' | 'semana' | 'observadas' | 'revisar';
-
-const STATE_STYLE: Record<AssistantWorkItem['state'], { stripe: string; fg: string; bg: string; btn: string; btnBg: string; btnFg: string; btnBorder: string }> = {
-  vencida: { stripe: '#DC2626', fg: '#991B1B', bg: '#FEE2E2', btn: 'Cargar', btnBg: '#0E8F47', btnFg: '#fff', btnBorder: '#0E8F47' },
-  observada: { stripe: '#EA580C', fg: '#9A3412', bg: '#FFEDD5', btn: 'Corregir', btnBg: '#EA580C', btnFg: '#fff', btnBorder: '#EA580C' },
-  pendiente: { stripe: '#F59E0B', fg: '#92400E', bg: '#FEF3C7', btn: 'Cargar', btnBg: '#0E8F47', btnFg: '#fff', btnBorder: '#0E8F47' },
-  por_revisar: { stripe: '#6366F1', fg: '#3730A3', bg: '#E0E7FF', btn: 'Ver', btnBg: '#fff', btnFg: '#334155', btnBorder: '#CBD5E1' },
-};
 
 /** Cada pestaña lleva su color: el mismo del estado que filtra (rojo vencidas, ámbar por vencer, naranja observadas, índigo en revisión). */
 const TAB_STYLE: Record<Tab, { on: string; off: string; badgeOn: string; badgeOff: string }> = {
@@ -70,41 +65,6 @@ const SEG = {
   overdue: '#DC2626',
   observed: '#EA580C',
 } as const;
-
-function shortDate(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
-}
-
-function stateLabel(w: AssistantWorkItem): string {
-  if (w.state === 'vencida') return 'Vencida';
-  if (w.state === 'observada') return 'Observada';
-  if (w.state === 'por_revisar') return 'Por revisar';
-  if (w.days_left === 0) return 'Vence hoy';
-  if (w.days_left === 1) return 'Vence mañana';
-  return 'Pendiente';
-}
-
-function dueText(w: AssistantWorkItem): { text: string; urgent: boolean } {
-  const d = w.days_left;
-  const date = shortDate(w.due_date);
-  // Buzón SOL: una fila por empresa con todas sus capturas vencidas (no tiene una sola fecha límite).
-  if (w.module_key === 'sunat_inbox' && w.state === 'vencida' && (d === undefined || d === null)) {
-    return { text: 'Capturas semanales sin hacer en este periodo', urgent: true };
-  }
-  if (w.state === 'por_revisar') return { text: 'Enviada — esperando la revisión del supervisor', urgent: false };
-  if (d === undefined || d === null) {
-    return { text: w.state === 'observada' ? 'Corrige y vuelve a cargar' : 'Sin fecha límite configurada', urgent: w.state === 'observada' };
-  }
-  if (d < 0) {
-    const ago = d === -1 ? 'ayer' : `hace ${Math.abs(d)} días`;
-    return { text: `Venció ${ago}${date ? ` (${date})` : ''}${w.state === 'observada' ? ' — corrige y vuelve a cargar' : ''}`, urgent: true };
-  }
-  if (d === 0) return { text: 'Vence hoy', urgent: true };
-  if (d === 1) return { text: `Vence mañana${date ? ` (${date})` : ''}`, urgent: true };
-  return { text: `En ${d} días${date ? ` (${date})` : ''}`, urgent: d <= 3 };
-}
 
 /** Barra apilada con el estado de todas las tareas que aplican del periodo. */
 const TaskStateBar = ({ p }: { p: AssistantProgress }) => {
@@ -157,6 +117,8 @@ const AssistantWorkspace = () => {
   const [supervisorId, setSupervisorId] = useState('');
   const [tab, setTab] = useState<Tab>('todas');
   const [showAll, setShowAll] = useState(false);
+  /** Módulo cuyo modal de empresas pendientes está abierto. */
+  const [moduleModalKey, setModuleModalKey] = useState<string | null>(null);
   const [data, setData] = useState<AssistantOverview | null>(null);
   // Opciones de los filtros: se guardan aparte para que sigan a la vista aunque una consulta falle.
   const [studio, setStudio] = useState<AssistantStudioInfo | null>(null);
@@ -405,6 +367,45 @@ const AssistantWorkspace = () => {
           <div className="flex flex-wrap items-start gap-[14px]">
             <div className="flex min-w-0 flex-col gap-[14px]" style={{ flex: '2.3 1 600px' }}>
               <Card>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mis módulos', 'Módulos')}</h2>
+                  <span className="text-[11.5px] text-slate-500">tareas completadas de las que aplican</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-[22px] gap-y-[10px]">
+                  {data.modules.map((m) => {
+                    const left = m.total - m.completed;
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setModuleModalKey(m.key)}
+                        className="block min-w-0 cursor-pointer rounded-xl border border-[#EAF1ED] bg-transparent px-3 py-[10px] text-left text-inherit hover:bg-slate-50/60"
+                        style={{ flex: '1 1 280px' }}
+                        aria-label={`${m.label}: ver las empresas con tareas por hacer`}
+                      >
+                        <div className="mb-[6px] flex items-center justify-between gap-2">
+                          <strong className="text-[12.5px]">
+                            {m.label}
+                            {m.owner === 'supervisor' ? <span className="ml-2 rounded-md bg-violet-50 px-[6px] py-px text-[10px] font-bold text-violet-800">Supervisor</span> : null}
+                          </strong>
+                          <span className="flex items-center gap-2">
+                            {left > 0 ? <span className="rounded-[7px] bg-amber-100 px-[7px] py-px text-[10.5px] font-extrabold text-amber-800">{left.toLocaleString('es-PE')} por hacer</span> : null}
+                            <span className="text-[11px] font-bold text-[#0A5A3A]">Ver pendientes →</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-[10px]">
+                          <div className="h-2 flex-1 overflow-hidden rounded bg-[#EEF3F0]">
+                            <div className="h-full rounded" style={{ width: `${m.pct}%`, background: m.pct >= 75 ? '#12A150' : m.pct >= 50 ? '#F59E0B' : '#DC2626' }} />
+                          </div>
+                          <span className="w-[112px] text-right text-[11.5px] font-extrabold tabular-nums">{m.completed.toLocaleString('es-PE')} / {m.total.toLocaleString('es-PE')} · {Math.round(m.pct)}%</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mi lista de trabajo', 'Lista de trabajo')}</h2>
@@ -506,39 +507,6 @@ const AssistantWorkspace = () => {
               </Card>
 
               <Card>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mis módulos', 'Módulos')}</h2>
-                  <span className="text-[11.5px] text-slate-500">tareas completadas de las que aplican</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-x-[22px] gap-y-[10px]">
-                  {data.modules.map((m) => {
-                    const slug = MODULE_SLUG[m.key];
-                    const left = m.total - m.completed;
-                    return (
-                      <Link key={m.key} to={slug ? `/assistant/activities/${slug}?period_ym=${encodeURIComponent(periodYm)}` : '/assistant'} className="block min-w-0 rounded-xl border border-[#EAF1ED] px-3 py-[10px] text-inherit no-underline hover:bg-slate-50/60" style={{ flex: '1 1 280px' }}>
-                        <div className="mb-[6px] flex items-center justify-between gap-2">
-                          <strong className="text-[12.5px]">
-                            {m.label}
-                            {m.owner === 'supervisor' ? <span className="ml-2 rounded-md bg-violet-50 px-[6px] py-px text-[10px] font-bold text-violet-800">Supervisor</span> : null}
-                          </strong>
-                          <span className="flex items-center gap-2">
-                            {left > 0 ? <span className="rounded-[7px] bg-amber-100 px-[7px] py-px text-[10.5px] font-extrabold text-amber-800">{left.toLocaleString('es-PE')} por hacer</span> : null}
-                            <span className="text-[11px] font-bold text-[#0A5A3A]">Abrir →</span>
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-[10px]">
-                          <div className="h-2 flex-1 overflow-hidden rounded bg-[#EEF3F0]">
-                            <div className="h-full rounded" style={{ width: `${m.pct}%`, background: m.pct >= 75 ? '#12A150' : m.pct >= 50 ? '#F59E0B' : '#DC2626' }} />
-                          </div>
-                          <span className="w-[112px] text-right text-[11.5px] font-extrabold tabular-nums">{m.completed.toLocaleString('es-PE')} / {m.total.toLocaleString('es-PE')} · {Math.round(m.pct)}%</span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </Card>
-
-              <Card>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="m-0 text-sm font-extrabold">{mineOr('Mi avance', 'Avance')} (6 meses)</h2>
                   <span className="text-[11px] text-slate-500">mismo cálculo que el avance del periodo</span>
@@ -632,6 +600,15 @@ const AssistantWorkspace = () => {
           </div>
         </>
       ) : null}
+
+      <ModulePendingModal
+        module={data?.modules.find((m) => m.key === moduleModalKey) ?? null}
+        items={work.filter((w) => w.module_key === moduleModalKey)}
+        periodYm={periodYm}
+        truncated={data?.work_truncated}
+        detailPath={detailPath}
+        onClose={() => setModuleModalKey(null)}
+      />
     </div>
   );
 };
