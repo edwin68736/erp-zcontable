@@ -93,7 +93,11 @@ const Payments = () => {
 
   const getTypeLabel = (p: Payment) => {
     const normalized = (p.type ?? '').toLowerCase().trim();
-    return normalized === 'on_account' || !p.document_id ? 'a cuenta' : 'aplicado';
+    // El tipo real manda: un pago aplicado reparte su monto en imputaciones y ya no lleva `document_id` (campo legado),
+    // así que mirar solo ese campo mostraba como «a cuenta» a todos los pagos aplicados.
+    if (normalized === 'on_account') return 'a cuenta';
+    if (normalized === 'applied') return 'aplicado';
+    return p.document_id ? 'aplicado' : 'a cuenta';
   };
 
   const isAppliedPayment = (p: Payment) => {
