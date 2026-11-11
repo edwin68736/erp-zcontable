@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -56,10 +57,30 @@ func (s *RheSolService) RecordHistory(companyID, userID uint, lado, desde, hasta
 
 // ListHistory historial de la empresa para un lado (lo más reciente primero), sin los resultados.
 func (s *RheSolService) ListHistory(companyID uint, lado string) ([]models.RheSolHistory, error) {
-	lado, _ = RheSolNormalizeLado(lado)
+	q := database.DB.Omit("data").Where("company_id = ?", companyID)
+	if !strings.EqualFold(strings.TrimSpace(lado), "todos") { // «todos»: recibidos y emitidos juntos
+		lado, _ = RheSolNormalizeLado(lado)
+		q = q.Where("lado = ?", lado)
+	}
 	var rows []models.RheSolHistory
-	err := database.DB.Omit("data").Where("company_id = ? AND lado = ?", companyID, lado).Order("created_at DESC, id DESC").Limit(rheSolHistoryKeep).Find(&rows).Error
+	err := q.Order("created_at DESC, id DESC").Limit(rheSolHistoryKeep).Find(&rows).Error
 	return rows, err
+}
+
+// RecordDownloads deja anotado qué se descargó de una consulta del historial (para mostrarlo en la lista).
+func (s *RheSolService) RecordDownloads(companyID, id uint, pdf, xml int, txt, excel bool) error {
+	if pdf < 0 || xml < 0 {
+		return accessErr(SunatAccessInvalidParams, "Cantidades no válidas.", "")
+	}
+	res := database.DB.Model(&models.RheSolHistory{}).Where("id = ? AND company_id = ?", id, companyID).
+		Updates(map[string]any{"dl_pdf": pdf, "dl_xml": xml, "dl_txt": txt, "dl_excel": excel})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return accessErr(SunatAccessInvalidParams, "No se encontró esa consulta.", fmt.Sprint(id))
+	}
+	return nil
 }
 
 // GetHistory el resultado guardado de una consulta (para mostrarlo sin consultar a SUNAT).

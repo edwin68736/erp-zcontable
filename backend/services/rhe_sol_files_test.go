@@ -191,3 +191,30 @@ func TestRheSolFetchFiles_validaciones(t *testing.T) {
 		t.Error("más del tope debía rechazarse")
 	}
 }
+
+func TestRheSolHistory_descargasYListaDeTodos(t *testing.T) {
+	f := newFakeRheFiles(t)
+	svc, co := newRheFilesService(t, f)
+	res := &RheSolResult{Lado: RheSolReceptor, Items: []RheSolItem{{Comprobante: "E001-20"}}, Total: 1}
+	idRec := svc.RecordHistory(co.ID, 1, RheSolReceptor, "2026-10-01", "2026-10-31", res, nil)
+	idEmi := svc.RecordHistory(co.ID, 1, RheSolEmisor, "2026-10-01", "2026-10-31", res, nil)
+	if idRec == 0 || idEmi == 0 {
+		t.Fatal("las consultas debían quedar en el historial")
+	}
+	if err := svc.RecordDownloads(co.ID, idRec, 2, 2, true, true); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := svc.ListHistory(co.ID, RheSolReceptor)
+	if len(rows) != 1 || rows[0].DlPdf != 2 || rows[0].DlXml != 2 || !rows[0].DlTxt || !rows[0].DlExcel {
+		t.Fatalf("recibidos: %+v", rows)
+	}
+	if all, _ := svc.ListHistory(co.ID, "todos"); len(all) != 2 {
+		t.Errorf("«todos» debe traer recibidos y emitidos: %d", len(all))
+	}
+	if err := svc.RecordDownloads(co.ID, 9999, 1, 0, false, false); err == nil {
+		t.Error("una consulta que no existe debía fallar")
+	}
+	if err := svc.RecordDownloads(co.ID+1, idRec, 1, 0, false, false); err == nil {
+		t.Error("no se puede anotar en la consulta de otra empresa")
+	}
+}

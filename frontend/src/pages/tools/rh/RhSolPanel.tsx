@@ -16,6 +16,7 @@ import { INPUT_CLS } from '../sire/sireUi';
 import { daysAgo, daysBetween, fmtDay, fmtMoney } from './rhUi';
 import { RH_SOL_MAX_DAYS, exportRheSolExcel, exportRheSolTxt, tipoLabel, totalsByMoneda } from './rhSolUi';
 import RhFilesDialog from './RhFilesDialog';
+import { runRhDownloads, type RhFormats } from './rhProcess';
 
 const QUICK_RANGES = [
   { label: '30 días', days: 29 },
@@ -42,6 +43,7 @@ function HistoryEntry({
     <li className={`rounded-xl border p-3 ${active ? 'border-blue-400 bg-blue-50/60' : 'border-slate-200'}`}>
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className={`rounded-md px-1.5 py-0.5 text-2xs font-extrabold ${item.lado === 'emisor' ? 'bg-violet-50 text-violet-700' : 'bg-green-50 text-green-700'}`}>{item.lado === 'emisor' ? 'EMITIDOS' : 'RECIBIDOS'}</span>
           <span className="font-semibold text-slate-800">
             {fmtDay(item.desde)} al {fmtDay(item.hasta)}
           </span>
@@ -54,6 +56,12 @@ function HistoryEntry({
           {item.status !== 'error' ? ` · ${item.consultas} búsqueda${item.consultas === 1 ? '' : 's'} en SUNAT` : ''}
           {item.truncado ? ' · incompleta (tope)' : ''}
         </p>
+        {item.status === 'listo' && (item.dl_pdf || item.dl_xml || item.dl_txt || item.dl_excel) ? (
+          <p className="text-xs font-medium text-green-700">
+            <i className="fas fa-circle-check mr-1" aria-hidden />
+            {[item.dl_pdf ? `PDFs: ${item.dl_pdf}` : '', item.dl_xml ? `XML: ${item.dl_xml}` : '', item.dl_txt ? 'TXT: Sí' : '', item.dl_excel ? 'Excel: Sí' : ''].filter(Boolean).join(' | ')}
+          </p>
+        ) : null}
         {item.status === 'error' ? (
           <p className="text-xs text-red-700">
             {item.error_message || 'No se pudo completar la consulta.'}
@@ -134,12 +142,27 @@ function ItemRow({ r }: { r: RheSolItem }) {
   );
 }
 
+const FORMAT_OPTIONS: { key: keyof RhFormats; label: string; icon: string; color: string; hint: string }[] = [
+  { key: 'pdf', label: 'PDF', icon: 'fa-file-pdf', color: 'text-red-600', hint: 'El recibo impreso que genera SUNAT (solo recibidos)' },
+  { key: 'xml', label: 'XML', icon: 'fa-file-code', color: 'text-blue-700', hint: 'El recibo electrónico firmado (solo recibidos)' },
+  { key: 'txt', label: 'TXT', icon: 'fa-file-lines', color: 'text-slate-600', hint: 'El reporte en texto con «|», igual que el de SUNAT' },
+  { key: 'excel', label: 'Excel', icon: 'fa-file-excel', color: 'text-green-700', hint: 'La lista de recibos en Excel' },
+];
+
+const toggleCls = (on: boolean) =>
+  `rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${on ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`;
+
 /**
  * Herramientas → RH → una empresa → «Recibos recibidos»: lee en SOL (Consulta Receptor) todos los recibos por honorarios,
  * notas de crédito y otros ingresos de 4.ª categoría emitidos a la empresa. Solo lectura. Usa la clave SOL de la empresa.
  */
-const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: number; company: CompanyAccessCredentialRow | null; lado?: RheSolLado }) => {
+const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyId: number; company: CompanyAccessCredentialRow | null; initialLado?: RheSolLado }) => {
+  const [lado, setLado] = useState<RheSolLado>(initialLado);
   const emitidos = lado === 'emisor';
+  // Los recibos emitidos solo los tiene una persona natural (RUC 10): una empresa no es emisora de recibos por honorarios.
+  const canEmisor = (company?.ruc ?? '').startsWith('10');
+  const [formats, setFormats] = useState<RhFormats>({ pdf: true, xml: false, txt: true, excel: true });
+  const anyFormat = formats.pdf || formats.xml || formats.txt || formats.excel;
   // Una consulta por herramienta, empresa y lado (recibidos y emitidos son consultas distintas).
   const tool = emitidos ? 'rhm' : 'rh';
   const [desde, setDesde] = useState(daysAgo(89));
@@ -161,12 +184,12 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
 
   const loadHistory = useCallback(async () => {
     try {
-      setHistory(await rheSolService.history(companyId, lado));
+      setHistory(await rheSolService.history(companyId, 'todos'));
       setHistoryError(null);
     } catch (e) {
       setHistoryError(e as SireApiError);
     }
-  }, [companyId, lado]);
+  }, [companyId]);
 
   useEffect(() => {
     void loadHistory();
@@ -185,6 +208,16 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
             ? 'La fecha «hasta» no puede ser posterior a hoy.'
             : '';
 
+  /** Cambia entre recibidos y emitidos: lo que se veía era del otro lado. */
+  const changeLado = (next: RheSolLado) => {
+    if (next === lado) return;
+    setLado(next);
+    setResp(null);
+    setActiveId(null);
+    setError(null);
+    setFilter('');
+  };
+
   const run = async (p?: { desde: string; hasta: string }) => {
     const params = p ?? { desde, hasta };
     setError(null);
@@ -201,9 +234,21 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
     ownTask.current = t.id;
     try {
       const r = await rheSolService.query(companyId, lado, params.desde, params.hasta);
-      finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `${r.data.total} comprobante${r.data.total === 1 ? '' : 's'}` });
       setResp(r);
       setActiveId(r.history_id ?? null);
+      let summary = `${r.data.total} comprobante${r.data.total === 1 ? '' : 's'}`;
+      if (anyFormat && r.data.total > 0 && company) {
+        // Con los recibos ya consultados se arma lo elegido en el formulario (el PDF y el XML se piden a SUNAT).
+        try {
+          const d = await runRhDownloads({ companyId, empresa: company.business_name, ruc: company.ruc, lado, items: r.data.items, desde: r.data.desde, hasta: r.data.hasta, formats });
+          if (r.history_id) await rheSolService.recordDownloads(companyId, r.history_id, { pdf: d.pdf, xml: d.xml, txt: d.txt, excel: d.excel }).catch(() => undefined);
+          if (d.saved) summary += ` · descargado: ${d.saved}`;
+          if (d.notes.length > 0) void notify.warning('Descarga con avisos', d.notes.slice(0, 3).join(' · ') + (d.notes.length > 3 ? ` (y ${d.notes.length - 3} más)` : ''));
+        } catch (e) {
+          void notify.error('No se pudieron bajar los archivos', (e as SireApiError).message);
+        }
+      }
+      finishTask(t.id, { resultId: r.history_id ?? undefined, summary });
     } catch (e) {
       setResp(null);
       setActiveId(null);
@@ -220,6 +265,7 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
     setError(null);
     try {
       const r = await rheSolService.historyGet(companyId, it.id);
+      setLado(it.lado ?? 'receptor');
       setDesde(it.desde);
       setHasta(it.hasta);
       setResp(r);
@@ -242,7 +288,7 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
     }
     void (async () => {
       try {
-        const items = await rheSolService.history(companyId, lado);
+        const items = await rheSolService.history(companyId, 'todos');
         setHistory(items);
         const it = items.find((x) => x.id === done.resultId) ?? items[0];
         if (it) await openSaved(it);
@@ -303,55 +349,89 @@ const RhSolPanel = ({ companyId, company, lado = 'receptor' }: { companyId: numb
       {company && hasKey ? (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
           <aside className="min-w-0 space-y-4">
-            <Card title="Consulta en SUNAT" subtitle={`Recibos por honorarios ${emitidos ? 'emitidos' : 'recibidos'}, según su fecha de emisión.`}>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Emisión desde</span>
-                    <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={`${INPUT_CLS} w-full`} />
-                  </label>
-                  <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Hasta</span>
-                    <input type="date" value={hasta} min={desde || undefined} max={daysAgo(0)} onChange={(e) => setHasta(e.target.value)} className={`${INPUT_CLS} w-full`} />
-                  </label>
+            <Card title="Recibos por honorarios" subtitle="Elija el rango, los formatos y el tipo de consulta; el sistema consulta SUNAT y arma lo elegido.">
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">1. Empresa seleccionada</p>
+                  <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800">
+                    {company.ruc} - {company.business_name}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                  <span>Últimos:</span>
-                  {QUICK_RANGES.map((r) => (
-                    <button
-                      key={r.label}
-                      type="button"
-                      onClick={() => {
-                        setDesde(daysAgo(r.days));
-                        setHasta(daysAgo(0));
-                      }}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      {r.label}
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">2. Fecha inicio y 3. Fecha fin</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" aria-label="Fecha inicio" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={`${INPUT_CLS} w-full`} />
+                    <input type="date" aria-label="Fecha fin" value={hasta} min={desde || undefined} max={daysAgo(0)} onChange={(e) => setHasta(e.target.value)} className={`${INPUT_CLS} w-full`} />
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                    <span>Últimos:</span>
+                    {QUICK_RANGES.map((r) => (
+                      <button
+                        key={r.label}
+                        type="button"
+                        onClick={() => {
+                          setDesde(daysAgo(r.days));
+                          setHasta(daysAgo(0));
+                        }}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">4. Formatos a descargar</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Formatos a descargar">
+                    {FORMAT_OPTIONS.map((o) => (
+                      <button
+                        key={o.key}
+                        type="button"
+                        aria-pressed={formats[o.key]}
+                        disabled={loading}
+                        onClick={() => setFormats((f) => ({ ...f, [o.key]: !f[o.key] }))}
+                        title={o.hint}
+                        className={toggleCls(formats[o.key])}
+                      >
+                        <i className={`fas ${o.icon} mr-1.5 ${o.color}`} aria-hidden />
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  {emitidos && (formats.pdf || formats.xml) ? <p className="mt-1 text-xs text-amber-700">El PDF y el XML solo se bajan de los recibos recibidos; de los emitidos se arma el TXT y el Excel.</p> : null}
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">5. Tipo de consulta</p>
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de consulta">
+                    <button type="button" aria-pressed={!emitidos} disabled={loading} onClick={() => changeLado('receptor')} className={toggleCls(!emitidos)}>
+                      <i className="fas fa-download mr-1.5" aria-hidden />
+                      Receptor
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      aria-pressed={emitidos}
+                      disabled={loading || !canEmisor}
+                      onClick={() => changeLado('emisor')}
+                      title={canEmisor ? 'Recibos que emitió la persona natural' : 'Solo para personas naturales (RUC 10): una empresa no emite recibos por honorarios'}
+                      className={toggleCls(emitidos)}
+                    >
+                      <i className="fas fa-upload mr-1.5" aria-hidden />
+                      Emisor
+                    </button>
+                  </div>
                 </div>
                 <Button className="w-full" disabled={loading || !!rangeError} onClick={() => void run()}>
-                  <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5`} aria-hidden />
-                  Consultar en SUNAT
+                  <i className={`fas ${loading ? 'fa-spinner fa-spin' : anyFormat ? 'fa-play' : 'fa-magnifying-glass'} mr-1.5`} aria-hidden />
+                  {anyFormat ? 'Iniciar proceso de descarga' : 'Consultar en SUNAT'}
                 </Button>
                 {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
                 <details className="text-xs text-slate-500">
-                  <summary className="cursor-pointer font-medium text-primary-700 hover:underline">¿Qué muestra esta consulta?</summary>
+                  <summary className="cursor-pointer font-medium text-primary-700 hover:underline">¿Qué hace este proceso?</summary>
                   <p className="mt-1.5 leading-relaxed">
-                    Entra a <strong>SUNAT Operaciones en Línea</strong> con la clave SOL y abre <em>Recibos por Honorarios Electrónicos →{' '}
-                    {emitidos ? 'Consulta Emisor' : 'Consulta Receptor'}</em>:{' '}
-                    {emitidos ? (
-                      <>
-                        lista <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría que la persona <strong>emitió</strong>, vigentes o
-                        anulados (solo si es emisor electrónico). SUNAT admite hasta 6 meses por búsqueda; un rango mayor se consulta por tramos automáticamente.
-                      </>
-                    ) : (
-                      <>
-                        lista <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría emitidos a la empresa, vigentes o anulados. SUNAT
-                        admite 1 mes por búsqueda; un rango mayor se consulta por tramos automáticamente.
-                      </>
-                    )}
+                    Entra a <strong>SUNAT Operaciones en Línea</strong> con la clave SOL y abre <em>Recibos por Honorarios Electrónicos → {emitidos ? 'Consulta Emisor' : 'Consulta Receptor'}</em>: lista{' '}
+                    <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría, vigentes o anulados. SUNAT admite {emitidos ? 'hasta 6 meses' : '1 mes'} por búsqueda; un rango mayor se
+                    consulta por tramos automáticamente. Después arma lo elegido: el PDF y el XML de cada recibo se piden a SUNAT de a uno; el TXT y el Excel salen de la lista. Si son varios archivos se
+                    entregan en un ZIP con carpetas PDF/, XML/ y TXT/.
                   </p>
                 </details>
               </div>

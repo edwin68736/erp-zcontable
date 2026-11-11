@@ -277,7 +277,7 @@ export default function SireCpeDialog({
             <i className={`fas ${sending || running ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'} mr-1.5`} aria-hidden />
             {running ? 'Descargando…' : 'Iniciar descarga'}
           </Button>
-          <Button variant="secondary" disabled={doneIds.length === 0 || fileBusy === 'zip' || kinds.length === 0} onClick={() => void saveZip()} title="Un ZIP con los formatos marcados de todo lo ya descargado">
+          <Button variant="secondary" disabled={doneIds.length === 0 || running || fileBusy === 'zip' || kinds.length === 0} onClick={() => void saveZip()} title="Un ZIP con los formatos marcados de todo lo ya descargado">
             <i className={`fas ${fileBusy === 'zip' ? 'fa-spinner fa-spin' : 'fa-file-zipper'} mr-1.5`} aria-hidden />
             Bajar ZIP
           </Button>

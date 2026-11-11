@@ -432,6 +432,7 @@ func Setup(app *fiber.App) {
 	rhSol.Get("/:companyId/history", rheSolCtrl.HistoryListAPI)
 	rhSol.Delete("/:companyId/history", rheSolCtrl.HistoryClearAPI)
 	rhSol.Get("/:companyId/history/:historyId", rheSolCtrl.HistoryGetAPI)
+	rhSol.Put("/:companyId/history/:historyId/downloads", rheSolCtrl.HistoryDownloadsAPI)
 	rhSol.Delete("/:companyId/history/:historyId", rheSolCtrl.HistoryDeleteAPI)
 
 	// Consulta de ITF (Impuesto a las Transacciones Financieras): se lee en SOL con la clave de la empresa; el historial queda guardado.

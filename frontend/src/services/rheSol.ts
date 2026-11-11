@@ -59,6 +59,11 @@ export interface RheSolHistoryItem {
   total: number;
   consultas: number;
   truncado: boolean;
+  /** Lo que se descargó de esta consulta. */
+  dl_pdf?: number;
+  dl_xml?: number;
+  dl_txt?: boolean;
+  dl_excel?: boolean;
   error_code?: string;
   error_message?: string;
   error_detail?: string;
@@ -122,7 +127,17 @@ export const rheSolService = {
     }
   },
 
-  async history(companyId: number, lado: RheSolLado): Promise<RheSolHistoryItem[]> {
+  /** Anota qué se descargó de una consulta del historial. */
+  async recordDownloads(companyId: number, id: number, d: { pdf: number; xml: number; txt: boolean; excel: boolean }): Promise<void> {
+    try {
+      await client.put(`/tools/rh-sol/${companyId}/history/${id}/downloads`, d);
+    } catch (err) {
+      throw toError(err);
+    }
+  },
+
+  /** Historial de la empresa: de un lado, o «todos» (recibidos y emitidos juntos). */
+  async history(companyId: number, lado: RheSolLado | 'todos'): Promise<RheSolHistoryItem[]> {
     try {
       const res = await client.get<{ data: RheSolHistoryItem[] }>(`/tools/rh-sol/${companyId}/history`, { params: { lado } });
       return res.data.data ?? [];

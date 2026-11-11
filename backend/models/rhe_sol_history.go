@@ -23,6 +23,12 @@ type RheSolHistory struct {
 	Consultas int    `gorm:"not null;default:0" json:"consultas"`
 	Truncado  bool   `gorm:"not null;default:false" json:"truncado"`
 
+	// Lo que se descargó de esta consulta (PDF y XML de cada recibo, el reporte en TXT y el Excel).
+	DlPdf   int  `gorm:"not null;default:0" json:"dl_pdf"`
+	DlXml   int  `gorm:"not null;default:0" json:"dl_xml"`
+	DlTxt   bool `gorm:"not null;default:false" json:"dl_txt"`
+	DlExcel bool `gorm:"not null;default:false" json:"dl_excel"`
+
 	ErrorCode    string `gorm:"size:40" json:"error_code,omitempty"`
 	ErrorMessage string `gorm:"size:600" json:"error_message,omitempty"`
 	ErrorDetail  string `gorm:"size:600" json:"error_detail,omitempty"`

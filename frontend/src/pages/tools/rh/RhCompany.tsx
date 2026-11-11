@@ -7,15 +7,14 @@ import RhConfirmPanel from './RhConfirmPanel';
 import RhSolPanel from './RhSolPanel';
 
 const TABS = [
-  { key: 'recibidos', label: 'Recibos recibidos', hint: 'Todos los recibos por honorarios emitidos a la empresa (SUNAT Operaciones en Línea)' },
-  { key: 'emitidos', label: 'Recibos emitidos', hint: 'Los recibos por honorarios que emitió la persona natural (SUNAT Operaciones en Línea)' },
+  { key: 'recibidos', label: 'Recibos por honorarios', hint: 'Recibidos o emitidos, con PDF, XML, TXT y Excel (SUNAT Operaciones en Línea)' },
   { key: 'confirmacion', label: 'Pendientes de confirmación', hint: 'Plataforma de confirmación del RHE y de la FE (API de SUNAT): solo comprobantes pendientes, subsanados o disconformes' },
 ] as const;
 
 /**
  * Herramientas → RH → una empresa. Dos fuentes de SUNAT, en pestañas:
- *  - «Recibos recibidos» (por defecto): lee en SOL la consulta de receptor, con todos los recibos por honorarios.
- *  - «Recibos emitidos» (solo personas naturales, RUC 10): lee en SOL la consulta de emisor.
+ *  - «Recibos por honorarios» (por defecto): lee en SOL la consulta de receptor (o la de emisor, solo personas naturales con
+ *    RUC 10, que se elige en el formulario) y arma el PDF, el XML, el TXT y el Excel.
  *  - «Pendientes de confirmación»: la API de la plataforma de confirmación del RHE y de la FE (estados de confirmación).
  */
 const RhCompany = () => {
@@ -23,11 +22,11 @@ const RhCompany = () => {
   const companyId = Number(rawId);
   const [params, setParams] = useSearchParams();
   const [company, setCompany] = useState<CompanyAccessCredentialRow | null>(null);
-  // «Recibos emitidos» solo existe para personas naturales (RUC 10): una empresa no es emisor de recibos por honorarios.
-  const isPerson = (company?.ruc ?? '').startsWith('10');
-  const tabs = TABS.filter((t) => t.key !== 'emitidos' || isPerson);
+  const tabs = TABS;
   const rawTab = params.get('tab');
-  const tab = rawTab === 'confirmacion' ? 'confirmacion' : rawTab === 'emitidos' && isPerson ? 'emitidos' : 'recibidos';
+  const tab = rawTab === 'confirmacion' ? 'confirmacion' : 'recibidos';
+  // Los avisos y enlaces de consultas de recibos emitidos (?tab=emitidos) abren el formulario ya en «Emisor».
+  const initialLado = rawTab === 'emitidos' && (company?.ruc ?? '').startsWith('10') ? 'emisor' : 'receptor';
   const [companyError, setCompanyError] = useState('');
 
   useEffect(() => {
@@ -89,8 +88,7 @@ const RhCompany = () => {
         ))}
       </div>
 
-      {tab === 'recibidos' ? <RhSolPanel key="recibidos" companyId={companyId} company={company} /> : null}
-      {tab === 'emitidos' ? <RhSolPanel key="emitidos" companyId={companyId} company={company} lado="emisor" /> : null}
+      {tab === 'recibidos' ? <RhSolPanel key={`recibidos-${initialLado}`} companyId={companyId} company={company} initialLado={initialLado} /> : null}
       {tab === 'confirmacion' ? <RhConfirmPanel companyId={companyId} company={company} /> : null}
     </div>
   );

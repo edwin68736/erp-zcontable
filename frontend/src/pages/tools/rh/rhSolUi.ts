@@ -62,7 +62,25 @@ const headers = (lado: RheSolLado) => [
 ];
 const WIDTHS = [13, 20, 14, 13, 10, 15, 38, 9, 9, 50, 30, 8, 14, 14, 14, 14];
 
-export async function exportRheSolExcel(items: RheSolItem[], meta: { empresa: string; ruc: string; desde: string; hasta: string; lado: RheSolLado }): Promise<void> {
+export interface RheSolExportMeta {
+  empresa: string;
+  ruc: string;
+  desde: string;
+  hasta: string;
+  lado: RheSolLado;
+}
+
+/** Nombre del Excel: «RH-recibidos-<RUC>-<desde>_<hasta>.xlsx». */
+export const rheSolExcelName = (meta: RheSolExportMeta): string => `RH-${meta.lado === 'emisor' ? 'emitidos' : 'recibidos'}-${meta.ruc}-${meta.desde}_${meta.hasta}.xlsx`;
+
+/** Nombre del TXT: «RH-REC-<RUC>-<ddmmaaaa>_a_<ddmmaaaa>.txt» (REC recibidos, EMI emitidos). */
+export function rheSolTxtName(meta: Pick<RheSolExportMeta, 'ruc' | 'desde' | 'hasta' | 'lado'>): string {
+  const dmy = (iso: string) => iso.split('-').reverse().join('');
+  return `RH-${meta.lado === 'emisor' ? 'EMI' : 'REC'}-${meta.ruc}-${dmy(meta.desde)}_a_${dmy(meta.hasta)}.txt`;
+}
+
+/** Arma el Excel (sin guardarlo). */
+export async function rheSolExcelBlob(items: RheSolItem[], meta: RheSolExportMeta): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet('Recibos');
   const emitidos = meta.lado === 'emisor';
@@ -101,10 +119,11 @@ export async function exportRheSolExcel(items: RheSolItem[], meta: { empresa: st
   for (const col of [13, 14, 15, 16]) sheet.getColumn(col).numFmt = '#,##0.00';
   sheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
   const buffer = await wb.xlsx.writeBuffer();
-  saveAs(
-    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `RH-${emitidos ? 'emitidos' : 'recibidos'}-${meta.ruc}-${meta.desde}_${meta.hasta}.xlsx`,
-  );
+  return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+export async function exportRheSolExcel(items: RheSolItem[], meta: RheSolExportMeta): Promise<void> {
+  saveAs(await rheSolExcelBlob(items, meta), rheSolExcelName(meta));
   void notify.success('Excel descargado');
 }
 
@@ -142,8 +161,6 @@ export function rheSolTxt(items: RheSolItem[]): string {
 
 /** Baja el reporte en .txt (el mismo formato de SUNAT). */
 export function exportRheSolTxt(items: RheSolItem[], meta: { ruc: string; desde: string; hasta: string; lado: RheSolLado }): void {
-  const dmy = (iso: string) => iso.split('-').reverse().join('');
-  const blob = new Blob([rheSolTxt(items)], { type: 'text/plain;charset=utf-8' });
-  saveAs(blob, `RH-${meta.lado === 'emisor' ? 'EMI' : 'REC'}-${meta.ruc}-${dmy(meta.desde)}_a_${dmy(meta.hasta)}.txt`);
+  saveAs(new Blob([rheSolTxt(items)], { type: 'text/plain;charset=utf-8' }), rheSolTxtName(meta));
   void notify.success('TXT descargado');
 }

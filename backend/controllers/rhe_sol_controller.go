@@ -149,3 +149,29 @@ func (ctrl *RheSolController) FilesAPI(c fiber.Ctx) error {
 		"zip_base64": base64.StdEncoding.EncodeToString(res.Zip), "ok": res.OK, "files": res.Files, "failed": res.Failed, "errors": res.Errors,
 	}})
 }
+
+// HistoryDownloadsAPI PUT /tools/rh-sol/:companyId/history/:historyId/downloads — {"pdf":2,"xml":2,"txt":true,"excel":true}.
+// Anota qué se descargó de esa consulta para mostrarlo en el historial.
+func (ctrl *RheSolController) HistoryDownloadsAPI(c fiber.Ctx) error {
+	id, _, resp := ctrl.scoped(c)
+	if id == 0 {
+		return resp
+	}
+	hid, ok := rheSolHistoryID(c)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID de consulta inválido"})
+	}
+	var body struct {
+		PDF   int  `json:"pdf"`
+		XML   int  `json:"xml"`
+		TXT   bool `json:"txt"`
+		Excel bool `json:"excel"`
+	}
+	if berr := c.Bind().Body(&body); berr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	if err := ctrl.svc.RecordDownloads(id, hid, body.PDF, body.XML, body.TXT, body.Excel); err != nil {
+		return sunatErrorResponse(c, err, "No se pudo anotar la descarga")
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"ok": true}})
+}
