@@ -337,7 +337,8 @@ func seedPdt601CalendarRule(t *testing.T, db *gorm.DB, periodYM string, dueDay, 
 	if err := db.Create(&tmpl).Error; err != nil {
 		t.Fatalf("seed template: %v", err)
 	}
-	cal := models.FinanceCalendar{PeriodYM: periodYM}
+	// El PDT 601 del periodo se entrega al cerrar el mes: su fecha límite está en el calendario del mes siguiente.
+	cal := models.FinanceCalendar{PeriodYM: CalendarPeriodFor(models.CalendarActivityPDT601, periodYM)}
 	if err := db.Create(&cal).Error; err != nil {
 		t.Fatalf("seed calendar: %v", err)
 	}
@@ -373,10 +374,10 @@ func TestListPdt601TimelinessOnTimeAndLate(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	if _, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-07-15"}); err != nil {
+	if _, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-08-15"}); err != nil {
 		t.Fatalf("SavePdt601Planilla on_time: %v", err)
 	}
-	if _, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-07-20"}); err != nil {
+	if _, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, Essalud: 100, FechaEntrega: "2026-08-20"}); err != nil {
 		t.Fatalf("SavePdt601Planilla late: %v", err)
 	}
 

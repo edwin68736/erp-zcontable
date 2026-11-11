@@ -34,7 +34,8 @@ func seedPdt621CalendarRule(t *testing.T, db *gorm.DB, periodYM string, dueDay, 
 	if err := db.Create(&tmpl).Error; err != nil {
 		t.Fatalf("seed template: %v", err)
 	}
-	cal := models.FinanceCalendar{PeriodYM: periodYM}
+	// El PDT 621 del periodo se entrega al cerrar el mes: su fecha límite está en el calendario del mes siguiente.
+	cal := models.FinanceCalendar{PeriodYM: CalendarPeriodFor(models.CalendarActivityPDT621, periodYM)}
 	if err := db.Create(&cal).Error; err != nil {
 		t.Fatalf("seed calendar: %v", err)
 	}
@@ -72,11 +73,11 @@ func TestPdt601EntregadoLabel_OnTimeAndLate(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"})
+	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-10"})
 	if err != nil {
 		t.Fatalf("SavePdt601Planilla on_time: %v", err)
 	}
-	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"})
+	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-20"})
 	if err != nil {
 		t.Fatalf("SavePdt601Planilla late: %v", err)
 	}
@@ -114,11 +115,11 @@ func TestPdt601Filter_EntregadoATiempoYFueraDeFecha(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"})
+	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-10"})
 	if err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}
-	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"})
+	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-20"})
 	if err != nil {
 		t.Fatalf("save late: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestPdt621EntregadoLabel_UsesInternalCalendar_NotSunatSchedule(t *testing.T
 	}
 	seedPdt621CalendarRule(t, db, periodYM, 15, 0)
 
-	detail, err := recepcionarPdt621EnFecha(t, svc, co.ID, periodYM, "2026-07-20")
+	detail, err := recepcionarPdt621EnFecha(t, svc, co.ID, periodYM, "2026-08-20")
 	if err != nil {
 		t.Fatalf("SavePdt621Record: %v", err)
 	}
@@ -219,11 +220,11 @@ func TestPdt621Filter_EntregadoATiempoYFueraDeFecha(t *testing.T) {
 	seedPdt621CalendarRule(t, db, periodYM, 15, 0)
 
 	// La recepción solo se habilita desde el día programado (15): a tiempo = ese mismo día.
-	onTime, err := recepcionarPdt621EnFecha(t, svc, coOnTime.ID, periodYM, "2026-07-15")
+	onTime, err := recepcionarPdt621EnFecha(t, svc, coOnTime.ID, periodYM, "2026-08-15")
 	if err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}
-	late, err := recepcionarPdt621EnFecha(t, svc, coLate.ID, periodYM, "2026-07-20")
+	late, err := recepcionarPdt621EnFecha(t, svc, coLate.ID, periodYM, "2026-08-20")
 	if err != nil {
 		t.Fatalf("save late: %v", err)
 	}

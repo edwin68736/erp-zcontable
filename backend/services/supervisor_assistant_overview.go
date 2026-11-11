@@ -109,7 +109,7 @@ func calendarDeadlineFor(periodYM string, acts []models.FinanceCalendarActivity,
 		return d
 	}
 	var out *time.Time
-	if due, err := dueDateForActivity(periodYM, act.DueDay); err == nil {
+	if due, err := activityDueDate(periodYM, act); err == nil {
 		if rule, err := LoadActiveActivityRule(act.ActivityRuleID); err == nil && rule != nil {
 			due = BuildUploadDeadline(due, rule)
 		}

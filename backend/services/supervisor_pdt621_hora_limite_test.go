@@ -24,7 +24,8 @@ func seedPdt621CalendarRuleConHora(t *testing.T, db *gorm.DB, periodYM string, d
 	if err := db.Create(&tmpl).Error; err != nil {
 		t.Fatalf("seed template: %v", err)
 	}
-	cal := models.FinanceCalendar{PeriodYM: periodYM}
+	// El PDT 621 del periodo se entrega al cerrar el mes: su fecha límite está en el calendario del mes siguiente.
+	cal := models.FinanceCalendar{PeriodYM: CalendarPeriodFor(models.CalendarActivityPDT621, periodYM)}
 	if err := db.Create(&cal).Error; err != nil {
 		t.Fatalf("seed calendar: %v", err)
 	}
@@ -70,10 +71,10 @@ func TestPdt621ReglaHasta15_UsaLaHoraDeRecepcion(t *testing.T) {
 	cases := []struct {
 		code, momento, want string
 	}{
-		{"H002", "2026-07-15 14:59", TimelinessOnTime},
-		{"H003", "2026-07-15 15:00", TimelinessOnTime}, // el límite 15:00 entra
-		{"H004", "2026-07-15 15:01", TimelinessLate},
-		{"H005", "2026-07-16 09:00", TimelinessLate}, // día siguiente
+		{"H002", "2026-08-15 14:59", TimelinessOnTime},
+		{"H003", "2026-08-15 15:00", TimelinessOnTime}, // el límite 15:00 entra
+		{"H004", "2026-08-15 15:01", TimelinessLate},
+		{"H005", "2026-08-16 09:00", TimelinessLate}, // día siguiente
 	}
 	ids := map[string]uint{}
 	for _, c := range cases {
@@ -172,7 +173,7 @@ func TestPdt621Recepcion_DisponibleDesdeElDiaProgramado(t *testing.T) {
 	}
 
 	// Un día antes (a última hora, hora de Lima): no disponible.
-	pdt621Now = enLima("2026-07-14 23:59")
+	pdt621Now = enLima("2026-08-14 23:59")
 	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
 	if err != nil || len(res.Rows) != 1 {
 		t.Fatalf("ListPdt621: %v", err)
@@ -185,13 +186,13 @@ func TestPdt621Recepcion_DisponibleDesdeElDiaProgramado(t *testing.T) {
 	}
 
 	// El día programado: disponible.
-	pdt621Now = enLima("2026-07-15 08:00")
+	pdt621Now = enLima("2026-08-15 08:00")
 	if d, err := svc.EnsurePdt621(co.ID, periodYM); err != nil || !d.Disponible {
 		t.Fatalf("el día programado debía estar disponible (err=%v)", err)
 	}
 
 	// El backend no bloquea por fecha: una recepción anticipada (vía API) se acepta.
-	pdt621Now = enLima("2026-07-10 09:00")
+	pdt621Now = enLima("2026-08-10 09:00")
 	if _, err := svc.RecepcionarPdt621(co.ID, periodYM, testPdt621SupervisorID); err != nil {
 		t.Fatalf("el backend no debía rechazar una recepción anticipada: %v", err)
 	}

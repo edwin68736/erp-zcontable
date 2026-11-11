@@ -61,9 +61,11 @@ func seedDetraccionesCalendarRule(t *testing.T, db *gorm.DB, periodYM string, du
 	}
 	// find-or-create: un mismo período puede ya tener calendario si el test también sembró PDT 601
 	// (seedPdt601CalendarRule) para ese mismo periodYM — finance_calendars.period_ym es único.
+	// Las detracciones del periodo se entregan al cerrar el mes: su fecha límite está en el calendario del mes siguiente.
+	calPeriod := CalendarPeriodFor(models.CalendarActivityDetracciones, periodYM)
 	var cal models.FinanceCalendar
-	if err := db.Where("period_ym = ?", periodYM).First(&cal).Error; err != nil {
-		cal = models.FinanceCalendar{PeriodYM: periodYM}
+	if err := db.Where("period_ym = ?", calPeriod).First(&cal).Error; err != nil {
+		cal = models.FinanceCalendar{PeriodYM: calPeriod}
 		if err := db.Create(&cal).Error; err != nil {
 			t.Fatalf("seed calendar: %v", err)
 		}

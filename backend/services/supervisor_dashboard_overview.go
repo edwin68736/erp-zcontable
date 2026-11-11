@@ -548,7 +548,7 @@ func (s *SupervisorService) dashboardUpcoming(periodYM string, companies []model
 			if n == 0 {
 				continue
 			}
-			due, err := dueDateForActivity(periodYM, act.DueDay)
+			due, err := activityDueDate(periodYM, act)
 			if err != nil {
 				continue
 			}

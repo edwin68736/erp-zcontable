@@ -52,11 +52,11 @@ func TestPdtDashboardSummary_SplitsEntregadoByPuntualidad(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"})
+	onTime, err := svc.SavePdt601Planilla(coOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-10"})
 	if err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}
-	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"})
+	late, err := svc.SavePdt601Planilla(coLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-20"})
 	if err != nil {
 		t.Fatalf("save late: %v", err)
 	}
@@ -136,14 +136,14 @@ func TestPdtAssistantPerformance_OneRowPerAssistantAndType(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 
-	onTime, err := svc.SavePdt601Planilla(coJuanOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"})
+	onTime, err := svc.SavePdt601Planilla(coJuanOnTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-10"})
 	if err != nil {
 		t.Fatalf("save juan on_time: %v", err)
 	}
 	if _, err := svc.ApproveDeclaration(onTime.Declaration.ID, 9); err != nil {
 		t.Fatalf("approve juan on_time: %v", err)
 	}
-	late, err := svc.SavePdt601Planilla(coJuanLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"})
+	late, err := svc.SavePdt601Planilla(coJuanLate.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-20"})
 	if err != nil {
 		t.Fatalf("save juan late: %v", err)
 	}
@@ -220,7 +220,8 @@ func TestPdtDashboardSummary_VencidoUsaCalendarioNoFechaGenericaDelControl(t *te
 	db := setupDashboardPuntualidadTestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "D006")
-	periodYM := now.Format("2006-01")
+	// El periodo es el mes anterior: su fecha límite está en el calendario del mes actual (el PDT se entrega al cerrar el mes).
+	periodYM := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.Local).Format("2006-01")
 	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
 		t.Fatalf("CreatePeriod: %v", err)
 	}
@@ -252,7 +253,8 @@ func TestPdtDashboardSummary_Pdt621VencidoUsaCalendarioNoFechaGenericaDelControl
 	db := setupDashboardPuntualidadTestDB(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "D007")
-	periodYM := now.Format("2006-01")
+	// El periodo es el mes anterior: su fecha límite está en el calendario del mes actual (el PDT se entrega al cerrar el mes).
+	periodYM := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.Local).Format("2006-01")
 	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
 		t.Fatalf("CreatePeriod: %v", err)
 	}

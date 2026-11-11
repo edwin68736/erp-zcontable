@@ -138,8 +138,9 @@ func TestSupervisorIndicators_ReconcileWithPdtModuleSummary(t *testing.T) {
 	}
 	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
 	// Misma regla/calendario para PDT 621 (una sola fila de calendario por período).
+	// (Ambas se entregan al cerrar el mes: el calendario es el del mes siguiente al periodo.)
 	var cal models.FinanceCalendar
-	if err := db.Where("period_ym = ?", periodYM).First(&cal).Error; err != nil {
+	if err := db.Where("period_ym = ?", CalendarPeriodFor(models.CalendarActivityPDT621, periodYM)).First(&cal).Error; err != nil {
 		t.Fatalf("calendar: %v", err)
 	}
 	var rule models.ActivityRule
@@ -163,12 +164,12 @@ func TestSupervisorIndicators_ReconcileWithPdtModuleSummary(t *testing.T) {
 		return co
 	}
 	onTime, late, none := mk("R001", "3"), mk("R002", "3"), mk("R003", "5")
-	if d, err := svc.SavePdt601Planilla(onTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-10"}); err != nil {
+	if d, err := svc.SavePdt601Planilla(onTime.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-10"}); err != nil {
 		t.Fatalf("601 on time: %v", err)
 	} else if _, err := svc.ApproveDeclaration(d.Declaration.ID, 9); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
-	if d, err := svc.SavePdt601Planilla(late.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-20"}); err != nil {
+	if d, err := svc.SavePdt601Planilla(late.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-08-20"}); err != nil {
 		t.Fatalf("601 late: %v", err)
 	} else if _, err := svc.ApproveDeclaration(d.Declaration.ID, 9); err != nil {
 		t.Fatalf("approve: %v", err)
@@ -177,7 +178,7 @@ func TestSupervisorIndicators_ReconcileWithPdtModuleSummary(t *testing.T) {
 	for name, c := range map[string]struct {
 		co    models.Company
 		fecha string
-	}{"onTime": {onTime, "2026-07-15"}, "late": {late, "2026-07-20"}} { // recepción desde el día programado (15)
+	}{"onTime": {onTime, "2026-08-15"}, "late": {late, "2026-08-20"}} { // recepción desde el día programado (15)
 		d, err := recepcionarPdt621EnFecha(t, svc, c.co.ID, periodYM, c.fecha)
 		if err != nil {
 			t.Fatalf("621 %s: %v", name, err)

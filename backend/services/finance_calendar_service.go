@@ -762,10 +762,13 @@ func (s *FinanceCalendarService) ActivityCompliance(activityID uint, periodYM st
 	if err := database.DB.First(&cal, act.CalendarID).Error; err != nil {
 		return nil, errors.New("calendario no encontrado")
 	}
+	// `periodYM` es el periodo del control (el mes del trabajo). Sin indicarlo se toma el que corresponde a este
+	// calendario: las actividades que se entregan al cerrar el mes (PDT, detracciones, informes) tienen su fecha límite en el
+	// calendario del mes siguiente, así que el trabajo que se evalúa es el del mes anterior al calendario.
 	if periodYM == "" {
-		periodYM = cal.PeriodYM
+		periodYM = shiftPeriodYM(cal.PeriodYM, -CalendarMonthOffset(act.ActivityTypeSnapshot))
 	}
-	due, err := dueDateForActivity(periodYM, act.DueDay)
+	due, err := activityDueDate(periodYM, &act)
 	if err != nil {
 		return nil, err
 	}

@@ -239,7 +239,7 @@ func pdt601PeriodDueDate(periodYM, dig string) *time.Time {
 	if act == nil {
 		return nil
 	}
-	dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+	dueDate, err := activityDueDate(periodYM, act)
 	if err != nil {
 		return nil
 	}
@@ -266,12 +266,12 @@ func pdt601DueDateCandidates(periodYM string) []pdt601DueDateCandidate {
 	_ = database.DB.Table("finance_calendar_activities AS a").
 		Select("a.*").
 		Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
-		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, models.CalendarActivityPDT601).
+		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", CalendarPeriodFor(models.CalendarActivityPDT601, periodYM), models.CalendarActivityPDT601).
 		Order("a.due_day ASC, a.id ASC").
 		Find(&acts).Error
 	out := make([]pdt601DueDateCandidate, 0, len(acts))
 	for _, act := range acts {
-		dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+		dueDate, err := activityDueDate(periodYM, &act)
 		if err != nil {
 			continue
 		}

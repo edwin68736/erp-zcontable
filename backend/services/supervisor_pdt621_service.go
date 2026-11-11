@@ -240,7 +240,7 @@ func pdt621PeriodDueDate(periodYM, dig string) *time.Time {
 	if act == nil {
 		return nil
 	}
-	dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+	dueDate, err := activityDueDate(periodYM, act)
 	if err != nil {
 		return nil
 	}
@@ -260,12 +260,12 @@ func pdt621DueDateCandidates(periodYM string) []pdt601DueDateCandidate {
 	_ = database.DB.Table("finance_calendar_activities AS a").
 		Select("a.*").
 		Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
-		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, models.CalendarActivityPDT621).
+		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", CalendarPeriodFor(models.CalendarActivityPDT621, periodYM), models.CalendarActivityPDT621).
 		Order("a.due_day ASC, a.id ASC").
 		Find(&acts).Error
 	out := make([]pdt601DueDateCandidate, 0, len(acts))
 	for _, act := range acts {
-		dueDate, err := dueDateForActivity(periodYM, act.DueDay)
+		dueDate, err := activityDueDate(periodYM, &act)
 		if err != nil {
 			continue
 		}
@@ -976,7 +976,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		pdt621Act := PickCalendarActivityByDigit(pdt621Acts, pdt601DigitFromString(row.Dig))
 		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, exempt).Timeliness
 		if pdt621Act != nil {
-			if due, err := dueDateForActivity(periodYM, pdt621Act.DueDay); err == nil {
+			if due, err := activityDueDate(periodYM, pdt621Act); err == nil {
 				row.CalendarDueDate = &due
 			}
 		}

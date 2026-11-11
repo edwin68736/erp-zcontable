@@ -42,7 +42,7 @@ func FindCalendarActivityByTypeAndDigit(periodYM, activityType string, rucDigit 
 		err := database.DB.Table("finance_calendar_activities AS a").
 			Select("a.*").
 			Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
-			Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, activityType).
+			Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", CalendarPeriodFor(activityType, periodYM), activityType).
 			Order("a.due_day ASC, a.id ASC").
 			First(&act).Error
 		if err != nil {
@@ -69,7 +69,7 @@ func CalendarActivitiesForType(periodYM, activityType string) ([]models.FinanceC
 	err := database.DB.Table("finance_calendar_activities AS a").
 		Select("a.*").
 		Joins("INNER JOIN finance_calendars c ON c.id = a.calendar_id AND c.deleted_at IS NULL").
-		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", periodYM, activityType).
+		Where("c.period_ym = ? AND a.activity_type_snapshot = ? AND a.deleted_at IS NULL", CalendarPeriodFor(activityType, periodYM), activityType).
 		Order("a.due_day ASC, a.id ASC").
 		Find(&candidates).Error
 	if err != nil {
@@ -160,7 +160,7 @@ func ComputeCalendarActivityTimeliness(
 		return result
 	}
 
-	dueDate, err := dueDateForActivity(periodYM, calendarActivity.DueDay)
+	dueDate, err := activityDueDate(periodYM, calendarActivity)
 	if err != nil {
 		result := UploadTimelinessDTO{UploadedAt: uploadedAt}
 		result.Timeliness = EvaluateUploadTimeliness(time.Now(), uploadedAt, time.Time{}, false, exempt, models.ActivityRuleCompareDate)
