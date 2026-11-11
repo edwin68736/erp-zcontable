@@ -57,12 +57,14 @@ const periodLabel = formatSirePeriod;
 function HistoryItem({
   item,
   onExcel,
+  onCpe,
   onRemove,
   onRetry,
   busy,
 }: {
   item: SireDownloadItem;
   onExcel: (it: SireDownloadItem) => void;
+  onCpe: (it: SireDownloadItem) => void;
   onRemove: (it: SireDownloadItem) => void;
   onRetry: (it: SireDownloadItem) => void;
   busy: boolean;
@@ -120,6 +122,12 @@ function HistoryItem({
               Excel
             </Button>
           ) : null}
+          {item.status === 'listo' ? (
+            <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={busy} onClick={() => onCpe(item)} title="Bajar el PDF, el XML y el CDR de los comprobantes de esta propuesta">
+              <i className="fas fa-cloud-arrow-down mr-1.5 text-red-600" aria-hidden />
+              Descarga CPE
+            </Button>
+          ) : null}
           {item.status === 'error' ? (
             <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={busy} onClick={() => onRetry(item)}>
               <i className="fas fa-rotate-right mr-1.5" aria-hidden />
@@ -169,6 +177,7 @@ const SireCompany = () => {
   const [actionError, setActionError] = useState<SireApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [cpeFor, setCpeFor] = useState<SireDownloadItem | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -557,14 +566,14 @@ const SireCompany = () => {
               ) : (
                 <ul className="space-y-2">
                   {items.map((it) => (
-                    <HistoryItem key={it.id} item={it} busy={busy} onExcel={(x) => void downloadExcel(x)} onRemove={(x) => void remove(x)} onRetry={(x) => void start(x.libro, [x.period])} />
+                    <HistoryItem key={it.id} item={it} busy={busy} onExcel={(x) => void downloadExcel(x)} onCpe={setCpeFor} onRemove={(x) => void remove(x)} onRetry={(x) => void start(x.libro, [x.period])} />
                   ))}
                 </ul>
               )}
             </Card>
           </div>
 
-          <SireCpePanel companyId={companyId} companyName={company.business_name} ruc={company.ruc} downloads={items} />
+          <SireCpePanel companyId={companyId} companyName={company.business_name} ruc={company.ruc} dialogFor={cpeFor} onDialogClose={() => setCpeFor(null)} />
         </>
       ) : null}
     </div>

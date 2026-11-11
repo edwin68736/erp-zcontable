@@ -28,6 +28,7 @@ type SireCpeFile struct {
 	HasXML       bool   `gorm:"not null;default:false" json:"has_xml"`
 	HasCDR       bool   `gorm:"not null;default:false" json:"has_cdr"`
 	ErrorMessage string `gorm:"size:600" json:"error_message,omitempty"`
+	Want         string `gorm:"size:20" json:"want,omitempty"` // archivos pedidos en esta tanda: pdf,xml,cdr
 
 	RequestedBy uint       `gorm:"not null;default:0" json:"requested_by"`
 	CreatedAt   time.Time  `json:"created_at"`

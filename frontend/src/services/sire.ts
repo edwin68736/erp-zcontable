@@ -74,6 +74,34 @@ export interface SireCpeItem {
   finished_at?: string;
 }
 
+/** Una fila de la propuesta del SIRE que se puede bajar, con lo que ya se descargó de ella. */
+export interface SireCpeLine {
+  ruc: string;
+  tipo: string;
+  serie: string;
+  numero: string;
+  fecha?: string;
+  nombre?: string;
+  total?: string;
+  status?: SireCpeStatus;
+  has_pdf: boolean;
+  has_xml: boolean;
+  has_cdr: boolean;
+  /** Id del comprobante guardado, qué archivos se pidieron en la última tanda y por qué falló. */
+  id?: number;
+  want?: string;
+  error_message?: string;
+}
+
+/** Clave de una fila para elegirla («ruc|tipo|serie|número»), la misma que usa el servidor. */
+export const cpeLineKey = (l: Pick<SireCpeLine, 'ruc' | 'tipo' | 'serie' | 'numero'>): string => `${l.ruc}|${l.tipo}|${l.serie}|${l.numero}`;
+
+export const CPE_KINDS: { value: SireCpeKind; label: string; hint: string }[] = [
+  { value: 'pdf', label: 'PDF', hint: 'Representación impresa que genera SUNAT' },
+  { value: 'xml', label: 'XML', hint: 'El comprobante firmado' },
+  { value: 'cdr', label: 'CDR', hint: 'Constancia de recepción de SUNAT' },
+];
+
 export interface SireCpeStartResult {
   items: SireCpeItem[];
   /** Filas de la propuesta que no son comprobantes descargables (recibos, boletas por rango…). */
@@ -236,10 +264,20 @@ export const sireCpeService = {
     }
   },
 
-  /** Baja en segundo plano todos los comprobantes de una propuesta del SIRE ya lista. */
-  async startFromDownload(companyId: number, downloadId: number): Promise<SireCpeStartResult> {
+  /** Los comprobantes de una propuesta del SIRE ya lista, para elegir cuáles bajar. */
+  async propuesta(companyId: number, downloadId: number): Promise<{ lines: SireCpeLine[]; skipped: number }> {
     try {
-      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { download_id: downloadId }, SHORT);
+      const res = await client.get<{ data: { lines: SireCpeLine[]; skipped: number } }>(`${base(companyId)}/cpe/propuesta`, { params: { download_id: downloadId }, ...SHORT });
+      return { lines: res.data.data.lines ?? [], skipped: res.data.data.skipped ?? 0 };
+    } catch (err) {
+      throw toError(err, 'No se pudieron leer los comprobantes de la propuesta.');
+    }
+  },
+
+  /** Baja en segundo plano los comprobantes elegidos (o todos) de una propuesta del SIRE ya lista. */
+  async startFromDownload(companyId: number, downloadId: number, opts: { keys?: string[]; kinds?: SireCpeKind[] } = {}): Promise<SireCpeStartResult> {
+    try {
+      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { download_id: downloadId, keys: opts.keys, kinds: opts.kinds }, SHORT);
       return res.data.data;
     } catch (err) {
       throw toError(err, 'No se pudo iniciar la descarga de comprobantes.');
@@ -247,9 +285,9 @@ export const sireCpeService = {
   },
 
   /** Baja en segundo plano los comprobantes indicados a mano. */
-  async startItems(companyId: number, items: { ruc: string; tipo: string; serie: string; numero: string }[]): Promise<SireCpeStartResult> {
+  async startItems(companyId: number, items: { ruc: string; tipo: string; serie: string; numero: string }[], kinds?: SireCpeKind[]): Promise<SireCpeStartResult> {
     try {
-      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { items }, SHORT);
+      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { items, kinds }, SHORT);
       return res.data.data;
     } catch (err) {
       throw toError(err, 'No se pudo iniciar la descarga del comprobante.');
@@ -266,9 +304,12 @@ export const sireCpeService = {
   },
 
   /** ZIP con los archivos de los comprobantes indicados (o todos los listos si no se indica ninguno). */
-  async zipBlob(companyId: number, ids: number[] = []): Promise<Blob> {
+  async zipBlob(companyId: number, ids: number[] = [], kinds: SireCpeKind[] = []): Promise<Blob> {
     try {
-      const res = await client.get<Blob>(`${base(companyId)}/cpe/zip`, { params: ids.length ? { ids: ids.join(',') } : undefined, responseType: 'blob', timeout: 120000 });
+      const params: Record<string, string> = {};
+      if (ids.length) params.ids = ids.join(',');
+      if (kinds.length) params.kinds = kinds.join(',');
+      const res = await client.get<Blob>(`${base(companyId)}/cpe/zip`, { params, responseType: 'blob', timeout: 120000 });
       return res.data;
     } catch (err) {
       throw await toBlobError(err, 'No se pudo armar el ZIP.');

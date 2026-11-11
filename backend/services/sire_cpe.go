@@ -29,12 +29,12 @@ import (
 // Solo lectura. Se consulta de a un comprobante, con una pausa, para no saturar la sesión SOL.
 
 const (
-	cpeMenuCode    = "11.38.1.1.1"
-	cpeConsultaBase     = "https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/"
-	cpeMaxPerBatch = 300
-	cpePause       = 700 * time.Millisecond
-	cpeReopenEvery = 60 // se abre otra sesión SOL cada tantos comprobantes (el token no dura para siempre)
-	cpeStaleAfter  = 45 * time.Minute
+	cpeMenuCode     = "11.38.1.1.1"
+	cpeConsultaBase = "https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/"
+	cpeMaxPerBatch  = 300
+	cpePause        = 700 * time.Millisecond
+	cpeReopenEvery  = 60 // se abre otra sesión SOL cada tantos comprobantes (el token no dura para siempre)
+	cpeStaleAfter   = 45 * time.Minute
 
 	cpeFileCodePDF = "01"
 	cpeFileCodeXML = "02"
@@ -62,6 +62,45 @@ var (
 
 // CpeTipoValido dice si el tipo es uno de los comprobantes electrónicos que SUNAT entrega.
 func CpeTipoValido(t string) bool { _, ok := cpeTipoName[t]; return ok }
+
+// Tipos de archivo que se pueden pedir.
+var cpeKindCode = map[string]string{"pdf": cpeFileCodePDF, "xml": cpeFileCodeXML, "cdr": cpeFileCodeCDR}
+var cpeKindOrder = []string{"pdf", "xml", "cdr"}
+
+// NormalizeCpeKinds deja los tipos pedidos válidos y en orden (vacío = los tres).
+func NormalizeCpeKinds(kinds []string) ([]string, error) {
+	if len(kinds) == 0 {
+		return append([]string{}, cpeKindOrder...), nil
+	}
+	set := map[string]bool{}
+	for _, k := range kinds {
+		k = strings.ToLower(strings.TrimSpace(k))
+		if _, ok := cpeKindCode[k]; !ok {
+			return nil, sireErr(SireErrInvalidParams, "Elija PDF, XML o CDR.", k)
+		}
+		set[k] = true
+	}
+	out := []string{}
+	for _, k := range cpeKindOrder {
+		if set[k] {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+func cpeHas(r models.SireCpeFile, kind string) bool {
+	switch kind {
+	case "pdf":
+		return r.HasPDF
+	case "xml":
+		return r.HasXML
+	}
+	return r.HasCDR
+}
+
+// cpeKey identifica un comprobante dentro de una propuesta.
+func cpeKey(r CpeRef) string { return r.Ruc + "|" + r.Tipo + "|" + r.Serie + "|" + r.Numero }
 
 // normalizeCpeRef limpia y valida el comprobante (tipo de 2 dígitos, serie en mayúsculas, número sin ceros a la izquierda).
 func normalizeCpeRef(r CpeRef) (CpeRef, error) {
@@ -171,7 +210,11 @@ func (s *SireCpeService) openSol(companyID uint, allowed []uint, userID uint) (c
 }
 
 // Start registra los comprobantes y los baja en segundo plano. Los que ya están bajados no se piden otra vez.
-func (s *SireCpeService) Start(companyID uint, allowed []uint, userID uint, refs []CpeRef) (*CpeStartResult, error) {
+func (s *SireCpeService) Start(companyID uint, allowed []uint, userID uint, refs []CpeRef, kinds []string) (*CpeStartResult, error) {
+	kinds, kerr := NormalizeCpeKinds(kinds)
+	if kerr != nil {
+		return nil, kerr
+	}
 	ruc, err := s.InScope(companyID, allowed)
 	if err != nil {
 		return nil, err
@@ -201,22 +244,34 @@ func (s *SireCpeService) Start(companyID uint, allowed []uint, userID uint, refs
 			lado = "emisor"
 		}
 		row := models.SireCpeFile{CompanyID: companyID, Ruc: n.Ruc, Tipo: n.Tipo, Serie: n.Serie, Numero: n.Numero, Lado: lado,
-			Libro: n.Libro, Period: n.Period, Status: models.SireCpeProcessing, RequestedBy: userID}
+			Libro: n.Libro, Period: n.Period, Status: models.SireCpeProcessing, RequestedBy: userID, Want: strings.Join(kinds, ",")}
 		var cur models.SireCpeFile
 		qerr := database.DB.Omit("pdf", "xml", "cdr").Where("company_id = ? AND ruc = ? AND tipo = ? AND serie = ? AND numero = ?",
 			companyID, n.Ruc, n.Tipo, n.Serie, n.Numero).First(&cur).Error
 		switch {
-		case qerr == nil && cur.Status == models.SireCpeReady:
-			out.Ready++
-			out.Items = append(out.Items, cur)
-			continue
 		case qerr == nil && cur.Status == models.SireCpeProcessing:
 			out.Items = append(out.Items, cur)
 			continue
-		case qerr == nil: // sin_cpe o error: se vuelve a intentar
+		case qerr == nil:
+			// Ya existe: solo se piden los archivos que faltan de los elegidos.
+			want := kinds
+			if cur.Status == models.SireCpeReady {
+				want = nil
+				for _, k := range kinds {
+					if !cpeHas(cur, k) {
+						want = append(want, k)
+					}
+				}
+				if len(want) == 0 {
+					out.Ready++
+					out.Items = append(out.Items, cur)
+					continue
+				}
+			}
+			wantCSV := strings.Join(want, ",")
 			database.DB.Model(&models.SireCpeFile{}).Where("id = ?", cur.ID).Updates(map[string]any{
-				"status": models.SireCpeProcessing, "error_message": "", "finished_at": nil, "requested_by": userID, "lado": lado})
-			cur.Status, cur.ErrorMessage, cur.FinishedAt = models.SireCpeProcessing, "", nil
+				"status": models.SireCpeProcessing, "error_message": "", "finished_at": nil, "requested_by": userID, "lado": lado, "want": wantCSV})
+			cur.Status, cur.ErrorMessage, cur.FinishedAt, cur.Want = models.SireCpeProcessing, "", nil, wantCSV
 			out.Items = append(out.Items, cur)
 			started = true
 			continue
@@ -371,12 +426,24 @@ func (s *SireCpeService) run(companyID uint, allowed []uint, userID uint) {
 		}
 		id := fmt.Sprintf("%s-%s-%s-%s-%s", row.Ruc, row.Tipo, url.PathEscape(row.Serie), row.Numero, filtro)
 
+		// Solo los archivos pedidos que aún no se tienen.
+		wanted, _ := NormalizeCpeKinds(strings.Split(row.Want, ","))
+		if row.Want == "" {
+			wanted = cpeKindOrder
+		}
+		var codes []string
+		for _, k := range wanted {
+			if !cpeHas(row, k) {
+				codes = append(codes, k)
+			}
+		}
 		files := map[string][]byte{}
 		var lastMsg string
 		var terr error
-		for _, code := range []string{cpeFileCodePDF, cpeFileCodeXML, cpeFileCodeCDR} {
+		for _, kind := range codes {
+			code := cpeKindCode[kind]
 			data, msg, ferr := s.cpeFile(sess, id, code)
-			if errors.Is(ferr, errCpeToken) { // el token venció: se abre otra sesión y se reintenta este comprobante una vez
+			if errors.Is(ferr, errCpeToken) { // el token venció: se abre otra sesión y se reintenta este archivo una vez
 				closeSess()
 				ns, oerr := s.openFn(companyID, allowed, userID)
 				if oerr != nil {
@@ -391,7 +458,7 @@ func (s *SireCpeService) run(companyID uint, allowed []uint, userID uint) {
 				break
 			}
 			if len(data) > 0 {
-				files[code] = data
+				files[kind] = data
 			} else if msg != "" {
 				lastMsg = msg
 			}
@@ -401,19 +468,29 @@ func (s *SireCpeService) run(companyID uint, allowed []uint, userID uint) {
 
 		now := time.Now()
 		upd := map[string]any{"finished_at": now}
+		hadSome := row.HasPDF || row.HasXML || row.HasCDR
+		for kind, data := range files {
+			upd[kind] = data
+			upd["has_"+kind] = true
+		}
+		hasAny := hadSome || len(files) > 0
 		switch {
 		case terr != nil:
 			upd["status"], upd["error_message"] = models.SireCpeFailed, truncateStr("No se pudo consultar a SUNAT: "+terr.Error(), 600)
+			if hasAny {
+				upd["status"] = models.SireCpeReady
+			}
 			closeSess() // la próxima vez entra con una sesión nueva
-		case len(files) == 0:
+		case !hasAny:
 			if lastMsg == "" {
 				lastMsg = "SUNAT no tiene archivos de este comprobante."
 			}
 			upd["status"], upd["error_message"] = models.SireCpeMissing, truncateStr(lastMsg, 600)
 		default:
 			upd["status"], upd["error_message"] = models.SireCpeReady, ""
-			upd["pdf"], upd["xml"], upd["cdr"] = files[cpeFileCodePDF], files[cpeFileCodeXML], files[cpeFileCodeCDR]
-			upd["has_pdf"], upd["has_xml"], upd["has_cdr"] = len(files[cpeFileCodePDF]) > 0, len(files[cpeFileCodeXML]) > 0, len(files[cpeFileCodeCDR]) > 0
+			if len(files) < len(codes) && lastMsg != "" { // llegaron unos archivos y otros no
+				upd["error_message"] = truncateStr("Faltan archivos: "+lastMsg, 600)
+			}
 		}
 		database.DB.Model(&models.SireCpeFile{}).Where("id = ?", row.ID).Updates(upd)
 	}
@@ -467,7 +544,11 @@ func cpeRowFile(r models.SireCpeFile, kind string) (data []byte, name, ctype str
 }
 
 // Zip arma un ZIP con los archivos de los comprobantes pedidos (ids vacíos = todos los listos del libro/periodo).
-func (s *SireCpeService) Zip(companyID uint, ids []uint, libro, period string) ([]byte, int, error) {
+func (s *SireCpeService) Zip(companyID uint, ids []uint, libro, period string, kinds []string) ([]byte, int, error) {
+	kinds, kerr := NormalizeCpeKinds(kinds)
+	if kerr != nil {
+		return nil, 0, kerr
+	}
 	q := database.DB.Where("company_id = ? AND status = ?", companyID, models.SireCpeReady)
 	if len(ids) > 0 {
 		q = q.Where("id IN ?", ids)
@@ -488,7 +569,7 @@ func (s *SireCpeService) Zip(companyID uint, ids []uint, libro, period string) (
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	for _, r := range rows {
-		for _, kind := range []string{"pdf", "xml", "cdr"} {
+		for _, kind := range kinds {
 			data, name, _ := cpeRowFile(r, kind)
 			if len(data) == 0 {
 				continue
@@ -520,9 +601,25 @@ func (s *SireCpeService) Delete(companyID, id uint) error {
 	return nil
 }
 
-// RefsFromDownload lee el Excel de una consulta SIRE lista y arma la lista de comprobantes descargables. Devuelve
-// además cuántas filas se dejaron fuera (recibos, notas de venta, boletas resumidas por rango, etc.).
-func (s *SireCpeService) RefsFromDownload(companyID, downloadID uint, ruc string) ([]CpeRef, int, error) {
+// CpeLine una fila de la propuesta del SIRE que se puede bajar, con lo que ya se tiene de ella.
+type CpeLine struct {
+	CpeRef
+	Fecha  string `json:"fecha,omitempty"`  // fecha de emisión tal como viene en la propuesta
+	Nombre string `json:"nombre,omitempty"` // razón social de la contraparte
+	Total  string `json:"total,omitempty"`
+	Status string `json:"status,omitempty"` // estado de su descarga, si ya se pidió
+	HasPDF bool   `json:"has_pdf"`
+	HasXML bool   `json:"has_xml"`
+	HasCDR bool   `json:"has_cdr"`
+	// De la última tanda pedida: id del comprobante guardado (para bajar sus archivos), qué archivos se pidieron y por qué falló.
+	ID           uint   `json:"id,omitempty"`
+	Want         string `json:"want,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+// PropuestaLines lee el Excel de una consulta SIRE lista y arma la lista de comprobantes descargables, con el estado de
+// lo ya descargado. Devuelve además cuántas filas se dejaron fuera (recibos, notas de venta, boletas por rango, etc.).
+func (s *SireCpeService) PropuestaLines(companyID, downloadID uint, ruc string) ([]CpeLine, int, error) {
 	var dl models.SireDownload
 	if err := database.DB.Where("id = ? AND company_id = ?", downloadID, companyID).First(&dl).Error; err != nil {
 		return nil, 0, sireErr(SireErrInvalidParams, "No se encontró esa consulta del SIRE.", fmt.Sprint(downloadID))
@@ -530,10 +627,48 @@ func (s *SireCpeService) RefsFromDownload(companyID, downloadID uint, ruc string
 	if dl.Status != models.SireDownloadReady || len(dl.Data) == 0 {
 		return nil, 0, sireErr(SireErrInvalidParams, "Esa consulta del SIRE no tiene una propuesta lista.", dl.Status)
 	}
-	return cpeRefsFromExcel(dl.Data, dl.Libro, dl.Period, ruc)
+	lines, skipped, err := cpeLinesFromExcel(dl.Data, dl.Libro, dl.Period, ruc)
+	if err != nil {
+		return nil, skipped, err
+	}
+	var have []models.SireCpeFile
+	database.DB.Omit("pdf", "xml", "cdr").Where("company_id = ?", companyID).Find(&have)
+	byKey := map[string]models.SireCpeFile{}
+	for _, h := range have {
+		byKey[h.Ruc+"|"+h.Tipo+"|"+h.Serie+"|"+h.Numero] = h
+	}
+	for i := range lines {
+		if h, ok := byKey[cpeKey(lines[i].CpeRef)]; ok {
+			lines[i].Status, lines[i].HasPDF, lines[i].HasXML, lines[i].HasCDR = h.Status, h.HasPDF, h.HasXML, h.HasCDR
+			lines[i].ID, lines[i].Want, lines[i].ErrorMessage = h.ID, h.Want, h.ErrorMessage
+		}
+	}
+	return lines, skipped, nil
 }
 
-func cpeRefsFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeRef, int, error) {
+// RefsFromDownload los comprobantes de una propuesta lista; si se indican `keys` («ruc|tipo|serie|número»), solo esos.
+func (s *SireCpeService) RefsFromDownload(companyID, downloadID uint, ruc string, keys []string) ([]CpeRef, int, error) {
+	lines, skipped, err := s.PropuestaLines(companyID, downloadID, ruc)
+	if err != nil {
+		return nil, skipped, err
+	}
+	pick := map[string]bool{}
+	for _, k := range keys {
+		pick[strings.TrimSpace(k)] = true
+	}
+	refs := make([]CpeRef, 0, len(lines))
+	for _, l := range lines {
+		if len(pick) == 0 || pick[cpeKey(l.CpeRef)] {
+			refs = append(refs, l.CpeRef)
+		}
+	}
+	if len(refs) == 0 {
+		return nil, skipped, sireErr(SireErrInvalidParams, "Elija al menos un comprobante.", "")
+	}
+	return refs, skipped, nil
+}
+
+func cpeLinesFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeLine, int, error) {
 	f, err := excelize.OpenReader(bytes.NewReader(xlsx))
 	if err != nil {
 		return nil, 0, sireErr(SireErrUnexpected, "No se pudo leer la propuesta guardada.", err.Error())
@@ -545,7 +680,7 @@ func cpeRefsFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeRef, int,
 	}
 	col := map[string]int{}
 	for i, h := range rows[0] {
-		col[strings.ToLower(strings.TrimSpace(h))] = i
+		col[strings.ToLower(strings.Join(strings.Fields(h), " "))] = i
 	}
 	need := func(names ...string) int {
 		for _, n := range names {
@@ -555,12 +690,20 @@ func cpeRefsFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeRef, int,
 		}
 		return -1
 	}
+	nameCol := -1
+	for h, i := range col { // «Apellidos Nombres/ Razón Social» de la contraparte
+		if strings.HasPrefix(h, "apellidos nombres") {
+			nameCol = i
+		}
+	}
 	cTipo := need("tipo cp/doc.", "tipo cp/doc")
 	cSerie := need("serie del cdp")
 	cNum := need("nro cp o doc. nro inicial (rango)", "nro cp o doc. nro inicial")
 	cFin := need("nro final (rango)")
 	cDoc := need("nro doc identidad")
 	cTDoc := need("tipo doc identidad")
+	cFecha := need("fecha de emisión", "fecha de emision")
+	cTotal := need("total cp")
 	if cTipo < 0 || cSerie < 0 || cNum < 0 {
 		return nil, 0, sireErr(SireErrUnexpected, "La propuesta no trae las columnas de tipo, serie y número.", "")
 	}
@@ -570,7 +713,7 @@ func cpeRefsFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeRef, int,
 		}
 		return strings.TrimSpace(r[i])
 	}
-	var refs []CpeRef
+	var lines []CpeLine
 	skipped := 0
 	for _, r := range rows[1:] {
 		tipo := cell(r, cTipo)
@@ -592,14 +735,15 @@ func cpeRefsFromExcel(xlsx []byte, libro, period, ownRuc string) ([]CpeRef, int,
 			}
 		}
 		ref := CpeRef{Ruc: emisor, Tipo: tipo, Serie: cell(r, cSerie), Numero: num, Libro: libro, Period: period}
-		if _, nerr := normalizeCpeRef(ref); nerr != nil {
+		n, nerr := normalizeCpeRef(ref)
+		if nerr != nil {
 			skipped++
 			continue
 		}
-		refs = append(refs, ref)
+		lines = append(lines, CpeLine{CpeRef: n, Fecha: cell(r, cFecha), Nombre: cell(r, nameCol), Total: cell(r, cTotal)})
 	}
-	if len(refs) == 0 {
+	if len(lines) == 0 {
 		return nil, skipped, sireErr(SireErrInvalidParams, "La propuesta no tiene facturas, boletas ni notas descargables.", "")
 	}
-	return refs, skipped, nil
+	return lines, skipped, nil
 }

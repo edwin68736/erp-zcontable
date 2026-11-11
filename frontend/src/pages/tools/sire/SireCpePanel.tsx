@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Button from '../../../components/ui/Button';
 import Alert from '../../../components/ui/Alert';
 import LongTaskPanel from '../../../components/LongTaskPanel';
 import {
+  CPE_KINDS,
   CPE_TIPOS,
   cpeFileName,
   cpeNumber,
@@ -13,6 +14,7 @@ import {
   type SireApiError,
   type SireCpeItem,
   type SireCpeKind,
+  type SireCpeStartResult,
   type SireDownloadItem,
 } from '../../../services/sire';
 import { taskKey, trackAsync } from '../../../utils/longTasks';
@@ -22,6 +24,7 @@ import { formatDateTime } from '../../../utils/format';
 import { timeAgo } from '../buzon/buzonUi';
 import { Card, SireErrorBox } from './SireShared';
 import { INPUT_CLS, SELECT_CLS } from './sireUi';
+import SireCpeDialog, { CpeKindPicker } from './SireCpeDialog';
 
 const TOOL = 'sire-cpe';
 
@@ -43,18 +46,27 @@ const KIND_BTN: { kind: SireCpeKind; label: string; icon: string; color: string;
  * consulta de comprobantes de SOL. Se pueden bajar todos los de una propuesta SIRE ya lista o uno escrito a mano. La
  * descarga corre en el servidor (de a un comprobante, con pausa) y los archivos quedan guardados para volver a bajarlos.
  */
-export default function SireCpePanel({ companyId, companyName, ruc, downloads }: { companyId: number; companyName: string; ruc: string; downloads: SireDownloadItem[] }) {
+export default function SireCpePanel({
+  companyId,
+  companyName,
+  ruc,
+  dialogFor,
+  onDialogClose,
+}: {
+  companyId: number;
+  companyName: string;
+  ruc: string;
+  /** Consulta del historial cuya «Descarga CPE» está abierta (null = cerrada). */
+  dialogFor: SireDownloadItem | null;
+  onDialogClose: () => void;
+}) {
   const [items, setItems] = useState<SireCpeItem[]>([]);
   const [error, setError] = useState<SireApiError | null>(null);
   const [busy, setBusy] = useState(false);
-  const [downloadId, setDownloadId] = useState('');
+  const [manualKinds, setManualKinds] = useState<SireCpeKind[]>(CPE_KINDS.map((k) => k.value));
   const [manual, setManual] = useState({ ruc: '', tipo: '01', serie: '', numero: '' });
   const [fileBusy, setFileBusy] = useState('');
 
-  const ready = useMemo(() => downloads.filter((d) => d.status === 'listo'), [downloads]);
-  useEffect(() => {
-    if (!downloadId && ready.length > 0) setDownloadId(String(ready[0].id));
-  }, [ready, downloadId]);
 
   const load = useCallback(async () => {
     try {
@@ -104,7 +116,7 @@ export default function SireCpePanel({ companyId, companyName, ruc, downloads }:
     if (task?.status === 'done' || task?.status === 'error') void load();
   }, [task?.status, load]);
 
-  const report = (r: { items: SireCpeItem[]; skipped: number; ready: number }) => {
+  const report = (r: SireCpeStartResult) => {
     setItems((cur) => {
       const byId = new Map(r.items.map((i) => [i.id, i]));
       const merged = cur.map((c) => byId.get(c.id) ?? c);
@@ -116,24 +128,11 @@ export default function SireCpePanel({ companyId, companyName, ruc, downloads }:
     else void notify.success('Ya estaban descargados', extra || undefined);
   };
 
-  const startFromPropuesta = async () => {
-    if (!downloadId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      report(await sireCpeService.startFromDownload(companyId, Number(downloadId)));
-    } catch (e) {
-      setError(e as SireApiError);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const startManual = async () => {
     setBusy(true);
     setError(null);
     try {
-      report(await sireCpeService.startItems(companyId, [{ ruc: manual.ruc.trim() || ruc, tipo: manual.tipo, serie: manual.serie.trim(), numero: manual.numero.trim() }]));
+      report(await sireCpeService.startItems(companyId, [{ ruc: manual.ruc.trim() || ruc, tipo: manual.tipo, serie: manual.serie.trim(), numero: manual.numero.trim() }], manualKinds));
       setManual((m) => ({ ...m, serie: '', numero: '' }));
     } catch (e) {
       setError(e as SireApiError);
@@ -146,7 +145,7 @@ export default function SireCpePanel({ companyId, companyName, ruc, downloads }:
     setBusy(true);
     setError(null);
     try {
-      report(await sireCpeService.startItems(companyId, [{ ruc: c.ruc, tipo: c.tipo, serie: c.serie, numero: c.numero }]));
+      report(await sireCpeService.startItems(companyId, [{ ruc: c.ruc, tipo: c.tipo, serie: c.serie, numero: c.numero }], undefined));
     } catch (e) {
       setError(e as SireApiError);
     } finally {
@@ -198,28 +197,10 @@ export default function SireCpePanel({ companyId, companyName, ruc, downloads }:
         title="Comprobantes electrónicos (PDF, XML y CDR)"
         subtitle="SUNAT entrega el PDF, el XML firmado y la constancia (CDR) de cada factura, boleta y nota. Se piden de a uno, con la clave SOL de la empresa."
       >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">De una propuesta del SIRE</p>
-            {ready.length === 0 ? (
-              <p className="text-sm text-slate-500">Primero descargue una propuesta (arriba): aquí podrá bajar todos sus comprobantes.</p>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <select className={SELECT_CLS} value={downloadId} onChange={(e) => setDownloadId(e.target.value)} aria-label="Propuesta del SIRE">
-                  {ready.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.libro === 'compras' ? 'Compras' : 'Ventas'} · {formatSirePeriod(d.period)} ({d.rows})
-                    </option>
-                  ))}
-                </select>
-                <Button disabled={busy || !downloadId} onClick={() => void startFromPropuesta()}>
-                  <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-download'} mr-1.5`} aria-hidden />
-                  Descargar comprobantes
-                </Button>
-              </div>
-            )}
-          </div>
-
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Para bajar los comprobantes de una propuesta, pulse <strong>«Descarga CPE»</strong> en su fila del historial: se abre la lista para elegir los formatos (PDF, XML, CDR).
+          </p>
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Un comprobante</p>
             <div className="flex flex-wrap items-end gap-2">
@@ -245,14 +226,17 @@ export default function SireCpePanel({ companyId, companyName, ruc, downloads }:
                 Número
                 <input className={`${INPUT_CLS} mt-0.5 block w-28`} inputMode="numeric" maxLength={8} placeholder="123" value={manual.numero} onChange={(e) => setManual({ ...manual, numero: e.target.value.replace(/\D/g, '') })} />
               </label>
-              <Button variant="secondary" disabled={busy || !manualOk} onClick={() => void startManual()}>
+              <Button variant="secondary" disabled={busy || !manualOk || manualKinds.length === 0} onClick={() => void startManual()}>
                 Descargar
               </Button>
             </div>
+            <CpeKindPicker value={manualKinds} onChange={setManualKinds} disabled={busy} />
             <p className="text-xs text-slate-400">Si deja el RUC vacío se usa el de la empresa (comprobante emitido por ella).</p>
           </div>
         </div>
       </Card>
+
+      {dialogFor ? <SireCpeDialog companyId={companyId} ruc={ruc} download={dialogFor} onClose={onDialogClose} onStarted={report} /> : null}
 
       <LongTaskPanel task={task} title="Descargando comprobantes de SUNAT" hint="Se bajan de a uno, con una pausa, para no saturar la sesión SOL. Puede seguir usando el sistema; los archivos aparecen abajo al terminar." />
 

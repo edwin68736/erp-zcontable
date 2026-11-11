@@ -115,7 +115,7 @@ func TestCpe_BajaLosTresArchivos(t *testing.T) {
 	res, err := svc.Start(cid, nil, 1, []CpeRef{
 		{Ruc: "20123456789", Tipo: "01", Serie: "FF01", Numero: "00000060"},
 		{Ruc: "20604778191", Tipo: "1", Serie: "E001", Numero: "517"},
-	})
+	}, nil)
 	if err != nil || len(res.Items) != 2 {
 		t.Fatalf("Start: %v %+v", err, res)
 	}
@@ -146,7 +146,7 @@ func TestCpe_BajaLosTresArchivos(t *testing.T) {
 
 	// Lo que ya está bajado no se vuelve a pedir.
 	n := len(sess.calls)
-	res2, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20123456789", Tipo: "01", Serie: "FF01", Numero: "60"}})
+	res2, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20123456789", Tipo: "01", Serie: "FF01", Numero: "60"}}, nil)
 	if err != nil || res2.Ready != 1 {
 		t.Fatalf("segunda vez: %v %+v", err, res2)
 	}
@@ -156,7 +156,7 @@ func TestCpe_BajaLosTresArchivos(t *testing.T) {
 	}
 
 	// ZIP con los tres archivos de cada comprobante.
-	zdata, count, err := svc.Zip(cid, nil, "", "")
+	zdata, count, err := svc.Zip(cid, nil, "", "", nil)
 	if err != nil || count != 2 {
 		t.Fatalf("Zip: %v %d", err, count)
 	}
@@ -174,7 +174,7 @@ func TestCpe_SinArchivosYReintento(t *testing.T) {
 		return 422, []byte(`{"cod":"422","errors":[{"codError":"113","desError":"El comprobante no existe"}]}`)
 	}}
 	svc, cid := cpeSetup(t, sess)
-	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}); err != nil {
+	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows := cpeWait(t, cid)
@@ -185,7 +185,7 @@ func TestCpe_SinArchivosYReintento(t *testing.T) {
 	sess.mu.Lock()
 	sess.respond = func(p string) (int, []byte) { return 200, cpeZipJSON(t, "a.xml", "<Invoice/>") }
 	sess.mu.Unlock()
-	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}); err != nil {
+	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows = cpeWait(t, cid)
@@ -207,7 +207,7 @@ func TestCpe_TokenVencidoAbreOtraSesion(t *testing.T) {
 	}
 	svc, cid := cpeSetup(t, sess)
 	svc.openFn = func(uint, []uint, uint) (cpeSession, error) { opens++; return sess, nil }
-	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}); err != nil {
+	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows := cpeWait(t, cid)
@@ -221,7 +221,7 @@ func TestCpe_FallaAlEntrarASOL(t *testing.T) {
 	svc.openFn = func(uint, []uint, uint) (cpeSession, error) {
 		return nil, accessErr(SunatAccessUnavailable, "No se pudo conectar con SUNAT. Intente de nuevo en unos minutos.", "x")
 	}
-	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}); err != nil {
+	if _, err := svc.Start(cid, nil, 1, []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows := cpeWait(t, cid)
@@ -255,7 +255,7 @@ func TestCpe_RefsDesdeExcelDeCompras(t *testing.T) {
 		}
 	}
 	buf, _ := f.WriteToBuffer()
-	refs, skipped, err := cpeRefsFromExcel(buf.Bytes(), sireLibroCompras, "202610", "20123456789")
+	refs, skipped, err := cpeLinesFromExcel(buf.Bytes(), sireLibroCompras, "202610", "20123456789")
 	if err != nil || len(refs) != 2 || skipped != 3 {
 		t.Fatalf("compras: %v refs=%+v skipped=%d", err, refs, skipped)
 	}
@@ -263,8 +263,62 @@ func TestCpe_RefsDesdeExcelDeCompras(t *testing.T) {
 		t.Errorf("refs: %+v", refs)
 	}
 	// En ventas el emisor es la propia empresa.
-	refs, _, err = cpeRefsFromExcel(buf.Bytes(), sireLibroVentas, "202610", "20123456789")
+	refs, _, err = cpeLinesFromExcel(buf.Bytes(), sireLibroVentas, "202610", "20123456789")
 	if err != nil || refs[0].Ruc != "20123456789" {
 		t.Fatalf("ventas: %v %+v", err, refs)
+	}
+}
+
+func TestCpe_ElegirTiposYCompletarLoQueFalta(t *testing.T) {
+	sess := &fakeCpeConsulta{respond: func(p string) (int, []byte) {
+		return 200, cpeZipJSON(t, "a.bin", "contenido-"+p[strings.LastIndex(p, "/")+1:])
+	}}
+	svc, cid := cpeSetup(t, sess)
+	ref := []CpeRef{{Ruc: "20604778191", Tipo: "01", Serie: "E001", Numero: "9"}}
+
+	if _, err := svc.Start(cid, nil, 1, ref, []string{"xml"}); err != nil {
+		t.Fatal(err)
+	}
+	rows := cpeWait(t, cid)
+	if !rows[0].HasXML || rows[0].HasPDF || rows[0].HasCDR || rows[0].Status != models.SireCpeReady {
+		t.Fatalf("solo XML: %+v", rows[0])
+	}
+	if len(sess.calls) != 1 || !strings.HasSuffix(sess.calls[0], "/02") {
+		t.Fatalf("debía pedir solo el XML: %v", sess.calls)
+	}
+
+	// Pedir XML y PDF: el XML ya está, solo se pide el PDF.
+	res, err := svc.Start(cid, nil, 1, ref, []string{"pdf", "xml"})
+	if err != nil || res.Ready != 0 {
+		t.Fatalf("segunda tanda: %v %+v", err, res)
+	}
+	rows = cpeWait(t, cid)
+	if !rows[0].HasXML || !rows[0].HasPDF || rows[0].HasCDR {
+		t.Fatalf("XML y PDF: %+v", rows[0])
+	}
+	if len(sess.calls) != 2 || !strings.HasSuffix(sess.calls[1], "/01") {
+		t.Fatalf("debía pedir solo el PDF que faltaba: %v", sess.calls)
+	}
+	if string(rows[0].XML) != "contenido-02" {
+		t.Errorf("el XML anterior no debe perderse: %q", rows[0].XML)
+	}
+
+	// Ya están los dos: no se consulta de nuevo.
+	res, _ = svc.Start(cid, nil, 1, ref, []string{"pdf", "xml"})
+	if res.Ready != 1 || len(sess.calls) != 2 {
+		t.Fatalf("no debía consultar: %+v %v", res, sess.calls)
+	}
+
+	// ZIP solo con los XML.
+	z, _, err := svc.Zip(cid, nil, "", "", []string{"xml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, _ := zip.NewReader(bytes.NewReader(z), int64(len(z)))
+	if len(zr.File) != 1 || !strings.HasSuffix(zr.File[0].Name, ".xml") {
+		t.Errorf("ZIP de XML: %d archivos", len(zr.File))
+	}
+	if _, err := svc.Start(cid, nil, 1, ref, []string{"zip"}); err == nil {
+		t.Error("un tipo inválido debe rechazarse")
 	}
 }

@@ -410,6 +410,7 @@ func Setup(app *fiber.App) {
 	sire.Get("/:companyId/cpe", sireCpeCtrl.ListAPI)
 	sire.Post("/:companyId/cpe", sireCpeCtrl.StartAPI)
 	sire.Get("/:companyId/cpe/zip", sireCpeCtrl.ZipAPI)
+	sire.Get("/:companyId/cpe/propuesta", sireCpeCtrl.PropuestaAPI)
 	sire.Get("/:companyId/cpe/:cpeId/file", sireCpeCtrl.FileAPI)
 	sire.Delete("/:companyId/cpe/:cpeId", sireCpeCtrl.DeleteAPI)
 	// Registrar solo el Client ID/Secret de la API SIRE (permiso propio: lo tiene el asistente).

@@ -72,6 +72,24 @@ func (ctrl *SireCpeController) ListAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": rows})
 }
 
+// PropuestaAPI GET /tools/sire/:companyId/cpe/propuesta?download_id= — los comprobantes de una propuesta SIRE lista,
+// con lo que ya se descargó de cada uno, para elegir cuáles bajar.
+func (ctrl *SireCpeController) PropuestaAPI(c fiber.Ctx) error {
+	id, _, ruc, resp := ctrl.scoped(c)
+	if id == 0 {
+		return resp
+	}
+	did, err := strconv.ParseUint(c.Query("download_id"), 10, 64)
+	if err != nil || did == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Indique la consulta del SIRE."})
+	}
+	lines, skipped, perr := ctrl.svc.PropuestaLines(id, uint(did), ruc)
+	if perr != nil {
+		return ctrl.fail(c, perr)
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"lines": lines, "skipped": skipped}})
+}
+
 // StartAPI POST /tools/sire/:companyId/cpe — {"download_id":12} (todos los comprobantes de una propuesta SIRE lista)
 // o {"items":[{"ruc":"…","tipo":"01","serie":"F001","numero":"123"}]}. Se baja en segundo plano.
 func (ctrl *SireCpeController) StartAPI(c fiber.Ctx) error {
@@ -80,7 +98,9 @@ func (ctrl *SireCpeController) StartAPI(c fiber.Ctx) error {
 		return resp
 	}
 	var body struct {
-		DownloadID uint `json:"download_id"`
+		DownloadID uint     `json:"download_id"`
+		Keys       []string `json:"keys"`  // comprobantes elegidos de la propuesta («ruc|tipo|serie|número»); vacío = todos
+		Kinds      []string `json:"kinds"` // pdf, xml, cdr; vacío = los tres
 		Items      []struct {
 			Ruc    string `json:"ruc"`
 			Tipo   string `json:"tipo"`
@@ -95,7 +115,7 @@ func (ctrl *SireCpeController) StartAPI(c fiber.Ctx) error {
 	skipped := 0
 	if body.DownloadID > 0 {
 		var err error
-		if refs, skipped, err = ctrl.svc.RefsFromDownload(id, body.DownloadID, ruc); err != nil {
+		if refs, skipped, err = ctrl.svc.RefsFromDownload(id, body.DownloadID, ruc, body.Keys); err != nil {
 			return ctrl.fail(c, err)
 		}
 	} else {
@@ -104,7 +124,7 @@ func (ctrl *SireCpeController) StartAPI(c fiber.Ctx) error {
 		}
 	}
 	uid, _ := getUserID(c)
-	res, err := ctrl.svc.Start(id, allowed, uid, refs)
+	res, err := ctrl.svc.Start(id, allowed, uid, refs, body.Kinds)
 	if err != nil {
 		return ctrl.fail(c, err)
 	}
@@ -146,7 +166,13 @@ func (ctrl *SireCpeController) ZipAPI(c fiber.Ctx) error {
 			ids = append(ids, uint(n))
 		}
 	}
-	data, n, err := ctrl.svc.Zip(id, ids, c.Query("libro"), c.Query("period"))
+	var kinds []string
+	for _, k := range strings.Split(c.Query("kinds"), ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			kinds = append(kinds, k)
+		}
+	}
+	data, n, err := ctrl.svc.Zip(id, ids, c.Query("libro"), c.Query("period"), kinds)
 	if err != nil {
 		return ctrl.fail(c, err)
 	}
