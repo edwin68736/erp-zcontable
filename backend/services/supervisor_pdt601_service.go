@@ -66,7 +66,7 @@ type Pdt601Detail struct {
 	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
 	// ControlSuspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-
 	// 2026-09-16.md §5.9.7) — global para las 4 actividades parametrizadas, de solo lectura acá; se
-	// marca/desmarca únicamente desde Control de Detracciones. Siempre presente (a diferencia de
+	// marca/desmarca únicamente desde Estado cta. detracciones. Siempre presente (a diferencia de
 	// Planilla, que puede ser nil si todavía no se guardó ninguna).
 	ControlSuspendida bool                         `json:"control_suspendida"`
 	Declaration       models.SupervisorDeclaration `json:"declaration"`
@@ -101,7 +101,7 @@ const (
 // supervisorSuspendidaNote nota fija que se fuerza en el campo de observación cuando la empresa está
 // marcada "suspendida" — así queda visible en el listado y en el reporte Excel sin depender de que
 // alguien la escriba a mano. Desde §5.9.7, "suspendida" es global (SupervisorMonthlyControl.Suspendida,
-// solo se marca desde Control de Detracciones) — esta nota se usa en Detracciones al marcarla, y PDT
+// solo se marca desde Estado cta. detracciones) — esta nota se usa en Detracciones al marcarla, y PDT
 // 601/621 la siguen mostrando de forma read-only si ya quedó grabada en su propio campo Observaciones
 // histórico.
 const supervisorSuspendidaNote = "Empresa suspendida"
@@ -568,11 +568,11 @@ func (s *SupervisorService) SavePdt601Planilla(companyID uint, periodYM string, 
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
-	// Suspendida ahora es global por control y solo se marca/desmarca desde Control de Detracciones
+	// Suspendida ahora es global por control y solo se marca/desmarca desde Estado cta. detracciones
 	// (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — mientras esté marcada, PDT 601
 	// queda de solo lectura, ni el asistente ni el supervisor pueden registrar nada acá.
 	if detail.ControlSuspendida {
-		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
 	}
 
 	var pl models.SupervisorPdt601Planilla

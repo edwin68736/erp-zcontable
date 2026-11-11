@@ -157,7 +157,7 @@ type Pdt621RecordDTO struct {
 }
 
 // Pdt621RecordInput datos enviados por el supervisor (fechas como AAAA-MM-DD). Suspendida ya no es
-// parte de este input — se marca/desmarca solo desde Control de Detracciones (§5.9.7). Tampoco trae
+// parte de este input — se marca/desmarca solo desde Estado cta. detracciones (§5.9.7). Tampoco trae
 // fecha/hora de 1ra/2da entrega: esas las fija el servidor al Recepcionar (RecepcionarPdt621); si un
 // cliente las manda, el JSON las descarta.
 type Pdt621RecordInput struct {
@@ -517,11 +517,11 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return nil, errors.New("esta declaración ya fue entregada; no se puede editar (use Reabrir si corresponde)")
 	}
-	// Suspendida ahora es global por control y solo se marca/desmarca desde Control de Detracciones
+	// Suspendida ahora es global por control y solo se marca/desmarca desde Estado cta. detracciones
 	// (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — mientras esté marcada, PDT 621
 	// queda de solo lectura.
 	if detail.ControlSuspendida {
-		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
 	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
@@ -597,7 +597,7 @@ func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, u
 		return nil, ErrPdt621RecepcionNoAsignado
 	}
 	if detail.ControlSuspendida {
-		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se recepciona")
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se recepciona")
 	}
 	declStatus := detail.Declaration.Status
 	if declStatus != models.SupervisorDeclPendiente && declStatus != models.SupervisorDeclObservado {

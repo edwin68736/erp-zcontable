@@ -14,7 +14,7 @@ type SuspensionCarryOverModalProps = {
 };
 
 // Modal de arrastre de suspensión entre periodos (docs/diseno-limpieza-control-detail-2026-09-16.md
-// §5.9.9) — al abrir Control de Detracciones de un periodo con empresas suspendidas el mes anterior
+// §5.9.9) — al abrir Estado cta. detracciones de un periodo con empresas suspendidas el mes anterior
 // (y sin resolver todavía), pregunta empresa por empresa qué hacer. Cerrar sin confirmar NO cuenta
 // como decisión (§5.9.9.2 punto 3): el caller no debe recordar que se cerró, así que vuelve a
 // aparecer la próxima vez que se entre al módulo para este periodo.

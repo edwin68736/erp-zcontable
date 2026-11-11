@@ -82,7 +82,7 @@ type SunatInboxListRow struct {
 	SummaryStatus      string                  `json:"summary_status"`
 	Slots              []SunatInboxCaptureSlot `json:"slots"`
 	// Suspendida: global por período (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/
-	// §5.9.8) — Buzón SOL solo la lee, se marca desde Control de Detracciones. Sin este dato una
+	// §5.9.8) — Buzón SOL solo la lee, se marca desde Estado cta. detracciones. Sin este dato una
 	// empresa suspendida se veía igual que cualquier otra en el listado (o directamente desaparecía
 	// de un filtro por estado), sin que el usuario supiera que sigue existiendo.
 	Suspendida bool `json:"suspendida"`

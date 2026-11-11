@@ -1,7 +1,7 @@
 import client from '../api/client';
 import type { SupervisorDeclaration } from './supervisors';
 
-/** Cumplimiento de fecha_declaracion vs. el cronograma SUNAT por dígito de RUC del periodo. */
+/** Cumplimiento de una de las dos tareas del PDT 621 (archivador del asistente, declaración del supervisor). */
 export type Pdt621Timeliness = 'on_time' | 'late' | 'pending' | 'missing' | 'exempt' | 'no_rule';
 
 /** Seguimiento manual PDT 621 del periodo (revisión de archivadores, importes, SIRE). */
@@ -60,14 +60,17 @@ export interface Pdt621ListRow {
   attachment_count: number;
   last_stored_at?: string;
   record?: Pdt621Record | null;
+  /** Fecha del cronograma oficial de SUNAT por dígito de RUC: solo informativa, ya no mide el cumplimiento. */
   schedule_due_date?: string;
+  /** Tarea del SUPERVISOR: la fecha de declaración contra el día de la misma actividad del calendario interno (solo fecha). */
   declaration_timeliness: Pdt621Timeliness;
-  /** Cumplimiento del plazo INTERNO del estudio (calendario de actividades, tipo "pdt_621") para
-   * que el asistente haga la primera entrega — distinto de declaration_timeliness (cronograma
-   * SUNAT). No valida nada contra SUNAT, solo la entrega interna del asistente. */
+  /** El archivador llegó fuera de plazo o no llegó pasado el plazo: una declaración tardía puede deberse a eso. */
+  archivador_tardio?: boolean;
+  /** Tarea del ASISTENTE: la recepción del archivador (fecha y hora) contra la actividad "pdt_621" del calendario interno.
+   * Una segunda entrega tras una observación queda siempre fuera de fecha; observado sin segunda entrega sigue abierto. */
   assistant_timeliness: Pdt621Timeliness;
   // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
-  // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
+  // acá desde el control — este módulo ya NO la escribe, solo Estado cta. detracciones.
   suspendida: boolean;
   /** Motivo con el que el supervisor observó el archivador (el último), quién y cuándo. No confundir
    * con `record.observacion`, que son las "Notas adicionales" libres del supervisor. */
@@ -98,13 +101,16 @@ export interface Pdt621Detail {
   /** Mismo criterio que Pdt621ListRow.assistant_timeliness (calendario interno, no SUNAT) — permite
    * mostrar "Entregado fuera de fecha" en el detalle sin recalcular nada en el frontend. */
   assistant_timeliness: Pdt621Timeliness;
+  /** Cumplimiento de la declaración (tarea del supervisor), ver Pdt621ListRow.declaration_timeliness. */
+  declaration_timeliness?: Pdt621Timeliness;
+  archivador_tardio?: boolean;
   /** Fecha límite resuelta por el calendario interno del estudio para el grupo de RUC de esta
    * empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — undefined si el periodo no
    * tiene ninguna actividad "pdt_621" configurada. Fuente para mostrar "Vencimiento", reemplaza a
    * `declaration.due_date` (0% de uso real, §3.1). */
   calendar_due_date?: string;
   // control_suspendida: ver comentario en Pdt621ListRow.suspendida — de solo lectura acá, se marca
-  // desde Control de Detracciones.
+  // desde Estado cta. detracciones.
   control_suspendida: boolean;
   /** Ver Pdt621ListRow.disponible. */
   disponible: boolean;

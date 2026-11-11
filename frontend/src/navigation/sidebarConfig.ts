@@ -195,7 +195,7 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           {
             to: '/supervisors/activities/detracciones',
             icon: 'fas fa-landmark',
-            label: 'Control de Detracciones SUNAT',
+            label: 'Estado cta. detracciones SUNAT',
             permission: P.supervisorsControlsView,
           },
           {
@@ -287,7 +287,7 @@ export const OPERATIONAL_MODULES: OperationalModuleConfig[] = [
           {
             to: '/assistant/activities/detracciones',
             icon: 'fas fa-landmark',
-            label: 'Control de Detracciones SUNAT',
+            label: 'Estado cta. detracciones SUNAT',
             permission: P.supervisorsControlsView,
           },
           {

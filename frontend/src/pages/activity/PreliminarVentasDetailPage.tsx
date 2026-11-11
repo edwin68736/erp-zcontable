@@ -557,7 +557,7 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
         {detail.control_suspendida ? (
           <p className="flex items-start gap-2 text-sm text-slate-500">
             <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-            Esta empresa está marcada "Suspendida" en este periodo (desde Control de Detracciones) — no se puede editar.
+            Esta empresa está marcada "Suspendida" en este periodo (desde Estado cta. detracciones) — no se puede editar.
           </p>
         ) : null}
       </div>

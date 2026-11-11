@@ -190,7 +190,7 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
   // solo bloqueaba al asistente (assistantLocked); ahora aplica a los dos roles por igual.
   const declarationLocked = !!declaration && PDT601_TERMINAL_STATUSES.has(declaration.status);
   // Suspendida (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) ya NO se marca desde este
-  // módulo — se lee de solo lectura desde el control (Control de Detracciones es el único que la
+  // módulo — se lee de solo lectura desde el control (Estado cta. detracciones es el único que la
   // escribe). formLocked bloquea el formulario igual que declarationLocked.
   const controlSuspendida = !!detail?.control_suspendida;
   const formLocked = declarationLocked || controlSuspendida;
@@ -674,14 +674,14 @@ const Pdt601DetailPage = ({ workspace }: Pdt601DetailPageProps) => {
 
         {controlSuspendida ? (
           // Suspendida (§5.9.7) ya NO se marca desde este módulo — es de solo lectura, se marca
-          // desde Control de Detracciones. Bloquea todo el formulario, igual que declarationLocked.
+          // desde Estado cta. detracciones. Bloquea todo el formulario, igual que declarationLocked.
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>
               <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
-                Se marcó desde Control de Detracciones — no se puede editar nada acá mientras esté
-                suspendida. Para reactivarla, desmarque la suspensión en Control de Detracciones.
+                Se marcó desde Estado cta. detracciones — no se puede editar nada acá mientras esté
+                suspendida. Para reactivarla, desmarque la suspensión en Estado cta. detracciones.
               </span>
             </span>
           </div>

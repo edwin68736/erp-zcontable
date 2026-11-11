@@ -55,7 +55,7 @@ export interface SunatInboxListRow {
   summary_status: string;
   slots: SunatInboxCaptureSlot[];
   // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/§5.9.8)
-  // — Buzón SOL solo la lee, se marca desde Control de Detracciones.
+  // — Buzón SOL solo la lee, se marca desde Estado cta. detracciones.
   suspendida: boolean;
 }
 

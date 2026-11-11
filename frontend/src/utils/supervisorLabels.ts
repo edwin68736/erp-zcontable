@@ -16,7 +16,7 @@ export function declarationTypeLabel(t: string): string {
     sire: 'SIRE',
     renta_anual: 'Renta anual',
     sunat_inbox: 'Buzón SOL SUNAT – SUNAFIL',
-    detracciones: 'Control de Detracciones SUNAT',
+    detracciones: 'Estado cta. detracciones SUNAT',
   };
   return m[t] ?? t;
 }

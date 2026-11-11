@@ -31,7 +31,7 @@ export interface DetraccionesListRow {
   file_url?: string;
   timeliness: DetraccionesTimeliness;
   // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — solo
-  // se marca/desmarca desde este módulo (Control de Detracciones), PDT 601/621/Buzón SOL solo la leen.
+  // se marca/desmarca desde este módulo (Estado cta. detracciones), PDT 601/621/Buzón SOL solo la leen.
   suspendida: boolean;
 }
 
@@ -161,7 +161,7 @@ export const detraccionesService = {
   },
 
   // Modal de arrastre de suspensión (§5.9.9) — getSuspensionCarryOverStatus se llama al abrir
-  // Control de Detracciones para un periodo; si pending=true, mostrar el modal con `companies`.
+  // Estado cta. detracciones para un periodo; si pending=true, mostrar el modal con `companies`.
   async getSuspensionCarryOverStatus(periodYm: string): Promise<SuspensionCarryOverStatus> {
     const res = await client.get<{ data: SuspensionCarryOverStatus }>(
       '/supervisors/activity-modules/detracciones/suspension-carry-over',

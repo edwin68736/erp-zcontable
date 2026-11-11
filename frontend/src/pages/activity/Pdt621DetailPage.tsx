@@ -117,7 +117,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // reabra con el permiso dedicado — mismo criterio que Pdt601DetailPage.tsx.
   const declarationLocked = !!declaration && PDT621_TERMINAL_STATUSES.has(declaration.status);
   // Suspendida (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) ya NO se marca desde este
-  // módulo — se lee de solo lectura desde el control (Control de Detracciones es el único que la
+  // módulo — se lee de solo lectura desde el control (Estado cta. detracciones es el único que la
   // escribe). formLocked bloquea el formulario igual que declarationLocked.
   const controlSuspendida = !!detail?.control_suspendida;
   const formLocked = declarationLocked || controlSuspendida;
@@ -420,7 +420,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           </dl>
           {controlSuspendida ? (
             // Suspendida (§5.9.7) ya NO se marca desde este módulo — de solo lectura, se marca
-            // desde Control de Detracciones.
+            // desde Estado cta. detracciones.
             <p className="flex items-start gap-2 text-sm text-slate-500">
               <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
               Esta empresa está marcada "Suspendida" en este periodo (desde Control de

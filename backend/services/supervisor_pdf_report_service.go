@@ -234,7 +234,7 @@ func PickCalendarActivityByDigitFor(periodYM, calendarType, dig string) *models.
 // entrega: no suspendida y no ya entregada (aprobada) — para entregar de nuevo hay que Reabrir.
 func CheckPdfReportSubmittable(detail *PdfReportDetail) error {
 	if detail.ControlSuspendida {
-		return errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede cargar")
+		return errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede cargar")
 	}
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return errors.New("esta entrega ya fue aprobada; no se puede reemplazar (use Reabrir si corresponde)")

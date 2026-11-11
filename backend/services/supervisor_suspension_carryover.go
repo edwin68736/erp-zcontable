@@ -71,7 +71,7 @@ func (s *SupervisorService) suspendidaCompaniesForPeriod(periodYM string, allowe
 }
 
 // GetSuspensionCarryOverStatus decide si corresponde mostrar el modal de arrastre (§5.9.9.2) al
-// abrir Control de Detracciones para `periodYM`: el período debe existir, no tener el arrastre
+// abrir Estado cta. detracciones para `periodYM`: el período debe existir, no tener el arrastre
 // resuelto todavía, y el período anterior debe tener al menos una empresa suspendida (dentro del
 // alcance del usuario que consulta).
 func (s *SupervisorService) GetSuspensionCarryOverStatus(periodYM string, allowedCompanyIDs []uint) (*SuspensionCarryOverStatus, error) {

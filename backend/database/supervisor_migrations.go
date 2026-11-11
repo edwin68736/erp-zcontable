@@ -289,7 +289,7 @@ func migrateDropNPSTable(db *gorm.DB) error {
 // migrateSuspendidaGlobalPorControl "suspendida" pasa de vivir por separado en cada módulo
 // (supervisor_pdt601_planillas.suspendida / supervisor_pdt621_records.suspendida) a un solo campo
 // compartido en supervisor_monthly_controls (docs/diseno-limpieza-control-detail-2026-09-16.md
-// §5.9.7) — se marca/desmarca únicamente desde Control de Detracciones. Migra las filas que ya
+// §5.9.7) — se marca/desmarca únicamente desde Estado cta. detracciones. Migra las filas que ya
 // estaban marcadas suspendidas en cualquiera de los dos módulos hacia el control compartido, y
 // luego elimina las columnas viejas (esta app corre en MySQL/SQLite, ambos soportan DROP COLUMN vía
 // GORM Migrator — no se mantienen dos fuentes de verdad).

@@ -80,7 +80,7 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
   },
   {
     id: 'detracciones',
-    label: 'Control de Detracciones SUNAT',
+    label: 'Estado cta. detracciones SUNAT',
     description: 'Seguimiento manual del régimen de detracciones por empresa y periodo.',
     icon: 'fas fa-landmark',
     phaseLabel: 'Fase F4',

@@ -119,7 +119,7 @@ const (
 	SupervisorsDeclarationsUpdate  = "supervisors.declarations_update"
 	SupervisorsDeclarationsDelete  = "supervisors.declarations_delete"
 	SupervisorsDeclarationsApprove = "supervisors.declarations_approve"
-	// SupervisorsDetraccionesMarkStatus marcar un registro de Control de Detracciones como «Sin clave» o «No corresponde».
+	// SupervisorsDetraccionesMarkStatus marcar un registro de Estado cta. detracciones como «Sin clave» o «No corresponde».
 	// Permiso propio (antes colgaba de «Aprobar declaración», que el asistente no tiene): lo usan el asistente y el supervisor.
 	SupervisorsDetraccionesMarkStatus = "supervisors.detracciones_mark_status"
 	SupervisorsDeclarationsObserve    = "supervisors.declarations_observe"

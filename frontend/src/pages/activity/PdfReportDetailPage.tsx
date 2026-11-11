@@ -329,7 +329,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
             {suspendida ? (
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-ban mt-0.5 text-purple-600" aria-hidden />
-                Esta empresa está marcada "Suspendida" en este periodo (desde Control de Detracciones) — no aplica
+                Esta empresa está marcada "Suspendida" en este periodo (desde Estado cta. detracciones) — no aplica
                 observar ni aprobar.
               </p>
             ) : locked ? (
@@ -441,7 +441,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
             <span>
               <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
-                Se marcó desde Control de Detracciones — no se puede cargar nada mientras esté suspendida.
+                Se marcó desde Estado cta. detracciones — no se puede cargar nada mientras esté suspendida.
               </span>
             </span>
           </div>

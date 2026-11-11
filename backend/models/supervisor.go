@@ -67,12 +67,12 @@ const (
 	SupervisorSunatValidado      = "validado"
 )
 
-// Estados operativos Control de Detracciones SUNAT (declaration_type detracciones).
+// Estados operativos Estado cta. detracciones SUNAT (declaration_type detracciones).
 const (
 	SupervisorDetraccionDepositoPendiente  = "deposito_pendiente"
 	SupervisorDetraccionDepositoRegistrado = "deposito_registrado"
 	SupervisorDetraccionSinOperaciones     = "sin_operaciones"
-	// Flujo operativo simplificado (Control de Detracciones).
+	// Flujo operativo simplificado (Estado cta. detracciones).
 	SupervisorDetraccionCargado       = "cargado"
 	SupervisorDetraccionVerificado    = "verificado"
 	SupervisorDetraccionSinClave      = "sin_clave"
@@ -159,7 +159,7 @@ type SupervisorMonthlyControl struct {
 	RiskLevel         string         `gorm:"size:20;not null;default:'bajo'" json:"risk_level"`
 	// Suspendida: la empresa está suspendida para este período — global para las 4 actividades
 	// parametrizadas (PDT 601/621, Detracciones, Buzón SOL), no por módulo (docs/diseno-limpieza-
-	// control-detail-2026-09-16.md §5.9.7). Se marca/desmarca únicamente desde Control de Detracciones
+	// control-detail-2026-09-16.md §5.9.7). Se marca/desmarca únicamente desde Estado cta. detracciones
 	// (primera actividad del flujo); los demás módulos la leen de acá, de solo lectura. Reemplaza a los
 	// campos `Suspendida` que antes vivían por separado en SupervisorPdt601Planilla/
 	// SupervisorPdt621Record.

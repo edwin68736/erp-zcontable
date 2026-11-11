@@ -144,7 +144,7 @@ func (s *SupervisorService) dashboardModuleRows(p SupervisorDashboardParams, com
 	return []DashboardModuleRow{
 		moduleRowFromPdt(models.SupervisorDeclPDT601, "PDT 601", pdtSum[models.SupervisorDeclPDT601]),
 		moduleRowFromPdt(models.SupervisorDeclPDT621, "PDT 621", pdtSum[models.SupervisorDeclPDT621]),
-		moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Detracciones", detSum),
+		moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Estado cta. detracciones", detSum),
 		moduleRowFromCompliance(models.SupervisorDeclSunatInbox, "Buzón SOL", mailboxSum),
 		moduleRowFromPdf(PdfReportInformeDetracciones, informeRows),
 		moduleRowFromPdf(PdfReportSiscontBalances, siscontRows),
@@ -242,7 +242,7 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 	for _, r := range det {
 		exempt := r.Suspendida || detraccionesIsExemptStatus(r.Status)
 		if st, ok := classifyWork(r.Status, r.Timeliness.Timeliness, exempt); ok {
-			add(r.CompanyID, r.BusinessName, r.RUC, models.SupervisorDeclDetracciones, "Detracciones", r.DeclarationID, st, r.Timeliness.DueAt)
+			add(r.CompanyID, r.BusinessName, r.RUC, models.SupervisorDeclDetracciones, "Estado cta. detracciones", r.DeclarationID, st, r.Timeliness.DueAt)
 		}
 	}
 	for _, pair := range []struct {

@@ -133,7 +133,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
 
   // Al entrar (o cambiar de periodo), se consulta si hay un arrastre de suspensión sin resolver —
   // si el usuario cierra el modal sin decidir, no se recuerda acá: la próxima vez que se entre a
-  // este periodo se vuelve a preguntar, igual que en Control de Detracciones (§5.9.9.2).
+  // este periodo se vuelve a preguntar, igual que en Estado cta. detracciones (§5.9.9.2).
   useEffect(() => {
     let cancelled = false;
     detraccionesService

@@ -439,7 +439,7 @@ func backfillPermissionOnce(db *gorm.DB, migrationName, newCode string, sinceCod
 	})
 }
 
-// backfillDetraccionesMarkStatus «Marcar Sin clave / No corresponde» en Control de Detracciones: lo reciben los roles
+// backfillDetraccionesMarkStatus «Marcar Sin clave / No corresponde» en Estado cta. detracciones: lo reciben los roles
 // que ya podían hacerlo («Aprobar declaración») y el Asistente.
 func backfillDetraccionesMarkStatus(db *gorm.DB) error {
 	return backfillPermissionOnce(db, "rbac_detracciones_mark_status_v1", rbac.SupervisorsDetraccionesMarkStatus,

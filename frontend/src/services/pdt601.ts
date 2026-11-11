@@ -78,7 +78,7 @@ export interface Pdt601ListRow {
   planilla?: Pdt601Planilla | null;
   timeliness: Pdt601Timeliness;
   // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7), leída
-  // acá desde el control — este módulo ya NO la escribe, solo Control de Detracciones.
+  // acá desde el control — este módulo ya NO la escribe, solo Estado cta. detracciones.
   suspendida: boolean;
 }
 
@@ -95,7 +95,7 @@ export interface Pdt601Detail {
   declaration: SupervisorDeclaration;
   planilla?: Pdt601Planilla | null;
   // control_suspendida: ver comentario en Pdt601ListRow.suspendida — de solo lectura acá, se marca
-  // desde Control de Detracciones.
+  // desde Estado cta. detracciones.
   control_suspendida: boolean;
   /** Mismo criterio que Pdt601ListRow.timeliness — permite mostrar "Entregado fuera de fecha" en el
    * detalle sin recalcular nada en el frontend. */

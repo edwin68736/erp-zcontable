@@ -123,7 +123,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
       setTotal(res.pagination?.total ?? 0);
     } catch (err) {
       console.error(err);
-      setError(extractApiErrorMessage(err, 'No se pudo cargar Control de Detracciones.'));
+      setError(extractApiErrorMessage(err, 'No se pudo cargar Estado cta. detracciones.'));
       setRows([]);
       setTotal(0);
     } finally {
@@ -254,7 +254,7 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
     <div className={PAGE_WORKSPACE_CLASS}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <PageHeading hint="Carga de comprobante PDF por el asistente y verificación por el supervisor.">Control de Detracciones SUNAT</PageHeading>
+          <PageHeading hint="Carga de comprobante PDF por el asistente y verificación por el supervisor.">Estado cta. detracciones SUNAT</PageHeading>
         </div>
         <Link to={homePath} className="text-primary-700 text-sm font-medium hover:underline shrink-0 whitespace-nowrap">
           ← Volver

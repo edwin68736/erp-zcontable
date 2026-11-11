@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// DetraccionesListParams filtros del listado Control de Detracciones por empresa y período.
+// DetraccionesListParams filtros del listado Estado cta. detracciones por empresa y período.
 type DetraccionesListParams struct {
 	PeriodYM          string
 	Status            string
@@ -41,7 +41,7 @@ type DetraccionesListRow struct {
 	FileURL           string                    `json:"file_url,omitempty"`
 	Timeliness        DetraccionesTimelinessDTO `json:"timeliness"`
 	// Suspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-2026-09-
-	// 16.md §5.9.7) — global para las 4 actividades parametrizadas. Control de Detracciones es el
+	// 16.md §5.9.7) — global para las 4 actividades parametrizadas. Estado cta. detracciones es el
 	// ÚNICO lugar que la marca/desmarca; PDT 601/621/Buzón SOL solo la leen.
 	Suspendida bool `json:"suspendida"`
 }
@@ -448,7 +448,7 @@ func (s *SupervisorService) ValidateDetracciones(declarationID uint, approverID 
 		return nil, errors.New("declaración no encontrada")
 	}
 	if !isDetraccionesDeclarationType(d.DeclarationType) {
-		return nil, errors.New("no es un registro de Control de Detracciones")
+		return nil, errors.New("no es un registro de Estado cta. detracciones")
 	}
 	if d.DeclarationType == models.SupervisorDeclDistractionsLegacy {
 		d.DeclarationType = models.SupervisorDeclDetracciones
@@ -532,7 +532,7 @@ func (s *SupervisorService) SetDetraccionesSupervisorStatus(declarationID uint, 
 		return nil, errors.New("declaración no encontrada")
 	}
 	if !isDetraccionesDeclarationType(d.DeclarationType) {
-		return nil, errors.New("no es un registro de Control de Detracciones")
+		return nil, errors.New("no es un registro de Estado cta. detracciones")
 	}
 	// Suspendida bloquea CUALQUIER otro dato — mismo criterio que UploadDetraccionesPDF (§5.9.7.3
 	// punto 4).
@@ -563,7 +563,7 @@ func (s *SupervisorService) EnsureDetraccionesDeclarationType(declarationID uint
 		return errors.New("declaración no encontrada")
 	}
 	if !isDetraccionesDeclarationType(d.DeclarationType) {
-		return errors.New("no es un registro de Control de Detracciones")
+		return errors.New("no es un registro de Estado cta. detracciones")
 	}
 	return nil
 }

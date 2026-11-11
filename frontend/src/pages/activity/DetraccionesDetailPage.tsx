@@ -56,7 +56,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
   );
   // «Sin clave» / «No corresponde»: permiso propio, lo pueden tener el asistente y el supervisor (no depende de la pantalla).
   const canSetStatus = useMemo(() => auth.hasPermission(P.supervisorsDetraccionesMarkStatus), []);
-  // "Suspendida" (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7): Control de Detracciones
+  // "Suspendida" (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7): Estado cta. detracciones
   // es el ÚNICO módulo de todo el sistema que la marca/desmarca — PDT 601/621 y Buzón SOL solo la
   // leen. Mismo permiso que subir el PDF (lo puede marcar tanto el asistente como el supervisor,
   // igual que el checkbox viejo de PDT 601 antes de este cambio).
@@ -220,7 +220,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
 
       <div className="mt-2">
         <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-7">
-          Control de Detracciones SUNAT — {detail.business_name}
+          Estado cta. detracciones SUNAT — {detail.business_name}
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
           Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
@@ -302,7 +302,7 @@ const DetraccionesDetailPage = ({ workspace }: DetraccionesDetailPageProps) => {
             <span>
               <span className="block font-medium">Esta empresa está suspendida en este periodo</span>
               <span className="block text-xs mt-0.5 opacity-80">
-                Se aplica a Control de Detracciones, PDT 601, PDT 621 y Buzón SOL — no se registra
+                Se aplica a Estado cta. detracciones, PDT 601, PDT 621 y Buzón SOL — no se registra
                 ningún otro dato en ninguno de estos módulos mientras esté suspendida.
               </span>
             </span>

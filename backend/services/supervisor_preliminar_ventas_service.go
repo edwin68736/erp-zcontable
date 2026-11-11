@@ -170,7 +170,7 @@ type PreliminarVentasSlotDetail struct {
 	AssistantUsername string     `json:"assistant_username"`
 	ControlID         uint       `json:"control_id"`
 	// ControlSuspendida: overlay global de SupervisorMonthlyControl.Suspendida (§5.9.7), de solo
-	// lectura acá — se marca/desmarca únicamente desde Control de Detracciones.
+	// lectura acá — se marca/desmarca únicamente desde Estado cta. detracciones.
 	ControlSuspendida bool `json:"control_suspendida"`
 	// CompanyIgvRate: tasa configurada de la empresa (companies.igv_rate) — el frontend la usa para
 	// marcar cuál checkbox de tasa es "(empresa)" en el selector 18%/10.5%/ambos.
@@ -729,11 +729,11 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 	if err != nil {
 		return nil, err
 	}
-	// Suspendida es global por control (Control de Detracciones es el único que la marca/desmarca,
+	// Suspendida es global por control (Estado cta. detracciones es el único que la marca/desmarca,
 	// docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7) — mientras esté marcada, este módulo
 	// también queda de solo lectura, mismo criterio que PDT 601/621.
 	if detail.ControlSuspendida {
-		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
 	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
@@ -811,7 +811,7 @@ func (s *SupervisorService) MarkPreliminarVentasSlotSent(companyID uint, periodY
 		return nil, err
 	}
 	if detail.ControlSuspendida {
-		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Control de Detracciones); no se puede editar")
+		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
 	}
 	if detail.Status == models.PreliminarVentasPendiente {
 		return nil, errors.New("primero registre los datos de esta entrega antes de marcarla como enviada")

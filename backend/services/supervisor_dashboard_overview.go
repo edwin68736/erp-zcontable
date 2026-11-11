@@ -326,7 +326,7 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 		out.Modules = append(out.Modules,
 			moduleRowFromPdt(models.SupervisorDeclPDT601, "PDT 601", pdtSum[models.SupervisorDeclPDT601]),
 			moduleRowFromPdt(models.SupervisorDeclPDT621, "PDT 621", pdtSum[models.SupervisorDeclPDT621]),
-			moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Detracciones", detSum),
+			moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Estado cta. detracciones", detSum),
 			moduleRowFromCompliance(models.SupervisorDeclSunatInbox, "Buzón SOL", mailboxSum),
 			moduleRowFromPdf(PdfReportInformeDetracciones, informeRows),
 			moduleRowFromPdf(PdfReportSiscontBalances, siscontRows),

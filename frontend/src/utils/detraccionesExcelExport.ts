@@ -75,7 +75,7 @@ export async function exportDetraccionesReportExcel(options: {
   }
 
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Control de Detracciones');
+  const sheet = workbook.addWorksheet('Estado cta. detracciones');
   const totalCols = HEADERS.length;
 
   await buildExcelLetterhead({
