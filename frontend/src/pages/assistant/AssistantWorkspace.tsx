@@ -345,8 +345,8 @@ const AssistantWorkspace = () => {
             </div>
           </div>
 
-          {/* Avance del periodo: tareas completadas ÷ tareas que aplican. */}
-          <div className="flex flex-wrap gap-3">
+          {/* Avance del periodo (30 % del ancho) y estado de las tareas (70 %): tareas completadas ÷ tareas que aplican. */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <HeroGauge
               pct={pr.pct}
               title={`${mineOr('Mi avance', 'Avance')}${moduleName ? ` · ${moduleName}` : ''}`}
@@ -354,7 +354,7 @@ const AssistantWorkspace = () => {
               line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas o sin planilla)`}
             />
             <Card className="min-w-0" accent="#12A150">
-              <div style={{ flex: '2 1 360px' }}>
+              <div>
                 <div className="mb-[10px] flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="m-0 text-sm font-extrabold">Estado de las tareas</h2>
                   <span className="text-[11.5px] text-slate-500">{periodYm} · {pr.total.toLocaleString('es-PE')} tareas que aplican</span>
