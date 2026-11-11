@@ -7,14 +7,14 @@ import RhConfirmPanel from './RhConfirmPanel';
 import RhSolPanel from './RhSolPanel';
 
 const TABS = [
-  { key: 'recibidos', label: 'Recibos por honorarios', hint: 'Recibidos o emitidos, con PDF, XML, TXT y Excel (SUNAT Operaciones en Línea)' },
+  { key: 'recibidos', label: 'Recibos por honorarios', hint: 'Recibidos o emitidos, con PDF y Excel (SUNAT Operaciones en Línea)' },
   { key: 'confirmacion', label: 'Pendientes de confirmación', hint: 'Plataforma de confirmación del RHE y de la FE (API de SUNAT): solo comprobantes pendientes, subsanados o disconformes' },
 ] as const;
 
 /**
  * Herramientas → RH → una empresa. Dos fuentes de SUNAT, en pestañas:
  *  - «Recibos por honorarios» (por defecto): lee en SOL la consulta de receptor (o la de emisor, solo personas naturales con
- *    RUC 10, que se elige en el formulario) y arma el PDF, el XML, el TXT y el Excel.
+ *    RUC 10, que se elige en el formulario) y arma el PDF y el Excel.
  *  - «Pendientes de confirmación»: la API de la plataforma de confirmación del RHE y de la FE (estados de confirmación).
  */
 const RhCompany = () => {

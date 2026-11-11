@@ -73,12 +73,6 @@ export interface RheSolExportMeta {
 /** Nombre del Excel: «RH-recibidos-<RUC>-<desde>_<hasta>.xlsx». */
 export const rheSolExcelName = (meta: RheSolExportMeta): string => `RH-${meta.lado === 'emisor' ? 'emitidos' : 'recibidos'}-${meta.ruc}-${meta.desde}_${meta.hasta}.xlsx`;
 
-/** Nombre del TXT: «RH-REC-<RUC>-<ddmmaaaa>_a_<ddmmaaaa>.txt» (REC recibidos, EMI emitidos). */
-export function rheSolTxtName(meta: Pick<RheSolExportMeta, 'ruc' | 'desde' | 'hasta' | 'lado'>): string {
-  const dmy = (iso: string) => iso.split('-').reverse().join('');
-  return `RH-${meta.lado === 'emisor' ? 'EMI' : 'REC'}-${meta.ruc}-${dmy(meta.desde)}_a_${dmy(meta.hasta)}.txt`;
-}
-
 /** Arma el Excel (sin guardarlo). */
 export async function rheSolExcelBlob(items: RheSolItem[], meta: RheSolExportMeta): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
@@ -125,42 +119,4 @@ export async function rheSolExcelBlob(items: RheSolItem[], meta: RheSolExportMet
 export async function exportRheSolExcel(items: RheSolItem[], meta: RheSolExportMeta): Promise<void> {
   saveAs(await rheSolExcelBlob(items, meta), rheSolExcelName(meta));
   void notify.success('Excel descargado');
-}
-
-const TXT_HEADER =
-  'Fecha de Emisión|Tipo Doc. Emitido|Nro. Doc. Emitido|Estado Doc. Emitido|Tipo de Doc. Emisor|Nro. Doc. Emisor|Apellidos y Nombres, Denominación o Razón Social del Emisor|Tipo de Renta|Gratuito|Descripción|Observación|Moneda de Operación|Renta Bruta|Impuesto a la Renta|Renta Neta|Monto Neto Pendiente de Pago|';
-
-const txtMoneda = (m: string): string => (m === 'USD' ? 'DOLARES' : m === 'PEN' || !m ? 'SOLES' : m);
-const txtNum = (n: number): string => n.toFixed(2);
-
-/** El reporte en texto con «|», con las mismas 16 columnas que entrega SUNAT en «Descargar Reporte». */
-export function rheSolTxt(items: RheSolItem[]): string {
-  const rows = items.map((r) =>
-    [
-      fmtDay(r.fec_emision),
-      r.tipo,
-      r.comprobante,
-      r.estado,
-      r.emisor_tipo_doc,
-      r.emisor_doc,
-      r.emisor_nombre,
-      r.tipo_renta,
-      r.gratuito ? 'SI' : 'NO',
-      r.descripcion || '-',
-      r.observacion || '-',
-      txtMoneda(r.moneda),
-      txtNum(r.renta_bruta),
-      txtNum(r.impuesto_renta),
-      txtNum(r.renta_neta),
-      txtNum(r.monto_pendiente),
-      '',
-    ].join('|'),
-  );
-  return [TXT_HEADER, ...rows].join('\r\n') + '\r\n';
-}
-
-/** Baja el reporte en .txt (el mismo formato de SUNAT). */
-export function exportRheSolTxt(items: RheSolItem[], meta: { ruc: string; desde: string; hasta: string; lado: RheSolLado }): void {
-  saveAs(new Blob([rheSolTxt(items)], { type: 'text/plain;charset=utf-8' }), rheSolTxtName(meta));
-  void notify.success('TXT descargado');
 }

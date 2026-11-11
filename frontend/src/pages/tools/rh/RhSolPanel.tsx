@@ -14,7 +14,7 @@ import { timeAgo } from '../buzon/buzonUi';
 import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
 import { daysAgo, daysBetween, fmtDay, fmtMoney } from './rhUi';
-import { RH_SOL_MAX_DAYS, exportRheSolExcel, exportRheSolTxt, tipoLabel, totalsByMoneda } from './rhSolUi';
+import { RH_SOL_MAX_DAYS, exportRheSolExcel, tipoLabel, totalsByMoneda } from './rhSolUi';
 import RhFilesDialog from './RhFilesDialog';
 import { runRhDownloads, type RhFormats } from './rhProcess';
 
@@ -56,10 +56,10 @@ function HistoryEntry({
           {item.status !== 'error' ? ` · ${item.consultas} búsqueda${item.consultas === 1 ? '' : 's'} en SUNAT` : ''}
           {item.truncado ? ' · incompleta (tope)' : ''}
         </p>
-        {item.status === 'listo' && (item.dl_pdf || item.dl_xml || item.dl_txt || item.dl_excel) ? (
+        {item.status === 'listo' && (item.dl_pdf || item.dl_excel) ? (
           <p className="text-xs font-medium text-green-700">
             <i className="fas fa-circle-check mr-1" aria-hidden />
-            {[item.dl_pdf ? `PDFs: ${item.dl_pdf}` : '', item.dl_xml ? `XML: ${item.dl_xml}` : '', item.dl_txt ? 'TXT: Sí' : '', item.dl_excel ? 'Excel: Sí' : ''].filter(Boolean).join(' | ')}
+            {[item.dl_pdf ? `PDFs: ${item.dl_pdf}` : '', item.dl_excel ? 'Excel: Sí' : ''].filter(Boolean).join(' | ')}
           </p>
         ) : null}
         {item.status === 'error' ? (
@@ -144,8 +144,6 @@ function ItemRow({ r }: { r: RheSolItem }) {
 
 const FORMAT_OPTIONS: { key: keyof RhFormats; label: string; icon: string; color: string; hint: string }[] = [
   { key: 'pdf', label: 'PDF', icon: 'fa-file-pdf', color: 'text-red-600', hint: 'El recibo impreso que genera SUNAT (solo recibidos)' },
-  { key: 'xml', label: 'XML', icon: 'fa-file-code', color: 'text-blue-700', hint: 'El recibo electrónico firmado (solo recibidos)' },
-  { key: 'txt', label: 'TXT', icon: 'fa-file-lines', color: 'text-slate-600', hint: 'El reporte en texto con «|», igual que el de SUNAT' },
   { key: 'excel', label: 'Excel', icon: 'fa-file-excel', color: 'text-green-700', hint: 'La lista de recibos en Excel' },
 ];
 
@@ -161,8 +159,8 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
   const emitidos = lado === 'emisor';
   // Los recibos emitidos solo los tiene una persona natural (RUC 10): una empresa no es emisora de recibos por honorarios.
   const canEmisor = (company?.ruc ?? '').startsWith('10');
-  const [formats, setFormats] = useState<RhFormats>({ pdf: true, xml: false, txt: true, excel: true });
-  const anyFormat = formats.pdf || formats.xml || formats.txt || formats.excel;
+  const [formats, setFormats] = useState<RhFormats>({ pdf: true, excel: true });
+  const anyFormat = formats.pdf || formats.excel;
   // Una consulta por herramienta, empresa y lado (recibidos y emitidos son consultas distintas).
   const tool = emitidos ? 'rhm' : 'rh';
   const [desde, setDesde] = useState(daysAgo(89));
@@ -238,10 +236,10 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
       setActiveId(r.history_id ?? null);
       let summary = `${r.data.total} comprobante${r.data.total === 1 ? '' : 's'}`;
       if (anyFormat && r.data.total > 0 && company) {
-        // Con los recibos ya consultados se arma lo elegido en el formulario (el PDF y el XML se piden a SUNAT).
+        // Con los recibos ya consultados se arma lo elegido en el formulario (el PDF se pide a SUNAT).
         try {
           const d = await runRhDownloads({ companyId, empresa: company.business_name, ruc: company.ruc, lado, items: r.data.items, desde: r.data.desde, hasta: r.data.hasta, formats });
-          if (r.history_id) await rheSolService.recordDownloads(companyId, r.history_id, { pdf: d.pdf, xml: d.xml, txt: d.txt, excel: d.excel }).catch(() => undefined);
+          if (r.history_id) await rheSolService.recordDownloads(companyId, r.history_id, { pdf: d.pdf, excel: d.excel }).catch(() => undefined);
           if (d.saved) summary += ` · descargado: ${d.saved}`;
           if (d.notes.length > 0) void notify.warning('Descarga con avisos', d.notes.slice(0, 3).join(' · ') + (d.notes.length > 3 ? ` (y ${d.notes.length - 3} más)` : ''));
         } catch (e) {
@@ -382,7 +380,7 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
                 </div>
                 <div>
                   <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">4. Formatos a descargar</p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Formatos a descargar">
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Formatos a descargar">
                     {FORMAT_OPTIONS.map((o) => (
                       <button
                         key={o.key}
@@ -398,7 +396,7 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
                       </button>
                     ))}
                   </div>
-                  {emitidos && (formats.pdf || formats.xml) ? <p className="mt-1 text-xs text-amber-700">El PDF y el XML solo se bajan de los recibos recibidos; de los emitidos se arma el TXT y el Excel.</p> : null}
+                  {emitidos && formats.pdf ? <p className="mt-1 text-xs text-amber-700">El PDF solo se baja de los recibos recibidos; de los emitidos se arma el Excel.</p> : null}
                 </div>
                 <div>
                   <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">5. Tipo de consulta</p>
@@ -430,8 +428,8 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
                   <p className="mt-1.5 leading-relaxed">
                     Entra a <strong>SUNAT Operaciones en Línea</strong> con la clave SOL y abre <em>Recibos por Honorarios Electrónicos → {emitidos ? 'Consulta Emisor' : 'Consulta Receptor'}</em>: lista{' '}
                     <strong>todos</strong> los recibos, notas de crédito y otros ingresos de 4.ª categoría, vigentes o anulados. SUNAT admite {emitidos ? 'hasta 6 meses' : '1 mes'} por búsqueda; un rango mayor se
-                    consulta por tramos automáticamente. Después arma lo elegido: el PDF y el XML de cada recibo se piden a SUNAT de a uno; el TXT y el Excel salen de la lista. Si son varios archivos se
-                    entregan en un ZIP con carpetas PDF/, XML/ y TXT/.
+                    consulta por tramos automáticamente. Después arma lo elegido: el PDF de cada recibo se pide a SUNAT de a uno; el Excel sale de la lista. Si son varios archivos se
+                    entregan en un ZIP con la carpeta PDF/ y el Excel.
                   </p>
                 </details>
               </div>
@@ -480,15 +478,11 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
                   resp.data.total > 0 ? (
                     <div className="flex flex-wrap items-center gap-2">
                       {!emitidos ? (
-                        <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setFilesOpen(true)} title="Bajar de SUNAT el PDF y el XML de los recibos">
+                        <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setFilesOpen(true)} title="Bajar de SUNAT el PDF de los recibos">
                           <i className="fas fa-file-pdf mr-1.5 text-red-600" aria-hidden />
-                          PDF / XML
+                          PDF
                         </Button>
                       ) : null}
-                      <Button variant="secondary" className="!py-1.5 text-xs" onClick={() => exportRheSolTxt(items, { ruc: company.ruc, desde: resp.data.desde, hasta: resp.data.hasta, lado })} title="El reporte en texto con «|», igual que el de SUNAT">
-                        <i className="fas fa-file-lines mr-1.5" aria-hidden />
-                        TXT
-                      </Button>
                       <Button
                         variant="secondary"
                         className="!py-1.5 text-xs"

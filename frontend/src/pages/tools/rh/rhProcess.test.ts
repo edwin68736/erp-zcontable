@@ -35,23 +35,23 @@ describe('runRhDownloads', () => {
     expect(r.saved).toBe('');
   });
 
-  it('un solo formato (TXT) se guarda tal cual, sin ZIP ni consultar archivos', async () => {
-    const r = await runRhDownloads({ ...base, lado: 'receptor', items: [item(20)], formats: { ...RH_NO_FORMATS, txt: true } });
+  it('solo Excel se guarda tal cual, sin ZIP ni pedir PDF', async () => {
+    const r = await runRhDownloads({ ...base, lado: 'receptor', items: [item(20)], formats: { ...RH_NO_FORMATS, excel: true } });
     expect(files).not.toHaveBeenCalled();
     expect(saved).toHaveLength(1);
-    expect(saved[0].name).toBe('RH-REC-20610043098-01102026_a_31102026.txt');
-    expect(r.txt).toBe(true);
+    expect(saved[0].name).toBe('RH-recibidos-20610043098-2026-10-01_2026-10-31.xlsx');
+    expect(r.excel).toBe(true);
   });
 
-  it('PDF + XML + TXT + Excel: un ZIP con carpetas PDF/, XML/, TXT/ y el Excel', async () => {
-    files.mockResolvedValue({ blob: await serverZip({ 'PDF/RHE1.pdf': 'pdf1', 'XML/RHE1.xml': '<x/>', 'PDF/RHE2.pdf': 'pdf2', 'XML/RHE2.xml': '<y/>' }), ok: 2, files: 4, failed: 0, errors: [] });
-    const r = await runRhDownloads({ ...base, lado: 'receptor', items: [item(20), item(21)], formats: { pdf: true, xml: true, txt: true, excel: true } });
+  it('PDF + Excel: un ZIP con la carpeta PDF/ y el Excel', async () => {
+    files.mockResolvedValue({ blob: await serverZip({ 'PDF/RHE1.pdf': 'pdf1', 'PDF/RHE2.pdf': 'pdf2' }), ok: 2, files: 2, failed: 0, errors: [] });
+    const r = await runRhDownloads({ ...base, lado: 'receptor', items: [item(20), item(21)], formats: { pdf: true, excel: true } });
     expect(files).toHaveBeenCalledTimes(1);
-    expect(files.mock.calls[0][2]).toEqual(['pdf', 'xml']);
-    expect(r).toMatchObject({ pdf: 2, xml: 2, txt: true, excel: true, saved: 'RH-REC-20610043098-2026-10-01_2026-10-31.zip' });
+    expect(files.mock.calls[0][2]).toEqual(['pdf']);
+    expect(r).toMatchObject({ pdf: 2, excel: true, saved: 'RH-REC-20610043098-2026-10-01_2026-10-31.zip' });
     const zip = await JSZip.loadAsync(saved[0].blob);
     const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir).sort();
-    expect(names).toEqual(['PDF/RHE1.pdf', 'PDF/RHE2.pdf', 'RH-recibidos-20610043098-2026-10-01_2026-10-31.xlsx', 'TXT/RH-REC-20610043098-01102026_a_31102026.txt', 'XML/RHE1.xml', 'XML/RHE2.xml']);
+    expect(names).toEqual(['PDF/RHE1.pdf', 'PDF/RHE2.pdf', 'RH-recibidos-20610043098-2026-10-01_2026-10-31.xlsx']);
   });
 
   it('lo que SUNAT no entrega queda en avisos y en errores.txt del ZIP', async () => {
@@ -63,15 +63,15 @@ describe('runRhDownloads', () => {
     expect(await zip.file('errores.txt')?.async('string')).toContain('E001-21');
   });
 
-  it('emitidos: el PDF y el XML no se piden; el Excel y el TXT sí', async () => {
-    const r = await runRhDownloads({ ...base, lado: 'emisor', items: [item(20)], formats: { pdf: true, xml: true, txt: true, excel: true } });
+  it('emitidos: el PDF no se pide; el Excel sí', async () => {
+    const r = await runRhDownloads({ ...base, lado: 'emisor', items: [item(20)], formats: { pdf: true, excel: true } });
     expect(files).not.toHaveBeenCalled();
     expect(r.pdf).toBe(0);
-    expect(r.notes[0]).toContain('solo están disponibles para los recibos recibidos');
-    expect(saved[0].name).toBe('RH-EMI-20610043098-2026-10-01_2026-10-31.zip');
+    expect(r.notes[0]).toContain('solo está disponible para los recibos recibidos');
+    expect(saved[0].name).toBe('RH-emitidos-20610043098-2026-10-01_2026-10-31.xlsx');
   });
 
-  it('con más de 100 recibos pide los archivos por tandas', async () => {
+  it('con más de 100 recibos pide los PDF por tandas', async () => {
     files.mockImplementation(async () => ({ blob: await serverZip({}), ok: 0, files: 0, failed: 0, errors: [] }));
     const items = Array.from({ length: 205 }, (_, i) => item(i + 1));
     await runRhDownloads({ ...base, lado: 'receptor', items, formats: { ...RH_NO_FORMATS, pdf: true } });

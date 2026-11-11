@@ -61,8 +61,6 @@ export interface RheSolHistoryItem {
   truncado: boolean;
   /** Lo que se descargó de esta consulta. */
   dl_pdf?: number;
-  dl_xml?: number;
-  dl_txt?: boolean;
   dl_excel?: boolean;
   error_code?: string;
   error_message?: string;
@@ -128,7 +126,7 @@ export const rheSolService = {
   },
 
   /** Anota qué se descargó de una consulta del historial. */
-  async recordDownloads(companyId: number, id: number, d: { pdf: number; xml: number; txt: boolean; excel: boolean }): Promise<void> {
+  async recordDownloads(companyId: number, id: number, d: { pdf: number; excel: boolean }): Promise<void> {
     try {
       await client.put(`/tools/rh-sol/${companyId}/history/${id}/downloads`, d);
     } catch (err) {

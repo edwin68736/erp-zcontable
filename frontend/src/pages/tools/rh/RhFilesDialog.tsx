@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '../../../components/ui/Button';
-import { rheSolService, type RheSolFileKind, type RheSolItem } from '../../../services/rheSol';
+import { rheSolService, type RheSolItem } from '../../../services/rheSol';
 import { saveBlobAs, type SireApiError } from '../../../services/sire';
 import { notify } from '../../../utils/notify';
 import { SireErrorBox } from '../sire/SireShared';
@@ -10,16 +10,11 @@ import { fmtDay, fmtMoney } from './rhUi';
 /** SUNAT se consulta de a un recibo; el servidor admite hasta este número por pedido. */
 const RH_FILES_MAX = 100;
 
-const KINDS: { value: RheSolFileKind; label: string; hint: string }[] = [
-  { value: 'pdf', label: 'PDF', hint: 'El recibo impreso que genera SUNAT' },
-  { value: 'xml', label: 'XML', hint: 'El recibo electrónico firmado' },
-];
-
 const itemKey = (r: RheSolItem) => `${r.tipo}|${r.comprobante}|${r.emisor_doc}`;
 
 /**
- * «Descarga de recibos»: elige los recibos recibidos de la consulta y los formatos (PDF, XML) y baja de SUNAT los archivos
- * de cada uno en un ZIP con carpetas PDF/ y XML/. SUNAT los entrega de a uno, por eso puede tardar un poco.
+ * «Descarga de recibos»: elige los recibos recibidos de la consulta y baja de SUNAT el PDF los archivos
+ * de cada uno en un ZIP con la carpeta PDF/. SUNAT los entrega de a uno, por eso puede tardar un poco.
  */
 export default function RhFilesDialog({
   companyId,
@@ -36,7 +31,6 @@ export default function RhFilesDialog({
   hasta: string;
   onClose: () => void;
 }) {
-  const [kinds, setKinds] = useState<RheSolFileKind[]>(['pdf', 'xml']);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(items.filter((r) => !r.anulado).slice(0, RH_FILES_MAX).map(itemKey)));
   const [q, setQ] = useState('');
   const [sending, setSending] = useState(false);
@@ -57,7 +51,6 @@ export default function RhFilesDialog({
     return items.filter((r) => `${r.comprobante} ${r.emisor_nombre} ${r.emisor_doc}`.toLowerCase().includes(t));
   }, [items, q]);
 
-  const toggleKind = (k: RheSolFileKind) => setKinds((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : KINDS.map((x) => x.value).filter((x) => x === k || cur.includes(x))));
   const toggleOne = (r: RheSolItem) =>
     setPicked((cur) => {
       const next = new Set(cur);
@@ -77,7 +70,7 @@ export default function RhFilesDialog({
 
   const start = async () => {
     const chosen = items.filter((r) => picked.has(itemKey(r)));
-    if (chosen.length === 0 || kinds.length === 0) return;
+    if (chosen.length === 0) return;
     setSending(true);
     setError(null);
     setProblems([]);
@@ -85,7 +78,7 @@ export default function RhFilesDialog({
       const r = await rheSolService.files(
         companyId,
         chosen.map((c) => ({ comprobante: c.comprobante, fec_emision: c.fec_emision, emisor_doc: c.emisor_doc })),
-        kinds,
+        ['pdf'],
       );
       saveBlobAs(r.blob, `RH-recibos-${ruc}-${desde}_${hasta}.zip`);
       if (r.errors.length === 0) {
@@ -102,7 +95,7 @@ export default function RhFilesDialog({
     }
   };
 
-  const canStart = picked.size > 0 && kinds.length > 0 && !sending;
+  const canStart = picked.size > 0 && !sending;
 
   return createPortal(
     <div
@@ -114,7 +107,7 @@ export default function RhFilesDialog({
       <div role="dialog" aria-modal="true" aria-labelledby="rh-files-title" className="notify-pop flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="relative px-5 pb-2 pt-5 text-center">
           <h2 id="rh-files-title" className="m-0 text-xl font-bold text-slate-800">
-            Descarga de recibos (PDF y XML)
+            Descarga de recibos (PDF)
           </h2>
           <p className="m-0 mt-1 text-xs text-slate-500">
             Emisión del {fmtDay(desde)} al {fmtDay(hasta)}
@@ -125,18 +118,6 @@ export default function RhFilesDialog({
         </div>
 
         <div className="space-y-2.5 px-5 pb-3">
-          <div>
-            <p className="m-0 mb-1.5 text-sm font-semibold text-slate-700">Formatos a descargar:</p>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5" role="group" aria-label="Formatos">
-              {KINDS.map((k) => (
-                <label key={k.value} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-slate-700" title={k.hint}>
-                  <input type="checkbox" className="h-4 w-4 accent-blue-900" checked={kinds.includes(k.value)} disabled={sending} onChange={() => toggleKind(k.value)} />
-                  {k.label}
-                </label>
-              ))}
-              <span className="text-xs text-slate-400">Un ZIP con carpetas PDF/ y XML/</span>
-            </div>
-          </div>
           <input
             type="search"
             value={q}
