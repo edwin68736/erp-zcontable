@@ -36,6 +36,7 @@ func Setup(app *fiber.App) {
 	activityTplCtrl := controllers.NewActivityTemplateController()
 	credCtrl := controllers.NewCompanyAccessCredentialController()
 	sireCtrl := controllers.NewSireController()
+	sireCpeCtrl := controllers.NewSireCpeController()
 	buzonCtrl := controllers.NewSunatBuzonController()
 	itfCtrl := controllers.NewItfController()
 	rheSolCtrl := controllers.NewRheSolController()
@@ -405,6 +406,12 @@ func Setup(app *fiber.App) {
 	sire.Delete("/:companyId/downloads", sireCtrl.DownloadsClearAPI)
 	sire.Get("/:companyId/downloads/:downloadId/file", sireCtrl.DownloadFileAPI)
 	sire.Delete("/:companyId/downloads/:downloadId", sireCtrl.DownloadDeleteAPI)
+	// Comprobantes electrónicos (PDF, XML, CDR) que SUNAT entrega por la consulta de comprobantes de SOL.
+	sire.Get("/:companyId/cpe", sireCpeCtrl.ListAPI)
+	sire.Post("/:companyId/cpe", sireCpeCtrl.StartAPI)
+	sire.Get("/:companyId/cpe/zip", sireCpeCtrl.ZipAPI)
+	sire.Get("/:companyId/cpe/:cpeId/file", sireCpeCtrl.FileAPI)
+	sire.Delete("/:companyId/cpe/:cpeId", sireCpeCtrl.DeleteAPI)
 	// Registrar solo el Client ID/Secret de la API SIRE (permiso propio: lo tiene el asistente).
 	sire.Put("/:companyId/credentials", middleware.RequirePermission(rbac.CompanyCredentialsSireEdit), sireCtrl.SaveCredentialsAPI)
 

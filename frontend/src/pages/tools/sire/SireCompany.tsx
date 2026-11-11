@@ -19,6 +19,7 @@ import {
 import { timeAgo } from '../buzon/buzonUi';
 import { mergePeriodExcels, periodsBetween } from './sireExcel';
 import SireCredentialsModal from './SireCredentialsModal';
+import SireCpePanel from './SireCpePanel';
 import { Card, SireErrorBox, Spinner } from './SireShared';
 import LongTaskPanel from '../../../components/LongTaskPanel';
 import { taskKey, trackAsync } from '../../../utils/longTasks';
@@ -562,6 +563,8 @@ const SireCompany = () => {
               )}
             </Card>
           </div>
+
+          <SireCpePanel companyId={companyId} companyName={company.business_name} ruc={company.ruc} downloads={items} />
         </>
       ) : null}
     </div>

@@ -49,6 +49,57 @@ export interface SireDownloadItem {
   finished_at?: string;
 }
 
+export type SireCpeStatus = 'en_proceso' | 'listo' | 'sin_cpe' | 'error';
+export type SireCpeKind = 'pdf' | 'xml' | 'cdr';
+
+/** Un comprobante electrónico y los archivos que SUNAT entregó (PDF, XML y CDR). */
+export interface SireCpeItem {
+  id: number;
+  company_id: number;
+  /** RUC del emisor. */
+  ruc: string;
+  /** 01 factura, 03 boleta, 07 nota de crédito, 08 nota de débito. */
+  tipo: string;
+  serie: string;
+  numero: string;
+  lado: 'emisor' | 'receptor';
+  libro?: SireLibro;
+  period?: string;
+  status: SireCpeStatus;
+  has_pdf: boolean;
+  has_xml: boolean;
+  has_cdr: boolean;
+  error_message?: string;
+  created_at: string;
+  finished_at?: string;
+}
+
+export interface SireCpeStartResult {
+  items: SireCpeItem[];
+  /** Filas de la propuesta que no son comprobantes descargables (recibos, boletas por rango…). */
+  skipped: number;
+  /** Los que ya estaban bajados y no se pidieron otra vez. */
+  ready: number;
+}
+
+export const CPE_TIPOS: { value: string; label: string }[] = [
+  { value: '01', label: 'Factura' },
+  { value: '03', label: 'Boleta de venta' },
+  { value: '07', label: 'Nota de crédito' },
+  { value: '08', label: 'Nota de débito' },
+];
+
+export const cpeTipoLabel = (t: string): string => CPE_TIPOS.find((x) => x.value === t)?.label ?? `Tipo ${t}`;
+
+/** «F001-123». */
+export const cpeNumber = (c: Pick<SireCpeItem, 'serie' | 'numero'>): string => `${c.serie}-${c.numero}`;
+
+/** Nombre del archivo igual que el que entrega SUNAT: «<RUC>-<tipo>-<serie>-<número de 8 dígitos>». */
+export function cpeFileName(c: Pick<SireCpeItem, 'ruc' | 'tipo' | 'serie' | 'numero'>, kind: SireCpeKind): string {
+  const base = `${c.ruc}-${c.tipo}-${c.serie}-${c.numero.padStart(8, '0')}`;
+  return kind === 'pdf' ? `${base}.pdf` : kind === 'xml' ? `${base}.xml` : `R-${base}.xml`;
+}
+
 function toError(err: unknown, fallback: string): SireApiError {
   const data = (err as { response?: { data?: { error?: string; code?: string; detail?: string } } }).response?.data;
   if (data?.error) return { message: data.error, code: data.code, detail: data.detail };
@@ -170,6 +221,65 @@ export const sireService = {
       await client.delete(`${base(companyId)}/downloads`, SHORT);
     } catch (err) {
       throw toError(err, 'No se pudo limpiar el historial.');
+    }
+  },
+};
+
+export const sireCpeService = {
+  /** Comprobantes de la empresa (lo más reciente primero). */
+  async list(companyId: number): Promise<SireCpeItem[]> {
+    try {
+      const res = await client.get<{ data: SireCpeItem[] }>(`${base(companyId)}/cpe`, SHORT);
+      return res.data.data ?? [];
+    } catch (err) {
+      throw toError(err, 'No se pudieron leer los comprobantes.');
+    }
+  },
+
+  /** Baja en segundo plano todos los comprobantes de una propuesta del SIRE ya lista. */
+  async startFromDownload(companyId: number, downloadId: number): Promise<SireCpeStartResult> {
+    try {
+      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { download_id: downloadId }, SHORT);
+      return res.data.data;
+    } catch (err) {
+      throw toError(err, 'No se pudo iniciar la descarga de comprobantes.');
+    }
+  },
+
+  /** Baja en segundo plano los comprobantes indicados a mano. */
+  async startItems(companyId: number, items: { ruc: string; tipo: string; serie: string; numero: string }[]): Promise<SireCpeStartResult> {
+    try {
+      const res = await client.post<{ data: SireCpeStartResult }>(`${base(companyId)}/cpe`, { items }, SHORT);
+      return res.data.data;
+    } catch (err) {
+      throw toError(err, 'No se pudo iniciar la descarga del comprobante.');
+    }
+  },
+
+  async fileBlob(companyId: number, id: number, kind: SireCpeKind): Promise<Blob> {
+    try {
+      const res = await client.get<Blob>(`${base(companyId)}/cpe/${id}/file`, { params: { kind }, responseType: 'blob', ...SHORT });
+      return res.data;
+    } catch (err) {
+      throw await toBlobError(err, 'No se pudo bajar el archivo.');
+    }
+  },
+
+  /** ZIP con los archivos de los comprobantes indicados (o todos los listos si no se indica ninguno). */
+  async zipBlob(companyId: number, ids: number[] = []): Promise<Blob> {
+    try {
+      const res = await client.get<Blob>(`${base(companyId)}/cpe/zip`, { params: ids.length ? { ids: ids.join(',') } : undefined, responseType: 'blob', timeout: 120000 });
+      return res.data;
+    } catch (err) {
+      throw await toBlobError(err, 'No se pudo armar el ZIP.');
+    }
+  },
+
+  async remove(companyId: number, id: number): Promise<void> {
+    try {
+      await client.delete(`${base(companyId)}/cpe/${id}`, SHORT);
+    } catch (err) {
+      throw toError(err, 'No se pudo quitar el comprobante.');
     }
   },
 };
