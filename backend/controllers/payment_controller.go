@@ -294,7 +294,8 @@ func (ctrl *PaymentController) CreateAPI(c fiber.Ctx) error {
 		Attachment:      body.Attachment,
 		Description:     body.Description,
 		Notes:           body.Notes,
-		FiscalStatus:    body.FiscalStatus,
+		// FiscalStatus: lo fija solo el servidor (queda «na» hasta que se emite o vincula el comprobante); lo que mande el
+		// cliente se ignora para que nadie pueda marcar un pago como «vinculado» sin comprobante.
 		AllocationMode:  body.AllocationMode,
 		Allocations:     body.Allocations,
 	}

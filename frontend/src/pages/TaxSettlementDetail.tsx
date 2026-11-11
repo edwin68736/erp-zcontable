@@ -29,6 +29,7 @@ import { hasTaxSectionsData } from '../components/taxSettlements/taxSectionsData
 import { formatAmount } from '../utils/format';
 import Alert from '../components/ui/Alert';
 import { notify } from '../utils/notify';
+import { closeSettlementMessage, pendingDebtsAtClose } from '../utils/settlementClose';
 
 const TaxSettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -919,7 +920,7 @@ const TaxSettlementDetail = () => {
         title="Cerrar liquidación"
         message={
           row
-            ? `¿Cerrar la liquidación «${row.number?.trim() || '—'}»? Quedará como registro histórico inmutable. Se conservará el estado de cada deuda al momento del cierre. Las deudas con saldo pendiente podrán incorporarse manualmente a una nueva liquidación.`
+            ? closeSettlementMessage(row.number?.trim() || '—', debtsCtx ? pendingDebtsAtClose(debtsCtx.linked) : null)
             : ''
         }
         confirmLabel="Sí, cerrar"

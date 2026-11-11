@@ -13,6 +13,7 @@ import { P } from '../rbac/codes';
 import PageHeading from '../components/ui/PageHeading';
 import Alert from '../components/ui/Alert';
 import { notify } from '../utils/notify';
+import { closeSettlementMessage, pendingDebtsAtClose } from '../utils/settlementClose';
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
@@ -83,6 +84,27 @@ const TaxSettlements = () => {
   const [itemsModalRow, setItemsModalRow] = useState<TaxSettlement | null>(null);
   const [closeTarget, setCloseTarget] = useState<TaxSettlement | null>(null);
   const [closeLoading, setCloseLoading] = useState(false);
+  /** Deudas con saldo de la liquidación que se va a cerrar (lo que el cierre dejará libre); null mientras carga. */
+  const [closePending, setClosePending] = useState<{ count: number; total: number } | null>(null);
+
+  useEffect(() => {
+    if (!closeTarget) {
+      setClosePending(null);
+      return;
+    }
+    let cancelled = false;
+    void taxSettlementsService
+      .debtsContext(closeTarget.id)
+      .then((ctx) => {
+        if (!cancelled) setClosePending(pendingDebtsAtClose(ctx.linked));
+      })
+      .catch(() => {
+        if (!cancelled) setClosePending(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [closeTarget]);
   const [filterCompanyId, setFilterCompanyId] = useState(initialCompanyId);
   const [pagination, setPagination] = useState({
     page,
@@ -476,7 +498,7 @@ const TaxSettlements = () => {
         title="Cerrar liquidación"
         message={
           closeTarget
-            ? `¿Cerrar la liquidación «${closeTarget.number?.trim() || `#${closeTarget.id}`}»? Quedará como registro histórico inmutable. Las deudas con saldo pendiente podrán incorporarse manualmente a una nueva liquidación.`
+            ? closeSettlementMessage(closeTarget.number?.trim() || `#${closeTarget.id}`, closePending)
             : ''
         }
         confirmLabel="Sí, cerrar"

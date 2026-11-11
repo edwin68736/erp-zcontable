@@ -225,9 +225,12 @@ const PaymentForm = () => {
     ? (loadedPaymentType ?? 'on_account')
     : derivePaymentType(applyMode, documentId, manualAlloc);
 
-  /** Nuevo pago desde liquidación emitida: se emite comprobante local tras guardar el pago. */
-  const showComprobanteEmision =
-    !isEdit && Boolean(settlementLink) && effectivePaymentType === 'applied' && canIssueComprobante;
+  /**
+   * Todo pago nuevo aplicado a deudas emite su comprobante local tras guardarse, venga o no de una liquidación: un pago
+   * «libre» (por ejemplo de una deuda liberada al cerrar una liquidación) también debe poder facturarse. Los pagos «a cuenta»
+   * no se facturan hasta aplicarse a una deuda.
+   */
+  const showComprobanteEmision = !isEdit && effectivePaymentType === 'applied' && canIssueComprobante;
 
   const isFromTaxSettlement = Boolean((taxSettlementIdFromUrl ?? '').trim());
   const hideCompanyField = isFromTaxSettlement && !isEdit;
@@ -546,7 +549,7 @@ const PaymentForm = () => {
   }, [companyId, settlementLink]);
 
   useEffect(() => {
-    if (!settlementLink || !canIssueComprobante || isEdit) return;
+    if (!canIssueComprobante || isEdit) return;
     let cancelled = false;
     void ensureTukifacSeriesCached()
       .then(() => {
@@ -558,10 +561,10 @@ const PaymentForm = () => {
     return () => {
       cancelled = true;
     };
-  }, [settlementLink, canIssueComprobante, isEdit]);
+  }, [canIssueComprobante, isEdit]);
 
   useEffect(() => {
-    if (!settlementLink || isEdit || !canIssueComprobante || effectivePaymentType !== 'applied') return;
+    if (isEdit || !canIssueComprobante || effectivePaymentType !== 'applied') return;
     const rows =
       tukifacKind === 'sale_note' ? getCachedSaleNoteSeries() : getCachedDocumentSeries().filter((r) => {
           const sunat = tukifacKind === 'factura' ? '01' : '03';
@@ -572,7 +575,7 @@ const PaymentForm = () => {
       if (prev && rows.some((r) => String(r.id) === prev)) return prev;
       return d ? String(d.id) : '';
     });
-  }, [settlementLink, isEdit, canIssueComprobante, tukifacKind, seriesRefresh, effectivePaymentType]);
+  }, [isEdit, canIssueComprobante, tukifacKind, seriesRefresh, effectivePaymentType]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -721,7 +724,10 @@ const PaymentForm = () => {
             }
           } catch (te) {
             console.error(te);
-            notify.warning('Pago guardado', `No se pudo emitir el comprobante: ${getComprobanteErrorMessage(te)}`);
+            notify.warning(
+              'Pago guardado, sin comprobante',
+              `${getComprobanteErrorMessage(te)}. Puede emitirlo desde el listado de pagos con «Emitir comprobante».`,
+            );
           }
         }
       }

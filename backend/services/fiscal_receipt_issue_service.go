@@ -12,7 +12,11 @@ import (
 	"miappfiber/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// ErrPaymentAlreadyHasReceipt un pago solo puede tener un comprobante vigente: emitir otro duplicaría la facturación.
+var ErrPaymentAlreadyHasReceipt = errors.New("este pago ya tiene un comprobante vinculado")
 
 // PaymentComprobanteIssueInput emisión local desde un pago (sin Tukifac).
 type PaymentComprobanteIssueInput struct {
@@ -76,6 +80,17 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 
 	if pay.Type != "applied" || len(pay.Allocations) == 0 {
 		return nil, errors.New("el pago debe estar aplicado con imputaciones a deudas")
+	}
+	// Chequeo temprano (antes de reservar el correlativo): el pago no debe tener ya un comprobante vigente.
+	if pay.FiscalStatus == "linked" {
+		return nil, ErrPaymentAlreadyHasReceipt
+	}
+	var yaVinculados int64
+	if err := database.DB.Model(&models.TukifacFiscalReceipt{}).Where("linked_payment_id = ?", pay.ID).Count(&yaVinculados).Error; err != nil {
+		return nil, err
+	}
+	if yaVinculados > 0 {
+		return nil, ErrPaymentAlreadyHasReceipt
 	}
 	if pay.TaxSettlementID != nil && *pay.TaxSettlementID > 0 {
 		if pay.TaxSettlement == nil || pay.TaxSettlement.Status != models.TaxSettlementStatusIssued {
@@ -198,6 +213,21 @@ func (s *FiscalReceiptIssueService) IssueComprobanteFromPayment(paymentID uint, 
 	}
 
 	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		// Con el pago bloqueado se vuelve a comprobar: dos emisiones simultáneas no pueden vincular dos comprobantes.
+		var locked models.Payment
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "fiscal_status").First(&locked, pay.ID).Error; e != nil {
+			return e
+		}
+		if locked.FiscalStatus == "linked" {
+			return ErrPaymentAlreadyHasReceipt
+		}
+		var vinculadosAhora int64
+		if e := tx.Model(&models.TukifacFiscalReceipt{}).Where("linked_payment_id = ?", pay.ID).Count(&vinculadosAhora).Error; e != nil {
+			return e
+		}
+		if vinculadosAhora > 0 {
+			return ErrPaymentAlreadyHasReceipt
+		}
 		if e := tx.Create(&rec).Error; e != nil {
 			return e
 		}

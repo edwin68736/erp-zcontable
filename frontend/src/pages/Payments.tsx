@@ -18,6 +18,7 @@ import { isLocalFiscalReceipt } from '../utils/fiscalReceiptLocal';
 import PageHeading from '../components/ui/PageHeading';
 import { usePdfObjectUrl } from '../hooks/usePdfObjectUrl';
 import Alert from '../components/ui/Alert';
+import IssuePaymentReceiptDialog from '../components/IssuePaymentReceiptDialog';
 import { notify } from '../utils/notify';
 
 function formatPaymentDate(iso?: string): string {
@@ -72,6 +73,8 @@ const Payments = () => {
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
+  const [issueTarget, setIssueTarget] = useState<Payment | null>(null);
+  const canIssueReceipt = useMemo(() => auth.hasPermission(P.paymentsIssueComprobante), []);
 
   useEffect(() => {
     setCompanyId(initialCompanyId);
@@ -460,6 +463,13 @@ const Payments = () => {
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs">
                       {tukRec?.number ? (
                         <span title={tukRec.external_id}>{tukRec.number}</span>
+                      ) : isAppliedPayment(payment) ? (
+                        <span
+                          className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-sans text-xs font-medium text-amber-800"
+                          title="Este pago aplicado todavía no tiene comprobante"
+                        >
+                          Sin comprobante
+                        </span>
                       ) : (
                         <span className="text-slate-400 font-sans">—</span>
                       )}
@@ -529,6 +539,15 @@ const Payments = () => {
                             <i className="fas fa-pen mr-1"></i> Editar
                           </Link>
                         ) : null}
+                        {canIssueReceipt && isAppliedPayment(payment) && !tukRec ? (
+                          <button
+                            type="button"
+                            onClick={() => setIssueTarget(payment)}
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-primary-200 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                          >
+                            <i className="fas fa-receipt mr-1"></i> Emitir comprobante
+                          </button>
+                        ) : null}
                         {canDeletePayment ? (
                           <button
                             type="button"
@@ -594,6 +613,15 @@ const Payments = () => {
           placeholder="Ej: Pago duplicado, error de registro, etc."
         />
       </ConfirmDialog>
+
+      <IssuePaymentReceiptDialog
+        payment={issueTarget}
+        onClose={() => setIssueTarget(null)}
+        onIssued={() => {
+          setIssueTarget(null);
+          void fetchPayments();
+        }}
+      />
     </div>
   );
 };

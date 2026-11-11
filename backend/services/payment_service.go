@@ -142,6 +142,12 @@ func (s *PaymentService) CreateFromParams(p *PaymentCreateParams) (uint, error) 
 	if p.Purpose != nil && !models.IsValidPaymentPurpose(*p.Purpose) {
 		return 0, errors.New("purpose inválido: use 'deuda' o 'servicio'")
 	}
+	// Un pago registrado desde Finanzas es dinero para cancelar deudas: nace clasificado como «deuda» (el blueprint exige
+	// fijar el propósito al crear; sin esto quedaba NULL y luego no se podía aplicar). El POS fija «servicio» por su cuenta.
+	if p.Purpose == nil {
+		deuda := models.PaymentPurposeDebt
+		p.Purpose = &deuda
+	}
 
 	if p.DocumentID != nil && *p.DocumentID == 0 {
 		p.DocumentID = nil
