@@ -13,7 +13,7 @@ const RH_FILES_MAX = 100;
 const itemKey = (r: RheSolItem) => `${r.tipo}|${r.comprobante}|${r.emisor_doc}`;
 
 /**
- * «Descarga de recibos»: elige los recibos recibidos de la consulta y baja de SUNAT el PDF los archivos
+ * «Descarga de recibos»: elige los recibos recibidos de la consulta y baja de SUNAT el PDF
  * de cada uno en un ZIP con la carpeta PDF/. SUNAT los entrega de a uno, por eso puede tardar un poco.
  */
 export default function RhFilesDialog({
