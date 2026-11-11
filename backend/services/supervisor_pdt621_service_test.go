@@ -166,14 +166,13 @@ func TestSavePdt621RecordRoundTrip(t *testing.T) {
 	}
 }
 
-// TestListPdt621DeclarationTimelinessOnTimeAndLate cubre la comparación fecha_declaracion vs.
-// el cronograma SUNAT por dígito de RUC.
+// La declaración (tarea del supervisor) se mide contra la actividad PDT 621 del calendario interno, solo por fecha, en el
+// calendario del mes siguiente al periodo. El cronograma oficial de SUNAT queda como dato informativo.
 func TestListPdt621DeclarationTimelinessOnTimeAndLate(t *testing.T) {
-	db := setupPdt621TestDB(t)
+	db := setupPdt621TestDBWithCalendar(t)
 	svc := NewSupervisorService()
 	coOnTime := seedEstudioCompany(t, db, "R010")
 	coLate := seedEstudioCompany(t, db, "R011")
-
 	if err := db.Create(&models.CompanyAccessCredential{CompanyID: coOnTime.ID, Dig: "0"}).Error; err != nil {
 		t.Fatalf("cred on_time: %v", err)
 	}
@@ -185,16 +184,18 @@ func TestListPdt621DeclarationTimelinessOnTimeAndLate(t *testing.T) {
 	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
 		t.Fatalf("CreatePeriod: %v", err)
 	}
-	// Mes 7 (julio): dígito 0 vence el 8-ago, dígito 1 vence el 9-ago.
+	// Calendario de agosto: el PDT 621 vence el día 10. SUNAT (solo informativo): dígito 0 el 8-ago.
+	seedPdt621CalendarRuleConHora(t, db, periodYM, 10, models.ActivityRuleCompareDate, "")
 	seedSunatSchedule(t, db, 7, [10]string{
 		"2026-08-08", "2026-08-09", "2026-08-10", "2026-08-10", "2026-08-11",
 		"2026-08-11", "2026-08-12", "2026-08-12", "2026-08-13", "2026-08-13",
 	})
 
-	if _, err := svc.SavePdt621Record(coOnTime.ID, periodYM, Pdt621RecordInput{FechaDeclaracion: "2026-08-08"}); err != nil {
+	// El 10-ago es a tiempo contra el calendario aunque pase del 8-ago de SUNAT; el 11-ago es tarde.
+	if _, err := svc.SavePdt621Record(coOnTime.ID, periodYM, Pdt621RecordInput{FechaDeclaracion: "2026-08-10"}); err != nil {
 		t.Fatalf("save on_time: %v", err)
 	}
-	if _, err := svc.SavePdt621Record(coLate.ID, periodYM, Pdt621RecordInput{FechaDeclaracion: "2026-08-15"}); err != nil {
+	if _, err := svc.SavePdt621Record(coLate.ID, periodYM, Pdt621RecordInput{FechaDeclaracion: "2026-08-11"}); err != nil {
 		t.Fatalf("save late: %v", err)
 	}
 
@@ -208,41 +209,32 @@ func TestListPdt621DeclarationTimelinessOnTimeAndLate(t *testing.T) {
 	}
 	rowOnTime := byCompany[coOnTime.ID]
 	if rowOnTime.DeclarationTimeliness != TimelinessOnTime {
-		t.Fatalf("dígito 0 declarado el 8-ago: timeliness=%q want %q", rowOnTime.DeclarationTimeliness, TimelinessOnTime)
+		t.Fatalf("declarada el 10-ago (límite del calendario 10-ago): timeliness=%q want %q", rowOnTime.DeclarationTimeliness, TimelinessOnTime)
 	}
 	if rowOnTime.ScheduleDueDate == nil || *rowOnTime.ScheduleDueDate != "2026-08-08" {
-		t.Fatalf("schedule_due_date dígito 0=%v want 2026-08-08", rowOnTime.ScheduleDueDate)
+		t.Fatalf("schedule_due_date (informativa) dígito 0=%v want 2026-08-08", rowOnTime.ScheduleDueDate)
 	}
 	rowLate := byCompany[coLate.ID]
 	if rowLate.DeclarationTimeliness != TimelinessLate {
-		t.Fatalf("dígito 1 declarado el 15-ago (vence 9-ago): timeliness=%q want %q", rowLate.DeclarationTimeliness, TimelinessLate)
+		t.Fatalf("declarada el 11-ago (límite 10-ago): timeliness=%q want %q", rowLate.DeclarationTimeliness, TimelinessLate)
 	}
 }
 
-// TestListPdt621DeclarationTimelinessMissing cubre pendiente-vencido: sin fecha_declaracion y
-// con el vencimiento del cronograma ya pasado.
+// Sin declarar y con el límite del calendario ya pasado, la declaración está vencida.
 func TestListPdt621DeclarationTimelinessMissing(t *testing.T) {
-	db := setupPdt621TestDB(t)
+	db := setupPdt621TestDBWithCalendar(t)
 	svc := NewSupervisorService()
 	co := seedEstudioCompany(t, db, "R012")
 	if err := db.Create(&models.CompanyAccessCredential{CompanyID: co.ID, Dig: "0"}).Error; err != nil {
 		t.Fatalf("cred: %v", err)
 	}
 
-	// Período dos meses antes de "ahora" real, para que el vencimiento quede en el pasado sin
-	// importar la fecha real de ejecución del test (mismo patrón que los tests de PDT 601).
+	// Periodo de hace dos meses: su calendario (el del mes siguiente) ya quedó atrás sin importar la fecha de ejecución.
 	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
 	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
 		t.Fatalf("CreatePeriod: %v", err)
 	}
-	month := int(time.Now().AddDate(0, -2, 0).Month())
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	dates := [10]string{}
-	for i := range dates {
-		dates[i] = yesterday
-	}
-	seedSunatSchedule(t, db, month, dates)
-	// No se guarda ningún record para esta empresa: sigue "sin_registro" y sin fecha_declaracion.
+	seedPdt621CalendarRuleConHora(t, db, periodYM, 5, models.ActivityRuleCompareDate, "")
 
 	res, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Page: 1, PerPage: 20})
 	if err != nil {
@@ -250,6 +242,99 @@ func TestListPdt621DeclarationTimelinessMissing(t *testing.T) {
 	}
 	if len(res.Rows) != 1 || res.Rows[0].DeclarationTimeliness != TimelinessMissing {
 		t.Fatalf("sin declarar y vencido: %+v", res.Rows)
+	}
+}
+
+// Las dos tareas del PDT 621 son de responsables distintos y se miden por separado contra la misma actividad: el asistente
+// entrega el archivador a tiempo (el supervisor lo recepciona el 10-ago a las 9:00, límite 10-ago 15:00) y el supervisor
+// declara al día siguiente. El asistente cumplió; la declaración queda fuera de fecha.
+func TestPdt621_DosTareas_ArchivadorATiempoYDeclaracionAlDiaSiguiente(t *testing.T) {
+	db := setupPdt621TestDBWithCalendar(t)
+	svc := NewSupervisorService()
+	periodYM := "2026-07"
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt621CalendarRuleConHora(t, db, periodYM, 10, models.ActivityRuleCompareDateTime, "15:00")
+	co := seedEstudioCompany(t, db, "R030")
+	if _, err := svc.SavePdt621Record(co.ID, periodYM, Pdt621RecordInput{FechaDeclaracion: "2026-08-11"}); err != nil {
+		t.Fatalf("save declaración: %v", err)
+	}
+	recepcionarPdt621EnMomento(t, svc, co.ID, periodYM, "2026-08-10 09:00")
+
+	d, err := svc.EnsurePdt621(co.ID, periodYM)
+	if err != nil {
+		t.Fatalf("EnsurePdt621: %v", err)
+	}
+	if d.AssistantTimeliness != TimelinessOnTime {
+		t.Fatalf("archivador recepcionado el 10-ago 9:00 (límite 15:00): %s, want on_time", d.AssistantTimeliness)
+	}
+	if d.DeclarationTimeliness != TimelinessLate {
+		t.Fatalf("declarado el 11-ago (límite 10-ago): %s, want late", d.DeclarationTimeliness)
+	}
+	if d.ArchivadorTardio {
+		t.Fatal("el archivador llegó a tiempo: no debe marcarse como tardío")
+	}
+}
+
+// Si el archivador es observado y el asistente entrega por segunda vez, queda fuera de fecha u hora aunque la primera
+// entrega hubiera sido a tiempo. Mientras está observado, la tarea sigue abierta (no cuenta como entregada a tiempo).
+func TestPdt621_Archivador_ObservadoYSegundaEntregaQuedaFueraDeFecha(t *testing.T) {
+	db := setupPdt621TestDBWithCalendar(t)
+	svc := NewSupervisorService()
+	periodYM := "2026-07"
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt621CalendarRuleConHora(t, db, periodYM, 10, models.ActivityRuleCompareDateTime, "15:00")
+	co := seedEstudioCompany(t, db, "R031")
+	database.DB.Model(&models.Company{}).Where("id = ?", co.ID).Update("supervisor_user_id", testPdt621SupervisorID)
+
+	recepcionar := func(momento string) *Pdt621Detail {
+		t.Helper()
+		at, err := time.ParseInLocation("2006-01-02 15:04", momento, limaLoc)
+		if err != nil {
+			t.Fatalf("momento %q: %v", momento, err)
+		}
+		prev := pdt621Now
+		pdt621Now = func() time.Time { return at }
+		defer func() { pdt621Now = prev }()
+		d, err := svc.RecepcionarPdt621(co.ID, periodYM, testPdt621SupervisorID)
+		if err != nil {
+			t.Fatalf("recepcionar %s: %v", momento, err)
+		}
+		return d
+	}
+
+	d := recepcionar("2026-08-10 09:00") // primera entrega, a tiempo
+	if _, err := svc.ObserveDeclaration(d.Declaration.ID, testPdt621SupervisorID, "falta el anexo"); err != nil {
+		t.Fatalf("observar: %v", err)
+	}
+	obs, err := svc.EnsurePdt621(co.ID, periodYM)
+	if err != nil {
+		t.Fatalf("EnsurePdt621 observado: %v", err)
+	}
+	if obs.AssistantTimeliness == TimelinessOnTime || obs.AssistantTimeliness == TimelinessLate {
+		t.Fatalf("observado, sin segunda entrega: %s; la tarea sigue abierta (pendiente o vencida)", obs.AssistantTimeliness)
+	}
+
+	d = recepcionar("2026-08-10 12:00") // segunda entrega, antes de la hora límite
+	if _, err := svc.ApproveDeclaration(d.Declaration.ID, testPdt621SupervisorID); err != nil {
+		t.Fatalf("aprobar: %v", err)
+	}
+	got, err := svc.EnsurePdt621(co.ID, periodYM)
+	if err != nil {
+		t.Fatalf("EnsurePdt621 final: %v", err)
+	}
+	if got.AssistantTimeliness != TimelinessLate {
+		t.Fatalf("segunda entrega tras observación: %s, want late (siempre fuera de fecha u hora)", got.AssistantTimeliness)
+	}
+	r, err := svc.ListPdt621(Pdt621ListParams{PeriodYM: periodYM, Status: pdt621StatusFilterEntregadoFueraDeFecha, Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatalf("ListPdt621: %v", err)
+	}
+	if len(r.Rows) != 1 {
+		t.Fatalf("el filtro «entregado fuera de fecha» debía traer la empresa, trajo %d", len(r.Rows))
 	}
 }
 

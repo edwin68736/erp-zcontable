@@ -16,11 +16,11 @@ import (
 
 // Pdt621ListParams filtros del listado PDT 621 por empresa y período.
 type Pdt621ListParams struct {
-	PeriodYM          string
-	Status            string
-	Q                 string
-	Dig               string
-	AssistantUserID   uint
+	PeriodYM        string
+	Status          string
+	Q               string
+	Dig             string
+	AssistantUserID uint
 	// SupervisorUserID filtra por el supervisor asignado a la empresa (0 = todos).
 	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
@@ -30,29 +30,32 @@ type Pdt621ListParams struct {
 
 // Pdt621ListRow fila del listado (empresa + período + módulo pdt_621).
 type Pdt621ListRow struct {
-	CompanyID         uint             `json:"company_id"`
-	Code              string           `json:"code"`
-	Dig               string           `json:"dig"`
-	BusinessName      string           `json:"business_name"`
-	RUC               string           `json:"ruc"`
-	TaxRegime         string           `json:"tax_regime"`
-	AssistantUsername string           `json:"assistant_username"`
+	CompanyID         uint   `json:"company_id"`
+	Code              string `json:"code"`
+	Dig               string `json:"dig"`
+	BusinessName      string `json:"business_name"`
+	RUC               string `json:"ruc"`
+	TaxRegime         string `json:"tax_regime"`
+	AssistantUsername string `json:"assistant_username"`
 	// SupervisorUserID supervisor asignado a la empresa (companies.supervisor_user_id) — el único que
 	// puede Recepcionar el archivador (RecepcionarPdt621); la UI lo usa para mostrar el botón.
-	SupervisorUserID  *uint            `json:"supervisor_user_id,omitempty"`
-	ControlID         *uint            `json:"control_id,omitempty"`
-	DeclarationID     *uint            `json:"declaration_id,omitempty"`
-	Status            string           `json:"status"`
-	DueDate           *string          `json:"due_date,omitempty"`
-	IsOverdue         bool             `json:"is_overdue"`
-	DaysRemaining     *int             `json:"days_remaining"`
-	AttachmentCount   int64            `json:"attachment_count"`
-	LastStoredAt      *time.Time       `json:"last_stored_at,omitempty"`
-	Record            *Pdt621RecordDTO `json:"record,omitempty"`
+	SupervisorUserID *uint            `json:"supervisor_user_id,omitempty"`
+	ControlID        *uint            `json:"control_id,omitempty"`
+	DeclarationID    *uint            `json:"declaration_id,omitempty"`
+	Status           string           `json:"status"`
+	DueDate          *string          `json:"due_date,omitempty"`
+	IsOverdue        bool             `json:"is_overdue"`
+	DaysRemaining    *int             `json:"days_remaining"`
+	AttachmentCount  int64            `json:"attachment_count"`
+	LastStoredAt     *time.Time       `json:"last_stored_at,omitempty"`
+	Record           *Pdt621RecordDTO `json:"record,omitempty"`
 	// ScheduleDueDate fecha del cronograma SUNAT (por dígito de RUC y mes del período) contra la
 	// que se compara fecha_declaracion. Timeliness: on_time | late | pending | missing | no_rule.
 	ScheduleDueDate       *string `json:"schedule_due_date,omitempty"`
 	DeclarationTimeliness string  `json:"declaration_timeliness"`
+	// ArchivadorTardio true si el archivador llegó fuera de plazo o no llegó pasado el plazo (la declaración tardía del
+	// supervisor puede deberse a eso).
+	ArchivadorTardio bool `json:"archivador_tardio"`
 	// AssistantTimeliness cumplimiento del PLAZO INTERNO del estudio (calendario de actividades,
 	// /settings/activity-configuration, tipo "pdt_621") para que el asistente entregue su parte
 	// (record.primera_entrega_fecha) — distinto de DeclarationTimeliness, que valida la fecha de
@@ -78,18 +81,18 @@ type Pdt621ListRow struct {
 
 // Pdt621Detail detalle tras EnsurePdt621 (lazy create o reutiliza bootstrap).
 type Pdt621Detail struct {
-	PeriodYM          string                       `json:"period_ym"`
-	CompanyID         uint                         `json:"company_id"`
-	Code              string                       `json:"code"`
-	Dig               string                       `json:"dig"`
-	BusinessName      string                       `json:"business_name"`
-	RUC               string                       `json:"ruc"`
-	TaxRegime         string                       `json:"tax_regime"`
-	AssistantUsername string                       `json:"assistant_username"`
+	PeriodYM          string `json:"period_ym"`
+	CompanyID         uint   `json:"company_id"`
+	Code              string `json:"code"`
+	Dig               string `json:"dig"`
+	BusinessName      string `json:"business_name"`
+	RUC               string `json:"ruc"`
+	TaxRegime         string `json:"tax_regime"`
+	AssistantUsername string `json:"assistant_username"`
 	// SupervisorUserID mismo criterio que Pdt621ListRow.SupervisorUserID.
-	SupervisorUserID  *uint                        `json:"supervisor_user_id,omitempty"`
-	ControlID         uint                         `json:"control_id"`
-	ControlDueDate    *time.Time                   `json:"control_due_date,omitempty"`
+	SupervisorUserID *uint      `json:"supervisor_user_id,omitempty"`
+	ControlID        uint       `json:"control_id"`
+	ControlDueDate   *time.Time `json:"control_due_date,omitempty"`
 	// ControlSuspendida: SupervisorMonthlyControl.Suspendida (docs/diseno-limpieza-control-detail-
 	// 2026-09-16.md §5.9.7) — global, de solo lectura acá; se marca/desmarca únicamente desde Control
 	// de Detracciones. Siempre presente (a diferencia de Record, que puede ser nil).
@@ -100,6 +103,11 @@ type Pdt621Detail struct {
 	// estudio (no el cronograma SUNAT), presente acá para que el detalle pueda mostrar "Entregado" vs
 	// "Entregado fuera de fecha" (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §5/§12).
 	AssistantTimeliness string `json:"assistant_timeliness"`
+	// DeclarationTimeliness cumplimiento de la declaración (tarea del supervisor): la fecha de declaración contra el día de
+	// la misma actividad del calendario, sin hora. ArchivadorTardio avisa que el archivador llegó fuera de plazo (o no llegó),
+	// para entender que una declaración tardía puede deberse a eso.
+	DeclarationTimeliness string `json:"declaration_timeliness"`
+	ArchivadorTardio      bool   `json:"archivador_tardio"`
 	// CalendarDueDate fecha límite resuelta por el calendario interno del estudio para el grupo de
 	// RUC de esta empresa (docs/diseno-limpieza-control-detail-2026-09-16.md §5.7b) — nil si el
 	// período no tiene ninguna actividad "pdt_621" configurada. Reemplaza a `declaration.due_date`
@@ -334,8 +342,9 @@ func pdt621PuntualidadSQL(periodYM, companyIDExpr string) (onTime, late string, 
 	dueDay, dueTime := build("2006-01-02"), build("15:04")
 	tarde := fmt.Sprintf("(DATE(r.primera_entrega_fecha) > %s OR (DATE(r.primera_entrega_fecha) = %s AND COALESCE(r.primera_entrega_hora, '') > %s))",
 		dueDay, dueDay, dueTime)
-	onTime = fmt.Sprintf("(r.primera_entrega_fecha IS NULL OR %s IS NULL OR NOT %s)", dueDay, tarde)
-	late = fmt.Sprintf("(r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND %s)", dueDay, tarde)
+	// Una segunda entrega (tras una observación) cuenta siempre como fuera de fecha u hora.
+	onTime = fmt.Sprintf("((r.primera_entrega_fecha IS NULL OR %s IS NULL OR NOT %s) AND r.segunda_entrega_fecha IS NULL)", dueDay, tarde)
+	late = fmt.Sprintf("((r.primera_entrega_fecha IS NOT NULL AND %s IS NOT NULL AND %s) OR r.segunda_entrega_fecha IS NOT NULL)", dueDay, tarde)
 	return onTime, late, true
 }
 
@@ -435,29 +444,32 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 	}
 
 	dig := s.companyDig(company.ID)
-	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, ctrl.Suspendida, recordDTO)
+	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, ctrl.Suspendida, recordDTO, decl.Status)
+	declarationTimeliness := pdt621DeclarationTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), recordDTO, ctrl.Suspendida)
 	obs := s.pdt621ObservacionInfo([]uint{decl.ID})[decl.ID]
 	return &Pdt621Detail{
-		ObservacionMotivo:   obs.Motivo,
-		ObservadoPor:        obs.Por,
-		ObservadoAt:         obs.At,
-		PeriodYM:            periodYM,
-		CompanyID:           company.ID,
-		Code:                strings.TrimSpace(company.InternalCode),
-		Dig:                 dig,
-		BusinessName:        strings.TrimSpace(company.BusinessName),
-		RUC:                 strings.TrimSpace(company.RUC),
-		TaxRegime:           strings.TrimSpace(company.TaxRegime),
-		AssistantUsername:   assistantUsername(company.Assistant),
-		SupervisorUserID:    company.SupervisorUserID,
-		ControlID:           ctrl.ID,
-		ControlDueDate:      ctrl.DueDate,
-		ControlSuspendida:   ctrl.Suspendida,
-		Declaration:         decl,
-		Record:              recordDTO,
-		AssistantTimeliness: assistantTimeliness.Timeliness,
-		CalendarDueDate:     assistantTimeliness.DueAt,
-		Disponible:          activityDateReached(assistantTimeliness.DueAt),
+		ObservacionMotivo:     obs.Motivo,
+		ObservadoPor:          obs.Por,
+		ObservadoAt:           obs.At,
+		PeriodYM:              periodYM,
+		CompanyID:             company.ID,
+		Code:                  strings.TrimSpace(company.InternalCode),
+		Dig:                   dig,
+		BusinessName:          strings.TrimSpace(company.BusinessName),
+		RUC:                   strings.TrimSpace(company.RUC),
+		TaxRegime:             strings.TrimSpace(company.TaxRegime),
+		AssistantUsername:     assistantUsername(company.Assistant),
+		SupervisorUserID:      company.SupervisorUserID,
+		ControlID:             ctrl.ID,
+		ControlDueDate:        ctrl.DueDate,
+		ControlSuspendida:     ctrl.Suspendida,
+		Declaration:           decl,
+		Record:                recordDTO,
+		AssistantTimeliness:   assistantTimeliness.Timeliness,
+		DeclarationTimeliness: declarationTimeliness,
+		ArchivadorTardio:      pdt621ArchivadorTardio(assistantTimeliness.Timeliness),
+		CalendarDueDate:       assistantTimeliness.DueAt,
+		Disponible:            activityDateReached(assistantTimeliness.DueAt),
 	}, nil
 }
 
@@ -468,13 +480,8 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 // entre las 6 agrupadas por rango. `controlSuspendida` es SupervisorMonthlyControl.Suspendida (§5.9.7,
 // global, ya no vive en Pdt621RecordDTO). Devuelve el DTO completo (no solo el label) para que el
 // caller también pueda exponer la fecha límite resuelta (`CalendarDueDate`, §5.7b).
-func pdt621AssistantTimelinessDTO(periodYM, dig string, controlSuspendida bool, recordDTO *Pdt621RecordDTO) UploadTimelinessDTO {
-	exempt := controlSuspendida
-	var primeraEntregaAt *time.Time
-	if recordDTO != nil {
-		primeraEntregaAt = pdt621PrimeraEntregaAt(recordDTO.PrimeraEntregaFecha, recordDTO.PrimeraEntregaHora)
-	}
-	return ComputeCalendarActivityTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), primeraEntregaAt, exempt)
+func pdt621AssistantTimelinessDTO(periodYM, dig string, controlSuspendida bool, recordDTO *Pdt621RecordDTO, status string) UploadTimelinessDTO {
+	return pdt621ArchivadorTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), recordDTO, status, controlSuspendida)
 }
 
 // GetPdt621Record lectura pura del seguimiento PDT 621 del período (sin crear control/declaración).
@@ -949,32 +956,15 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 			row.DaysRemaining = nil
 		}
 
-		scheduleDue := pdt621ScheduleDueDate(periodYM, row.Dig)
-		row.ScheduleDueDate = pdt601DateString(scheduleDue)
-		var declaredAt *time.Time
-		if row.Record != nil && row.Record.FechaDeclaracion != nil {
-			declaredAt = pdt601ParseDate(*row.Record.FechaDeclaracion)
-		}
-		if scheduleDue != nil {
-			deadline := time.Date(scheduleDue.Year(), scheduleDue.Month(), scheduleDue.Day(), 23, 59, 59, 0, time.Local)
-			row.DeclarationTimeliness = EvaluateUploadTimeliness(
-				time.Now(), declaredAt, deadline, true, exempt, models.ActivityRuleCompareDate,
-			)
-		} else if exempt {
-			row.DeclarationTimeliness = TimelinessExempt
-		} else {
-			row.DeclarationTimeliness = TimelinessNoRule
-		}
+		// Fecha del cronograma oficial de SUNAT por dígito de RUC: solo informativa (ya no mide el cumplimiento).
+		row.ScheduleDueDate = pdt601DateString(pdt621ScheduleDueDate(periodYM, row.Dig))
 
-		// Plazo interno del estudio (calendario de actividades): cuándo el asistente hizo la
-		// primera entrega, sin importar si SUNAT terminó aceptando la declaración o no — eso ya lo
-		// cubre DeclarationTimeliness arriba, contra el cronograma oficial.
-		var primeraEntregaAt *time.Time
-		if row.Record != nil {
-			primeraEntregaAt = pdt621PrimeraEntregaAt(row.Record.PrimeraEntregaFecha, row.Record.PrimeraEntregaHora)
-		}
+		// Las dos tareas del PDT 621 se miden contra la misma actividad del calendario interno (la de su dígito de RUC):
+		// el archivador del asistente con fecha y hora, la declaración del supervisor solo con fecha.
 		pdt621Act := PickCalendarActivityByDigit(pdt621Acts, pdt601DigitFromString(row.Dig))
-		row.AssistantTimeliness = ComputeCalendarActivityTimeliness(periodYM, pdt621Act, primeraEntregaAt, exempt).Timeliness
+		row.AssistantTimeliness = pdt621ArchivadorTimeliness(periodYM, pdt621Act, row.Record, row.Status, exempt).Timeliness
+		row.DeclarationTimeliness = pdt621DeclarationTimeliness(periodYM, pdt621Act, row.Record, exempt)
+		row.ArchivadorTardio = pdt621ArchivadorTardio(row.AssistantTimeliness)
 		if pdt621Act != nil {
 			if due, err := activityDueDate(periodYM, pdt621Act); err == nil {
 				row.CalendarDueDate = &due
