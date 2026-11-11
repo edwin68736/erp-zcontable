@@ -311,6 +311,10 @@ type SupervisorDashboardParams struct {
 	ResponsibleUserID uint
 	SupervisorUserID  uint
 	AllowedCompanyIDs []uint
+	// Solo panel del asistente: IncludeSupervisorTasks suma las tareas del supervisor (vista del estudio, administrador);
+	// ModuleKey limita todo el panel (porcentaje, totales, pestañas y lista) a un módulo.
+	IncludeSupervisorTasks bool
+	ModuleKey              string
 }
 
 type SupervisorProductivityRow struct {

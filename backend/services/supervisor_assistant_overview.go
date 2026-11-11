@@ -38,9 +38,13 @@ type AssistantWorkItem struct {
 	SubmittedAt string `json:"submitted_at,omitempty"`
 	// Assistant asistente asignado a la empresa; solo se llena en la vista del estudio.
 	Assistant string `json:"assistant,omitempty"`
+	// Owner responsable de la tarea: asistente | supervisor.
+	Owner string `json:"owner,omitempty"`
 }
 
 type AssistantCounts struct {
+	// All toda la lista de trabajo (las pestañas cuentan sobre esto, no sobre lo que alcanza a enviarse a la pantalla).
+	All          int64 `json:"all"`
 	ToDeliver    int64 `json:"to_deliver"` // pendientes + vencidas
 	Overdue      int64 `json:"overdue"`
 	OverdueOver3 int64 `json:"overdue_over_3_days"`
@@ -61,12 +65,18 @@ type AssistantOverview struct {
 	// Supervisors los supervisores de las empresas asignadas (el de cada empresa, ver companies.supervisor_user_id),
 	// de mayor a menor cantidad de empresas. UserID 0 = empresas sin supervisor asignado.
 	Supervisors []AssistantSupervisorRef `json:"supervisors"`
-	Compliance  ComplianceSummary        `json:"compliance"`
-	Trend       []ComplianceTrendPoint   `json:"trend"`
-	Modules     []DashboardModuleRow     `json:"modules"`
-	Counts      AssistantCounts          `json:"counts"`
-	Work        []AssistantWorkItem      `json:"work"`
-	Upcoming    []DashboardUpcoming      `json:"upcoming"`
+	// Progress avance del periodo: tareas completadas ÷ tareas que aplican (ver supervisor_assistant_tasks.go).
+	Progress AssistantProgress `json:"progress"`
+	// Trend el mismo avance en los últimos 6 meses.
+	Trend []AssistantTrendPoint `json:"trend"`
+	// Modules avance de cada actividad; ModuleOptions todas las actividades elegibles en el filtro (aunque uno esté aplicado).
+	Modules       []AssistantModuleProgress `json:"modules"`
+	ModuleOptions []AssistantModuleRef      `json:"module_options"`
+	Counts        AssistantCounts           `json:"counts"`
+	Work          []AssistantWorkItem       `json:"work"`
+	// WorkTruncated la lista se recortó por tamaño; los conteos y el avance siguen siendo de todo.
+	WorkTruncated bool                `json:"work_truncated,omitempty"`
+	Upcoming      []DashboardUpcoming `json:"upcoming"`
 	// Studio solo en la vista del estudio (administrador): las opciones de los filtros por asistente y supervisor.
 	Studio *AssistantStudioInfo `json:"studio,omitempty"`
 }
@@ -151,8 +161,18 @@ func (s *SupervisorService) dashboardModuleRows(p SupervisorDashboardParams, com
 	}, nil
 }
 
+// AssistantModuleRef una actividad elegible en el filtro de módulo del panel.
+type AssistantModuleRef struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// assistantWorkLimit tope de filas de la lista de trabajo que se envían a la pantalla (los conteos son de todo).
+const assistantWorkLimit = 1500
+
 // AssistantOverview arma el panel del asistente. p.AllowedCompanyIDs son SUS empresas (nunca el alcance
-// de estudio): quien llama lo resuelve con las asignaciones del usuario.
+// de estudio): quien llama lo resuelve con las asignaciones del usuario. Todo sale de una sola lista de tareas
+// (supervisor_assistant_tasks.go), así el porcentaje, los totales, las pestañas y la lista no se contradicen.
 func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*AssistantOverview, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido (use YYYY-MM)")
@@ -161,165 +181,66 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 	if err != nil {
 		return nil, err
 	}
-	out := &AssistantOverview{Companies: int64(len(companies)), Supervisors: s.assistantSupervisors(companies), Modules: []DashboardModuleRow{}, Work: []AssistantWorkItem{}, Upcoming: []DashboardUpcoming{}}
+	out := &AssistantOverview{
+		Companies: int64(len(companies)), Supervisors: s.assistantSupervisors(companies),
+		Modules: []AssistantModuleProgress{}, ModuleOptions: assistantModuleOptions(p.IncludeSupervisorTasks),
+		Work: []AssistantWorkItem{}, Upcoming: []DashboardUpcoming{}, Trend: []AssistantTrendPoint{},
+	}
 	if len(companies) == 0 {
 		return out, nil
 	}
 
 	var (
-		pdt601 []Pdt601ListRow
-		pdt621 []Pdt621ListRow
-		det    []DetraccionesListRow
-		inf    []PdfReportListRow
-		sis    []PdfReportListRow
-		prelim []preliminarSlotWork
-		cs     ComplianceSummary
-		trend  []ComplianceTrendPoint
-		mods   []DashboardModuleRow
-		up     []DashboardUpcoming
+		build *assistantBuild
+		trend []AssistantTrendPoint
+		up    []DashboardUpcoming
 	)
 	tasks := []func() error{
-		func() (err error) { pdt601, err = s.pdt601BuildRows(companies, p.PeriodYM); return },
-		func() (err error) { pdt621, err = s.pdt621BuildRows(companies, p.PeriodYM); return },
-		func() (err error) { det, err = s.detraccionesBuildRows(companies, p.PeriodYM); return },
-		func() error {
-			inf = s.pdfReportBuildRows(PdfReportInformeDetracciones, companies, p.PeriodYM)
-			return nil
-		},
-		func() error { sis = s.pdfReportBuildRows(PdfReportSiscontBalances, companies, p.PeriodYM); return nil },
-		func() error { prelim = s.preliminarVentasSlotWork(companies, p.PeriodYM); return nil },
-		func() (err error) { cs, err = s.assistantComplianceSummary(p, companies); return },
 		func() (err error) {
-			trend, err = s.complianceTrendWith(p, 6, func(pp SupervisorDashboardParams) (ComplianceSummary, error) {
-				scope, err := s.dashboardScopeCompanies(pp)
-				if err != nil {
-					return ComplianceSummary{}, err
-				}
-				return s.assistantComplianceSummary(pp, scope)
-			})
+			build, err = s.assistantBuild(p.PeriodYM, companies, p.IncludeSupervisorTasks, p.ModuleKey, true)
 			return
 		},
-		func() (err error) { mods, err = s.dashboardModuleRows(p, companies); return },
+		func() error { trend = s.assistantProgressTrend(p, p.IncludeSupervisorTasks, p.ModuleKey, 6); return nil },
 		func() error { up = s.dashboardUpcoming(p.PeriodYM, companies); return nil },
 	}
-	if err := runParallel(10, tasks); err != nil {
+	if err := runParallel(3, tasks); err != nil {
 		return nil, err
 	}
-	mods = append(mods, moduleRowPreliminarVentas(prelim))
-	out.Compliance, out.Trend, out.Modules, out.Upcoming = cs, trend, mods, up
 
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	cache := map[uint]*time.Time{}
-	acts601, _ := CalendarActivitiesForType(p.PeriodYM, models.CalendarActivityPDT601)
-	acts621, _ := CalendarActivitiesForType(p.PeriodYM, models.CalendarActivityPDT621)
-
-	items := []AssistantWorkItem{}
-	add := func(companyID uint, company, ruc, key, label string, declID *uint, state string, due *time.Time) {
-		it := AssistantWorkItem{CompanyID: companyID, Company: strings.TrimSpace(company), RUC: ruc, ModuleKey: key, ModuleLabel: label, State: state}
-		if declID != nil {
-			it.DeclarationID = *declID
-		}
-		if due != nil {
-			it.DueDate = due.Format("2006-01-02")
-			d := daysUntil(*due, today)
-			it.DaysLeft = &d
-		}
-		items = append(items, it)
-	}
-
-	for _, r := range pdt601 {
-		exempt := r.Suspendida || (r.Planilla != nil && r.Planilla.SinPlanilla)
-		if st, ok := classifyWork(r.Status, r.Timeliness, exempt); ok {
-			add(r.CompanyID, r.BusinessName, r.RUC, models.SupervisorDeclPDT601, "PDT 601", r.DeclarationID, st, calendarDeadlineFor(p.PeriodYM, acts601, r.Dig, cache))
-		}
-	}
-	for _, r := range pdt621 {
-		if st, ok := classifyWork(r.Status, r.AssistantTimeliness, r.Suspendida); ok {
-			add(r.CompanyID, r.BusinessName, r.RUC, models.SupervisorDeclPDT621, "PDT 621", r.DeclarationID, st, calendarDeadlineFor(p.PeriodYM, acts621, r.Dig, cache))
-		}
-	}
-	for _, r := range det {
-		exempt := r.Suspendida || detraccionesIsExemptStatus(r.Status)
-		if st, ok := classifyWork(r.Status, r.Timeliness.Timeliness, exempt); ok {
-			add(r.CompanyID, r.BusinessName, r.RUC, models.SupervisorDeclDetracciones, "Estado cta. detracciones", r.DeclarationID, st, r.Timeliness.DueAt)
-		}
-	}
-	for _, pair := range []struct {
-		mod  PdfReportModule
-		rows []PdfReportListRow
-	}{{PdfReportInformeDetracciones, inf}, {PdfReportSiscontBalances, sis}} {
-		for _, r := range pair.rows {
-			if st, ok := classifyWork(r.Status, r.Timeliness, r.Suspendida); ok {
-				var due *time.Time
-				if r.DueDate != nil {
-					if t := pdt601ParseDate(*r.DueDate); t != nil {
-						due = t
-					}
-				}
-				add(r.CompanyID, r.BusinessName, r.RUC, pair.mod.DeclType, pair.mod.Label, r.DeclarationID, st, due)
-			}
-		}
-	}
-
-	for _, w := range prelim {
-		if w.Suspendida || w.Status == models.PreliminarVentasEnviado {
-			continue
-		}
-		state := "pendiente"
-		if w.Timeliness.Timeliness == TimelinessMissing {
-			state = "vencida"
-		}
-		add(w.Company.ID, w.Company.BusinessName, w.Company.RUC, models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", nil, state, w.Timeliness.DueAt)
-		items[len(items)-1].Slot = w.SlotIndex
-	}
-
-	items = append(items, s.assistantObservedMailboxes(companies, p.PeriodYM)...)
-
+	items := build.Work
 	s.attachWorkNotes(items)
-
-	sort.SliceStable(items, func(i, j int) bool {
-		a, b := items[i], items[j]
-		if assistantWorkRank[a.State] != assistantWorkRank[b.State] {
-			return assistantWorkRank[a.State] < assistantWorkRank[b.State]
-		}
-		ad, bd := 9999, 9999
-		if a.DaysLeft != nil {
-			ad = *a.DaysLeft
-		}
-		if b.DaysLeft != nil {
-			bd = *b.DaysLeft
-		}
-		if ad != bd {
-			return ad < bd
-		}
-		return a.Company < b.Company
-	})
-
-	for _, it := range items {
-		switch it.State {
-		case "vencida":
-			out.Counts.ToDeliver++
-			out.Counts.Overdue++
-			if it.DaysLeft != nil && *it.DaysLeft < -3 {
-				out.Counts.OverdueOver3++
-			}
-		case "pendiente":
-			out.Counts.ToDeliver++
-			if it.DaysLeft != nil && *it.DaysLeft >= 0 && *it.DaysLeft <= 7 {
-				out.Counts.DueThisWeek++
-			}
-		case "observada":
-			out.Counts.Observed++
-		case "por_revisar":
-			out.Counts.InReview++
-		}
-	}
-	if len(items) > 300 {
-		items = items[:300]
+	sortAssistantWork(items)
+	out.Counts = assistantWorkCounts(items)
+	if len(items) > assistantWorkLimit {
+		items = items[:assistantWorkLimit]
+		out.WorkTruncated = true
 	}
 	out.Work = items
+	out.Progress, out.Trend, out.Upcoming = build.Progress, trend, up
+	for _, m := range build.Modules {
+		if p.ModuleKey == "" || p.ModuleKey == m.Key {
+			out.Modules = append(out.Modules, m)
+		}
+	}
 	return out, nil
+}
+
+// assistantModuleOptions las actividades que se pueden elegir en el filtro de módulo.
+func assistantModuleOptions(includeSupervisor bool) []AssistantModuleRef {
+	opts := []AssistantModuleRef{
+		{models.SupervisorDeclPDT601, "PDT 601"},
+		{models.SupervisorDeclPDT621, "PDT 621"},
+	}
+	if includeSupervisor {
+		opts = append(opts, AssistantModuleRef{pdt621DeclarationKey, "PDT 621 · Declaración"})
+	}
+	return append(opts,
+		AssistantModuleRef{models.SupervisorDeclDetracciones, "Estado cta. detracciones"},
+		AssistantModuleRef{models.SupervisorDeclSunatInbox, "Buzón SOL"},
+		AssistantModuleRef{PdfReportInformeDetracciones.DeclType, PdfReportInformeDetracciones.Label},
+		AssistantModuleRef{PdfReportSiscontBalances.DeclType, PdfReportSiscontBalances.Label},
+		AssistantModuleRef{models.SupervisorDeclPreliminarVentas, "Preliminar de ventas"},
+	)
 }
 
 // attachWorkNotes completa, para las entregas observadas, el comentario del supervisor y quién lo hizo.

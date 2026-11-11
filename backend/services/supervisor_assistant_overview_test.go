@@ -85,9 +85,9 @@ func TestAssistantOverview_WorkListStatesAndScope(t *testing.T) {
 	}
 }
 
-// "Mi cumplimiento" y la tendencia usan el mismo conjunto de módulos que la lista de trabajo:
-// Informe detracciones y Siscont entran al total (como exentos si no tienen regla de plazo).
-func TestAssistantOverview_ComplianceCoversSameModulesAsWorkList(t *testing.T) {
+// El avance, los totales por módulo, las pestañas y la lista salen de UNA sola lista de tareas, así que no se contradicen.
+// Una empresa con los cinco módulos por empresa y mes (sin entregas todavía) son 5 tareas pendientes.
+func TestAssistantOverview_ProgressIsOneListOfTasks(t *testing.T) {
 	db := setupDashboardOverviewTestDB(t)
 	svc := NewSupervisorService()
 
@@ -108,34 +108,144 @@ func TestAssistantOverview_ComplianceCoversSameModulesAsWorkList(t *testing.T) {
 	}
 	p := SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{co.ID}}
 
-	base, err := svc.MonthlyComplianceSummary(p)
-	if err != nil {
-		t.Fatalf("MonthlyComplianceSummary: %v", err)
-	}
 	got, err := svc.AssistantOverview(p)
 	if err != nil {
 		t.Fatalf("AssistantOverview: %v", err)
 	}
-	// Una empresa × 2 módulos de informe extra (sin regla de plazo → exento).
-	if got.Compliance.Total != base.Total+2 {
-		t.Fatalf("total cumplimiento = %d, want %d (base %d + Informe + Siscont)", got.Compliance.Total, base.Total+2, base.Total)
+	if got.Progress.Total != 5 || got.Progress.Completed != 0 || got.Progress.Pending != 5 || got.Progress.Pct != 0 {
+		t.Fatalf("sin entregas: %+v, want 5 tareas pendientes y 0%%", got.Progress)
 	}
-	if got.Compliance.Exempt != base.Exempt+2 {
-		t.Fatalf("exentos = %d, want %d", got.Compliance.Exempt, base.Exempt+2)
+	if got.Counts.All != 5 || len(got.Work) != 5 {
+		t.Fatalf("la lista y los conteos son de toda la lista: all=%d work=%d, want 5", got.Counts.All, len(got.Work))
 	}
-	if got.Compliance.CompliancePct != base.CompliancePct {
-		t.Fatalf("sin regla de plazo el %% no debe cambiar: %v vs %v", got.Compliance.CompliancePct, base.CompliancePct)
+	if len(got.ModuleOptions) != 7 {
+		t.Fatalf("opciones de módulo = %d, want 7 (sin la declaración del supervisor)", len(got.ModuleOptions))
 	}
-	// Tendencia: el último mes es el del período y usa la misma base que el cumplimiento.
-	last := got.Trend[len(got.Trend)-1]
-	if last.PeriodYM != "2026-07" || last.TotalControls != got.Compliance.Total {
-		t.Fatalf("tendencia final = %+v, want 2026-07 con total %d", last, got.Compliance.Total)
+	var sum int64
+	for _, m := range got.Modules {
+		sum += m.Total
 	}
-	// Cada mes de la tendencia suma los mismos 2 módulos de informe (1 empresa).
-	for _, pt := range got.Trend {
-		if pt.TotalControls < 2 {
-			t.Fatalf("mes %s sin los módulos de informe: %+v", pt.PeriodYM, pt)
+	if sum != got.Progress.Total {
+		t.Fatalf("el total del panel (%d) debe ser la suma de sus módulos (%d)", got.Progress.Total, sum)
+	}
+	// Tendencia: seis meses con la misma fórmula; el último es el periodo.
+	if len(got.Trend) != 6 || got.Trend[5].PeriodYM != "2026-07" || got.Trend[0].PeriodYM != "2026-02" {
+		t.Fatalf("tendencia = %+v, want 6 meses de 2026-02 a 2026-07", got.Trend)
+	}
+	if got.Trend[5].Total != got.Progress.Total {
+		t.Fatalf("el último mes de la tendencia (%d) debe coincidir con el panel (%d)", got.Trend[5].Total, got.Progress.Total)
+	}
+}
+
+// Completada = entregada y aprobada; observada y pendiente no cuentan. Una empresa suspendida no aplica (no entra al total).
+func TestAssistantOverview_ProgressCountsOnlyCompletedAndSkipsSuspended(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+
+	sup := models.User{Name: "Claudia", Username: "claudia"}
+	ana := models.User{Name: "Ana", Username: "ana"}
+	for _, u := range []*models.User{&sup, &ana} {
+		if err := db.Create(u).Error; err != nil {
+			t.Fatalf("user: %v", err)
 		}
+	}
+	mkCo := func(code string) models.Company {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "Empresa " + code, InternalCode: code,
+			ClientType: models.CompanyClientTypeEstudio, Status: "activo", SupervisorUserID: &sup.ID, AssistantUserID: &ana.ID}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatalf("company: %v", err)
+		}
+		return co
+	}
+	c1, c2 := mkCo("G001"), mkCo("G002")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	// c2 suspendida: ninguna de sus 5 tareas aplica.
+	if err := db.Create(&models.SupervisorMonthlyControl{CompanyID: c2.ID, PeriodYM: "2026-07", Suspendida: true}).Error; err != nil {
+		t.Fatalf("control suspendida: %v", err)
+	}
+
+	inf := pdfReportSubmit(t, svc, PdfReportInformeDetracciones, c1.ID, "2026-07", "2026-07-02")
+	if _, err := svc.ApproveDeclaration(inf.Declaration.ID, sup.ID); err != nil { // completada
+		t.Fatalf("aprobar informe: %v", err)
+	}
+	sis := pdfReportSubmit(t, svc, PdfReportSiscontBalances, c1.ID, "2026-07", "2026-07-02")
+	if _, err := svc.ObserveDeclaration(sis.Declaration.ID, sup.ID, "Falta el anexo"); err != nil { // observada
+		t.Fatalf("observar siscont: %v", err)
+	}
+
+	p := SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{c1.ID, c2.ID}}
+	got, err := svc.AssistantOverview(p)
+	if err != nil {
+		t.Fatalf("AssistantOverview: %v", err)
+	}
+	pr := got.Progress
+	if pr.Total != 5 || pr.Completed != 1 || pr.Observed != 1 || pr.Pending != 3 || pr.NotApplicable != 5 {
+		t.Fatalf("avance = %+v, want total 5 (c1), 1 completada, 1 observada, 3 pendientes y 5 que no aplican (c2)", pr)
+	}
+	if pr.Pct != 20 {
+		t.Fatalf("pct = %v, want 20 (1 de 5)", pr.Pct)
+	}
+
+	// El filtro de módulo limita TODO: avance, pestañas, lista y módulos.
+	pf := p
+	pf.ModuleKey = PdfReportInformeDetracciones.DeclType
+	only, err := svc.AssistantOverview(pf)
+	if err != nil {
+		t.Fatalf("AssistantOverview módulo: %v", err)
+	}
+	if only.Progress.Total != 1 || only.Progress.Completed != 1 || only.Progress.Pct != 100 {
+		t.Fatalf("avance del módulo = %+v, want 1 de 1 (100%%)", only.Progress)
+	}
+	if only.Counts.All != 0 || len(only.Work) != 0 || len(only.Modules) != 1 {
+		t.Fatalf("con el filtro: all=%d work=%d modules=%d, want 0/0/1", only.Counts.All, len(only.Work), len(only.Modules))
+	}
+	if len(only.ModuleOptions) != 7 {
+		t.Fatalf("las opciones del filtro no deben encogerse con el filtro: %d", len(only.ModuleOptions))
+	}
+}
+
+// La vista del estudio suma las tareas del supervisor: el PDT 621 pasa a ser dos tareas por empresa.
+func TestAssistantOverview_StudioViewAddsSupervisorTasks(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	sup := models.User{Name: "Claudia", Username: "claudia"}
+	if err := db.Create(&sup).Error; err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	co := models.Company{RUC: "20S0011", BusinessName: "Empresa S", InternalCode: "S001",
+		ClientType: models.CompanyClientTypeEstudio, Status: "activo", SupervisorUserID: &sup.ID}
+	if err := db.Create(&co).Error; err != nil {
+		t.Fatalf("company: %v", err)
+	}
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	p := SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{co.ID}}
+	own, err := svc.AssistantOverview(p)
+	if err != nil {
+		t.Fatalf("AssistantOverview: %v", err)
+	}
+	p.IncludeSupervisorTasks = true
+	studio, err := svc.AssistantOverview(p)
+	if err != nil {
+		t.Fatalf("AssistantOverview estudio: %v", err)
+	}
+	if studio.Progress.Total != own.Progress.Total+1 {
+		t.Fatalf("total del estudio = %d, want %d (+1 declaración del PDT 621)", studio.Progress.Total, own.Progress.Total+1)
+	}
+	var decl *AssistantWorkItem
+	for i := range studio.Work {
+		if studio.Work[i].ModuleKey == pdt621DeclarationKey {
+			decl = &studio.Work[i]
+		}
+	}
+	if decl == nil || decl.Owner != assistantOwnerSupervisor {
+		t.Fatalf("la declaración debe estar en la lista con el supervisor como responsable: %+v", decl)
+	}
+	if len(studio.ModuleOptions) != 8 {
+		t.Fatalf("opciones de módulo = %d, want 8 (con la declaración)", len(studio.ModuleOptions))
 	}
 }
 
@@ -182,7 +292,7 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 			t.Fatalf("módulo preliminar sin calendario = %+v, want total 0", m)
 		}
 	}
-	baseTotal := none.Compliance.Total
+	baseTotal := none.Progress.Total
 
 	// Calendario: entregas el 5 y el 20 de julio (ya vencidas hoy), con regla de plazo por fecha.
 	rule := models.ActivityRule{Name: "Por fecha", CompareMode: models.ActivityRuleCompareDate, Active: true}
@@ -233,7 +343,7 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 	if err != nil {
 		t.Fatalf("AssistantOverview: %v", err)
 	}
-	var row *DashboardModuleRow
+	var row *AssistantModuleProgress
 	for i := range got.Modules {
 		if got.Modules[i].Key == models.SupervisorDeclPreliminarVentas {
 			row = &got.Modules[i]
@@ -241,7 +351,7 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 	}
 	// 3 empresas × 2 entregas = 6; la suspendida (2) queda fuera → 4: 1 a tiempo, 1 fuera de plazo
 	// (registrada tarde) y 2 vencidas (las entregas 2, sin registrar).
-	if row == nil || row.Total != 4 || row.ATiempo != 1 || row.FueraFecha != 1 || row.Vencido != 2 || row.Pendiente != 0 {
+	if row == nil || row.Total != 4 || row.OnTime != 1 || row.Late != 1 || row.Overdue != 2 || row.Pending != 0 {
 		t.Fatalf("módulo preliminar = %+v, want total 4, a tiempo 1, fuera de plazo 1, vencido 2", row)
 	}
 	type key struct {
@@ -264,9 +374,9 @@ func TestAssistantOverview_PreliminarVentasWorkModuleAndCompliance(t *testing.T)
 			t.Fatalf("trabajo de preliminar = %v, want %v", work, want)
 		}
 	}
-	// Cumplimiento: suma las 6 unidades (1 a tiempo, 1 fuera de plazo, 2 vencidas, 2 exentas).
-	if got.Compliance.Total != baseTotal+6 || got.Compliance.OnTime < 1 {
-		t.Fatalf("cumplimiento = %+v, want total %d con ≥1 a tiempo", got.Compliance, baseTotal+6)
+	// Avance: la suspendida (c3) sale de sus 5 tareas por empresa y suma las 4 entregas de Preliminar de las otras dos.
+	if want := baseTotal - 5 + 4; got.Progress.Total != want || got.Progress.OnTime < 1 {
+		t.Fatalf("avance = %+v, want total %d con ≥1 a tiempo", got.Progress, want)
 	}
 }
 

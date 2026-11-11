@@ -2399,13 +2399,17 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
 	}
 	periodYM := c.Query("period_ym", time.Now().Format("2006-01"))
+	moduleKey := strings.TrimSpace(c.Query("module_key", ""))
 
 	if hasStudioScope(c) {
 		ids, info, assistantOf, err := ctrl.svc.StudioAssistantScope(queryUserID(c, "assistant_user_id"), queryUserID(c, "supervisor_user_id"))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 		}
-		data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{PeriodYM: periodYM, AllowedCompanyIDs: ids})
+		// Vista del estudio: además de las tareas de los asistentes entran las del supervisor (declaración del PDT 621).
+		data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{
+			PeriodYM: periodYM, AllowedCompanyIDs: ids, IncludeSupervisorTasks: true, ModuleKey: moduleKey,
+		})
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -2420,7 +2424,7 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 	}
-	data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{PeriodYM: periodYM, AllowedCompanyIDs: ids})
+	data, err := ctrl.svc.AssistantOverview(services.SupervisorDashboardParams{PeriodYM: periodYM, AllowedCompanyIDs: ids, ModuleKey: moduleKey})
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
