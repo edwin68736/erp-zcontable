@@ -3,31 +3,20 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import Alert from '../../../components/ui/Alert';
 import PageHeading from '../../../components/ui/PageHeading';
 import { companyAccessCredentialsService, type CompanyAccessCredentialRow } from '../../../services/companyAccessCredentials';
-import RhConfirmPanel from './RhConfirmPanel';
 import RhSolPanel from './RhSolPanel';
 
-const TABS = [
-  { key: 'recibidos', label: 'Recibos por honorarios', hint: 'Recibidos o emitidos, con PDF y Excel (SUNAT Operaciones en Línea)' },
-  { key: 'confirmacion', label: 'Pendientes de confirmación', hint: 'Plataforma de confirmación del RHE y de la FE (API de SUNAT): solo comprobantes pendientes, subsanados o disconformes' },
-] as const;
-
 /**
- * Herramientas → RH → una empresa. Dos fuentes de SUNAT, en pestañas:
- *  - «Recibos por honorarios» (por defecto): lee en SOL la consulta de receptor (o la de emisor, solo personas naturales con
- *    RUC 10, que se elige en el formulario) y arma el PDF y el Excel.
- *  - «Pendientes de confirmación»: la API de la plataforma de confirmación del RHE y de la FE (estados de confirmación).
+ * Herramientas → RH → una empresa: lee en SOL la consulta de receptor (o la de emisor, solo personas naturales con RUC 10,
+ * que se elige en el formulario) y arma el PDF y el Excel de los recibos por honorarios.
  */
 const RhCompany = () => {
   const { companyId: rawId } = useParams();
   const companyId = Number(rawId);
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const [company, setCompany] = useState<CompanyAccessCredentialRow | null>(null);
-  const tabs = TABS;
-  const rawTab = params.get('tab');
-  const tab = rawTab === 'confirmacion' ? 'confirmacion' : 'recibidos';
-  // Los avisos y enlaces de consultas de recibos emitidos (?tab=emitidos) abren el formulario ya en «Emisor».
-  const initialLado = rawTab === 'emitidos' && (company?.ruc ?? '').startsWith('10') ? 'emisor' : 'receptor';
   const [companyError, setCompanyError] = useState('');
+  // Los avisos y enlaces de consultas de recibos emitidos (?tab=emitidos) abren el formulario ya en «Emisor».
+  const initialLado = params.get('tab') === 'emitidos' && (company?.ruc ?? '').startsWith('10') ? 'emisor' : 'receptor';
 
   useEffect(() => {
     if (!Number.isFinite(companyId) || companyId <= 0) return;
@@ -49,13 +38,6 @@ const RhCompany = () => {
     return <p className="pt-4 text-sm text-red-700">Empresa no válida.</p>;
   }
 
-  const selectTab = (key: (typeof TABS)[number]['key']) => {
-    const next = new URLSearchParams(params);
-    if (key === 'recibidos') next.delete('tab');
-    else next.set('tab', key);
-    setParams(next, { replace: true });
-  };
-
   return (
     <div className="space-y-3">
       <div>
@@ -70,26 +52,7 @@ const RhCompany = () => {
 
       {companyError ? <Alert variant="error">{companyError}</Alert> : null}
 
-      <div role="tablist" aria-label="Fuente de los recibos" className="flex gap-1 border-b border-slate-200">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            title={t.hint}
-            onClick={() => selectTab(t.key)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold transition-colors ${
-              tab === t.key ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'recibidos' ? <RhSolPanel key={`recibidos-${initialLado}`} companyId={companyId} company={company} initialLado={initialLado} /> : null}
-      {tab === 'confirmacion' ? <RhConfirmPanel companyId={companyId} company={company} /> : null}
+      <RhSolPanel key={`recibos-${initialLado}`} companyId={companyId} company={company} initialLado={initialLado} />
     </div>
   );
 };
