@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -360,8 +361,10 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			for _, c := range companies {
 				ids = append(ids, c.ID)
 			}
-			// Cada semana de cada empresa son dos tareas: la captura de SUNAT y la de SUNAFIL.
-			sunatInboxEachVerdict(periodYM, ids, slots, func(_ uint, sunat, sunafil string) {
+			// Cada semana de cada empresa son dos tareas: la captura de SUNAT y la de SUNAFIL. Las vencidas se cuentan por
+			// empresa para la lista de trabajo (una fila por empresa, no miles de filas).
+			overduePerCompany := map[uint]int64{}
+			sunatInboxEachVerdict(periodYM, ids, slots, func(companyID uint, sunat, sunafil string) {
 				for _, v := range []string{sunat, sunafil} {
 					switch v {
 					case TimelinessOnTime:
@@ -370,6 +373,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 						bm.add(assistantTaskDone, false)
 					case TimelinessMissing:
 						bm.add(assistantTaskOverdue, false)
+						overduePerCompany[companyID]++
 					case TimelinessPending:
 						bm.add(assistantTaskPending, false)
 					default:
@@ -377,6 +381,21 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 					}
 				}
 			})
+			if wantWork {
+				for _, c := range companies {
+					n := overduePerCompany[c.ID]
+					if n == 0 {
+						continue
+					}
+					it := newItem(models.SupervisorDeclSunatInbox, "Buzón SOL", assistantOwnerAssistant, c.ID, c.BusinessName, c.RUC, nil, assistantTaskOverdue, nil, "")
+					it.Detail = fmt.Sprintf("%d capturas vencidas", n)
+					if n == 1 {
+						it.Detail = "1 captura vencida"
+					}
+					it.Hint = "Capturas semanales de SUNAT y SUNAFIL sin hacer en este periodo"
+					items = append(items, it)
+				}
+			}
 		}
 		// Capturas que el supervisor observó: ya contaban como entregadas; pasan a observadas (siguen abiertas).
 		for _, obs := range s.assistantObservedMailboxes(companies, periodYM) {

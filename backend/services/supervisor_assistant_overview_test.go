@@ -206,6 +206,59 @@ func TestAssistantOverview_ProgressCountsOnlyCompletedAndSkipsSuspended(t *testi
 	}
 }
 
+// Las capturas vencidas del Buzón SOL son miles: en la lista de trabajo se agrupan en UNA fila por empresa, y el avance
+// sigue contando cada captura (cada semana, SUNAT y SUNAFIL por separado).
+func TestAssistantOverview_BuzonOverdueIsOneRowPerCompany(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	ana := models.User{Name: "Ana", Username: "ana"}
+	if err := db.Create(&ana).Error; err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	mkCo := func(code string) models.Company {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "Empresa " + code, InternalCode: code,
+			ClientType: models.CompanyClientTypeEstudio, Status: "activo", AssistantUserID: &ana.ID}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatalf("company: %v", err)
+		}
+		return co
+	}
+	c1, c2 := mkCo("B001"), mkCo("B002")
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedSunatInboxCalendarActivities(t, db, "2026-07", []int{3, 10}) // dos semanas, ya vencidas
+
+	got, err := svc.AssistantOverview(SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{c1.ID, c2.ID}})
+	if err != nil {
+		t.Fatalf("AssistantOverview: %v", err)
+	}
+	var buzon *AssistantModuleProgress
+	for i := range got.Modules {
+		if got.Modules[i].Key == models.SupervisorDeclSunatInbox {
+			buzon = &got.Modules[i]
+		}
+	}
+	// 2 empresas × 2 semanas × 2 buzones = 8 capturas, todas vencidas.
+	if buzon == nil || buzon.Total != 8 || buzon.Overdue != 8 {
+		t.Fatalf("módulo Buzón = %+v, want 8 capturas vencidas", buzon)
+	}
+	rows := map[uint]AssistantWorkItem{}
+	for _, w := range got.Work {
+		if w.ModuleKey == models.SupervisorDeclSunatInbox && w.State == "vencida" {
+			rows[w.CompanyID] = w
+		}
+	}
+	if len(rows) != 2 {
+		t.Fatalf("filas de Buzón vencido = %d, want 1 por empresa (2)", len(rows))
+	}
+	for id, w := range rows {
+		if w.Detail != "4 capturas vencidas" {
+			t.Fatalf("empresa %d: detalle = %q, want «4 capturas vencidas»", id, w.Detail)
+		}
+	}
+}
+
 // La vista del estudio suma las tareas del supervisor: el PDT 621 pasa a ser dos tareas por empresa.
 func TestAssistantOverview_StudioViewAddsSupervisorTasks(t *testing.T) {
 	db := setupDashboardOverviewTestDB(t)

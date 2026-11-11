@@ -89,6 +89,10 @@ function stateLabel(w: AssistantWorkItem): string {
 function dueText(w: AssistantWorkItem): { text: string; urgent: boolean } {
   const d = w.days_left;
   const date = shortDate(w.due_date);
+  // Buzón SOL: una fila por empresa con todas sus capturas vencidas (no tiene una sola fecha límite).
+  if (w.module_key === 'sunat_inbox' && w.state === 'vencida' && (d === undefined || d === null)) {
+    return { text: 'Capturas semanales sin hacer en este periodo', urgent: true };
+  }
   if (w.state === 'por_revisar') return { text: 'Enviada — esperando la revisión del supervisor', urgent: false };
   if (d === undefined || d === null) {
     return { text: w.state === 'observada' ? 'Corrige y vuelve a cargar' : 'Sin fecha límite configurada', urgent: w.state === 'observada' };
@@ -222,7 +226,9 @@ const AssistantWorkspace = () => {
   const filtered = Boolean(assistantId || supervisorId);
   const pr = data?.progress;
   const supervisors = data?.supervisors ?? [];
-  const trendPoints = (data?.trend ?? []).filter((t) => t.total > 0);
+  // Solo los meses con alguna tarea completada: antes de que se usara el sistema no hay registros y mostrarlos como 0 % haría
+  // parecer que la empresa empeoró cuando en realidad no había nada que medir.
+  const trendPoints = (data?.trend ?? []).filter((t) => t.completed > 0);
   const tabTotals: Record<Tab, number> = {
     todas: counts?.all ?? 0,
     vencidas: counts?.overdue ?? 0,
@@ -432,6 +438,11 @@ const AssistantWorkspace = () => {
                     );
                   })}
                 </div>
+                {work.some((w) => w.module_key === 'sunat_inbox' && w.state === 'vencida') ? (
+                  <p className="m-0 mt-2 text-[11px] text-slate-500">
+                    El Buzón SOL se agrupa: una fila por empresa con todas sus capturas vencidas. Los totales de arriba cuentan cada captura (cada semana, SUNAT y SUNAFIL por separado).
+                  </p>
+                ) : null}
                 {shown.length === 0 ? (
                   <p className="py-10 text-center text-sm text-slate-500">
                     {tabTotals.todas === 0
@@ -535,7 +546,7 @@ const AssistantWorkspace = () => {
                 {trendPoints.length >= 2 ? (
                   <TrendArea points={trendPoints.map((t) => ({ label: monthLabel(t.period_ym), value: t.pct }))} />
                 ) : (
-                  <p className="py-6 text-center text-xs text-slate-500">Todavía no hay suficientes meses con tareas medidas.</p>
+                  <p className="py-6 text-center text-xs text-slate-500">Todavía no hay suficientes meses con entregas registradas.</p>
                 )}
               </Card>
             </div>
