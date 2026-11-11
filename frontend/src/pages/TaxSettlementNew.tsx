@@ -124,6 +124,8 @@ type LineRow = {
   period_ym: string;
   /** false = selector mes; true = texto libre (no usar input type="month"). */
   period_manual?: boolean;
+  /** Deuda liberada por el cierre de una liquidación anterior (número de esa liquidación): se incluye por defecto. */
+  released_from?: string;
 };
 
 const TaxSettlementNew = () => {
@@ -284,11 +286,13 @@ const TaxSettlementNew = () => {
     if (!opts?.silent) setError('');
     setLoadingPreview(true);
     try {
-      const data: SettlementPreviewLine[] = await taxSettlementsService.preview(id);
+      const [data, released] = await Promise.all([
+        taxSettlementsService.preview(id) as Promise<SettlementPreviewLine[]>,
+        taxSettlementsService.pendingFromClosed(id).catch(() => ({ count: 0, items: [] })),
+      ]);
       const co = companies.find((c) => c.id === id);
       const ymFallback = defaultLinePeriodForLiquidation(liquidationPeriodRef.current, co?.billing_cycle);
-      setLines(
-        data.map((row, i) => {
+      const previewLines: LineRow[] = data.map((row, i) => {
           const ap = (row.accounting_period ?? '').trim();
           let lineYm: string;
           let period_manual = false;
@@ -309,8 +313,27 @@ const TaxSettlementNew = () => {
             period_ym: lineYm,
             period_manual,
           };
-        }),
-      );
+        });
+      // Las deudas que quedaron libres al cerrar una liquidación anterior se incluyen por defecto (siguen cobrándose);
+      // quien arma la liquidación puede quitar las que prefiera dejar para otra.
+      const known = new Set(previewLines.map((l) => l.document_id));
+      const releasedLines: LineRow[] = (released.items ?? [])
+        .filter((d) => d.document_id > 0 && !known.has(d.document_id) && Number(d.balance_amount) > 0.009)
+        .map((d, i) => {
+          const ap = (d.accounting_period ?? '').trim();
+          return {
+            key: `r-${d.document_id}-${i}`,
+            line_type: 'document_ref' as const,
+            document_id: d.document_id,
+            concept: stripLegacyMigrationNotes(d.description || '') || `Deuda ${d.number}`,
+            amount: Number(d.balance_amount).toFixed(2),
+            period_ym: isCanonicalPeriodYm(ap) ? ap : ymFallback,
+            period_manual: false,
+            released_from: (d.source_settlement_number ?? '').trim() || 'una liquidación anterior',
+          };
+        });
+      setLines([...previewLines, ...releasedLines]);
+      setPendingFromClosedCount(releasedLines.length);
     } catch {
       if (!opts?.silent) setError('No se pudo cargar el saldo de deudas');
     } finally {
@@ -328,7 +351,6 @@ const TaxSettlementNew = () => {
     }
     const t = window.setTimeout(() => {
       void loadPreviewForCompany(id, { silent: true });
-      void taxSettlementsService.pendingFromClosed(id).then((r) => setPendingFromClosedCount(r.count)).catch(() => setPendingFromClosedCount(0));
     }, 450);
     return () => window.clearTimeout(t);
   }, [companyId, loadPreviewForCompany, isEdit]);
@@ -542,7 +564,7 @@ const TaxSettlementNew = () => {
       {!isEdit && pendingFromClosedCount > 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <i className="fas fa-exclamation-triangle mr-2 text-amber-600" aria-hidden />
-          Hay <strong>{pendingFromClosedCount}</strong> deuda(s) pendiente(s) de liquidaciones cerradas anteriores. No se importan automáticamente: después de crear el borrador, incorpórelas desde el detalle de la liquidación.
+          Se incluyeron <strong>{pendingFromClosedCount}</strong> deuda(s) que quedaron libres al cerrar liquidaciones anteriores y siguen sin pagarse. Quite de la lista las que prefiera dejar para una liquidación posterior.
         </div>
       ) : null}
 
@@ -712,6 +734,12 @@ const TaxSettlementNew = () => {
                             onChange={(e) => updateLine(l.key, { concept: e.target.value })}
                             className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 outline-none"
                           />
+                          {l.released_from ? (
+                            <p className="mt-1 text-2xs font-medium text-amber-800">
+                              <i className="fas fa-link-slash mr-1" aria-hidden />
+                              Liberada al cerrar {l.released_from}. Quítela si prefiere dejarla para otra liquidación.
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5 align-middle">
                           <div className="flex flex-nowrap items-center gap-2 min-w-[12rem]">
