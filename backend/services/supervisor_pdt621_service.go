@@ -72,11 +72,9 @@ type Pdt621ListRow struct {
 	ObservadoPor      string     `json:"observado_por,omitempty"`
 	ObservadoAt       *time.Time `json:"observado_at,omitempty"`
 	// CalendarDueDate día programado de la actividad PDT 621 para el grupo de RUC de la empresa
-	// (calendario interno). Disponible: ya llegó ese día (hora del servidor, Lima) — la pantalla oculta
-	// Recepcionar y el lápiz hasta entonces; el backend NO lo bloquea (a propósito, para poder permitir
-	// entregas anticipadas más adelante). Sin actividad en el calendario, siempre disponible.
+	// (calendario interno). Es solo informativo: PDT 621 no se bloquea por fecha (el único módulo que espera al día
+	// programado es Preliminar de ventas), así que se puede recepcionar y editar antes de ese día.
 	CalendarDueDate *time.Time `json:"calendar_due_date,omitempty"`
-	Disponible      bool       `json:"disponible"`
 }
 
 // Pdt621Detail detalle tras EnsurePdt621 (lazy create o reutiliza bootstrap).
@@ -113,8 +111,6 @@ type Pdt621Detail struct {
 	// período no tiene ninguna actividad "pdt_621" configurada. Reemplaza a `declaration.due_date`
 	// (0% de uso real, §3.1) como fuente para mostrar "Vencimiento" en el frontend.
 	CalendarDueDate *time.Time `json:"calendar_due_date,omitempty"`
-	// Disponible: ver Pdt621ListRow.Disponible.
-	Disponible bool `json:"disponible"`
 	// Observación del supervisor = motivo de "Observar" (supervisor_declarations.notes), el último si
 	// se observó más de una vez; quién y cuándo salen del historial de cambios de estado. Las notas
 	// libres del supervisor son otra cosa: record.observacion ("Notas adicionales").
@@ -469,7 +465,6 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 		DeclarationTimeliness: declarationTimeliness,
 		ArchivadorTardio:      pdt621ArchivadorTardio(assistantTimeliness.Timeliness),
 		CalendarDueDate:       assistantTimeliness.DueAt,
-		Disponible:            activityDateReached(assistantTimeliness.DueAt),
 	}, nil
 }
 
@@ -970,7 +965,6 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 				row.CalendarDueDate = &due
 			}
 		}
-		row.Disponible = activityDateReached(row.CalendarDueDate)
 
 		rows = append(rows, row)
 	}
