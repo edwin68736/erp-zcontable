@@ -128,6 +128,32 @@ func TestAssistantOverview_ProgressIsOneListOfTasks(t *testing.T) {
 	if sum != got.Progress.Total {
 		t.Fatalf("el total del panel (%d) debe ser la suma de sus módulos (%d)", got.Progress.Total, sum)
 	}
+	// Consolidado por último dígito del RUC (esta empresa termina en 1): cada módulo por empresa trae los 10 dígitos y su
+	// suma es el total del módulo; el Buzón SOL no se separa por dígito.
+	for _, m := range got.Modules {
+		if m.Key == models.SupervisorDeclSunatInbox {
+			if len(m.ByDigit) != 0 {
+				t.Errorf("el Buzón SOL no debe traer consolidado por dígito: %+v", m.ByDigit)
+			}
+			continue
+		}
+		if m.Total == 0 && len(m.ByDigit) == 0 { // un módulo sin tareas no trae consolidado
+			continue
+		}
+		if len(m.ByDigit) != 10 {
+			t.Fatalf("%s: dígitos = %d, want 10", m.Key, len(m.ByDigit))
+		}
+		var tot int64
+		for _, d := range m.ByDigit {
+			tot += d.Total
+			if d.Digit != 1 && d.Total != 0 {
+				t.Errorf("%s: el dígito %d no debía tener tareas (la empresa termina en 1)", m.Key, d.Digit)
+			}
+		}
+		if tot != m.Total {
+			t.Errorf("%s: la suma por dígito (%d) debe ser el total del módulo (%d)", m.Key, tot, m.Total)
+		}
+	}
 	// Tendencia: seis meses con la misma fórmula; el último es el periodo.
 	if len(got.Trend) != 6 || got.Trend[5].PeriodYM != "2026-07" || got.Trend[0].PeriodYM != "2026-02" {
 		t.Fatalf("tendencia = %+v, want 6 meses de 2026-02 a 2026-07", got.Trend)

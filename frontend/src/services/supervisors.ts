@@ -678,10 +678,16 @@ export interface AssistantProgress {
   not_applicable: number;
   pct: number;
 }
+/** El avance de un módulo para las empresas cuyo RUC termina en `digit` (0 al 9). */
+export interface AssistantDigitProgress extends AssistantProgress {
+  digit: number;
+}
 export interface AssistantModuleProgress extends AssistantProgress {
   key: string;
   label: string;
   owner: 'asistente' | 'supervisor';
+  /** Consolidado por último dígito del RUC (10 filas); no viene en los módulos sin tareas ni en el Buzón SOL. */
+  by_digit?: AssistantDigitProgress[];
 }
 export interface AssistantTrendPoint {
   period_ym: string;

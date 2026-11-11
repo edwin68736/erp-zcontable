@@ -3,7 +3,59 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
 import { STATE_STYLE, dueText, stateLabel } from '../../pages/assistant/assistantUi';
-import type { AssistantModuleProgress, AssistantWorkItem } from '../../services/supervisors';
+import type { AssistantDigitProgress, AssistantModuleProgress, AssistantWorkItem } from '../../services/supervisors';
+
+const n = (v: number) => (v > 0 ? v.toLocaleString('es-PE') : '·');
+
+/**
+ * Consolidado de las entregas del módulo por último dígito del RUC: cuántas se hicieron dentro y fuera de plazo y cuántas
+ * faltan (los vencimientos de SUNAT se reparten por ese dígito).
+ */
+function DigitConsolidated({ byDigit }: { byDigit: AssistantDigitProgress[] }) {
+  const rows: { label: string; tone: string; get: (d: AssistantDigitProgress) => number }[] = [
+    { label: 'Dentro de plazo', tone: 'text-green-700', get: (d) => d.on_time },
+    { label: 'Fuera de plazo', tone: 'text-red-700', get: (d) => d.late },
+    { label: 'Por hacer', tone: 'text-slate-600', get: (d) => d.total - d.completed },
+  ];
+  const sum = (get: (d: AssistantDigitProgress) => number) => byDigit.reduce((acc, d) => acc + get(d), 0);
+  return (
+    <div className="border-b border-slate-100 px-5 py-3">
+      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[30rem] border-collapse text-center text-xs tabular-nums">
+          <thead>
+            <tr className="text-slate-500">
+              <th className="py-1 pr-2 text-left font-semibold">RUC termina en</th>
+              {byDigit.map((d) => (
+                <th key={d.digit} className="w-9 px-1 py-1 font-bold text-slate-700">
+                  {d.digit}
+                </th>
+              ))}
+              <th className="w-12 px-1 py-1 font-bold text-slate-800">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-t border-slate-100">
+                <th className={`py-1 pr-2 text-left font-semibold ${r.tone}`}>{r.label}</th>
+                {byDigit.map((d) => {
+                  const v = r.get(d);
+                  return (
+                    <td key={d.digit} className={`px-1 py-1 ${v > 0 ? `font-semibold ${r.tone}` : 'text-slate-300'}`}>
+                      {n(v)}
+                    </td>
+                  );
+                })}
+                <td className={`px-1 py-1 font-bold ${r.tone}`}>{n(sum(r.get))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 mt-1 text-[11px] text-slate-400">Dentro y fuera de plazo cuentan lo ya entregado; «por hacer» es lo que falta del periodo.</p>
+    </div>
+  );
+}
 
 /**
  * Empresas con tareas por hacer de una actividad (módulo) del panel del asistente. Se abre al pulsar un módulo, en vez de
@@ -80,6 +132,8 @@ const ModulePendingModal = ({
             <i className="fas fa-times" aria-hidden />
           </button>
         </div>
+
+        {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} /> : null}
 
         <div className="border-b border-slate-100 px-5 py-3">
           <input

@@ -90,6 +90,13 @@ func (p *AssistantProgress) merge(o AssistantProgress) {
 	p.NotApplicable += o.NotApplicable
 }
 
+// AssistantDigitProgress el avance de un módulo para las empresas cuyo RUC termina en un dígito (consolidado de «dentro y
+// fuera de plazo» por dígito: los vencimientos de SUNAT se reparten por el último dígito del RUC).
+type AssistantDigitProgress struct {
+	Digit int `json:"digit"`
+	AssistantProgress
+}
+
 // AssistantModuleProgress avance de una actividad (módulo) del panel.
 type AssistantModuleProgress struct {
 	Key   string `json:"key"`
@@ -97,6 +104,9 @@ type AssistantModuleProgress struct {
 	// Owner quién es responsable de esta tarea: asistente | supervisor.
 	Owner string `json:"owner"`
 	AssistantProgress
+	// ByDigit el mismo conteo separado por último dígito del RUC (0 al 9). Vacío en los módulos que no se miden por empresa
+	// (Buzón SOL).
+	ByDigit []AssistantDigitProgress `json:"by_digit,omitempty"`
 }
 
 // AssistantTrendPoint avance de un mes (con la misma fórmula que el panel). Total 0 = ese mes no tiene tareas medidas.
@@ -114,12 +124,13 @@ type assistantBuild struct {
 }
 
 type assistantAcc struct {
-	order []string
-	mods  map[string]*AssistantModuleProgress
+	order  []string
+	mods   map[string]*AssistantModuleProgress
+	digits map[string]*[10]AssistantProgress
 }
 
 func newAssistantAcc() *assistantAcc {
-	return &assistantAcc{mods: map[string]*AssistantModuleProgress{}}
+	return &assistantAcc{mods: map[string]*AssistantModuleProgress{}, digits: map[string]*[10]AssistantProgress{}}
 }
 
 func (a *assistantAcc) mod(key, label, owner string) *AssistantModuleProgress {
@@ -130,6 +141,39 @@ func (a *assistantAcc) mod(key, label, owner string) *AssistantModuleProgress {
 	a.mods[key] = m
 	a.order = append(a.order, key)
 	return m
+}
+
+// addDigit cuenta la tarea también en el dígito final del RUC de su empresa (un RUC sin dígito válido no se separa).
+func (a *assistantAcc) addDigit(key, ruc, state string, onTime bool) {
+	ruc = strings.TrimSpace(ruc)
+	if ruc == "" {
+		return
+	}
+	d := int(ruc[len(ruc)-1]) - '0'
+	if d < 0 || d > 9 {
+		return
+	}
+	arr, ok := a.digits[key]
+	if !ok {
+		arr = &[10]AssistantProgress{}
+		a.digits[key] = arr
+	}
+	arr[d].add(state, onTime)
+}
+
+// byDigit el consolidado por dígito de un módulo ya contado (nil si no se separó por dígito).
+func (a *assistantAcc) byDigit(key string) []AssistantDigitProgress {
+	arr, ok := a.digits[key]
+	if !ok {
+		return nil
+	}
+	out := make([]AssistantDigitProgress, 0, 10)
+	for d := 0; d < 10; d++ {
+		p := arr[d]
+		p.finalize()
+		out = append(out, AssistantDigitProgress{Digit: d, AssistantProgress: p})
+	}
+	return out
 }
 
 // assistantTaskState estado de una tarea según el estado de su entrega y su puntualidad.
@@ -233,6 +277,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	record := func(key, label, owner string, companyID uint, company, ruc string, declID *uint, state string, onTime bool, due *time.Time, detail string) *AssistantWorkItem {
 		m := acc.mod(key, label, owner)
 		m.add(state, onTime)
+		acc.addDigit(key, ruc, state, onTime)
 		if state == assistantTaskDone || !wantWork {
 			return nil
 		}
@@ -418,6 +463,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	for _, key := range acc.order {
 		m := acc.mods[key]
 		m.finalize()
+		m.ByDigit = acc.byDigit(key)
 		out.Modules = append(out.Modules, *m)
 		out.Progress.merge(m.AssistantProgress)
 	}
