@@ -812,7 +812,7 @@ type ComplianceTrendPoint struct {
 	Missing int64 `json:"missing"`
 	Pending int64 `json:"pending"`
 	Exempt  int64 `json:"exempt"`
-	// HasData el mes tiene algo medido (a tiempo, fuera de plazo o vencidas): sin eso la pantalla dice «sin datos» en vez de 0 %.
+	// HasData el mes tiene entregas (a tiempo o fuera de plazo): sin ninguna la pantalla dice «sin datos» en vez de 0 %.
 	HasData bool `json:"has_data"`
 	// El mismo punto para el cumplimiento operativo.
 	OperationalPct     float64 `json:"operational_pct"`
@@ -878,8 +878,9 @@ func (s *SupervisorService) complianceTrendWith(p SupervisorDashboardParams, mon
 			cs, ops := both.Tax, both.Ops
 			out[i] = ComplianceTrendPoint{PeriodYM: ym, CompliancePct: cs.CompliancePct, TotalControls: cs.Total,
 				OnTime: cs.OnTime, Late: cs.Late, Missing: cs.Missing, Pending: cs.Pending, Exempt: cs.Exempt,
-				HasData:        cs.OnTime+cs.Late+cs.Missing > 0,
-				OperationalPct: ops.CompliancePct, OperationalHasData: ops.OnTime+ops.Late+ops.Missing > 0}
+				// «Sin datos» = nadie entregó nada ese mes (el sistema aún no se usaba): tener tareas vencidas sin ninguna entrega no es un 0 % real.
+				HasData:        cs.OnTime+cs.Late > 0,
+				OperationalPct: ops.CompliancePct, OperationalHasData: ops.OnTime+ops.Late > 0}
 			return nil
 		}
 	}

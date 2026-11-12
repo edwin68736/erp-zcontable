@@ -241,3 +241,40 @@ func TestCompliance_ModulosSinUsoNoCuentan(t *testing.T) {
 		t.Errorf("el informe ya entra en el cumplimiento operativo (archivador + informe): %+v", both.Ops)
 	}
 }
+
+// Un mes sin ninguna entrega es «sin datos» en la tendencia (aunque tenga tareas vencidas): nadie usaba el sistema, no es un 0 % real.
+func TestComplianceTrend_MesSinEntregasEsSinDatos(t *testing.T) {
+	db := setupComplianceSummaryTestDB(t)
+	svc := NewSupervisorService()
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+	co := seedEstudioCompany(t, db, "T040")
+	p := SupervisorDashboardParams{PeriodYM: periodYM}
+
+	pts, err := svc.ComplianceTrend(p, 3)
+	if err != nil || len(pts) != 3 {
+		t.Fatalf("ComplianceTrend: %v %v", pts, err)
+	}
+	last := pts[len(pts)-1]
+	if last.HasData || last.Missing == 0 {
+		t.Fatalf("sin entregas pero con tareas vencidas debía ser «sin datos»: %+v", last)
+	}
+
+	saved, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-15"})
+	if err != nil {
+		t.Fatalf("SavePdt601Planilla: %v", err)
+	}
+	if _, err := svc.ApproveDeclaration(saved.Declaration.ID, 9); err != nil {
+		t.Fatalf("ApproveDeclaration: %v", err)
+	}
+	pts, err = svc.ComplianceTrend(p, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pts[len(pts)-1].HasData {
+		t.Errorf("con una entrega el mes ya tiene datos: %+v", pts[len(pts)-1])
+	}
+}
