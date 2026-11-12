@@ -206,8 +206,9 @@ func pdt621ScheduleDueDate(periodYM, dig string) *time.Time {
 	if _, err := fmtSscanfMonth(periodYM, &month); err != nil || month < 1 || month > 12 {
 		return nil
 	}
-	var row models.SunatDueDateCalendarRow
-	if err := database.DB.Where("month = ?", month).First(&row).Error; err != nil {
+	// Una consulta por fila del listado: va por la caché corta (lookup_cache.go).
+	row, err := cachedScheduleRow(month)
+	if err != nil {
 		return nil
 	}
 	var dates [10]string

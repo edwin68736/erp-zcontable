@@ -222,6 +222,10 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 	}
 	out.Work = items
 	out.Progress, out.Trend, out.Upcoming = build.Progress, trend, up
+	// El último punto de la tendencia es el periodo que se está viendo: es el mismo avance que ya se calculó arriba.
+	if n := len(trend); n > 0 {
+		trend[n-1].Pct, trend[n-1].Total, trend[n-1].Completed = build.Progress.Pct, build.Progress.Total, build.Progress.Completed
+	}
 	for _, m := range build.Modules {
 		if p.ModuleKey == "" || p.ModuleKey == m.Key {
 			out.Modules = append(out.Modules, m)

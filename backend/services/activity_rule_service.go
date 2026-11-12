@@ -89,6 +89,7 @@ func (s *ActivityRuleService) GetByID(id uint) (*models.ActivityRule, error) {
 }
 
 func (s *ActivityRuleService) Create(in ActivityRuleInput, userID uint) (*models.ActivityRule, error) {
+	defer ClearLookupCaches()
 	if err := validateActivityRuleInput(in, false); err != nil {
 		return nil, err
 	}
@@ -117,6 +118,7 @@ func (s *ActivityRuleService) Create(in ActivityRuleInput, userID uint) (*models
 }
 
 func (s *ActivityRuleService) Update(id uint, in ActivityRuleInput, userID uint) (*models.ActivityRule, error) {
+	defer ClearLookupCaches()
 	if err := validateActivityRuleInput(in, true); err != nil {
 		return nil, err
 	}
@@ -149,6 +151,7 @@ func (s *ActivityRuleService) Update(id uint, in ActivityRuleInput, userID uint)
 }
 
 func (s *ActivityRuleService) Delete(id uint, userID uint) error {
+	defer ClearLookupCaches()
 	var row models.ActivityRule
 	if err := database.DB.First(&row, id).Error; err != nil {
 		return errors.New("regla no encontrada")
@@ -219,12 +222,13 @@ func LoadActiveActivityRule(ruleID *uint) (*models.ActivityRule, error) {
 	if ruleID == nil || *ruleID == 0 {
 		return nil, nil
 	}
-	var rule models.ActivityRule
-	if err := database.DB.First(&rule, *ruleID).Error; err != nil {
+	// Se pide una vez por empresa y por módulo en cada panel: va por la caché corta (lookup_cache.go).
+	rule, active, err := cachedActivityRule(*ruleID)
+	if err != nil {
 		return nil, err
 	}
-	if !rule.Active {
+	if !active {
 		return nil, nil
 	}
-	return &rule, nil
+	return rule, nil
 }

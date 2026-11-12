@@ -5,8 +5,10 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"miappfiber/database"
 	"miappfiber/models"
 )
 
@@ -474,8 +476,32 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	return out, nil
 }
 
+// trendCacheTTL cuánto se recuerda el avance de un mes ya terminado (casi no cambia y cada uno cuesta armar todas las tareas
+// del estudio). 0 = sin caché (los tests).
+var trendCacheTTL = 2 * time.Minute
+
+type trendCacheEntry struct {
+	point AssistantTrendPoint
+	at    time.Time
+}
+
+var trendCache = struct {
+	sync.Mutex
+	m map[string]trendCacheEntry
+}{m: map[string]trendCacheEntry{}}
+
+// trendCacheKey identifica el avance de un mes para un alcance: el periodo, el módulo, si incluye al supervisor y quién se
+// está mirando (empresas permitidas, supervisor y responsable elegidos).
+func trendCacheKey(p SupervisorDashboardParams, period string, includeSupervisor bool, moduleKey string) string {
+	pp := p
+	pp.PeriodYM = period
+	return fmt.Sprintf("%p|%s|%t|%s|%v", database.DB, period, includeSupervisor, moduleKey, pp)
+}
+
 // assistantProgressTrend avance de los últimos meses con la misma fórmula del panel. Los meses sin tareas medidas salen con
-// Total 0 (la pantalla los muestra como «sin datos»).
+// Total 0 (la pantalla los muestra como «sin datos»). El ÚLTIMO mes es el del periodo que se está viendo: ya lo calcula quien
+// llama con la carga principal, así que aquí queda en blanco y se completa con ese avance (no se arma dos veces). Los meses
+// anteriores se recuerdan unos minutos.
 func (s *SupervisorService) assistantProgressTrend(p SupervisorDashboardParams, includeSupervisor bool, moduleKey string, months int) []AssistantTrendPoint {
 	points := make([]AssistantTrendPoint, months)
 	tasks := make([]func() error, 0, months)
@@ -483,6 +509,19 @@ func (s *SupervisorService) assistantProgressTrend(p SupervisorDashboardParams, 
 		i := i
 		period := shiftPeriodYM(p.PeriodYM, -(months - 1 - i))
 		points[i] = AssistantTrendPoint{PeriodYM: period}
+		if i == months-1 {
+			continue
+		}
+		key := trendCacheKey(p, period, includeSupervisor, moduleKey)
+		if trendCacheTTL > 0 {
+			trendCache.Lock()
+			e, ok := trendCache.m[key]
+			trendCache.Unlock()
+			if ok && time.Since(e.at) < trendCacheTTL {
+				points[i] = e.point
+				continue
+			}
+		}
 		tasks = append(tasks, func() error {
 			pp := p
 			pp.PeriodYM = period
@@ -495,6 +534,14 @@ func (s *SupervisorService) assistantProgressTrend(p SupervisorDashboardParams, 
 				return nil
 			}
 			points[i].Pct, points[i].Total, points[i].Completed = b.Progress.Pct, b.Progress.Total, b.Progress.Completed
+			if trendCacheTTL > 0 {
+				trendCache.Lock()
+				if len(trendCache.m) > 2000 {
+					trendCache.m = map[string]trendCacheEntry{}
+				}
+				trendCache.m[key] = trendCacheEntry{point: points[i], at: time.Now()}
+				trendCache.Unlock()
+			}
 			return nil
 		})
 	}

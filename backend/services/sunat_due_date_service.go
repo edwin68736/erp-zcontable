@@ -140,6 +140,7 @@ func validateSunatDueDate(s string) error {
 // Update reemplaza las fechas de los meses indicados. Nunca crea ni elimina filas: la fila de
 // cada mes ya existe desde la siembra inicial (EnsureSeeded), esto solo la edita.
 func (s *SunatDueDateService) Update(userID uint, rows []SunatDueDateUpdateInput) ([]SunatDueDateRow, error) {
+	defer ClearLookupCaches()
 	if err := s.EnsureSeeded(); err != nil {
 		return nil, err
 	}

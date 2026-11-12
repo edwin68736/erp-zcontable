@@ -23,7 +23,9 @@ func Connect() error {
 	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger:      logger.Default.LogMode(logger.Info),
+		// Solo consultas lentas (>200 ms) y errores. Con Info se escribía CADA consulta en el registro: decenas de miles de
+		// líneas por hora que costaban CPU y disco en cada petición.
+		Logger:      logger.Default.LogMode(logger.Warn),
 		PrepareStmt: true,
 		// Fase 5 Paso 2A (idempotencia POS): habilita la traducción de errores de GORM a errores
 		// genéricos (p. ej. gorm.ErrDuplicatedKey ante una violación de UNIQUE INDEX), portable entre
