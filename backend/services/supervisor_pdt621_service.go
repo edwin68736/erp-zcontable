@@ -168,6 +168,23 @@ type Pdt621RecordInput struct {
 	EnvioSire                  string  `json:"envio_sire"`
 	FechaEnvioSire             string  `json:"fecha_envio_sire"`
 	MotivoNoEnvio              string  `json:"motivo_no_envio"`
+	// Fields los campos que esta persona CAMBIÓ (sus nombres JSON). Solo esos se guardan: sin esto, cada guardado reemplazaba todo
+	// el registro con lo que tenía la pantalla al abrirse, y el asistente (con la fecha de declaración que aún estaba vacía) pisaba
+	// lo que el supervisor acababa de registrar, y al revés. Vacío = se guardan todos (clientes antiguos y pruebas).
+	Fields []string `json:"fields,omitempty"`
+}
+
+// pdt621Touches dice si el guardado incluye ese campo (sin lista, incluye todos).
+func (in Pdt621RecordInput) touches(name string) bool {
+	if len(in.Fields) == 0 {
+		return true
+	}
+	for _, f := range in.Fields {
+		if f == name {
+			return true
+		}
+	}
+	return false
 }
 
 func pdt621RecordToDTO(r *models.SupervisorPdt621Record) *Pdt621RecordDTO {
@@ -534,17 +551,44 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	// servidor al Recepcionar (RecepcionarPdt621). Así nadie puede "acomodar" la fecha de entrega
 	// al calendario editándola a mano o llamando a la API directo — el registro existente las
 	// conserva tal cual.
-	record.Observacion = strings.TrimSpace(in.Observacion)
-	record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
-	record.TotalVentas = in.TotalVentas
-	record.TotalCompras = in.TotalCompras
-	record.Igv = in.Igv
-	record.Rta = in.Rta
-	record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
-	record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
-	record.EnvioSire = strings.TrimSpace(in.EnvioSire)
-	record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
-	record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
+	// Solo se aplican los campos que la persona cambió (ver Pdt621RecordInput.Fields).
+	if in.touches("observacion") {
+		record.Observacion = strings.TrimSpace(in.Observacion)
+	}
+	if in.touches("fecha_declaracion") {
+		record.FechaDeclaracion = pdt601ParseDate(in.FechaDeclaracion)
+	}
+	if in.touches("total_ventas") {
+		record.TotalVentas = in.TotalVentas
+	}
+	if in.touches("total_compras") {
+		record.TotalCompras = in.TotalCompras
+	}
+	if in.touches("igv") {
+		record.Igv = in.Igv
+	}
+	if in.touches("rta") {
+		record.Rta = in.Rta
+	}
+	if in.touches("cantidad_comprobantes_venta") {
+		record.CantidadComprobantesVenta = in.CantidadComprobantesVenta
+	}
+	if in.touches("cantidad_comprobantes_compra") {
+		record.CantidadComprobantesCompra = in.CantidadComprobantesCompra
+	}
+	sireTouched := in.touches("envio_sire") || in.touches("fecha_envio_sire") || in.touches("motivo_no_envio")
+	if in.touches("envio_sire") {
+		record.EnvioSire = strings.TrimSpace(in.EnvioSire)
+	}
+	if in.touches("fecha_envio_sire") {
+		record.FechaEnvioSire = pdt601ParseDate(in.FechaEnvioSire)
+	}
+	if in.touches("motivo_no_envio") {
+		record.MotivoNoEnvio = strings.TrimSpace(in.MotivoNoEnvio)
+	}
+	if err := validatePdt621Record(&in, &record, sireTouched); err != nil {
+		return nil, err
+	}
 
 	// Guardar ya no "entrega" (antes: guardar con fecha de 1ra entrega pasaba a Por revisar, ver
 	// docs/diseno-estados-pdt601-pdt621-2026-09-16.md §9) — esa transición ahora la hace únicamente
@@ -559,6 +603,48 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	}
 
 	return s.EnsurePdt621(companyID, periodYM)
+}
+
+// validatePdt621Record reglas del registro según corresponda:
+//   - ¿Se envió SIRE? = Sí → la fecha de envío es obligatoria; = No → el motivo es obligatorio y no hay fecha de envío; sin
+//     responder → no puede haber fecha ni motivo. Solo se revisa si el guardado toca algo del SIRE.
+//   - Ni la fecha de declaración ni la de envío pueden ser futuras (fecha de hoy en Lima).
+//   - Si se registran los IMPORTES del PDT 621 (con la lista de campos cambiados) hay que registrar también la fecha de declaración:
+//     no hay importes declarados sin fecha. Los importes que llegan solos desde la liquidación no pasan por aquí.
+func validatePdt621Record(in *Pdt621RecordInput, r *models.SupervisorPdt621Record, sireTouched bool) error {
+	if sireTouched {
+		switch r.EnvioSire {
+		case "si":
+			if r.FechaEnvioSire == nil {
+				return errors.New("indique la fecha de envío del SIRE")
+			}
+			r.MotivoNoEnvio = ""
+		case "no":
+			if strings.TrimSpace(r.MotivoNoEnvio) == "" {
+				return errors.New("ingrese el motivo por el que no se envió SIRE")
+			}
+			r.FechaEnvioSire = nil
+		case "":
+			if r.FechaEnvioSire != nil || strings.TrimSpace(r.MotivoNoEnvio) != "" {
+				return errors.New("indique si se envió SIRE (Sí o No) antes de registrar su fecha o su motivo")
+			}
+		default:
+			return errors.New("«¿Se envió SIRE?» debe ser Sí o No")
+		}
+	}
+	today := pdt621Now().In(limaLoc).Format("2006-01-02")
+	if in.touches("fecha_declaracion") && r.FechaDeclaracion != nil && r.FechaDeclaracion.Format("2006-01-02") > today {
+		return errors.New("la fecha de declaración no puede ser futura")
+	}
+	if in.touches("fecha_envio_sire") && r.FechaEnvioSire != nil && r.FechaEnvioSire.Format("2006-01-02") > today {
+		return errors.New("la fecha de envío del SIRE no puede ser futura")
+	}
+	if len(in.Fields) > 0 && r.FechaDeclaracion == nil &&
+		(in.touches("total_ventas") || in.touches("total_compras") || in.touches("igv") || in.touches("rta")) &&
+		(r.TotalVentas > 0 || r.TotalCompras > 0 || r.Igv > 0 || r.Rta > 0) {
+		return errors.New("registre la fecha de declaración junto con los importes del PDT 621")
+	}
+	return nil
 }
 
 // ErrPdt621RecepcionNoAsignado el usuario no es el supervisor asignado a la empresa — el controlador

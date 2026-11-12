@@ -29,6 +29,7 @@ import Pdt621RecepcionarButton from '../../components/activity/Pdt621Recepcionar
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
 import { confirmDialog } from '../../utils/confirmDialog';
 import Alert from '../../components/ui/Alert';
+import SunatQuickAccess from '../../components/finance/SunatQuickAccess';
 import { notify } from '../../utils/notify';
 
 function formatEntrega(fecha?: string | null, hora?: string | null): string {
@@ -102,6 +103,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const [reopenReason, setReopenReason] = useState('');
   const [reopenOpen, setReopenOpen] = useState(false);
   const [record, setRecord] = useState<Pdt621RecordInput>({ ...EMPTY_RECORD });
+  // Campos que esta persona cambió desde que abrió o guardó: solo esos se envían al guardar, así no pisa lo que la otra persona
+  // (asistente o supervisor) registró mientras tanto.
+  const [dirty, setDirty] = useState<string[]>([]);
   // "Notas adicionales" (record.observacion) va oculto por defecto; se abre solo si ya tiene texto o
   // si el supervisor marca el checkbox. No es la observación al asistente (eso es el motivo de Observar).
   const [showNotas, setShowNotas] = useState(false);
@@ -178,6 +182,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
       const data = await pdt621Service.getDetail(companyId, periodYm);
       setDetail(data);
       setRecord(recordToInput(data.record));
+      setDirty([]);
       setShowNotas(!!data.record?.observacion?.trim());
       await loadAttachments(data.declaration.id);
     } catch (err) {
@@ -324,22 +329,38 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         : d,
     );
     setRecord(recordToInput(updated.record));
+    setDirty([]);
     notify.fromMessage('success', message);
   };
 
   const patchRecord = (patch: Partial<Pdt621RecordInput>) => {
     setRecord((prev) => ({ ...prev, ...patch }));
+    setDirty((prev) => Array.from(new Set([...prev, ...Object.keys(patch)])));
   };
+
+  // Fecha de hoy de esta PC (AAAA-MM-DD): ninguna de las dos fechas puede ser futura (el servidor lo vuelve a validar).
+  const today = new Date().toLocaleDateString('en-CA');
+  // Con importes del PDT cargados, la fecha de declaración es obligatoria; si se envió SIRE, la fecha de envío.
+  const hasImportes = record.total_ventas > 0 || record.total_compras > 0 || record.igv > 0 || record.rta > 0;
+  const declaracionRequerida = hasImportes;
 
   const handleSaveRecord = async () => {
     if (!canUpdate || formLocked) return;
-    if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) {
-      notify.warning('Revise los datos', 'Ingrese el motivo por el que no se envió SIRE.');
+    if (dirty.length === 0) {
+      notify.fromMessage('info', 'No hay cambios por guardar.');
       return;
     }
+    const revisar = (m: string) => notify.warning('Revise los datos', m);
+    if (record.envio_sire === 'si' && !record.fecha_envio_sire) return revisar('Indique la fecha de envío del SIRE.');
+    if (record.envio_sire === 'no' && !record.motivo_no_envio.trim()) return revisar('Ingrese el motivo por el que no se envió SIRE.');
+    if (!record.envio_sire && (record.fecha_envio_sire || record.motivo_no_envio.trim())) return revisar('Indique si se envió SIRE (Sí o No) antes de registrar su fecha o su motivo.');
+    if (record.fecha_declaracion && record.fecha_declaracion > today) return revisar('La fecha de declaración no puede ser futura.');
+    if (record.fecha_envio_sire && record.fecha_envio_sire > today) return revisar('La fecha de envío del SIRE no puede ser futura.');
+    const tocoImportes = ['total_ventas', 'total_compras', 'igv', 'rta'].some((k) => dirty.includes(k));
+    if (tocoImportes && hasImportes && !record.fecha_declaracion) return revisar('Registre la fecha de declaración junto con los importes del PDT 621.');
     try {
       setRecordSaving(true);
-      const updated = await pdt621Service.saveRecord(companyId, periodYm, record);
+      const updated = await pdt621Service.saveRecord(companyId, periodYm, { ...record, fields: dirty });
       setDetail((d) =>
         d
           ? {
@@ -352,6 +373,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           : d,
       );
       setRecord(recordToInput(updated.record));
+      setDirty([]);
       notify.success('Registro guardado');
     } catch (err) {
       notify.fromMessage('error', extractApiErrorMessage(err, 'No se pudo guardar el registro.'));
@@ -396,6 +418,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
           Periodo {periodYm} · RUC {detail.ruc} · Código {detail.code}
           {detail.dig ? ` · Dígito ${detail.dig}` : ''}
         </p>
+        <SunatQuickAccess companyId={companyId} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -631,9 +654,10 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Fecha de declaración</label>
+                <label className="block text-xs text-slate-500 mb-1">Fecha de declaración{declaracionRequerida ? ' *' : ''}</label>
                 <input
                   type="date"
+                  max={today}
                   disabled={!canUpdate || declarationLocked || importesReadOnlyForAssistant}
                   value={record.fecha_declaracion}
                   onChange={(e) => patchRecord({ fecha_declaracion: e.target.value })}
@@ -726,7 +750,14 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                   value={record.envio_sire}
                   onChange={(e) => {
                     const envio_sire = e.target.value;
-                    patchRecord(envio_sire === 'si' ? { envio_sire, motivo_no_envio: '' } : { envio_sire });
+                    // Sí: no hay motivo. No: no hay fecha de envío. Sin responder: ninguno de los dos.
+                    patchRecord(
+                      envio_sire === 'si'
+                        ? { envio_sire, motivo_no_envio: '' }
+                        : envio_sire === 'no'
+                          ? { envio_sire, fecha_envio_sire: '' }
+                          : { envio_sire: '', fecha_envio_sire: '', motivo_no_envio: '' },
+                    );
                   }}
                   className={FIELD_INPUT}
                 >
@@ -738,10 +769,11 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Fecha de envío</label>
+                <label className="block text-xs text-slate-500 mb-1">Fecha de envío{record.envio_sire === 'si' ? ' *' : ''}</label>
                 <input
                   type="date"
-                  disabled={!canUpdate || declarationLocked}
+                  max={today}
+                  disabled={!canUpdate || declarationLocked || record.envio_sire !== 'si'}
                   value={record.fecha_envio_sire}
                   onChange={(e) => patchRecord({ fecha_envio_sire: e.target.value })}
                   className={FIELD_INPUT}

@@ -39,6 +39,8 @@ export interface Pdt621RecordInput {
   envio_sire: string;
   fecha_envio_sire: string;
   motivo_no_envio: string;
+  /** Los campos que la persona cambió: solo esos se guardan (así no se pisa lo que registró la otra persona). */
+  fields?: string[];
 }
 
 export interface Pdt621ListRow {

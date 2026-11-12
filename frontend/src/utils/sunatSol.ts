@@ -66,6 +66,21 @@ export type SunatSolCredentials = {
   clave?: string | null;
 };
 
+/** Los datos de una empresa que decide el acceso directo (fila de Claves SOL). */
+export type SunatAccessRow = { ruc?: string | null; sol_usuario?: string | null; sol_clave?: string | null; sol_configurado?: boolean };
+
+/**
+ * Qué falta para el acceso directo a SUNAT de una empresa ('' si está todo). Sin permiso de ver usuario/clave SOL esos dos datos
+ * llegan vacíos del servidor: ahí manda `sol_configurado` (el acceso lo genera el servidor con la clave guardada).
+ */
+export function solAccessMissing(row: SunatAccessRow): string {
+  if (row.sol_usuario || row.sol_clave) {
+    return sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
+  }
+  if (!(row.ruc ?? '').trim()) return 'RUC';
+  return row.sol_configurado ? '' : 'usuario y clave SOL';
+}
+
 /** Qué falta para poder ingresar ('' si está todo). */
 export function sunatSolMissingField(c: SunatSolCredentials): string {
   if (!(c.ruc ?? '').trim()) return 'RUC';

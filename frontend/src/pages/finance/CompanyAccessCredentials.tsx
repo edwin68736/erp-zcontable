@@ -4,7 +4,7 @@ import { auth } from '../../services/auth';
 import { P } from '../../rbac/codes';
 import Pagination from '../../components/Pagination';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
-import { SUNAT_TARGETS, sunatSolMissingField, type SunatAccessTarget } from '../../utils/sunatSol';
+import { SUNAT_TARGETS, solAccessMissing, type SunatAccessTarget } from '../../utils/sunatSol';
 import SunatAccessModal from '../../components/finance/SunatAccessModal';
 import {
   companyAccessCredentialsService,
@@ -131,11 +131,7 @@ function CopyableCredentialCell({
  * servidor con la clave guardada, el navegador no la necesita).
  */
 function solMissing(row: CompanyAccessCredentialRow): string {
-  if (row.sol_usuario || row.sol_clave) {
-    return sunatSolMissingField({ ruc: row.ruc, usuario: row.sol_usuario, clave: row.sol_clave });
-  }
-  if (!(row.ruc ?? '').trim()) return 'RUC';
-  return row.sol_configurado ? '' : 'usuario y clave SOL';
+  return solAccessMissing(row);
 }
 
 function emptyForm(): CompanyAccessCredentialUpdateInput {
