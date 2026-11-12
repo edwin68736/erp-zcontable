@@ -591,6 +591,9 @@ export interface DashboardModuleRow {
   fuera_fecha: number;
   total: number;
   sin_completar: number;
+  /** Si el módulo entra en el cumplimiento general (los demás se muestran pero no cuentan). */
+  counts: boolean;
+  owner?: 'asistente' | 'supervisor';
 }
 export interface DashboardReviewItem {
   declaration_id: number;

@@ -125,18 +125,22 @@ type assistantBuild struct {
 	Modules  []AssistantModuleProgress
 	Progress AssistantProgress
 	Work     []AssistantWorkItem
+	// PerCompany el conteo de tareas de cada empresa en cada módulo (módulo → conteo). Con esto el dashboard del supervisor
+	// arma el total de cualquier subconjunto de empresas (un supervisor, un asistente) sin volver a armar las tareas.
+	PerCompany map[uint]map[string]AssistantProgress
 	// PlanillaLoad la carga de planillas por asistente (solo si el módulo PDT 601 está en el alcance).
 	PlanillaLoad *AssistantPlanillaLoad
 }
 
 type assistantAcc struct {
-	order  []string
-	mods   map[string]*AssistantModuleProgress
-	digits map[string]*[10]AssistantProgress
+	order      []string
+	mods       map[string]*AssistantModuleProgress
+	digits     map[string]*[10]AssistantProgress
+	perCompany map[uint]map[string]*AssistantProgress
 }
 
 func newAssistantAcc() *assistantAcc {
-	return &assistantAcc{mods: map[string]*AssistantModuleProgress{}, digits: map[string]*[10]AssistantProgress{}}
+	return &assistantAcc{mods: map[string]*AssistantModuleProgress{}, digits: map[string]*[10]AssistantProgress{}, perCompany: map[uint]map[string]*AssistantProgress{}}
 }
 
 func (a *assistantAcc) mod(key, label, owner string) *AssistantModuleProgress {
@@ -147,6 +151,34 @@ func (a *assistantAcc) mod(key, label, owner string) *AssistantModuleProgress {
 	a.mods[key] = m
 	a.order = append(a.order, key)
 	return m
+}
+
+// company el conteo de una empresa en un módulo (se crea al primer uso).
+func (a *assistantAcc) company(key string, companyID uint) *AssistantProgress {
+	byMod, ok := a.perCompany[companyID]
+	if !ok {
+		byMod = map[string]*AssistantProgress{}
+		a.perCompany[companyID] = byMod
+	}
+	p, ok := byMod[key]
+	if !ok {
+		p = &AssistantProgress{}
+		byMod[key] = p
+	}
+	return p
+}
+
+// snapshotPerCompany copia los conteos por empresa (sin punteros) para entregarlos fuera de la construcción.
+func (a *assistantAcc) snapshotPerCompany() map[uint]map[string]AssistantProgress {
+	out := make(map[uint]map[string]AssistantProgress, len(a.perCompany))
+	for cid, byMod := range a.perCompany {
+		m := make(map[string]AssistantProgress, len(byMod))
+		for k, p := range byMod {
+			m[k] = *p
+		}
+		out[cid] = m
+	}
+	return out
 }
 
 // addDigit cuenta la tarea también en el dígito final del RUC de su empresa (un RUC sin dígito válido no se separa).
@@ -284,6 +316,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		m := acc.mod(key, label, owner)
 		m.add(state, onTime)
 		acc.addDigit(key, ruc, state, onTime)
+		acc.company(key, companyID).add(state, onTime)
 		if state == assistantTaskDone || !wantWork {
 			return nil
 		}
@@ -298,6 +331,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		st, onTime, applies := assistantTaskState(r.Status, r.Timeliness, exempt)
 		if !applies {
 			m.NotApplicable++
+			acc.company(models.SupervisorDeclPDT601, r.CompanyID).NotApplicable++
 			continue
 		}
 		onp, afp := 0, 0
@@ -314,8 +348,10 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		arch := acc.mod(models.SupervisorDeclPDT621, "PDT 621", assistantOwnerAssistant)
 		if r.Suspendida {
 			arch.NotApplicable++
+			acc.company(models.SupervisorDeclPDT621, r.CompanyID).NotApplicable++
 			if includeSupervisor {
 				acc.mod(pdt621DeclarationKey, "PDT 621 · Declaración", assistantOwnerSupervisor).NotApplicable++
+				acc.company(pdt621DeclarationKey, r.CompanyID).NotApplicable++
 			}
 			continue
 		}
@@ -360,6 +396,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		st, onTime, applies := assistantTaskState(r.Status, r.Timeliness.Timeliness, exempt)
 		if !applies {
 			m.NotApplicable++
+			acc.company(models.SupervisorDeclDetracciones, r.CompanyID).NotApplicable++
 			continue
 		}
 		record(models.SupervisorDeclDetracciones, "Estado cta. detracciones", assistantOwnerAssistant, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, r.Timeliness.DueAt, "")
@@ -374,6 +411,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			st, onTime, applies := assistantTaskState(r.Status, r.Timeliness, r.Suspendida)
 			if !applies {
 				m.NotApplicable++
+				acc.company(pair.mod.DeclType, r.CompanyID).NotApplicable++
 				continue
 			}
 			var due *time.Time
@@ -388,6 +426,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		m := acc.mod(models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", assistantOwnerAssistant)
 		if w.Suspendida {
 			m.NotApplicable++
+			acc.company(models.SupervisorDeclPreliminarVentas, w.Company.ID).NotApplicable++
 			continue
 		}
 		// La entrega cuenta desde que se REGISTRAN los datos (aunque falte enviarla): ver preliminarSlotTimeliness.
@@ -422,20 +461,25 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			// Cada semana de cada empresa son dos tareas: la captura de SUNAT y la de SUNAFIL. Las vencidas se cuentan por
 			// empresa para la lista de trabajo (una fila por empresa, no miles de filas).
 			overduePerCompany := map[uint]int64{}
+			bmAdd := func(companyID uint, state string, onTime bool) {
+				bm.add(state, onTime)
+				acc.company(models.SupervisorDeclSunatInbox, companyID).add(state, onTime)
+			}
 			sunatInboxEachVerdict(periodYM, ids, slots, func(companyID uint, sunat, sunafil string) {
 				for _, v := range []string{sunat, sunafil} {
 					switch v {
 					case TimelinessOnTime:
-						bm.add(assistantTaskDone, true)
+						bmAdd(companyID, assistantTaskDone, true)
 					case TimelinessLate:
-						bm.add(assistantTaskDone, false)
+						bmAdd(companyID, assistantTaskDone, false)
 					case TimelinessMissing:
-						bm.add(assistantTaskOverdue, false)
+						bmAdd(companyID, assistantTaskOverdue, false)
 						overduePerCompany[companyID]++
 					case TimelinessPending:
-						bm.add(assistantTaskPending, false)
+						bmAdd(companyID, assistantTaskPending, false)
 					default:
 						bm.NotApplicable++
+						acc.company(models.SupervisorDeclSunatInbox, companyID).NotApplicable++
 					}
 				}
 			})
@@ -466,6 +510,17 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 				}
 			}
 			bm.Observed++
+			// Lo mismo en el conteo de esa empresa.
+			pc := acc.company(models.SupervisorDeclSunatInbox, obs.CompanyID)
+			if pc.Completed > 0 {
+				pc.Completed--
+				if pc.OnTime > 0 {
+					pc.OnTime--
+				} else if pc.Late > 0 {
+					pc.Late--
+				}
+			}
+			pc.Observed++
 			if wantWork {
 				obs.Owner = assistantOwnerAssistant
 				items = append(items, obs)
@@ -481,6 +536,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		out.Progress.merge(m.AssistantProgress)
 	}
 	out.Progress.finalize()
+	out.PerCompany = acc.snapshotPerCompany()
 	if wantWork {
 		out.Work = items
 	}

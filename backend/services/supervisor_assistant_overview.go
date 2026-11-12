@@ -131,38 +131,6 @@ func calendarDeadlineFor(periodYM string, acts []models.FinanceCalendarActivity,
 	return out
 }
 
-func (s *SupervisorService) dashboardModuleRows(p SupervisorDashboardParams, companies []models.Company) ([]DashboardModuleRow, error) {
-	var (
-		pdtSum                   map[string]PdtTypeSummary
-		detSum, mailboxSum       ComplianceSummary
-		informeRows, siscontRows []PdfReportListRow
-	)
-	tasks := []func() error{
-		func() (err error) { pdtSum, err = s.PdtDashboardSummary(p); return },
-		func() (err error) { detSum, err = s.DetraccionesDashboardSummary(p); return },
-		func() (err error) { mailboxSum, err = s.SunatInboxDashboardSummary(p); return },
-		func() error {
-			informeRows = s.pdfReportBuildRows(PdfReportInformeDetracciones, companies, p.PeriodYM)
-			return nil
-		},
-		func() error {
-			siscontRows = s.pdfReportBuildRows(PdfReportSiscontBalances, companies, p.PeriodYM)
-			return nil
-		},
-	}
-	if err := runParallel(5, tasks); err != nil {
-		return nil, err
-	}
-	return []DashboardModuleRow{
-		moduleRowFromPdt(models.SupervisorDeclPDT601, "PDT 601", pdtSum[models.SupervisorDeclPDT601]),
-		moduleRowFromPdt(models.SupervisorDeclPDT621, "PDT 621", pdtSum[models.SupervisorDeclPDT621]),
-		moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Estado cta. detracciones", detSum),
-		moduleRowFromCompliance(models.SupervisorDeclSunatInbox, "Buzón SOL", mailboxSum),
-		moduleRowFromPdf(PdfReportInformeDetracciones, informeRows),
-		moduleRowFromPdf(PdfReportSiscontBalances, siscontRows),
-	}, nil
-}
-
 // AssistantModuleRef una actividad elegible en el filtro de módulo del panel.
 type AssistantModuleRef struct {
 	Key   string `json:"key"`

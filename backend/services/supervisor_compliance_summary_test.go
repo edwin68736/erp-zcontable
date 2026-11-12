@@ -40,6 +40,10 @@ func setupComplianceSummaryTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate: %v", err)
 	}
 	database.DB = db
+	// SQLite en memoria: cada conexión nueva sería otra base vacía, y el cumplimiento arma las tareas con consultas en paralelo.
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	return db
 }
 
@@ -217,9 +221,11 @@ func TestDetraccionesDashboardSummary_OnTimeUpload(t *testing.T) {
 // TestMonthlyComplianceSummary_CombinesPdtAndDetracciones cubre la combinadora etapa 1 (§5.9.5): un
 // on_time de PDT 601 + Detracciones (evaluado para TODA empresa activa del período, tenga o no
 // declaración creada — mismo criterio lazy-create de DetraccionesDashboardSummary) deben sumarse en
-// un solo ComplianceSummary. Con 2 empresas activas y plazo de Detracciones ya vencido: la que solo
-// tiene PDT 601 a tiempo también "debe" Detracciones y no la presentó → 1 on_time (PDT) + 2 missing
-// (Detracciones de ambas empresas) = 33.3%.
+// un solo ComplianceSummary. El cumplimiento sale de la lista de tareas de todas las empresas del alcance (las mismas del panel
+// del asistente), con 2 empresas activas y plazo de Detracciones ya vencido: la empresa A entregó su PDT 601 a tiempo (1 a
+// tiempo); la B no entregó su PDT 601 con el plazo vencido (1 vencido) y ninguna presentó Detracciones (2 vencidos) → 1 a tiempo +
+// 3 vencidos. El PDT 621 · Declaración de ambas no tiene plazo configurado en este escenario y queda pendiente (2): no suma ni resta.
+// 1 ÷ (1 + 3) = 25 %.
 func TestMonthlyComplianceSummary_CombinesPdtAndDetracciones(t *testing.T) {
 	db := setupComplianceSummaryTestDB(t)
 	svc := NewSupervisorService()
@@ -254,14 +260,14 @@ func TestMonthlyComplianceSummary_CombinesPdtAndDetracciones(t *testing.T) {
 	if cs.OnTime != 1 {
 		t.Fatalf("OnTime=%d, want 1 (%+v)", cs.OnTime, cs)
 	}
-	if cs.Missing != 2 {
-		t.Fatalf("Missing=%d, want 2 (%+v)", cs.Missing, cs)
+	if cs.Missing != 3 {
+		t.Fatalf("Missing=%d, want 3 (%+v)", cs.Missing, cs)
 	}
-	if cs.Total != 3 {
-		t.Fatalf("Total=%d, want 3 (%+v)", cs.Total, cs)
+	if cs.Pending != 2 || cs.Total != 6 {
+		t.Fatalf("Pending=%d Total=%d, want 2 y 6 (%+v)", cs.Pending, cs.Total, cs)
 	}
-	if cs.CompliancePct != 33.3 {
-		t.Fatalf("CompliancePct=%v, want 33.3 (%+v)", cs.CompliancePct, cs)
+	if cs.CompliancePct != 25 {
+		t.Fatalf("CompliancePct=%v, want 25 (%+v)", cs.CompliancePct, cs)
 	}
 }
 

@@ -44,25 +44,25 @@ type SupervisorAlert struct {
 }
 
 type SupervisorDashboard struct {
-	TotalActiveCompanies    int64                       `json:"total_active_companies"`
-	CompaniesAlDia          int64                       `json:"companies_al_dia"`
-	CompaniesPendiente      int64                       `json:"companies_pendiente"`
-	CompaniesVencido        int64                       `json:"companies_vencido"`
-	CompaniesWithoutControl int64                       `json:"companies_without_control"`
-	ControlsAlDia           int64                       `json:"controls_al_dia"`
-	ControlsPendiente       int64                       `json:"controls_pendiente"`
-	ControlsVencido         int64                       `json:"controls_vencido"`
-	ControlsObservado       int64                       `json:"controls_observado"`
-	ControlsCerrado         int64                       `json:"controls_cerrado"`
-	DeclarationsObserved    int64                       `json:"declarations_observed"`
-	MonthlyCompliancePct    float64                     `json:"monthly_compliance_pct"`
+	TotalActiveCompanies    int64   `json:"total_active_companies"`
+	CompaniesAlDia          int64   `json:"companies_al_dia"`
+	CompaniesPendiente      int64   `json:"companies_pendiente"`
+	CompaniesVencido        int64   `json:"companies_vencido"`
+	CompaniesWithoutControl int64   `json:"companies_without_control"`
+	ControlsAlDia           int64   `json:"controls_al_dia"`
+	ControlsPendiente       int64   `json:"controls_pendiente"`
+	ControlsVencido         int64   `json:"controls_vencido"`
+	ControlsObservado       int64   `json:"controls_observado"`
+	ControlsCerrado         int64   `json:"controls_cerrado"`
+	DeclarationsObserved    int64   `json:"declarations_observed"`
+	MonthlyCompliancePct    float64 `json:"monthly_compliance_pct"`
 	// ComplianceBreakdown desglose en vivo de 5 categorías (§5.9.3) detrás de MonthlyCompliancePct —
 	// alimenta el donut "Distribución por estado" rediseñado. Etapa 1: solo PDT 601/621 +
 	// Detracciones (§5.9.5) — Buzón SOL se suma en la etapa 2.
-	ComplianceBreakdown     ComplianceSummary           `json:"compliance_breakdown"`
-	ByStatus                map[string]int64            `json:"by_status"`
-	Alerts                  []SupervisorAlert           `json:"alerts"`
-	Productivity            []SupervisorProductivityRow `json:"productivity"`
+	ComplianceBreakdown ComplianceSummary           `json:"compliance_breakdown"`
+	ByStatus            map[string]int64            `json:"by_status"`
+	Alerts              []SupervisorAlert           `json:"alerts"`
+	Productivity        []SupervisorProductivityRow `json:"productivity"`
 }
 
 type SupervisorBootstrapResult struct {
@@ -263,7 +263,7 @@ func (s *SupervisorService) dashboardControlsQuery(p SupervisorDashboardParams) 
 	// arrastrar un control viejo sin cerrar y aparecer contada en "Vencidas" aunque ya no fuera
 	// cliente activo, inflando ese número por encima del total de activas (confirmado en producción:
 	// 286 vencidas vs 272 activas). Si se reactiva una empresa, vuelve a entrar acá sola.
-	activeCompanyIDs := database.DB.Model(&models.Company{}).Select("id").Where("status = ?", "activo")
+	activeCompanyIDs := database.DB.Model(&models.Company{}).Select("id").Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo")
 	q := database.DB.Model(&models.SupervisorMonthlyControl{}).
 		Where("period_ym = ?", p.PeriodYM).
 		Where("company_id IN (?)", activeCompanyIDs)
@@ -292,7 +292,7 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	_, _ = s.SyncOverdueControls(p.PeriodYM, p.AllowedCompanyIDs)
 	out := &SupervisorDashboard{ByStatus: map[string]int64{}, Alerts: []SupervisorAlert{}}
 
-	qCompanies := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
+	qCompanies := database.DB.Model(&models.Company{}).Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo")
 	if p.AllowedCompanyIDs != nil {
 		qCompanies = qCompanies.Where("id IN ?", p.AllowedCompanyIDs)
 	}
@@ -342,7 +342,7 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 		// en el control que no tiene todavía) — el conjunto es vacío por definición.
 		out.CompaniesWithoutControl = 0
 	} else {
-		qMissing := database.DB.Model(&models.Company{}).Where("status = ?", "activo")
+		qMissing := database.DB.Model(&models.Company{}).Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo")
 		if p.AllowedCompanyIDs != nil {
 			qMissing = qMissing.Where("id IN ?", p.AllowedCompanyIDs)
 		}
@@ -501,8 +501,8 @@ func pdtBucketConditions(periodYM string) map[string]string {
 		"completado":               notExempt + " AND d.status IN " + completadoStatuses,
 		"vencido":                  notExempt + " AND d.status NOT IN " + completadoStatuses + " AND " + isVencidoAbierto,
 		"pendiente":                notExempt + " AND d.status NOT IN " + completadoStatuses + " AND NOT " + isVencidoAbierto,
-		"entregado_a_tiempo":       isEntregadoATiempo,
-		"entregado_fuera_de_fecha": isEntregadoFueraDeFecha,
+		"entregado_a_tiempo":       notExempt + " AND " + isEntregadoATiempo,
+		"entregado_fuera_de_fecha": notExempt + " AND " + isEntregadoFueraDeFecha,
 	}
 }
 
@@ -583,7 +583,7 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		Where("c.period_ym = ? AND d.declaration_type IN ?", p.PeriodYM, []string{models.SupervisorDeclPDT601, models.SupervisorDeclPDT621}).
 		// Mismo criterio que dashboardControlsQuery: sin esto, una empresa desactivada con un
 		// control viejo sin cerrar seguía sumando en Pendiente/Vencido/etc. de este resumen.
-		Where("c.company_id IN (?)", database.DB.Model(&models.Company{}).Select("id").Where("status = ?", "activo"))
+		Where("c.company_id IN (?)", database.DB.Model(&models.Company{}).Select("id").Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo"))
 
 	if p.CompanyID > 0 {
 		q = q.Where("c.company_id = ?", p.CompanyID)
@@ -1617,14 +1617,14 @@ func notifyUserIDForControl(ctrl *models.SupervisorMonthlyControl) uint {
 // ---- Reports ----
 
 type SupervisorReportRow struct {
-	CompanyName     string  `json:"company_name"`
-	CompanyRUC      string  `json:"company_ruc"`
-	PeriodYM        string  `json:"period_ym"`
-	GeneralStatus   string  `json:"general_status"`
-	RiskLevel       string  `json:"risk_level"`
-	CompliancePct   float64 `json:"compliance_pct"`
-	TotalPagar      float64 `json:"total_pagar"`
-	ControlID       uint    `json:"control_id,omitempty"`
+	CompanyName   string  `json:"company_name"`
+	CompanyRUC    string  `json:"company_ruc"`
+	PeriodYM      string  `json:"period_ym"`
+	GeneralStatus string  `json:"general_status"`
+	RiskLevel     string  `json:"risk_level"`
+	CompliancePct float64 `json:"compliance_pct"`
+	TotalPagar    float64 `json:"total_pagar"`
+	ControlID     uint    `json:"control_id,omitempty"`
 }
 
 type SupervisorReportListParams struct {

@@ -205,64 +205,24 @@ func (s *SupervisorService) DetraccionesDashboardSummary(p SupervisorDashboardPa
 	return cs, nil
 }
 
-// MonthlyComplianceSummary combina PDT 601 + PDT 621 + Detracciones + Buzón SOL en un solo
-// ComplianceSummary de 5 categorías — **etapa 2** de §5.9.5/§5.9.6.5 (Buzón SOL ya sumado: su
-// calendario quedó retipeado y con actividades reales, §5.9.6.5). Reemplaza el uso de general_status
-// en Dashboard/ComplianceTrend/SupervisorComplianceRanking. El rótulo del dashboard debe decir
-// "Cumplimiento (PDT 601/621, Detracciones, Buzón SOL)".
-//
-// Si un período todavía no tiene el calendario de Buzón SOL retipeado/configurado,
-// SunatInboxDashboardSummary devuelve un ComplianceSummary vacío (ni suma ni resta) — no hace falta
-// ninguna condición especial acá, sumar un summary vacío es un no-op.
+// MonthlyComplianceSummary el cumplimiento del periodo para el alcance y los filtros dados. Sale de la MISMA lista de tareas
+// que el panel del asistente (supervisor_compliance_unified.go): PDT 601, PDT 621 · Declaración, Estado cta. detracciones y
+// Buzón SOL, con las 5 categorías de §5.9.3 (a tiempo, fuera de plazo, vencido, pendiente y no aplica).
 func (s *SupervisorService) MonthlyComplianceSummary(p SupervisorDashboardParams) (ComplianceSummary, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return ComplianceSummary{}, errors.New("período inválido (use YYYY-MM)")
 	}
-
-	var cs ComplianceSummary
-
-	pdt, err := s.PdtDashboardSummary(p)
+	scope, err := s.dashboardScopeCompanies(p)
 	if err != nil {
 		return ComplianceSummary{}, err
 	}
-	cs.addSummary(complianceSummaryFromPdt(pdt[models.SupervisorDeclPDT601]))
-	cs.addSummary(complianceSummaryFromPdt(pdt[models.SupervisorDeclPDT621]))
-
-	det, err := s.DetraccionesDashboardSummary(p)
+	if len(scope) == 0 {
+		return ComplianceSummary{}, nil
+	}
+	sc, err := s.studioComplianceFor(p.PeriodYM)
 	if err != nil {
 		return ComplianceSummary{}, err
 	}
-	cs.addSummary(det)
-
-	mailbox, err := s.SunatInboxDashboardSummary(p)
-	if err != nil {
-		return ComplianceSummary{}, err
-	}
-	cs.addSummary(mailbox)
-
-	cs.finalize()
-	return cs, nil
-}
-
-// assistantComplianceSummary cumplimiento del panel del asistente: los mismos módulos que su lista de
-// trabajo (PDT 601/621, Detracciones, Informe detracciones, Siscont balances) más Buzón SOL, que
-// cuenta aparte porque es una obligación recurrente. Así "Mi cumplimiento", "Mis módulos" y la
-// tendencia hablan del mismo conjunto, más Preliminar de ventas (dos entregas por mes, solo si el
-// calendario del período las define). Informe/Siscont aportan su veredicto de puntualidad por empresa
-// (sin regla de plazo quedan en "exento o no aplica", sin afectar el %).
-func (s *SupervisorService) assistantComplianceSummary(p SupervisorDashboardParams, companies []models.Company) (ComplianceSummary, error) {
-	cs, err := s.MonthlyComplianceSummary(p)
-	if err != nil {
-		return ComplianceSummary{}, err
-	}
-	for _, mod := range []PdfReportModule{PdfReportInformeDetracciones, PdfReportSiscontBalances} {
-		for _, r := range s.pdfReportBuildRows(mod, companies, p.PeriodYM) {
-			cs.addTimeliness(r.Timeliness)
-		}
-	}
-	for _, w := range s.preliminarVentasSlotWork(companies, p.PeriodYM) {
-		cs.addTimeliness(w.Timeliness.Timeliness)
-	}
-	cs.finalize()
+	cs, _ := sc.summaryFor(companyIDSet(scope))
 	return cs, nil
 }

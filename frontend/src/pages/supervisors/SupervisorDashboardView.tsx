@@ -248,9 +248,11 @@ const SupervisorDashboardView = () => {
     : [];
 
   const modules: DashboardModuleRow[] = overview?.modules ?? [];
-  const moduleSlices: DonutSlice[] = modules.map((m, i) => ({ label: m.label, value: m.sin_completar, color: MODULE_COLORS[i % MODULE_COLORS.length] }));
-  const modulesTotal = modules.reduce((a, m) => a + m.sin_completar, 0);
-  const sumMod = (k: 'pendiente' | 'observado' | 'vencido' | 'a_tiempo' | 'fuera_fecha' | 'total') => modules.reduce((a, m) => a + m[k], 0);
+  // Solo los módulos que cuentan en el cumplimiento general entran en el total y en la dona; los demás se muestran aparte.
+  const countedModules = modules.filter((m) => m.counts);
+  const moduleSlices: DonutSlice[] = countedModules.map((m, i) => ({ label: m.label, value: m.sin_completar, color: MODULE_COLORS[i % MODULE_COLORS.length] }));
+  const modulesTotal = countedModules.reduce((a, m) => a + m.sin_completar, 0);
+  const sumMod = (k: 'pendiente' | 'observado' | 'vencido' | 'a_tiempo' | 'fuera_fecha' | 'total') => countedModules.reduce((a, m) => a + m[k], 0);
 
   const bySup = overview?.by_supervisor ?? [];
   const byAssist = overview?.by_assistant ?? [];
@@ -583,8 +585,11 @@ const SupervisorDashboardView = () => {
                           <tr><td colSpan={7} className="py-6 text-center text-slate-500">{overviewLoading ? "Cargando…" : "Sin datos para este alcance."}</td></tr>
                         ) : null}
                         {modules.map((m) => (
-                          <tr key={m.key} className="border-b border-[#EAF1ED] text-center">
-                            <th scope="row" className="px-[6px] py-[7px] text-left font-bold">{m.label}</th>
+                          <tr key={m.key} className={`border-b border-[#EAF1ED] text-center ${m.counts ? '' : 'opacity-55'}`}>
+                            <th scope="row" className="px-[6px] py-[7px] text-left font-bold">
+                              {m.label}
+                              {!m.counts ? <span className="ml-1.5 rounded bg-slate-100 px-[5px] py-px text-[9px] font-bold uppercase text-slate-500" title="Se muestra pero no entra en el cumplimiento general">no cuenta</span> : null}
+                            </th>
                             <td className="px-[3px] py-[7px] font-bold text-amber-700">{m.pendiente}</td>
                             <td className="px-[3px] py-[7px] font-bold text-orange-700">{m.observado}</td>
                             <td className="px-[3px] py-[7px] font-bold text-red-700">{m.vencido}</td>
@@ -594,7 +599,7 @@ const SupervisorDashboardView = () => {
                           </tr>
                         ))}
                         <tr className="bg-[#F6FAF8] text-center font-extrabold">
-                          <th scope="row" className="px-[6px] py-2 text-left">Total</th>
+                          <th scope="row" className="px-[6px] py-2 text-left" title="Suma de los módulos que cuentan en el cumplimiento general">Total</th>
                           <td className="px-[3px] py-2">{sumMod('pendiente')}</td>
                           <td className="px-[3px] py-2">{sumMod('observado')}</td>
                           <td className="px-[3px] py-2">{sumMod('vencido')}</td>
@@ -605,6 +610,11 @@ const SupervisorDashboardView = () => {
                       </tbody>
                     </table>
                   </div>
+                  {modules.some((m) => !m.counts) ? (
+                    <p className="mb-0 mt-2 text-[10.5px] text-slate-500">
+                      «No cuenta»: se muestra pero no entra en el total ni en el cumplimiento general. Pend. incluye lo ya entregado que espera revisión; Obs. lo que el supervisor observó.
+                    </p>
+                  ) : null}
                 </div>
               </Card>
             </div>

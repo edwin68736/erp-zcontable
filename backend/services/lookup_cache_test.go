@@ -13,6 +13,8 @@ import (
 func init() {
 	lookupCacheTTL = 0
 	trendCacheTTL = 0
+	complianceCacheTTL = 0
+	complianceCacheTTLPast = 0
 }
 
 func withLookupCache(t *testing.T, ttl time.Duration) {

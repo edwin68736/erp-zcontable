@@ -37,6 +37,9 @@ type DashboardModuleRow struct {
 	FueraFecha  int64  `json:"fuera_fecha"`
 	Total       int64  `json:"total"`
 	SinCompleta int64  `json:"sin_completar"`
+	// Counts si el módulo entra en el cumplimiento general; Owner quién es el responsable (asistente | supervisor).
+	Counts bool   `json:"counts"`
+	Owner  string `json:"owner,omitempty"`
 }
 
 type DashboardReviewItem struct {
@@ -163,50 +166,6 @@ func (s *SupervisorService) userNames(ids []uint) map[uint]string {
 	return out
 }
 
-func moduleRowFromCompliance(key, label string, cs ComplianceSummary) DashboardModuleRow {
-	row := DashboardModuleRow{Key: key, Label: label, Pendiente: cs.Pending, Vencido: cs.Missing, ATiempo: cs.OnTime, FueraFecha: cs.Late}
-	row.Total = cs.Total - cs.Exempt
-	row.SinCompleta = row.Pendiente + row.Observado + row.Vencido
-	return row
-}
-
-func moduleRowFromPdt(key, label string, t PdtTypeSummary) DashboardModuleRow {
-	row := DashboardModuleRow{Key: key, Label: label, Pendiente: t.Pendiente, Observado: t.Observado, Vencido: t.Vencido,
-		ATiempo: t.EntregadoATiempo, FueraFecha: t.EntregadoFueraDeFecha}
-	row.Total = t.Total - t.SinPlanilla - t.Suspendida
-	row.SinCompleta = row.Pendiente + row.Observado + row.Vencido
-	return row
-}
-
-// moduleRowFromPdf clasifica un módulo de informe en PDF (una fila por empresa) con las mismas
-// categorías que PDT: completado (entregado) = a tiempo / fuera de fecha; observado; vencido = sin
-// entregar y fuera de plazo; el resto, pendiente. Suspendida queda fuera del total.
-func moduleRowFromPdf(mod PdfReportModule, rows []PdfReportListRow) DashboardModuleRow {
-	out := DashboardModuleRow{Key: mod.DeclType, Label: mod.Label}
-	for _, r := range rows {
-		if r.Suspendida {
-			continue
-		}
-		out.Total++
-		switch {
-		case r.Status == models.SupervisorDeclEntregado && r.Timeliness == TimelinessLate:
-			out.FueraFecha++
-		case r.Status == models.SupervisorDeclEntregado:
-			out.ATiempo++
-		case r.Status == models.SupervisorDeclObservado:
-			out.Observado++
-		case r.Status == models.SupervisorDeclPorRevisar:
-			out.Pendiente++
-		case r.Timeliness == TimelinessMissing:
-			out.Vencido++
-		default:
-			out.Pendiente++
-		}
-	}
-	out.SinCompleta = out.Pendiente + out.Observado + out.Vencido
-	return out
-}
-
 // DashboardOverview arma todo el panel de una vez. Quien llama define el alcance en
 // p.AllowedCompanyIDs (nil = estudio completo) y `studio` indica si el usuario tiene ese alcance.
 func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studio bool) (*DashboardOverview, error) {
@@ -263,22 +222,13 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 	}
 
 	var (
-		reviewRows               []reviewRowTmp
-		pdtSum                   map[string]PdtTypeSummary
-		detSum, mailboxSum       ComplianceSummary
-		informeRows, siscontRows []PdfReportListRow
-		trend, studioTrend       []ComplianceTrendPoint
-		upcoming                 []DashboardUpcoming
+		reviewRows         []reviewRowTmp
+		trend, studioTrend []ComplianceTrendPoint
+		upcoming           []DashboardUpcoming
+		studio601          *studioCompliance
 	)
 	supIDs := sortedKeys(bySupervisor)
 	assistIDs := sortedKeys(byAssistant)
-	supSummaries := make([]ComplianceSummary, len(supIDs))
-	assistSummaries := make([]ComplianceSummary, len(assistIDs))
-	entity := func(companyIDs []uint) (ComplianceSummary, error) {
-		scoped := p
-		scoped.AllowedCompanyIDs = companyIDs
-		return s.MonthlyComplianceSummary(scoped)
-	}
 
 	tasks := []func() error{
 		func() (err error) { reviewRows, err = s.fillDashboardReview(p, ids, supOf, out); return },
@@ -286,19 +236,9 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 		func() error { upcoming = s.dashboardUpcoming(p.PeriodYM, companies); return nil },
 	}
 	if len(ids) > 0 {
-		tasks = append(tasks,
-			func() (err error) { pdtSum, err = s.PdtDashboardSummary(p); return },
-			func() (err error) { detSum, err = s.DetraccionesDashboardSummary(p); return },
-			func() (err error) { mailboxSum, err = s.SunatInboxDashboardSummary(p); return },
-			func() error {
-				informeRows = s.pdfReportBuildRows(PdfReportInformeDetracciones, companies, p.PeriodYM)
-				return nil
-			},
-			func() error {
-				siscontRows = s.pdfReportBuildRows(PdfReportSiscontBalances, companies, p.PeriodYM)
-				return nil
-			},
-		)
+		// Una sola construcción de las tareas del periodo alimenta el cuadro por módulo y el cumplimiento de cada supervisor
+		// y de cada asistente: así todo cuadra con el cumplimiento general y con el panel del asistente.
+		tasks = append(tasks, func() (err error) { studio601, err = s.studioComplianceFor(p.PeriodYM); return })
 	}
 	if !studio {
 		// Referencia agregada del estudio para quien solo ve su cartera (nunca desglosada).
@@ -310,27 +250,23 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 			return nil
 		})
 	}
-	for i, id := range supIDs {
-		i, id := i, id
-		tasks = append(tasks, func() (err error) { supSummaries[i], err = entity(bySupervisor[id]); return })
-	}
-	for i, id := range assistIDs {
-		i, id := i, id
-		tasks = append(tasks, func() (err error) { assistSummaries[i], err = entity(byAssistant[id]); return })
-	}
 	if err := runParallel(8, tasks); err != nil {
 		return nil, err
 	}
 
-	if len(ids) > 0 {
-		out.Modules = append(out.Modules,
-			moduleRowFromPdt(models.SupervisorDeclPDT601, "PDT 601", pdtSum[models.SupervisorDeclPDT601]),
-			moduleRowFromPdt(models.SupervisorDeclPDT621, "PDT 621", pdtSum[models.SupervisorDeclPDT621]),
-			moduleRowFromCompliance(models.SupervisorDeclDetracciones, "Estado cta. detracciones", detSum),
-			moduleRowFromCompliance(models.SupervisorDeclSunatInbox, "Buzón SOL", mailboxSum),
-			moduleRowFromPdf(PdfReportInformeDetracciones, informeRows),
-			moduleRowFromPdf(PdfReportSiscontBalances, siscontRows),
-		)
+	supSummaries := make([]ComplianceSummary, len(supIDs))
+	assistSummaries := make([]ComplianceSummary, len(assistIDs))
+	if studio601 != nil {
+		out.Modules = []DashboardModuleRow{}
+		if _, rows := studio601.summaryFor(idSet(ids)); rows != nil {
+			out.Modules = rows
+		}
+		for i, id := range supIDs {
+			supSummaries[i], _ = studio601.summaryFor(idSet(bySupervisor[id]))
+		}
+		for i, id := range assistIDs {
+			assistSummaries[i], _ = studio601.summaryFor(idSet(byAssistant[id]))
+		}
 	}
 
 	reviewBySup := map[uint]int64{}

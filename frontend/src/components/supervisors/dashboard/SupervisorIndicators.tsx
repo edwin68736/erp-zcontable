@@ -404,7 +404,7 @@ const SupervisorIndicatorsPanel = ({ params, reloadKey = 0 }: Props) => {
               </Section>
             ) : null}
             {k4 ? (
-              <Section title="KPI 4: Declaraciones dentro de plazo por RUC" hint="Fecha de declaración PDT 621 frente al cronograma SUNAT de cada dígito.">
+              <Section title="KPI 4: Declaraciones dentro de plazo por RUC" hint="Fecha de declaración PDT 621 frente a la fecha límite del calendario del estudio para cada dígito de RUC.">
                 <DigitTable kpi={k4} okHeader="Dentro de plazo" />
               </Section>
             ) : null}
