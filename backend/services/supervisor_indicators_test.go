@@ -106,7 +106,7 @@ func TestSupervisorIndicators_ScopePerSupervisorAndDigits(t *testing.T) {
 }
 
 func TestIndicatorDigitAcc(t *testing.T) {
-	a := newIndicatorDigitAcc()
+	a := newIndicatorDigitAcc(true)
 	a.addTimeliness("7", TimelinessOnTime)
 	a.addTimeliness(" 7 ", TimelinessLate)
 	a.addTimeliness("7", TimelinessMissing)
@@ -115,11 +115,29 @@ func TestIndicatorDigitAcc(t *testing.T) {
 	a.addTimeliness("", TimelinessOnTime)  // sin dígito: cuenta en el total, no en las filas por dígito
 	a.addTimeliness("x", TimelinessOnTime)
 	k := a.kpi("x", "X", 95)
-	if k.Total.Total != 6 || k.Total.OnTime != 3 || k.Total.Late != 1 || k.Total.Missing != 1 || k.Total.Pending != 1 || k.Total.RatePct != 50 || k.NoDigit != 2 {
+	// Lo que aún no vence (1 pendiente) no entra en el denominador: 3 a tiempo ÷ (3 + 1 fuera de plazo + 1 vencida) = 60 %.
+	if k.Total.Total != 6 || k.Total.OnTime != 3 || k.Total.Late != 1 || k.Total.Missing != 1 || k.Total.Pending != 1 || k.Total.Due != 5 || k.Total.RatePct != 60 || k.NoDigit != 2 {
 		t.Fatalf("total = %+v", k.Total)
 	}
-	if k.ByDigit[7].Total != 4 || k.ByDigit[0].Total != 0 {
+	if k.ByDigit[7].Total != 4 || k.ByDigit[7].Due != 3 || k.ByDigit[0].Total != 0 {
 		t.Fatalf("por dígito = %+v", k.ByDigit)
+	}
+
+	// Un dígito cuyo plazo aún no llega no tiene nada medible: sin tasa (0 de 0), no «0 %» sobre lo pendiente.
+	early := newIndicatorDigitAcc(true)
+	early.addTimeliness("5", TimelinessPending)
+	early.addTimeliness("5", TimelinessPending)
+	ek := early.kpi("x", "X", 95)
+	if ek.ByDigit[5].Total != 2 || ek.ByDigit[5].Due != 0 || ek.ByDigit[5].Pending != 2 {
+		t.Fatalf("dígito sin vencer = %+v", ek.ByDigit[5])
+	}
+
+	// El KPI de balances (sin useDue) sigue siendo «revisados ÷ los que aplican».
+	bal := newIndicatorDigitAcc(false)
+	bal.addReviewStatus("1", models.SupervisorDeclEntregado)
+	bal.addReviewStatus("1", models.SupervisorDeclPendiente)
+	if bk := bal.kpi("b", "B", 100); bk.Total.RatePct != 50 {
+		t.Fatalf("balances = %+v", bk.Total)
 	}
 }
 

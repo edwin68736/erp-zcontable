@@ -48,7 +48,9 @@ type AssistantProgress struct {
 	Pending       int64 `json:"pending"`
 	Overdue       int64 `json:"overdue"`
 	Observed      int64 `json:"observed"`
-	NotApplicable int64 `json:"not_applicable"`
+	// ObservedOverdue de las observadas, las que ya pasaron su plazo (cuentan como vencidas en el cumplimiento).
+	ObservedOverdue int64 `json:"observed_overdue,omitempty"`
+	NotApplicable   int64 `json:"not_applicable"`
 	// Pct avance = completadas ÷ tareas que aplican, con un decimal.
 	Pct float64 `json:"pct"`
 }
@@ -89,6 +91,7 @@ func (p *AssistantProgress) merge(o AssistantProgress) {
 	p.Pending += o.Pending
 	p.Overdue += o.Overdue
 	p.Observed += o.Observed
+	p.ObservedOverdue += o.ObservedOverdue
 	p.NotApplicable += o.NotApplicable
 }
 
@@ -317,6 +320,10 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		m.add(state, onTime)
 		acc.addDigit(key, ruc, state, onTime)
 		acc.company(key, companyID).add(state, onTime)
+		if state == assistantTaskObserved && due != nil && due.Before(today) {
+			m.ObservedOverdue++
+			acc.company(key, companyID).ObservedOverdue++
+		}
 		if state == assistantTaskDone || !wantWork {
 			return nil
 		}

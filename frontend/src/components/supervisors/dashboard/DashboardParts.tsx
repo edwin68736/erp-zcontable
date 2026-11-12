@@ -162,7 +162,7 @@ export function ColumnsLegend() {
   );
 }
 
-export type TrendPoint = { label: string; value: number };
+export type TrendPoint = { label: string; value: number | null };
 
 /** Área de tendencia (alto fijo 168 px): línea y área en SVG sin texto; puntos, valores y meses en
  * HTML, así los números siempre se ven nítidos. `compare` dibuja una segunda línea punteada. */
@@ -171,8 +171,20 @@ export function TrendArea({ points, compare }: { points: TrendPoint[]; compare?:
   const n = Math.max(points.length, 1);
   const X = (i: number) => ((i + 0.5) / n) * 100;
   const Y = (v: number) => Math.max(0, Math.min(100, 100 - (v / MAX) * 100));
-  const line = points.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(2)} ${Y(p.value).toFixed(2)}`).join(' ');
-  const area = points.length ? `${line} L${X(points.length - 1).toFixed(2)} 100 L${X(0).toFixed(2)} 100 Z` : '';
+  // Un mes sin datos no es 0 %: corta la línea y se marca «sin datos».
+  let line = '';
+  let drawing = false;
+  points.forEach((p, i) => {
+    if (p.value === null) {
+      drawing = false;
+      return;
+    }
+    line += `${drawing ? 'L' : 'M'}${X(i).toFixed(2)} ${Y(p.value).toFixed(2)} `;
+    drawing = true;
+  });
+  line = line.trim();
+  const noGaps = points.every((p) => p.value !== null);
+  const area = points.length && noGaps ? `${line} L${X(points.length - 1).toFixed(2)} 100 L${X(0).toFixed(2)} 100 Z` : '';
   const cmp = compare && compare.length ? compare.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(2)} ${Y(v).toFixed(2)}`).join(' ') : '';
   return (
     <div className="relative h-[168px] pb-5 pl-[30px] pr-[6px] pt-3">
@@ -196,6 +208,13 @@ export function TrendArea({ points, compare }: { points: TrendPoint[]; compare?:
         </svg>
         {points.map((p, i) => {
           const last = i === points.length - 1;
+          if (p.value === null) {
+            return (
+              <div key={`${p.label}-${i}`} className="absolute whitespace-nowrap text-[9.5px] font-semibold text-slate-400" style={{ left: `${X(i)}%`, top: '100%', transform: 'translate(-50%,-160%)' }}>
+                sin datos
+              </div>
+            );
+          }
           return (
             <div key={`${p.label}-${i}`}>
               <div

@@ -40,6 +40,10 @@ type DashboardModuleRow struct {
 	// Counts si el módulo entra en el cumplimiento general; Owner quién es el responsable (asistente | supervisor).
 	Counts bool   `json:"counts"`
 	Owner  string `json:"owner,omitempty"`
+	// Group el indicador al que pertenece: tributario (el titular) u operativo. Unused: nadie lo entrega todavía en el estudio y no
+	// cuenta en ninguno.
+	Group  string `json:"group"`
+	Unused bool   `json:"unused,omitempty"`
 }
 
 type DashboardReviewItem struct {
@@ -68,7 +72,9 @@ type DashboardEntityRow struct {
 	Companies      int64             `json:"companies"`
 	Assistants     int64             `json:"assistants,omitempty"`
 	Compliance     ComplianceSummary `json:"compliance"`
-	Review         int64             `json:"review"`
+	// Operational el cumplimiento operativo de esta persona (el de arriba es el tributario).
+	Operational ComplianceSummary `json:"operational"`
+	Review      int64             `json:"review"`
 }
 
 type DashboardUpcoming struct {
@@ -254,18 +260,15 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 		return nil, err
 	}
 
-	supSummaries := make([]ComplianceSummary, len(supIDs))
-	assistSummaries := make([]ComplianceSummary, len(assistIDs))
+	supSummaries := make([]complianceBoth, len(supIDs))
+	assistSummaries := make([]complianceBoth, len(assistIDs))
 	if studio601 != nil {
-		out.Modules = []DashboardModuleRow{}
-		if _, rows := studio601.summaryFor(idSet(ids)); rows != nil {
-			out.Modules = rows
-		}
+		out.Modules = studio601.summaryFor(idSet(ids)).Rows
 		for i, id := range supIDs {
-			supSummaries[i], _ = studio601.summaryFor(idSet(bySupervisor[id]))
+			supSummaries[i] = studio601.summaryFor(idSet(bySupervisor[id]))
 		}
 		for i, id := range assistIDs {
-			assistSummaries[i], _ = studio601.summaryFor(idSet(byAssistant[id]))
+			assistSummaries[i] = studio601.summaryFor(idSet(byAssistant[id]))
 		}
 	}
 
@@ -278,14 +281,14 @@ func (s *SupervisorService) DashboardOverview(p SupervisorDashboardParams, studi
 	for i, id := range supIDs {
 		out.BySupervisor = append(out.BySupervisor, DashboardEntityRow{
 			UserID: id, Name: names[id], Companies: int64(len(bySupervisor[id])),
-			Assistants: int64(len(assistantsOfSup[id])), Compliance: supSummaries[i], Review: reviewBySup[id],
+			Assistants: int64(len(assistantsOfSup[id])), Compliance: supSummaries[i].Tax, Operational: supSummaries[i].Ops, Review: reviewBySup[id],
 		})
 	}
 	sort.Slice(out.BySupervisor, func(i, j int) bool { return out.BySupervisor[i].Name < out.BySupervisor[j].Name })
 	for i, id := range assistIDs {
 		out.ByAssistant = append(out.ByAssistant, DashboardEntityRow{
 			UserID: id, Name: names[id], SupervisorName: names[supervisorOfAssistant[id]],
-			Companies: int64(len(byAssistant[id])), Compliance: assistSummaries[i], Review: reviewByAssistant[id],
+			Companies: int64(len(byAssistant[id])), Compliance: assistSummaries[i].Tax, Operational: assistSummaries[i].Ops, Review: reviewByAssistant[id],
 		})
 	}
 	sort.Slice(out.ByAssistant, func(i, j int) bool { return out.ByAssistant[i].Name < out.ByAssistant[j].Name })

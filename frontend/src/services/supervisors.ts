@@ -115,6 +115,9 @@ export interface SupervisorDashboardData {
   declarations_observed: number;
   monthly_compliance_pct: number;
   compliance_breakdown: ComplianceSummary;
+  /** Cumplimiento operativo (Buzón SOL, archivador, Preliminar de ventas, informe y balances); el de arriba es el tributario. */
+  operational_compliance_pct?: number;
+  operational_breakdown?: ComplianceSummary;
   by_status: Record<string, number>;
   alerts?: SupervisorAlert[];
   productivity?: SupervisorProductivityRow[];
@@ -571,6 +574,10 @@ export interface ComplianceTrendPoint {
   missing?: number;
   pending?: number;
   exempt?: number;
+  /** El mes tiene algo medido; si no, se muestra «sin datos» y no 0 %. */
+  has_data?: boolean;
+  operational_pct?: number;
+  operational_has_data?: boolean;
 }
 
 /** Datos del dashboard rediseñado (GET /supervisors/dashboard/overview). */
@@ -591,8 +598,11 @@ export interface DashboardModuleRow {
   fuera_fecha: number;
   total: number;
   sin_completar: number;
-  /** Si el módulo entra en el cumplimiento general (los demás se muestran pero no cuentan). */
+  /** Si el módulo entra en el cumplimiento de su grupo (false = «sin uso»: nadie lo entrega todavía). */
   counts: boolean;
+  /** Indicador al que pertenece: el tributario (titular) o el operativo. */
+  group: 'tributario' | 'operativo';
+  unused?: boolean;
   owner?: 'asistente' | 'supervisor';
 }
 export interface DashboardReviewItem {
@@ -607,6 +617,8 @@ export interface DashboardReviewItem {
   timeliness: string;
 }
 export interface DashboardEntityRow {
+  /** Cumplimiento operativo de esta persona (`compliance` es el tributario). */
+  operational?: ComplianceSummary;
   user_id: number;
   name: string;
   supervisor_name?: string;
@@ -763,12 +775,16 @@ export interface IndicatorDigit {
   late: number;
   missing: number;
   pending: number;
+  /** Lo ya medible: a tiempo + fuera de plazo + vencidas (sin lo que aún no vence). */
+  due?: number;
   observed?: number;
   in_review?: number;
   rate_pct: number;
 }
 
 export interface IndicatorKpi {
+  /** Nadie del estudio lo entrega todavía: se muestra «aún no se usa» en vez de 0 %. */
+  unused?: boolean;
   key: 'planillas' | 'archivadores' | 'declaraciones' | 'balances';
   label: string;
   meta_pct: number;

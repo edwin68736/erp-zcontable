@@ -22,15 +22,19 @@ import (
 //	Buzones                         SUNAT / SUNAFIL por asistente: a tiempo, pendientes, fuera de plazo.
 //
 // KPI 1 (tiempo de primera respuesta) no se calcula: el sistema no registra ese dato.
-// Cada tasa es "a tiempo / total" del conjunto (no un promedio de las tasas por dígito).
+// Cada tasa es "a tiempo / vencidas o ya entregadas" del conjunto (no un promedio de las tasas por dígito): lo que aún no vence
+// NO entra en el denominador (se muestra aparte como «por vencer»), igual que en el cumplimiento general. Así a mitad de mes un
+// dígito cuyo plazo todavía no llega no figura con 0 %. El KPI 5 (revisión de balances) es la excepción: es a tiempo ÷ los que aplican.
 
 type IndicatorDigit struct {
-	Dig      string  `json:"dig"`
-	Total    int64   `json:"total"`
-	OnTime   int64   `json:"on_time"` // a tiempo (KPI 2-4) o revisado/entregado (KPI 5)
-	Late     int64   `json:"late"`
-	Missing  int64   `json:"missing"`
-	Pending  int64   `json:"pending"`
+	Dig     string `json:"dig"`
+	Total   int64  `json:"total"`
+	OnTime  int64  `json:"on_time"` // a tiempo (KPI 2-4) o revisado/entregado (KPI 5)
+	Late    int64  `json:"late"`
+	Missing int64  `json:"missing"`
+	Pending int64  `json:"pending"`
+	// Due lo que ya se puede medir: a tiempo + fuera de plazo + vencidas (sin lo que aún no vence).
+	Due      int64   `json:"due"`
 	Observed int64   `json:"observed,omitempty"`
 	InReview int64   `json:"in_review,omitempty"`
 	RatePct  float64 `json:"rate_pct"`
@@ -44,6 +48,8 @@ type IndicatorKpi struct {
 	ByDigit []IndicatorDigit `json:"by_digit"`
 	// NoDigit empresas incluidas en `total` que no tienen dígito de RUC y por eso no aparecen en `by_digit`.
 	NoDigit int64 `json:"no_digit,omitempty"`
+	// Unused nadie del estudio lo entrega todavía (Siscont balances): se muestra «aún no se usa» en vez de 0 %.
+	Unused bool `json:"unused,omitempty"`
 }
 
 type IndicatorMailboxRow struct {
@@ -66,14 +72,16 @@ type SupervisorIndicators struct {
 
 // indicatorDigitAcc acumula los 10 dígitos de un KPI.
 type indicatorDigitAcc struct {
-	byDig map[string]*IndicatorDigit
+	// useDue la tasa se calcula sobre lo ya medible (a tiempo + fuera de plazo + vencidas); si no, sobre el total.
+	useDue bool
+	byDig  map[string]*IndicatorDigit
 	// noDig empresas sin dígito de RUC numérico en sus claves: cuentan en el total del KPI (para que
 	// coincida con los módulos) pero no caen en ninguna fila de las tablas por dígito.
 	noDig IndicatorDigit
 }
 
-func newIndicatorDigitAcc() *indicatorDigitAcc {
-	a := &indicatorDigitAcc{byDig: map[string]*IndicatorDigit{}}
+func newIndicatorDigitAcc(useDue bool) *indicatorDigitAcc {
+	a := &indicatorDigitAcc{useDue: useDue, byDig: map[string]*IndicatorDigit{}}
 	for d := '0'; d <= '9'; d++ {
 		a.byDig[string(d)] = &IndicatorDigit{Dig: string(d)}
 	}
@@ -141,9 +149,16 @@ func indicatorRate(onTime, total int64) float64 {
 
 func (a *indicatorDigitAcc) kpi(key, label string, meta float64) IndicatorKpi {
 	out := IndicatorKpi{Key: key, Label: label, MetaPct: meta, ByDigit: make([]IndicatorDigit, 0, 10)}
+	rate := func(r IndicatorDigit) float64 {
+		if a.useDue {
+			return indicatorRate(r.OnTime, r.OnTime+r.Late+r.Missing)
+		}
+		return indicatorRate(r.OnTime, r.Total)
+	}
 	for d := '0'; d <= '9'; d++ {
 		row := *a.byDig[string(d)]
-		row.RatePct = indicatorRate(row.OnTime, row.Total)
+		row.Due = row.OnTime + row.Late + row.Missing
+		row.RatePct = rate(row)
 		out.ByDigit = append(out.ByDigit, row)
 		out.Total.Total += row.Total
 		out.Total.OnTime += row.OnTime
@@ -162,7 +177,8 @@ func (a *indicatorDigitAcc) kpi(key, label string, meta float64) IndicatorKpi {
 	out.Total.Observed += n.Observed
 	out.Total.InReview += n.InReview
 	out.NoDigit = n.Total
-	out.Total.RatePct = indicatorRate(out.Total.OnTime, out.Total.Total)
+	out.Total.Due = out.Total.OnTime + out.Total.Late + out.Total.Missing
+	out.Total.RatePct = rate(out.Total)
 	return out
 }
 
@@ -188,7 +204,7 @@ func (s *SupervisorService) SupervisorIndicators(p SupervisorDashboardParams) (*
 		PeriodYM: p.PeriodYM, Companies: int64(len(companies)), Supervisors: s.assistantSupervisors(companies),
 		Kpis: []IndicatorKpi{}, Mailboxes: []IndicatorMailboxRow{},
 	}
-	k2, k3, k4, k5 := newIndicatorDigitAcc(), newIndicatorDigitAcc(), newIndicatorDigitAcc(), newIndicatorDigitAcc()
+	k2, k3, k4, k5 := newIndicatorDigitAcc(true), newIndicatorDigitAcc(true), newIndicatorDigitAcc(true), newIndicatorDigitAcc(false)
 	if len(companies) == 0 {
 		out.Kpis = s.indicatorKpis(k2, k3, k4, k5)
 		return out, nil
@@ -229,6 +245,14 @@ func (s *SupervisorService) SupervisorIndicators(p SupervisorDashboardParams) (*
 		k5.addReviewStatus(r.Dig, r.Status)
 	}
 	out.Kpis = s.indicatorKpis(k2, k3, k4, k5)
+	// Siscont balances: si nadie del estudio revisa ni entrega ninguno todavía, el KPI 5 no es un 0 % sino «aún no se usa».
+	if sc, err := s.studioComplianceFor(p.PeriodYM); err == nil && sc.unused[models.SupervisorDeclSiscontBalances] {
+		for i := range out.Kpis {
+			if out.Kpis[i].Key == "balances" {
+				out.Kpis[i].Unused = true
+			}
+		}
+	}
 	return out, nil
 }
 

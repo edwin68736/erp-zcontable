@@ -18,6 +18,14 @@ type Tone = { fg: string; bg: string; label: string };
 const TONE_GOOD: Tone = { fg: '#0A7A3B', bg: '#DCF5E6', label: 'En meta' };
 const TONE_WARN: Tone = { fg: '#B45309', bg: '#FEF3C7', label: 'Cerca de la meta' };
 const TONE_BAD: Tone = { fg: '#B91C1C', bg: '#FEE2E2', label: 'Bajo la meta' };
+const TONE_NEUTRAL: Tone = { fg: '#64748B', bg: '#F1F5F9', label: 'Sin medir' };
+
+/** «117 de 138 a tiempo · 133 por vencer»: lo que ya se puede medir y, aparte, lo que aún no vence. */
+function dueText(k: IndicatorKpi | undefined, word: string): string | undefined {
+  if (!k) return undefined;
+  const due = k.total.due ?? k.total.on_time + k.total.late + k.total.missing;
+  return `${k.total.on_time} de ${due} ${word}${k.total.pending > 0 ? ` · ${k.total.pending} por vencer` : ''}`;
+}
 const TONE_NONE: Tone = { fg: '#64748B', bg: '#EEF3F0', label: 'Sin datos' };
 
 /** Verde en meta, ámbar hasta 10 puntos por debajo, rojo más abajo. */
@@ -30,8 +38,8 @@ function toneFor(rate: number, meta: number, total: number): Tone {
 
 const fmtPct = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 
-function KpiCard({ n, title, rate, meta, total, sub }: { n: number; title: string; rate: number; meta: string; total: number; sub?: string }) {
-  const tone = toneFor(rate, parseFloat(meta.replace(/[^\d.]/g, '')), total);
+function KpiCard({ n, title, rate, meta, total, sub, unused }: { n: number; title: string; rate: number; meta: string; total: number; sub?: string; unused?: boolean }) {
+  const tone = unused ? TONE_NEUTRAL : toneFor(rate, parseFloat(meta.replace(/[^\d.]/g, '')), total);
   return (
     <div className="flex min-w-[150px] flex-1 flex-col overflow-hidden rounded-2xl border border-[#DCE8E1] bg-white">
       <div className="px-3 pt-[10px] text-center">
@@ -40,12 +48,12 @@ function KpiCard({ n, title, rate, meta, total, sub }: { n: number; title: strin
       </div>
       <div className="mt-2 px-3 py-[10px] text-center" style={{ background: tone.bg }}>
         <div className="text-[30px] font-extrabold leading-none tabular-nums" style={{ color: tone.fg }}>
-          {total > 0 ? fmtPct(rate) : '—'}
+          {total > 0 && !unused ? fmtPct(rate) : '—'}
         </div>
       </div>
       <div className="px-3 pb-[10px] pt-[6px] text-center text-[11px] text-slate-500">
         Meta: {meta}
-        {sub ? <div className="mt-px text-[10.5px] text-slate-400">{sub}</div> : null}
+        {unused ? <div className="mt-px text-[10.5px] text-slate-400">Aún no se usa: nadie lo entrega todavía</div> : sub ? <div className="mt-px text-[10.5px] text-slate-400">{sub}</div> : null}
       </div>
     </div>
   );
@@ -223,6 +231,8 @@ function DigitColumns({ digits, okLabel }: { digits: IndicatorDigit[]; okLabel: 
 
 /** Tabla por dígito de RUC con barra de avance en la columna de tasa. */
 function DigitTable({ kpi, okHeader, showPending }: { kpi: IndicatorKpi; okHeader: string; showPending?: boolean }) {
+  // Los KPI de plazo (2 a 4) miden lo ya vencido o entregado; lo que aún no vence va en «Por vencer» y no baja la tasa.
+  const byDue = kpi.by_digit.some((d) => d.due !== undefined) && !showPending;
   return (
     <div className="overflow-hidden rounded-xl border border-[#DCE8E1]">
       <table className="w-full border-collapse text-[12px]">
@@ -232,20 +242,23 @@ function DigitTable({ kpi, okHeader, showPending }: { kpi: IndicatorKpi; okHeade
             <th className="whitespace-nowrap px-2 py-[7px] text-right">Total</th>
             <th className="whitespace-nowrap px-2 py-[7px] text-right">{okHeader}</th>
             {showPending ? <th className="whitespace-nowrap px-2 py-[7px] text-right">Pend.</th> : null}
+            {byDue ? <th className="whitespace-nowrap px-2 py-[7px] text-right" title="Aún no vence su plazo: no cuenta contra el cumplimiento">Por vencer</th> : null}
             <th className="w-[38%] px-2 py-[7px] text-left">{showPending ? 'Tasa' : '% Cumplimiento'}</th>
           </tr>
         </thead>
         <tbody>
           {kpi.by_digit.map((d) => {
-            const tone = toneFor(d.rate_pct, kpi.meta_pct, d.total);
+            const measurable = byDue ? (d.due ?? 0) > 0 : d.total > 0;
+            const tone = toneFor(d.rate_pct, kpi.meta_pct, byDue ? (d.due ?? 0) : d.total);
             return (
               <tr key={d.dig} className="border-t border-[#EAF1ED]">
                 <td className="whitespace-nowrap px-2 py-[5px] font-bold text-slate-800">RUC {d.dig}</td>
                 <td className="px-2 py-[5px] text-right tabular-nums">{d.total}</td>
                 <td className="px-2 py-[5px] text-right tabular-nums">{d.on_time}</td>
                 {showPending ? <td className="px-2 py-[5px] text-right tabular-nums">{d.pending + (d.in_review ?? 0) + (d.observed ?? 0)}</td> : null}
+                {byDue ? <td className="px-2 py-[5px] text-right tabular-nums text-slate-500">{d.pending}</td> : null}
                 <td className="px-2 py-[5px]">
-                  {d.total > 0 ? (
+                  {measurable ? (
                     <div className="relative h-[18px] overflow-hidden rounded bg-[#EEF3F0]">
                       <div className="h-full rounded" style={{ width: `${Math.min(d.rate_pct, 100)}%`, background: tone.fg, opacity: 0.85 }} />
                       <span className="absolute inset-0 flex items-center justify-center text-[10.5px] font-extrabold text-slate-900">{fmtPct(d.rate_pct)}</span>
@@ -368,10 +381,10 @@ const SupervisorIndicatorsPanel = ({ params, reloadKey = 0 }: Props) => {
                 <div className="mt-2 text-[22px] font-extrabold text-slate-400">—</div>
                 <div className="mt-1 text-[10.5px] text-slate-400">Aún no se registra · Meta: ≤10 min</div>
               </div>
-              <KpiCard n={2} title="Entrega de planillas" rate={k2?.total.rate_pct ?? 0} total={k2?.total.total ?? 0} meta="≥95%" sub={k2 ? `${k2.total.on_time} de ${k2.total.total} a tiempo` : undefined} />
-              <KpiCard n={3} title="Entrega de archivadores" rate={k3?.total.rate_pct ?? 0} total={k3?.total.total ?? 0} meta="≥95%" sub={k3 ? `${k3.total.on_time} de ${k3.total.total} a tiempo` : undefined} />
-              <KpiCard n={4} title="Declaraciones en plazo" rate={k4?.total.rate_pct ?? 0} total={k4?.total.total ?? 0} meta="≥95%" sub={k4 ? `${k4.total.on_time} de ${k4.total.total} en plazo` : undefined} />
-              <KpiCard n={5} title="Revisión de balances" rate={k5?.total.rate_pct ?? 0} total={k5?.total.total ?? 0} meta="100%" sub={k5 ? `${k5.total.on_time} de ${k5.total.total} revisados` : undefined} />
+              <KpiCard n={2} title="Entrega de planillas" rate={k2?.total.rate_pct ?? 0} total={k2?.total.due ?? k2?.total.total ?? 0} meta="≥95%" sub={dueText(k2, 'a tiempo')} />
+              <KpiCard n={3} title="Entrega de archivadores" rate={k3?.total.rate_pct ?? 0} total={k3?.total.due ?? k3?.total.total ?? 0} meta="≥95%" sub={dueText(k3, 'a tiempo')} />
+              <KpiCard n={4} title="Declaraciones en plazo" rate={k4?.total.rate_pct ?? 0} total={k4?.total.due ?? k4?.total.total ?? 0} meta="≥95%" sub={dueText(k4, 'en plazo')} />
+              <KpiCard n={5} title="Revisión de balances" rate={k5?.total.rate_pct ?? 0} total={k5?.total.total ?? 0} meta="100%" unused={k5?.unused} sub={k5 ? `${k5.total.on_time} de ${k5.total.total} revisados` : undefined} />
             </div>
             <div className="flex min-w-[260px] flex-[1_1_260px] flex-col gap-2 rounded-2xl border border-[#DCE8E1] bg-[#F8FBF9] p-3">
               <div className="text-[12px] font-extrabold uppercase tracking-[0.5px] text-[#0A5A3A]">Resumen KPI 4</div>

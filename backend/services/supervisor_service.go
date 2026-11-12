@@ -59,10 +59,14 @@ type SupervisorDashboard struct {
 	// ComplianceBreakdown desglose en vivo de 5 categorías (§5.9.3) detrás de MonthlyCompliancePct —
 	// alimenta el donut "Distribución por estado" rediseñado. Etapa 1: solo PDT 601/621 +
 	// Detracciones (§5.9.5) — Buzón SOL se suma en la etapa 2.
-	ComplianceBreakdown ComplianceSummary           `json:"compliance_breakdown"`
-	ByStatus            map[string]int64            `json:"by_status"`
-	Alerts              []SupervisorAlert           `json:"alerts"`
-	Productivity        []SupervisorProductivityRow `json:"productivity"`
+	ComplianceBreakdown ComplianceSummary `json:"compliance_breakdown"`
+	// OperationalCompliancePct / OperationalBreakdown el cumplimiento OPERATIVO (Buzón SOL, archivador, Preliminar de ventas, informe
+	// y balances): va aparte del tributario para que ninguno oculte al otro.
+	OperationalCompliancePct float64                     `json:"operational_compliance_pct"`
+	OperationalBreakdown     ComplianceSummary           `json:"operational_breakdown"`
+	ByStatus                 map[string]int64            `json:"by_status"`
+	Alerts                   []SupervisorAlert           `json:"alerts"`
+	Productivity             []SupervisorProductivityRow `json:"productivity"`
 }
 
 type SupervisorBootstrapResult struct {
@@ -370,9 +374,11 @@ func (s *SupervisorService) Dashboard(p SupervisorDashboardParams) (*SupervisorD
 	// veredictos de puntualidad de PDT 601/621 + Detracciones (etapa 1, §5.9.5). `base`/
 	// `controlsCerrado` quedan arriba solo para los conteos de "Controles por estado", que sí siguen
 	// leyendo general_status (no es parte de este rediseño, §5.9.3 "lo que NO cambia").
-	if cs, err := s.MonthlyComplianceSummary(p); err == nil {
-		out.MonthlyCompliancePct = cs.CompliancePct
-		out.ComplianceBreakdown = cs
+	if both, err := s.monthlyComplianceBoth(p); err == nil {
+		out.MonthlyCompliancePct = both.Tax.CompliancePct
+		out.ComplianceBreakdown = both.Tax
+		out.OperationalCompliancePct = both.Ops.CompliancePct
+		out.OperationalBreakdown = both.Ops
 	}
 
 	// qDecl comparte los mismos filtros de alcance que el resto del dashboard (empresa, estado
@@ -806,6 +812,11 @@ type ComplianceTrendPoint struct {
 	Missing int64 `json:"missing"`
 	Pending int64 `json:"pending"`
 	Exempt  int64 `json:"exempt"`
+	// HasData el mes tiene algo medido (a tiempo, fuera de plazo o vencidas): sin eso la pantalla dice «sin datos» en vez de 0 %.
+	HasData bool `json:"has_data"`
+	// El mismo punto para el cumplimiento operativo.
+	OperationalPct     float64 `json:"operational_pct"`
+	OperationalHasData bool    `json:"operational_has_data"`
 }
 
 // trailingPeriods devuelve los últimos `months` períodos AAAA-MM terminando en `periodYM`
@@ -832,12 +843,12 @@ func trailingPeriods(periodYM string, months int) []string {
 // dashboard. Una llamada a MonthlyComplianceSummary por período (antes no existía ninguna vista de
 // tendencia: solo se podía ver un mes a la vez).
 func (s *SupervisorService) ComplianceTrend(p SupervisorDashboardParams, months int) ([]ComplianceTrendPoint, error) {
-	return s.complianceTrendWith(p, months, s.MonthlyComplianceSummary)
+	return s.complianceTrendWith(p, months, s.monthlyComplianceBoth)
 }
 
 // complianceTrendWith igual que ComplianceTrend pero con el cálculo mensual a elección (el panel del
 // asistente usa su propio conjunto de módulos, ver assistantComplianceSummary).
-func (s *SupervisorService) complianceTrendWith(p SupervisorDashboardParams, months int, monthly func(SupervisorDashboardParams) (ComplianceSummary, error)) ([]ComplianceTrendPoint, error) {
+func (s *SupervisorService) complianceTrendWith(p SupervisorDashboardParams, months int, monthly func(SupervisorDashboardParams) (complianceBoth, error)) ([]ComplianceTrendPoint, error) {
 	if !validPeriodYM(p.PeriodYM) {
 		return nil, errors.New("período inválido (use YYYY-MM)")
 	}
@@ -860,12 +871,15 @@ func (s *SupervisorService) complianceTrendWith(p SupervisorDashboardParams, mon
 		tasks[i] = func() error {
 			periodParams := p
 			periodParams.PeriodYM = ym
-			cs, err := monthly(periodParams)
+			both, err := monthly(periodParams)
 			if err != nil {
 				return err
 			}
+			cs, ops := both.Tax, both.Ops
 			out[i] = ComplianceTrendPoint{PeriodYM: ym, CompliancePct: cs.CompliancePct, TotalControls: cs.Total,
-				OnTime: cs.OnTime, Late: cs.Late, Missing: cs.Missing, Pending: cs.Pending, Exempt: cs.Exempt}
+				OnTime: cs.OnTime, Late: cs.Late, Missing: cs.Missing, Pending: cs.Pending, Exempt: cs.Exempt,
+				HasData:        cs.OnTime+cs.Late+cs.Missing > 0,
+				OperationalPct: ops.CompliancePct, OperationalHasData: ops.OnTime+ops.Late+ops.Missing > 0}
 			return nil
 		}
 	}

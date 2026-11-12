@@ -2,12 +2,13 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"miappfiber/models"
 )
 
 // El dashboard del supervisor sale de la misma lista de tareas que el panel del asistente: las filas del cuadro por módulo suman
-// su total, el cumplimiento general es la suma de los módulos que cuentan, cada supervisor y asistente suman el general, los
+// su total, el cumplimiento tributario y el operativo son la suma de sus módulos, cada supervisor y asistente suman el general, los
 // clientes externos no entran, y las cifras coinciden con las del panel del asistente.
 func TestDashboardOverview_UnaSolaFuenteDeCifras(t *testing.T) {
 	db := setupDashboardOverviewTestDB(t)
@@ -59,8 +60,8 @@ func TestDashboardOverview_UnaSolaFuenteDeCifras(t *testing.T) {
 		t.Fatal("el cuadro por módulo no puede venir vacío")
 	}
 
-	// 1) Cada fila suma su total, y solo las filas que cuentan entran en el cumplimiento general.
-	var cOnTime, cLate, cMissing, cPending int64
+	// 1) Cada fila suma su total; el grupo sale de la regla; solo lo «sin uso» queda fuera del cumplimiento.
+	var tax, ops ComplianceSummary
 	for _, m := range ov.Modules {
 		if m.Pendiente+m.Observado+m.Vencido+m.ATiempo+m.FueraFecha != m.Total {
 			t.Errorf("%s: pend %d + obs %d + venc %d + a tiempo %d + fuera %d no suma el total %d", m.Key, m.Pendiente, m.Observado, m.Vencido, m.ATiempo, m.FueraFecha, m.Total)
@@ -68,37 +69,49 @@ func TestDashboardOverview_UnaSolaFuenteDeCifras(t *testing.T) {
 		if m.SinCompleta != m.Total-m.ATiempo-m.FueraFecha {
 			t.Errorf("%s: sin completar %d, want %d", m.Key, m.SinCompleta, m.Total-m.ATiempo-m.FueraFecha)
 		}
-		if m.Counts != complianceCountsModule(m.Key) {
-			t.Errorf("%s: counts=%v no coincide con la regla del cumplimiento general", m.Key, m.Counts)
+		if m.Group != complianceGroup(m.Key) || m.Counts == m.Unused {
+			t.Errorf("%s: grupo=%q counts=%v unused=%v no coincide con las reglas", m.Key, m.Group, m.Counts, m.Unused)
 		}
-		if m.Counts {
-			cOnTime += m.ATiempo
-			cLate += m.FueraFecha
-			cMissing += m.Vencido
-			cPending += m.Pendiente + m.Observado
+		if m.Unused {
+			continue
 		}
+		dst := &ops
+		if m.Group == complianceGroupTax {
+			dst = &tax
+		}
+		dst.OnTime += m.ATiempo
+		dst.Late += m.FueraFecha
+		dst.Missing += m.Vencido
+		dst.Pending += m.Pendiente + m.Observado
 	}
-	cs, err := svc.MonthlyComplianceSummary(p)
+	both, err := svc.monthlyComplianceBoth(p)
 	if err != nil {
-		t.Fatalf("MonthlyComplianceSummary: %v", err)
+		t.Fatalf("monthlyComplianceBoth: %v", err)
 	}
-	if cs.OnTime != cOnTime || cs.Late != cLate || cs.Missing != cMissing || cs.Pending != cPending {
-		t.Errorf("el cumplimiento general %+v no es la suma de las filas que cuentan (a tiempo %d, fuera %d, vencido %d, pendiente %d)", cs, cOnTime, cLate, cMissing, cPending)
+	for name, pair := range map[string][2]ComplianceSummary{"tributario": {both.Tax, tax}, "operativo": {both.Ops, ops}} {
+		got, want := pair[0], pair[1]
+		if got.OnTime != want.OnTime || got.Late != want.Late || got.Missing != want.Missing || got.Pending != want.Pending {
+			t.Errorf("cumplimiento %s %+v no es la suma de sus filas (a tiempo %d, fuera %d, vencido %d, pendiente %d)", name, got, want.OnTime, want.Late, want.Missing, want.Pending)
+		}
+	}
+	if cs, _ := svc.MonthlyComplianceSummary(p); cs != both.Tax {
+		t.Errorf("MonthlyComplianceSummary debe ser el tributario: %+v contra %+v", cs, both.Tax)
 	}
 
-	// 2) Los supervisores y los asistentes suman el general (cada empresa tiene uno de cada).
-	var supTotal, assTotal ComplianceSummary
+	// 2) Los supervisores y los asistentes suman el general, en los dos indicadores.
+	var supTax, supOps, assTax, assOps ComplianceSummary
 	for _, r := range ov.BySupervisor {
-		supTotal.addSummary(r.Compliance)
+		supTax.addSummary(r.Compliance)
+		supOps.addSummary(r.Operational)
 	}
 	for _, r := range ov.ByAssistant {
-		assTotal.addSummary(r.Compliance)
+		assTax.addSummary(r.Compliance)
+		assOps.addSummary(r.Operational)
 	}
-	if supTotal.Total != cs.Total || supTotal.OnTime != cs.OnTime || supTotal.Missing != cs.Missing {
-		t.Errorf("los supervisores suman %+v, el general es %+v", supTotal, cs)
-	}
-	if assTotal.Total != cs.Total || assTotal.OnTime != cs.OnTime || assTotal.Missing != cs.Missing {
-		t.Errorf("los asistentes suman %+v, el general es %+v", assTotal, cs)
+	for name, got := range map[string][2]ComplianceSummary{"supervisores/tributario": {supTax, both.Tax}, "supervisores/operativo": {supOps, both.Ops}, "asistentes/tributario": {assTax, both.Tax}, "asistentes/operativo": {assOps, both.Ops}} {
+		if got[0].Total != got[1].Total || got[0].OnTime != got[1].OnTime || got[0].Missing != got[1].Missing {
+			t.Errorf("%s suman %+v, el general es %+v", name, got[0], got[1])
+		}
 	}
 
 	// 3) Mismas cifras que el panel del asistente (vista del estudio) para cada módulo.
@@ -116,9 +129,9 @@ func TestDashboardOverview_UnaSolaFuenteDeCifras(t *testing.T) {
 			t.Errorf("%s no está en el panel del asistente", m.Key)
 			continue
 		}
-		if a.Total != m.Total || a.OnTime != m.ATiempo || a.Late != m.FueraFecha || a.Overdue != m.Vencido {
+		if a.Total != m.Total || a.OnTime != m.ATiempo || a.Late != m.FueraFecha || a.Overdue+a.ObservedOverdue != m.Vencido {
 			t.Errorf("%s: el dashboard (%d tareas, %d a tiempo, %d fuera, %d vencidas) no coincide con el panel del asistente (%d, %d, %d, %d)",
-				m.Key, m.Total, m.ATiempo, m.FueraFecha, m.Vencido, a.Total, a.OnTime, a.Late, a.Overdue)
+				m.Key, m.Total, m.ATiempo, m.FueraFecha, m.Vencido, a.Total, a.OnTime, a.Late, a.Overdue+a.ObservedOverdue)
 		}
 	}
 
@@ -127,7 +140,104 @@ func TestDashboardOverview_UnaSolaFuenteDeCifras(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MonthlyComplianceSummary (supervisor): %v", err)
 	}
-	if only.Total >= cs.Total || only.Total == 0 {
-		t.Errorf("el supervisor 2 tiene 1 de 3 empresas: total %d, general %d", only.Total, cs.Total)
+	if only.Total >= both.Tax.Total || only.Total == 0 {
+		t.Errorf("el supervisor 2 tiene 1 de 3 empresas: total %d, general %d", only.Total, both.Tax.Total)
+	}
+}
+
+// Una observada con el plazo ya vencido cuenta como VENCIDA en el cumplimiento (regla del estudio, §5.9.2b) y en el cuadro va en
+// «Venc.», no en «Obs.»; una observada con el plazo vigente no se castiga (queda pendiente).
+func TestCompliance_ObservadaConPlazoVencidoCuentaComoVencida(t *testing.T) {
+	db := setupComplianceSummaryTestDB(t)
+	svc := NewSupervisorService()
+
+	periodYM := time.Now().AddDate(0, -2, 0).Format("2006-01") // su plazo (el mes siguiente) ya pasó
+	if _, err := svc.CreatePeriod(periodYM, "test"); err != nil {
+		t.Fatalf("CreatePeriod: %v", err)
+	}
+	seedPdt601CalendarRule(t, db, periodYM, 15, 0)
+	co := seedEstudioCompany(t, db, "T030")
+	saved, err := svc.SavePdt601Planilla(co.ID, periodYM, Pdt601PlanillaInput{RegimenLaboral: models.Pdt601RegimenGeneral, FechaEntrega: "2026-07-15"})
+	if err != nil {
+		t.Fatalf("SavePdt601Planilla: %v", err)
+	}
+	if _, err := svc.ObserveDeclaration(saved.Declaration.ID, 9, "Falta firmar"); err != nil {
+		t.Fatalf("ObserveDeclaration: %v", err)
+	}
+
+	both, err := svc.monthlyComplianceBoth(SupervisorDashboardParams{PeriodYM: periodYM})
+	if err != nil {
+		t.Fatalf("monthlyComplianceBoth: %v", err)
+	}
+	var row *DashboardModuleRow
+	for i := range both.Rows {
+		if both.Rows[i].Key == models.SupervisorDeclPDT601 {
+			row = &both.Rows[i]
+		}
+	}
+	if row == nil || row.Vencido != 1 || row.Observado != 0 {
+		t.Fatalf("PDT 601: una observada vencida debe ir en «Venc.» y no en «Obs.»: %+v", row)
+	}
+	if both.Tax.Missing < 1 {
+		t.Errorf("la observada vencida debe contar como vencida en el cumplimiento: %+v", both.Tax)
+	}
+}
+
+// Informe de detracciones y Siscont balances no cuentan mientras nadie los entregue («sin uso»); apenas hay una entrega, ese módulo
+// pasa a contar en el indicador operativo.
+func TestCompliance_ModulosSinUsoNoCuentan(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	sup := models.User{Name: "Claudia", Username: "claudia"}
+	ana := models.User{Name: "Ana", Username: "ana"}
+	for _, u := range []*models.User{&sup, &ana} {
+		if err := db.Create(u).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	co := models.Company{RUC: "20A0011", BusinessName: "Empresa A", InternalCode: "A001", ClientType: models.CompanyClientTypeEstudio, Status: "activo", SupervisorUserID: &sup.ID, AssistantUserID: &ana.ID}
+	if err := db.Create(&co).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreatePeriod("2026-07", "test"); err != nil {
+		t.Fatal(err)
+	}
+	p := SupervisorDashboardParams{PeriodYM: "2026-07"}
+	find := func(rows []DashboardModuleRow, key string) *DashboardModuleRow {
+		for i := range rows {
+			if rows[i].Key == key {
+				return &rows[i]
+			}
+		}
+		return nil
+	}
+
+	both, err := svc.monthlyComplianceBoth(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inf, sis := find(both.Rows, models.SupervisorDeclInformeDetracciones), find(both.Rows, models.SupervisorDeclSiscontBalances)
+	if inf == nil || sis == nil || !inf.Unused || !sis.Unused || inf.Counts || sis.Counts {
+		t.Fatalf("sin entregas, informe y balances deben salir «sin uso»: %+v %+v", inf, sis)
+	}
+	// El operativo solo trae lo que sí cuenta (aquí el archivador del PDT 621 de la única empresa): nada de informe ni balances.
+	if both.Ops.Total != 1 {
+		t.Errorf("lo «sin uso» no entra en el cumplimiento operativo: %+v", both.Ops)
+	}
+
+	pdfReportSubmit(t, svc, PdfReportInformeDetracciones, co.ID, "2026-07", "2026-07-02")
+	both, err = svc.monthlyComplianceBoth(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inf, sis = find(both.Rows, models.SupervisorDeclInformeDetracciones), find(both.Rows, models.SupervisorDeclSiscontBalances)
+	if inf == nil || inf.Unused || !inf.Counts {
+		t.Errorf("con una entrega, el informe pasa a contar: %+v", inf)
+	}
+	if sis == nil || !sis.Unused {
+		t.Errorf("los balances siguen sin uso: %+v", sis)
+	}
+	if both.Ops.Total != 2 {
+		t.Errorf("el informe ya entra en el cumplimiento operativo (archivador + informe): %+v", both.Ops)
 	}
 }

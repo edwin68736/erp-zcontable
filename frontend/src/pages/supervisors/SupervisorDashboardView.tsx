@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
@@ -248,11 +248,13 @@ const SupervisorDashboardView = () => {
     : [];
 
   const modules: DashboardModuleRow[] = overview?.modules ?? [];
-  // Solo los módulos que cuentan en el cumplimiento general entran en el total y en la dona; los demás se muestran aparte.
-  const countedModules = modules.filter((m) => m.counts);
-  const moduleSlices: DonutSlice[] = countedModules.map((m, i) => ({ label: m.label, value: m.sin_completar, color: MODULE_COLORS[i % MODULE_COLORS.length] }));
-  const modulesTotal = countedModules.reduce((a, m) => a + m.sin_completar, 0);
-  const sumMod = (k: 'pendiente' | 'observado' | 'vencido' | 'a_tiempo' | 'fuera_fecha' | 'total') => countedModules.reduce((a, m) => a + m[k], 0);
+  // Dos indicadores: el tributario (titular) y el operativo. Lo «sin uso» (nadie lo entrega todavía) se muestra pero no suma.
+  const taxModules = modules.filter((m) => m.group === 'tributario');
+  const opsModules = modules.filter((m) => m.group !== 'tributario');
+  const moduleSlices: DonutSlice[] = taxModules.filter((m) => m.counts).map((m, i) => ({ label: m.label, value: m.sin_completar, color: MODULE_COLORS[i % MODULE_COLORS.length] }));
+  const modulesTotal = taxModules.filter((m) => m.counts).reduce((a, m) => a + m.sin_completar, 0);
+  type ModKey = 'pendiente' | 'observado' | 'vencido' | 'a_tiempo' | 'fuera_fecha' | 'total';
+  const sumOf = (rows: DashboardModuleRow[], k: ModKey) => rows.filter((m) => m.counts).reduce((a, m) => a + m[k], 0);
 
   const bySup = overview?.by_supervisor ?? [];
   const byAssist = overview?.by_assistant ?? [];
@@ -288,13 +290,17 @@ const SupervisorDashboardView = () => {
           : []),
       ];
 
-  const heroDelta = deltaText(trend.map((t) => t.compliance_pct), ' pts');
+  // Un mes sin nada medido no es 0 %: no entra en la comparación contra el periodo anterior.
+  const heroDelta = deltaText(trend.filter((t) => t.has_data !== false).map((t) => t.compliance_pct), ' pts');
+  const ops = data?.operational_breakdown;
+  const opsPct = data?.operational_compliance_pct ?? 0;
+  const opsMeasured = ops ? ops.on_time + ops.late + ops.missing : 0;
   const heroLine1 = studioView
     ? `${heroDelta ? `${heroDelta.text} vs. periodo anterior` : 'Cumplimiento del periodo'}`
     : lastStudio
       ? `${compliancePct >= lastStudio.compliance_pct ? '▲ +' : '▼ −'}${Math.abs(Math.round((compliancePct - lastStudio.compliance_pct) * 10) / 10)} pts sobre el estudio (${lastStudio.compliance_pct}%)`
       : 'Cumplimiento del periodo';
-  const heroLine2 = studioView ? 'a tiempo ÷ controles sin exentos' : heroDelta ? `${heroDelta.text} vs. periodo anterior` : undefined;
+  const heroLine2 = studioView ? 'PDT 601, PDT 621 y detracciones · a tiempo ÷ (a tiempo + fuera de plazo + vencidas)' : heroDelta ? `${heroDelta.text} vs. periodo anterior` : undefined;
 
   const onTimeDelta = deltaText(series('on_time'), '', true);
   const pendingDelta = deltaText(series('pending'), '', false);
@@ -328,7 +334,11 @@ const SupervisorDashboardView = () => {
 
   const maxReview = Math.max(1, ...bySup.map((s) => s.review));
   const topPending = [...byAssist]
-    .map((a) => ({ ...a, open: a.compliance.pending + a.compliance.missing, done: a.compliance.on_time + a.compliance.late }))
+    .map((a) => ({
+      ...a,
+      open: a.compliance.pending + a.compliance.missing + (a.operational?.pending ?? 0) + (a.operational?.missing ?? 0),
+      done: a.compliance.on_time + a.compliance.late + (a.operational?.on_time ?? 0) + (a.operational?.late ?? 0),
+    }))
     .sort((a, b) => b.open - a.open)
     .slice(0, 5);
 
@@ -463,7 +473,19 @@ const SupervisorDashboardView = () => {
         <>
           {/* KPIs */}
           <div className="flex flex-wrap gap-3">
-            <HeroGauge pct={compliancePct} title={studioView ? 'Cumplimiento general' : 'Tu cumplimiento'} line1={heroLine1} line2={heroLine2} />
+            <HeroGauge pct={compliancePct} title={studioView ? 'Cumplimiento tributario' : 'Tu cumplimiento tributario'} line1={heroLine1} line2={heroLine2} />
+            <KpiTile
+              label="Cumplimiento operativo"
+              value={opsMeasured > 0 ? `${opsPct}%` : '—'}
+              delta={ops ? `${ops.on_time} a tiempo · ${ops.missing} vencidas` : undefined}
+              deltaTone={ops && ops.missing > 0 ? 'warn' : 'neutral'}
+              sub="Buzón SOL, archivador, Preliminar, informe y balances"
+              icon="fas fa-gears"
+              color="#0F766E"
+              soft="#FFFFFF"
+              tint="#CCFBF1"
+              tintBorder="#99F6E4"
+            />
             <KpiTile
               label={studioView ? 'Empresas activas' : 'Mis empresas activas'}
               value={data.total_active_companies}
@@ -498,7 +520,7 @@ const SupervisorDashboardView = () => {
             <div className="flex min-w-0 flex-col gap-[14px]" style={{ flex: '2.3 1 600px' }}>
               <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
                 <div className="min-w-0" style={{ flex: '1 1 280px' }}>
-                  <h2 className="m-0 text-sm font-extrabold">Distribución de cumplimiento</h2>
+                  <h2 className="m-0 text-sm font-extrabold">Distribución del cumplimiento tributario</h2>
                   <p className="mb-[10px] mt-[2px] text-[11.5px] text-slate-500">
                     {bd?.total ?? 0} controles · {studioView ? 'todo el estudio' : 'mi cartera'}
                   </p>
@@ -536,7 +558,7 @@ const SupervisorDashboardView = () => {
                     </div>
                   ) : null}
                   <TrendArea
-                    points={trend.map((t) => ({ label: monthLabel(t.period_ym), value: t.compliance_pct }))}
+                    points={trend.map((t) => ({ label: monthLabel(t.period_ym), value: t.has_data === false ? null : t.compliance_pct }))}
                     compare={!studioView ? studioTrend.map((t) => t.compliance_pct) : undefined}
                   />
                 </div>
@@ -584,35 +606,51 @@ const SupervisorDashboardView = () => {
                         {modules.length === 0 ? (
                           <tr><td colSpan={7} className="py-6 text-center text-slate-500">{overviewLoading ? "Cargando…" : "Sin datos para este alcance."}</td></tr>
                         ) : null}
-                        {modules.map((m) => (
-                          <tr key={m.key} className={`border-b border-[#EAF1ED] text-center ${m.counts ? '' : 'opacity-55'}`}>
-                            <th scope="row" className="px-[6px] py-[7px] text-left font-bold">
-                              {m.label}
-                              {!m.counts ? <span className="ml-1.5 rounded bg-slate-100 px-[5px] py-px text-[9px] font-bold uppercase text-slate-500" title="Se muestra pero no entra en el cumplimiento general">no cuenta</span> : null}
-                            </th>
-                            <td className="px-[3px] py-[7px] font-bold text-amber-700">{m.pendiente}</td>
-                            <td className="px-[3px] py-[7px] font-bold text-orange-700">{m.observado}</td>
-                            <td className="px-[3px] py-[7px] font-bold text-red-700">{m.vencido}</td>
-                            <td className="px-[3px] py-[7px] font-bold text-green-700">{m.a_tiempo}</td>
-                            <td className="px-[3px] py-[7px] font-bold text-blue-700">{m.fuera_fecha}</td>
-                            <td className="px-[6px] py-[7px] font-extrabold">{m.total}</td>
-                          </tr>
-                        ))}
-                        <tr className="bg-[#F6FAF8] text-center font-extrabold">
-                          <th scope="row" className="px-[6px] py-2 text-left" title="Suma de los módulos que cuentan en el cumplimiento general">Total</th>
-                          <td className="px-[3px] py-2">{sumMod('pendiente')}</td>
-                          <td className="px-[3px] py-2">{sumMod('observado')}</td>
-                          <td className="px-[3px] py-2">{sumMod('vencido')}</td>
-                          <td className="px-[3px] py-2">{sumMod('a_tiempo')}</td>
-                          <td className="px-[3px] py-2">{sumMod('fuera_fecha')}</td>
-                          <td className="px-[6px] py-2">{sumMod('total')}</td>
-                        </tr>
+                        {[
+                          { title: 'Cumplimiento tributario', hint: 'PDT 601, PDT 621 · Declaración y detracciones', rows: taxModules },
+                          { title: 'Cumplimiento operativo', hint: 'Buzón SOL, archivador, Preliminar, informe y balances', rows: opsModules },
+                        ].map((g) =>
+                          g.rows.length === 0 ? null : (
+                            <Fragment key={g.title}>
+                              <tr className="bg-[#F6FAF8]">
+                                <th colSpan={7} scope="colgroup" className="px-[6px] py-[5px] text-left text-[10.5px] font-extrabold uppercase tracking-[0.4px] text-[#0A5A3A]">
+                                  {g.title} <span className="ml-1 font-medium normal-case tracking-normal text-slate-500">{g.hint}</span>
+                                </th>
+                              </tr>
+                              {g.rows.map((m) => (
+                                <tr key={m.key} className={`border-b border-[#EAF1ED] text-center ${m.counts ? '' : 'opacity-55'}`}>
+                                  <th scope="row" className="px-[6px] py-[7px] text-left font-bold">
+                                    {m.label}
+                                    {m.unused ? <span className="ml-1.5 rounded bg-slate-100 px-[5px] py-px text-[9px] font-bold uppercase text-slate-500" title="Nadie del estudio lo entrega todavía: se muestra pero no cuenta">sin uso</span> : null}
+                                  </th>
+                                  <td className="px-[3px] py-[7px] font-bold text-amber-700">{m.pendiente}</td>
+                                  <td className="px-[3px] py-[7px] font-bold text-orange-700">{m.observado}</td>
+                                  <td className="px-[3px] py-[7px] font-bold text-red-700">{m.vencido}</td>
+                                  <td className="px-[3px] py-[7px] font-bold text-green-700">{m.a_tiempo}</td>
+                                  <td className="px-[3px] py-[7px] font-bold text-blue-700">{m.fuera_fecha}</td>
+                                  <td className="px-[6px] py-[7px] font-extrabold">{m.total}</td>
+                                </tr>
+                              ))}
+                              <tr className="border-b-2 border-[#DCE8E1] text-center font-extrabold">
+                                <th scope="row" className="px-[6px] py-2 text-left" title="Suma de los módulos de este indicador (sin los «sin uso»)">
+                                  Total {g.title === 'Cumplimiento tributario' ? 'tributario' : 'operativo'}
+                                </th>
+                                <td className="px-[3px] py-2">{sumOf(g.rows, 'pendiente')}</td>
+                                <td className="px-[3px] py-2">{sumOf(g.rows, 'observado')}</td>
+                                <td className="px-[3px] py-2">{sumOf(g.rows, 'vencido')}</td>
+                                <td className="px-[3px] py-2">{sumOf(g.rows, 'a_tiempo')}</td>
+                                <td className="px-[3px] py-2">{sumOf(g.rows, 'fuera_fecha')}</td>
+                                <td className="px-[6px] py-2">{sumOf(g.rows, 'total')}</td>
+                              </tr>
+                            </Fragment>
+                          ),
+                        )}
                       </tbody>
                     </table>
                   </div>
-                  {modules.some((m) => !m.counts) ? (
+                  {modules.length > 0 ? (
                     <p className="mb-0 mt-2 text-[10.5px] text-slate-500">
-                      «No cuenta»: se muestra pero no entra en el total ni en el cumplimiento general. Pend. incluye lo ya entregado que espera revisión; Obs. lo que el supervisor observó.
+                      Pend. incluye lo ya entregado que espera revisión. Obs. es lo observado con plazo vigente; si su plazo ya venció cuenta en Venc. «Sin uso»: nadie lo entrega todavía, se muestra pero no cuenta.
                     </p>
                   ) : null}
                 </div>

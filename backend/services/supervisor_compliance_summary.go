@@ -205,24 +205,29 @@ func (s *SupervisorService) DetraccionesDashboardSummary(p SupervisorDashboardPa
 	return cs, nil
 }
 
-// MonthlyComplianceSummary el cumplimiento del periodo para el alcance y los filtros dados. Sale de la MISMA lista de tareas
-// que el panel del asistente (supervisor_compliance_unified.go): PDT 601, PDT 621 · Declaración, Estado cta. detracciones y
-// Buzón SOL, con las 5 categorías de §5.9.3 (a tiempo, fuera de plazo, vencido, pendiente y no aplica).
+// MonthlyComplianceSummary el cumplimiento TRIBUTARIO del periodo para el alcance y los filtros dados. Sale de la MISMA lista de
+// tareas que el panel del asistente (supervisor_compliance_unified.go): PDT 601, PDT 621 · Declaración y Estado cta.
+// detracciones, con las 5 categorías de §5.9.3 (a tiempo, fuera de plazo, vencido, pendiente y no aplica).
 func (s *SupervisorService) MonthlyComplianceSummary(p SupervisorDashboardParams) (ComplianceSummary, error) {
+	both, err := s.monthlyComplianceBoth(p)
+	return both.Tax, err
+}
+
+// monthlyComplianceBoth el cumplimiento tributario (el titular) y el operativo del periodo para el alcance y los filtros dados.
+func (s *SupervisorService) monthlyComplianceBoth(p SupervisorDashboardParams) (complianceBoth, error) {
 	if !validPeriodYM(p.PeriodYM) {
-		return ComplianceSummary{}, errors.New("período inválido (use YYYY-MM)")
+		return complianceBoth{}, errors.New("período inválido (use YYYY-MM)")
 	}
 	scope, err := s.dashboardScopeCompanies(p)
 	if err != nil {
-		return ComplianceSummary{}, err
+		return complianceBoth{}, err
 	}
 	if len(scope) == 0 {
-		return ComplianceSummary{}, nil
+		return complianceBoth{}, nil
 	}
 	sc, err := s.studioComplianceFor(p.PeriodYM)
 	if err != nil {
-		return ComplianceSummary{}, err
+		return complianceBoth{}, err
 	}
-	cs, _ := sc.summaryFor(companyIDSet(scope))
-	return cs, nil
+	return sc.summaryFor(companyIDSet(scope)), nil
 }
