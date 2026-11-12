@@ -399,6 +399,13 @@ const AssistantWorkspace = () => {
                           </div>
                           <span className="w-[112px] text-right text-[11.5px] font-extrabold tabular-nums">{m.completed.toLocaleString('es-PE')} / {m.total.toLocaleString('es-PE')} · {Math.round(m.pct)}%</span>
                         </div>
+                        {m.planilla && m.planilla.workers > 0 ? (
+                          <p className="m-0 mt-[6px] text-[11px] text-slate-500">
+                            <i className="fas fa-users mr-1 text-slate-400" aria-hidden />
+                            <strong className="text-slate-700">{m.planilla.workers.toLocaleString('es-PE')}</strong> trabajadores en {m.planilla.companies.toLocaleString('es-PE')} empresas
+                            {m.planilla.by_assistant.length > 1 ? <span> · mayor carga: <strong className="text-slate-700">{m.planilla.by_assistant[0].name}</strong> ({m.planilla.by_assistant[0].workers.toLocaleString('es-PE')})</span> : null}
+                          </p>
+                        ) : null}
                       </button>
                     );
                   })}

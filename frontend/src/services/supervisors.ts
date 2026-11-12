@@ -678,6 +678,34 @@ export interface AssistantProgress {
   not_applicable: number;
   pct: number;
 }
+/** La carga de planillas (PDT 601) de un asistente en el periodo. */
+export interface AssistantPlanillaRow {
+  /** 0 = empresas sin asistente asignado. */
+  assistant_id: number;
+  name: string;
+  /** Empresas a las que les corresponde planilla este mes. */
+  companies: number;
+  workers: number;
+  workers_onp: number;
+  workers_afp: number;
+  /** Empresas cuyos trabajadores vienen de un mes anterior / sin ningún dato todavía (no suman). */
+  estimated: number;
+  no_data: number;
+  total: number;
+  completed: number;
+  open: number;
+}
+/** La carga de planillas de todo el alcance, con el desglose por asistente (la mayor carga primero). */
+export interface AssistantPlanillaLoad {
+  workers: number;
+  workers_onp: number;
+  workers_afp: number;
+  companies: number;
+  estimated: number;
+  no_data: number;
+  by_assistant: AssistantPlanillaRow[];
+}
+
 /** El avance de un módulo para las empresas cuyo RUC termina en `digit` (0 al 9). */
 export interface AssistantDigitProgress extends AssistantProgress {
   digit: number;
@@ -688,6 +716,8 @@ export interface AssistantModuleProgress extends AssistantProgress {
   owner: 'asistente' | 'supervisor';
   /** Consolidado por último dígito del RUC (10 filas); no viene en los módulos sin tareas ni en el Buzón SOL. */
   by_digit?: AssistantDigitProgress[];
+  /** Solo PDT 601: trabajadores atendidos por cada asistente. */
+  planilla?: AssistantPlanillaLoad;
 }
 export interface AssistantTrendPoint {
   period_ym: string;

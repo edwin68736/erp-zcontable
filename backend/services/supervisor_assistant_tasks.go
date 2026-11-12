@@ -109,6 +109,8 @@ type AssistantModuleProgress struct {
 	// ByDigit el mismo conteo separado por último dígito del RUC (0 al 9). Vacío en los módulos que no se miden por empresa
 	// (Buzón SOL).
 	ByDigit []AssistantDigitProgress `json:"by_digit,omitempty"`
+	// Planilla solo en PDT 601: trabajadores atendidos por cada asistente (la carga de planillas).
+	Planilla *AssistantPlanillaLoad `json:"planilla,omitempty"`
 }
 
 // AssistantTrendPoint avance de un mes (con la misma fórmula que el panel). Total 0 = ese mes no tiene tareas medidas.
@@ -123,6 +125,8 @@ type assistantBuild struct {
 	Modules  []AssistantModuleProgress
 	Progress AssistantProgress
 	Work     []AssistantWorkItem
+	// PlanillaLoad la carga de planillas por asistente (solo si el módulo PDT 601 está en el alcance).
+	PlanillaLoad *AssistantPlanillaLoad
 }
 
 type assistantAcc struct {
@@ -287,6 +291,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		return &items[len(items)-1]
 	}
 
+	planillaAcc := newPlanillaLoadAcc(companies)
 	for _, r := range pdt601 {
 		m := acc.mod(models.SupervisorDeclPDT601, "PDT 601", assistantOwnerAssistant)
 		exempt := r.Suspendida || (r.Planilla != nil && r.Planilla.SinPlanilla)
@@ -295,6 +300,12 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			m.NotApplicable++
 			continue
 		}
+		onp, afp := 0, 0
+		if r.Planilla != nil {
+			onp, afp = r.Planilla.TrabajadoresONP, r.Planilla.TrabajadoresAFP
+		}
+		planillaAcc.addCompany(r.CompanyID, onp, afp)
+		planillaAcc.addTask(r.CompanyID, st == assistantTaskDone)
 		record(models.SupervisorDeclPDT601, "PDT 601", assistantOwnerAssistant, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, calendarDeadlineFor(periodYM, acts601, r.Dig, cache), "")
 	}
 
@@ -472,6 +483,14 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	out.Progress.finalize()
 	if wantWork {
 		out.Work = items
+	}
+	if wantWork && len(pdt601) > 0 { // la tendencia de meses no lo necesita
+		out.PlanillaLoad = planillaAcc.finish(s, periodYM)
+		for i := range out.Modules {
+			if out.Modules[i].Key == models.SupervisorDeclPDT601 {
+				out.Modules[i].Planilla = out.PlanillaLoad
+			}
+		}
 	}
 	return out, nil
 }

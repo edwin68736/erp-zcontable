@@ -3,9 +3,71 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
 import { STATE_STYLE, dueText, stateLabel } from '../../pages/assistant/assistantUi';
-import type { AssistantDigitProgress, AssistantModuleProgress, AssistantWorkItem } from '../../services/supervisors';
+import type { AssistantDigitProgress, AssistantModuleProgress, AssistantPlanillaLoad, AssistantWorkItem } from '../../services/supervisors';
 
 const n = (v: number) => (v > 0 ? v.toLocaleString('es-PE') : '·');
+
+/**
+ * Carga de planillas (PDT 601): cuántos trabajadores atiende cada asistente, para ver quién tiene más trabajo. El número de
+ * empresas no basta: una empresa con 80 trabajadores pesa mucho más que una con 2.
+ */
+function PlanillaLoadTable({ load }: { load: AssistantPlanillaLoad }) {
+  const max = Math.max(1, ...load.by_assistant.map((r) => r.workers));
+  return (
+    <div className="border-b border-slate-100 px-5 py-3">
+      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        Carga de planillas por asistente · {load.workers.toLocaleString('es-PE')} trabajadores en {load.companies.toLocaleString('es-PE')} empresas
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[30rem] border-collapse text-xs tabular-nums">
+          <thead>
+            <tr className="text-left text-slate-500">
+              <th className="py-1 pr-2 font-semibold">Asistente</th>
+              <th className="px-2 py-1 text-right font-semibold">Empresas</th>
+              <th className="w-[34%] px-2 py-1 font-semibold">Trabajadores</th>
+              <th className="px-2 py-1 text-right font-semibold" title="Trabajadores en ONP / en AFP">
+                ONP / AFP
+              </th>
+              <th className="px-2 py-1 text-right font-semibold">Por hacer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {load.by_assistant.map((r) => (
+              <tr key={r.assistant_id} className="border-t border-slate-100">
+                <td className="py-1 pr-2 font-semibold text-slate-800">
+                  {r.name}
+                  {r.estimated > 0 || r.no_data > 0 ? (
+                    <span className="ml-1 text-[10.5px] font-normal text-slate-400">
+                      {r.estimated > 0 ? `${r.estimated} estimada${r.estimated === 1 ? '' : 's'}` : ''}
+                      {r.estimated > 0 && r.no_data > 0 ? ' · ' : ''}
+                      {r.no_data > 0 ? `${r.no_data} sin dato` : ''}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-2 py-1 text-right text-slate-600">{n(r.companies)}</td>
+                <td className="px-2 py-1">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 overflow-hidden rounded bg-[#EEF3F0]">
+                      <div className="h-full rounded bg-[#0E8F47]" style={{ width: `${Math.round((r.workers / max) * 100)}%` }} />
+                    </div>
+                    <span className="w-10 text-right font-bold text-slate-800">{n(r.workers)}</span>
+                  </div>
+                </td>
+                <td className="px-2 py-1 text-right text-slate-500">
+                  {n(r.workers_onp)} / {n(r.workers_afp)}
+                </td>
+                <td className={`px-2 py-1 text-right font-semibold ${r.open > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{n(r.open)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 mt-1 text-[11px] text-slate-400">
+        Trabajadores de la planilla del periodo (ONP + AFP). Si la planilla de este mes aún no se registró se usa la última registrada («estimada»); sin planilla o suspendidas no cuentan.
+      </p>
+    </div>
+  );
+}
 
 /**
  * Consolidado de las entregas del módulo por último dígito del RUC: cuántas se hicieron dentro y fuera de plazo y cuántas
@@ -133,6 +195,7 @@ const ModulePendingModal = ({
           </button>
         </div>
 
+        {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
         {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} /> : null}
 
         <div className="border-b border-slate-100 px-5 py-3">
