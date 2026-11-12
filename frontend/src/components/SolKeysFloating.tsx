@@ -39,10 +39,11 @@ const SolKeysFloating = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
 
   return (
     <>
+      {/* Con el modal abierto el círculo se esconde: si no, tapa la columna de acciones de la lista. */}
       <button
         type="button"
         onClick={() => onOpenChange(true)}
-        className="pointer-events-auto relative flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-[0_6px_18px_-4px_rgba(30,64,175,0.55)] transition hover:scale-105 active:scale-95"
+        className={`pointer-events-auto relative flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-[0_6px_18px_-4px_rgba(30,64,175,0.55)] transition hover:scale-105 active:scale-95 ${open ? 'hidden' : ''}`}
         aria-label="Abrir Claves SOL"
         title="Claves SOL: entrar a SUNAT desde cualquier vista"
       >
