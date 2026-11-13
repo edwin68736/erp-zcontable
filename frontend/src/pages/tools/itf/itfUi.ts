@@ -96,52 +96,76 @@ export function summarizeByPeriod(t: ItfTable): ItfPeriodSummary[] {
 /** Columnas que se muestran alineadas a la derecha (importes). */
 export const isAmountColumn = (name: string): boolean => ['base', 'impuesto'].includes(norm(name));
 
-/** Excel con las tres tablas del resultado (una hoja por tabla, más un resumen por periodo). */
-export async function exportItfExcel(res: ItfResult, meta: { empresa: string; ruc: string }): Promise<void> {
+/** Columnas de las tablas de SUNAT; el Excel las muestra aunque la consulta no traiga registros (como la referencia). */
+export const ITF_DEFAULT_COLUMNS = ['RUC', 'Declarante', 'Tipo Doc', 'Contribuyente', 'Período', 'Tipo', 'Movimiento', 'Cod. Oper.', 'Base', 'Impuesto'];
+
+/** Las hojas del Excel, con los nombres de la referencia. */
+const ITF_SHEETS: { name: string; pick: (r: ItfResult) => ItfTable }[] = [
+  { name: 'Movimientos Acumulados', pick: (r) => r.acumulados },
+  { name: 'Contra Asientos', pick: (r) => r.contra_asientos },
+  { name: 'Exoneraciones', pick: (r) => r.exoneraciones },
+];
+
+const sumColumn = (t: ItfTable, name: string): number => {
+  const i = colIndex(t, name);
+  return i < 0 ? 0 : t.filas.reduce((acc, f) => acc + parseAmount(f[i]), 0);
+};
+
+/** «ITF_20611930641_202608-202609.xlsx» */
+export const itfFileName = (ruc: string, res: Pick<ItfResult, 'desde' | 'hasta'>): string => `ITF_${ruc}_${res.desde}-${res.hasta}.xlsx`;
+
+/**
+ * El libro del reporte, con la misma forma que el de la referencia: una hoja por tabla de SUNAT (Movimientos Acumulados, Contra
+ * Asientos, Exoneraciones); arriba el documento y la razón social, la tabla desde la fila 5 y, debajo, la cantidad de registros y los totales.
+ */
+export function buildItfWorkbook(res: ItfResult, meta: { empresa: string; ruc: string }): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
-  const style = (row: ExcelJS.Row) => {
-    row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    row.eachCell((c) => {
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
-      c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  const documento = res.documento || `06 - RUC Nro. ${meta.ruc}`;
+  const razon = res.razon_social || meta.empresa;
+  for (const sheet of ITF_SHEETS) {
+    const t = sheet.pick(res);
+    const cols = t.columnas.length > 0 ? t.columnas : ITF_DEFAULT_COLUMNS;
+    const ws = wb.addWorksheet(sheet.name);
+    const label = (row: number, text: string, value: string) => {
+      const r = ws.getRow(row);
+      r.getCell(1).value = text;
+      r.getCell(1).font = { bold: true, color: { argb: 'FF2F5597' } };
+      r.getCell(2).value = value;
+    };
+    label(1, 'Documento:', documento);
+    label(2, 'Razón Social:', razon);
+    const head = ws.getRow(5);
+    cols.forEach((c, i) => {
+      const cell = head.getCell(i + 1);
+      cell.value = c;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
-  };
-  const title = `Consulta de ITF — ${meta.empresa} (RUC ${meta.ruc}) · periodos ${periodLabel(res.desde)} a ${periodLabel(res.hasta)}`;
-
-  const resumen = wb.addWorksheet('Resumen');
-  resumen.addRow([title]).font = { bold: true, size: 12 };
-  resumen.addRow(['Base imponible referencial calculada por SUNAT a partir del impuesto retenido.']);
-  resumen.addRow([]);
-  style(resumen.addRow(['Periodo', 'Operaciones', 'Base', 'Impuesto (ITF)']));
-  const rows = summarizeByPeriod(res.acumulados);
-  for (const r of rows) resumen.addRow([periodLabel(r.periodo), r.operaciones, r.base, r.impuesto]);
-  const total = resumen.addRow(['Total', rows.reduce((a, r) => a + r.operaciones, 0), rows.reduce((a, r) => a + r.base, 0), rows.reduce((a, r) => a + r.impuesto, 0)]);
-  total.font = { bold: true };
-  [14, 14, 18, 18].forEach((w, i) => {
-    resumen.getColumn(i + 1).width = w;
-  });
-  resumen.getColumn(3).numFmt = '#,##0.00';
-  resumen.getColumn(4).numFmt = '#,##0.00';
-
-  const add = (name: string, t: ItfTable) => {
-    const ws = wb.addWorksheet(name);
-    ws.addRow([`${t.titulo} — ${meta.empresa} (RUC ${meta.ruc})`]).font = { bold: true, size: 12 };
-    ws.addRow([`${t.registros} registro${t.registros === 1 ? '' : 's'}`]);
-    ws.addRow([]);
-    if (t.columnas.length) style(ws.addRow(t.columnas));
-    const amountCols = t.columnas.map((c, i) => (isAmountColumn(c) ? i : -1)).filter((i) => i >= 0);
-    for (const f of t.filas) ws.addRow(f.map((v, i) => (amountCols.includes(i) ? parseAmount(v) : v)));
-    t.columnas.forEach((c, i) => {
-      ws.getColumn(i + 1).width = Math.max(12, Math.min(40, c.length + 6));
+    const amountCols = cols.map((c, i) => (isAmountColumn(c) ? i : -1)).filter((i) => i >= 0);
+    t.filas.forEach((f, ri) => {
+      const row = ws.getRow(6 + ri);
+      f.forEach((v, i) => {
+        row.getCell(i + 1).value = amountCols.includes(i) ? parseAmount(v) : v;
+      });
+    });
+    // Debajo de la tabla (con una fila en blanco): cantidad de registros y totales, como SUNAT.
+    const impuesto = t.total_impuesto ?? sumColumn(t, 'Impuesto');
+    const movimientos = t.total_movimientos ?? sumColumn(t, 'Base');
+    const sumRow = ws.getRow(6 + t.filas.length + 1);
+    sumRow.getCell(1).value = `Cantidad de registros: ${t.registros} Total Impuesto: ${impuesto.toFixed(2)} Total Movimientos: ${movimientos.toFixed(2)}`;
+    sumRow.getCell(1).font = { bold: true, italic: true };
+    cols.forEach((c, i) => {
+      ws.getColumn(i + 1).width = i === 0 ? 16 : Math.max(12, Math.min(40, c.length + 6));
       if (amountCols.includes(i)) ws.getColumn(i + 1).numFmt = '#,##0.00';
     });
-    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
-  };
-  add('Acumulados', res.acumulados);
-  add('Contra asientos', res.contra_asientos);
-  add('Exoneraciones', res.exoneraciones);
+  }
+  return wb;
+}
 
-  const buffer = await wb.xlsx.writeBuffer();
-  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `ITF-${meta.ruc}-${res.desde}_${res.hasta}.xlsx`);
+/** Baja el reporte en Excel (la forma del de la referencia). */
+export async function exportItfExcel(res: ItfResult, meta: { empresa: string; ruc: string }): Promise<void> {
+  const buffer = await buildItfWorkbook(res, meta).xlsx.writeBuffer();
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), itfFileName(meta.ruc, res));
   void notify.success('Excel descargado');
 }

@@ -130,7 +130,7 @@ function HistoryEntry({
           </p>
         ) : null}
         <div className="flex items-center gap-2 pt-0.5">
-          {item.status === 'listo' ? (
+          {item.status === 'listo' || item.status === 'sin_datos' ? (
             <>
               <Button variant="secondary" className="!px-3 !py-1 text-xs" disabled={busy} onClick={() => onExcel(item)} title="Bajar el reporte en Excel">
                 <i className="fas fa-file-excel mr-1.5 text-green-700" aria-hidden />
@@ -261,15 +261,13 @@ const ItfCompany = () => {
       // «Generar Reporte Excel»: con los movimientos a la vista, el Excel se baja solo.
       const n = r.data.acumulados.registros + r.data.contra_asientos.registros + r.data.exoneraciones.registros;
       if (company) {
-        if (n > 0) {
-          try {
-            await exportItfExcel(r.data, { empresa: company.business_name, ruc: company.ruc });
-            void notify.success('Reporte generado', `ITF ${periodLabel(params.desde)} al ${periodLabel(params.hasta)}: ${n} registro${n === 1 ? '' : 's'}.`);
-          } catch {
-            void notify.error('No se pudo armar el Excel', 'La consulta quedó en el historial: use su botón Excel.');
-          }
-        } else {
-          void notify.warning('Sin movimientos', 'SUNAT no registra movimientos afectos al ITF en esos periodos.');
+        // Como la referencia, el Excel se genera también sin registros (trae los encabezados y los totales en cero).
+        try {
+          await exportItfExcel(r.data, { empresa: company.business_name, ruc: company.ruc });
+          if (n === 0) void notify.warning('Reporte sin movimientos', 'SUNAT no registra movimientos afectos al ITF en esos periodos; el Excel salió sin filas.');
+          else void notify.success('Reporte generado', `ITF ${periodLabel(params.desde)} al ${periodLabel(params.hasta)}: ${n} registro${n === 1 ? '' : 's'}.`);
+        } catch {
+          void notify.error('No se pudo armar el Excel', 'La consulta quedó en el historial: use su botón Excel.');
         }
       }
     } catch (e) {
