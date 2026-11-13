@@ -41,6 +41,7 @@ func Setup(app *fiber.App) {
 	itfCtrl := controllers.NewItfController()
 	rheSolCtrl := controllers.NewRheSolController()
 	npdCtrl := controllers.NewNpdController()
+	spotCtrl := controllers.NewSpotController()
 	damCtrl := controllers.NewDamController()
 	exchangeCtrl := controllers.NewExchangeRateController()
 	deviceCtrl := controllers.NewDeviceController()
@@ -450,6 +451,12 @@ func Setup(app *fiber.App) {
 	detr.Delete("/:companyId/history", npdCtrl.HistoryClearAPI)
 	detr.Get("/:companyId/history/:historyId", npdCtrl.HistoryGetAPI)
 	detr.Delete("/:companyId/history/:historyId", npdCtrl.HistoryDeleteAPI)
+	// Descarga de constancias de depósito (plataforma de Pagos de SUNAT): en segundo plano, con Excel y ZIP en el historial.
+	detr.Post("/:companyId/descargas", spotCtrl.StartAPI)
+	detr.Get("/:companyId/descargas", spotCtrl.HistoryListAPI)
+	detr.Delete("/:companyId/descargas", spotCtrl.HistoryClearAPI)
+	detr.Get("/:companyId/descargas/:historyId/zip", spotCtrl.ZipAPI)
+	detr.Delete("/:companyId/descargas/:historyId", spotCtrl.HistoryDeleteAPI)
 
 	// Consulta DAM (Declaración Aduanera de Mercancías de exportación): se lee en SOL con la clave de la empresa, en segundo plano; solo lectura.
 	dam := api.Group("/tools/dam", middleware.RequirePermission(rbac.CompanyCredentialsView))

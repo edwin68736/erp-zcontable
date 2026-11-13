@@ -192,7 +192,7 @@ const NpdCompany = () => {
       companyId,
       companyName: company?.business_name || `Empresa ${companyId}`,
       detail: `${fmtDay(params.desde)} – ${fmtDay(params.hasta)}`,
-      href: `/tools/consulta-detracciones/${companyId}`,
+      href: `/tools/consulta-detracciones/${companyId}/npd`,
     });
     ownTask.current = t.id;
     try {
@@ -292,7 +292,7 @@ const NpdCompany = () => {
     <div className="space-y-3">
       <div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <Link to="/tools/consulta-detracciones" title="Volver a la lista" aria-label="Volver a la lista" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">
+          <Link to={`/tools/consulta-detracciones/${companyId}`} title="Volver a las constancias de detracciones" aria-label="Volver a las constancias de detracciones" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-primary-700">
             <i className="fas fa-arrow-left text-xs" aria-hidden />
           </Link>
           <PageHeading>{company?.business_name || 'Consulta de detracciones'}</PageHeading>

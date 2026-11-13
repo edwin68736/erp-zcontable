@@ -102,6 +102,7 @@ func AutoMigrate() error {
 		&models.RheSolHistory{},
 		&models.NpdHistory{},
 		&models.DamHistory{},
+		&models.DetraccionDownload{},
 		&models.ExchangeRate{},
 		&models.AuthEvent{},
 		&models.UserSession{},

@@ -51,7 +51,7 @@ export const TOOLS: ToolConfig[] = [
     slug: 'consulta-detracciones',
     label: 'Consulta de detracciones',
     icon: 'fas fa-magnifying-glass-dollar',
-    description: 'Números de Pago de Detracciones (NPD): estado, fecha límite e importe.',
+    description: 'Constancias de depósito de detracciones: consulta por fecha o periodo y descarga del Excel y las constancias.',
     permission: P.companyCredentialsView,
     ready: true,
   },

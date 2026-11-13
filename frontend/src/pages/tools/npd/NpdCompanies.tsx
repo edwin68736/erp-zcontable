@@ -4,9 +4,9 @@ import SireCompanies from '../sire/SireCompanies';
 const NpdCompanies = () => (
   <SireCompanies
     title="Consulta de detracciones"
-    subtitle="Números de Pago de Detracciones (NPD): elija una empresa para ver los NPD que generó, su estado y su fecha límite de pago."
+    subtitle="Pagos de detracciones (constancias de depósito): elija una empresa para consultar los pagos por fecha o periodo y descargar sus constancias y el Excel."
     basePath="/tools/consulta-detracciones"
-    openLabel="Abrir NPD"
+    openLabel="Abrir detracciones"
     openIcon="fas fa-magnifying-glass-dollar"
   />
 );
