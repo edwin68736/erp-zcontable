@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SpotFilter } from '../../../services/spot';
-import { SPOT_MAX_DAYS, aniosDisponibles, filterError, mesesDelAnio, pagosParaCuenta, periodoDe, rangoTexto, resumenTexto } from './spotUi';
+import { SPOT_BATCH, SPOT_MAX_DAYS, aniosDisponibles, filterError, filtroDe, mesesDelAnio, pagosParaCuenta, periodoDe, rangoTexto, resumenTexto } from './spotUi';
 
 const base: SpotFilter = { tipo_cuenta: '1', tipo_pago: 'individuales', modo: 'fecha', desde: '2026-10-15', hasta: '2026-11-13', periodo: '' };
 
@@ -47,5 +47,11 @@ describe('detracciones: filtros como los de SUNAT', () => {
     expect(resumenTexto({ status: 'listo', total: 3 })).toBe('Descarga Finalizada: 3 detracciones');
     expect(resumenTexto({ status: 'listo', total: 1 })).toBe('Descarga Finalizada: 1 detracción');
     expect(resumenTexto({ status: 'sin_datos', total: 0 })).toContain('No se encontraron registros');
+  });
+
+  it('continuar una descarga usa los mismos filtros; la tanda es de 250', () => {
+    expect(SPOT_BATCH).toBe(250);
+    const it2 = { id: 1, company_id: 5, status: 'listo' as const, total: 300, monto: 0, bajadas: 250, pendientes: 50, created_at: '', ...base, modo: 'periodo' as const, periodo: '202608', desde: '', hasta: '' };
+    expect(filtroDe(it2)).toEqual({ tipo_cuenta: '1', tipo_pago: 'individuales', modo: 'periodo', desde: '', hasta: '', periodo: '202608' });
   });
 });

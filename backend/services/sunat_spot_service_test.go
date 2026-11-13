@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -201,7 +202,7 @@ func (f *fakeSpotAPI) close() { f.cerrada = true }
 
 func newSpotTest(t *testing.T, api *fakeSpotAPI) (*SunatSpotService, models.Company) {
 	db := setupCompanyRucTestDB(t)
-	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}, &models.DetraccionDownload{}); err != nil {
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}, &models.DetraccionDownload{}, &models.DetraccionConstancia{}); err != nil {
 		t.Fatal(err)
 	}
 	co := models.Company{RUC: "20111111111", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}
@@ -379,5 +380,71 @@ func TestSpotStart_unaSolaDescargaALaVez(t *testing.T) {
 	}
 	if !interrumpida {
 		t.Errorf("la vieja debía quedar interrumpida: %+v", list)
+	}
+}
+
+// Con más pagos que el tope, cada descarga baja una tanda de 250 constancias y la siguiente sigue con las que faltan;
+// el Excel lleva siempre todos los pagos.
+func TestSpotStart_tandasDe250YContinuarConLasQueFaltan(t *testing.T) {
+	if spotMaxConstancias != 250 {
+		t.Fatalf("el tope por tanda acordado es 250, hay %d", spotMaxConstancias)
+	}
+	rows := make([]spotRow, 0, 300)
+	for i := 1; i <= 300; i++ {
+		rows = append(rows, spotRow{"num_constancia": strconv.Itoa(1000 + i), "cod_tipcta": "1", "mto_deposito": "10"})
+	}
+	api := &fakeSpotAPI{rows: rows}
+	svc, co := newSpotTest(t, api)
+	f := SpotFilter{TipoCuenta: "1", TipoPago: "individuales", Modo: "periodo", Periodo: "202608"}
+
+	if _, err := svc.Start(co.ID, nil, 1, f); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := svc.ListHistory(co.ID)
+	if list[0].Total != 300 || list[0].Bajadas != 250 || list[0].Pendientes != 50 || list[0].Monto != 3000 || !strings.Contains(list[0].Aviso, "quedan 50 por descargar") {
+		t.Fatalf("primera tanda: %+v", list[0])
+	}
+	_, z1, _ := svc.GetZip(co.ID, list[0].ID)
+	files1 := zipNames(t, z1)
+	if len(files1) != 251 || files1["constancias/Constancia_1001.html"] == nil || files1["constancias/Constancia_1250.html"] == nil || files1["constancias/Constancia_1251.html"] != nil {
+		t.Errorf("zip de la primera tanda: %d archivos", len(files1))
+	}
+	if len(api.pedidas) != 250 {
+		t.Errorf("pidió %d constancias", len(api.pedidas))
+	}
+
+	// La siguiente descarga con los mismos filtros baja solo las 50 que faltan; el Excel sigue trayendo los 300 pagos.
+	api.pedidas = nil
+	if _, err := svc.Start(co.ID, nil, 1, f); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = svc.ListHistory(co.ID)
+	if list[0].Total != 300 || list[0].Bajadas != 50 || list[0].Pendientes != 0 || list[0].Aviso != "" {
+		t.Fatalf("segunda tanda: %+v", list[0])
+	}
+	if len(api.pedidas) != 50 || api.pedidas[0] != "1251" {
+		t.Errorf("la segunda tanda debía pedir solo las 50 que faltan: %d %v", len(api.pedidas), api.pedidas[:1])
+	}
+	_, z2, _ := svc.GetZip(co.ID, list[0].ID)
+	files2 := zipNames(t, z2)
+	if len(files2) != 51 || files2["constancias/Constancia_1300.html"] == nil {
+		t.Errorf("zip de la segunda tanda: %d archivos", len(files2))
+	}
+	name, xlsx, err := ZipExcel(z2)
+	if err != nil || name == "" {
+		t.Fatal(err)
+	}
+	x, _ := excelize.OpenReader(bytes.NewReader(xlsx))
+	defer x.Close()
+	if rs, _ := x.GetRows("Detracciones"); len(rs) != 301 {
+		t.Errorf("el Excel debe traer los 300 pagos (+ encabezado): %d filas", len(rs))
+	}
+
+	// Una tercera: todo estaba descargado, no se pide nada.
+	api.pedidas = nil
+	svc.Start(co.ID, nil, 1, f)
+	list, _ = svc.ListHistory(co.ID)
+	if list[0].Bajadas != 0 || list[0].Pendientes != 0 || len(api.pedidas) != 0 || !strings.Contains(list[0].Aviso, "ya estaban descargadas") {
+		t.Errorf("tercera: %+v pedidas=%d", list[0], len(api.pedidas))
 	}
 }

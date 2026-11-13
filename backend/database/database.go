@@ -104,6 +104,7 @@ func AutoMigrate() error {
 		&models.NpdHistory{},
 		&models.DamHistory{},
 		&models.DetraccionDownload{},
+		&models.DetraccionConstancia{},
 		&models.ExchangeRate{},
 		&models.AuthEvent{},
 		&models.UserSession{},

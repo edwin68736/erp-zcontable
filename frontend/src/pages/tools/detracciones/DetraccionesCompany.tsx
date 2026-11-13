@@ -16,7 +16,7 @@ import { timeAgo } from '../buzon/buzonUi';
 import { daysAgo } from '../rh/rhUi';
 import { Card, SireErrorBox } from '../sire/SireShared';
 import { INPUT_CLS } from '../sire/sireUi';
-import { MESES, SPOT_MAX_DAYS, TIPOS_CUENTA, TIPOS_PAGO, aniosDisponibles, cuentaNombre, filterError, mesesDelAnio, pagoNombre, pagosParaCuenta, periodoDe, rangoTexto, resumenTexto } from './spotUi';
+import { MESES, SPOT_BATCH, SPOT_MAX_DAYS, filtroDe, TIPOS_CUENTA, TIPOS_PAGO, aniosDisponibles, cuentaNombre, filterError, mesesDelAnio, pagoNombre, pagosParaCuenta, periodoDe, rangoTexto, resumenTexto } from './spotUi';
 
 const TOOL = 'detracciones';
 
@@ -28,12 +28,14 @@ function DownloadEntry({
   company,
   busy,
   onOpen,
+  onContinue,
   onRemove,
 }: {
   item: SpotDownloadItem;
   company: CompanyAccessCredentialRow | null;
   busy: boolean;
   onOpen: (it: SpotDownloadItem, excel: boolean) => void;
+  onContinue: (it: SpotDownloadItem) => void;
   onRemove: (it: SpotDownloadItem) => void;
 }) {
   const [detail, setDetail] = useState(false);
@@ -63,6 +65,12 @@ function DownloadEntry({
             <p className={`text-xs font-medium ${ready ? 'text-green-700' : 'text-slate-500'}`}>
               {ready ? <i className="fas fa-circle-check mr-1" aria-hidden /> : null}
               {resumenTexto(item)}
+            </p>
+          ) : null}
+          {ready ? (
+            <p className="text-xs text-slate-600">
+              {item.bajadas} constancia{item.bajadas === 1 ? '' : 's'} bajada{item.bajadas === 1 ? '' : 's'} en esta descarga
+              {item.pendientes > 0 ? <strong className="text-amber-700"> · quedan {item.pendientes} por descargar</strong> : ''}
             </p>
           ) : null}
           {ready && item.aviso ? <p className="text-xs text-amber-700">{item.aviso}</p> : null}
@@ -96,6 +104,12 @@ function DownloadEntry({
                 <i className="fas fa-file-excel mr-1.5 text-green-700" aria-hidden />
                 Excel
               </Button>
+              {item.pendientes > 0 ? (
+                <Button className="!px-3 !py-1.5 text-xs" disabled={busy} onClick={() => onContinue(item)} title="Baja las constancias que faltan de estos mismos pagos">
+                  <i className="fas fa-forward mr-1.5" aria-hidden />
+                  Descargar siguientes {Math.min(SPOT_BATCH, item.pendientes)}
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -240,6 +254,20 @@ const DetraccionesCompany = () => {
     try {
       // El servidor hace el trabajo en segundo plano: la fila «en proceso» del historial la sigue el registro global (efecto de arriba).
       await spotService.start(companyId, filter);
+      await loadHistory();
+    } catch (e) {
+      setError(e as SireApiError);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  /** Continúa una descarga con muchos pagos: mismos filtros, baja las constancias que faltan. */
+  const continueDownload = async (it: SpotDownloadItem) => {
+    setError(null);
+    setStarting(true);
+    try {
+      await spotService.start(companyId, filtroDe(it));
       await loadHistory();
     } catch (e) {
       setError(e as SireApiError);
@@ -439,7 +467,7 @@ const DetraccionesCompany = () => {
               ) : (
                 <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-0.5">
                   {history.map((it) => (
-                    <DownloadEntry key={it.id} item={it} company={company} busy={opening} onOpen={(x, excel) => void open(x, excel)} onRemove={(x) => void remove(x)} />
+                    <DownloadEntry key={it.id} item={it} company={company} busy={opening || busy} onOpen={(x, excel) => void open(x, excel)} onContinue={(x) => void continueDownload(x)} onRemove={(x) => void remove(x)} />
                   ))}
                 </ul>
               )}

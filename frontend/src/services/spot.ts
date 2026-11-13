@@ -28,8 +28,10 @@ export interface SpotDownloadItem extends SpotFilter {
   total: number;
   /** Suma de los depósitos. */
   monto: number;
-  /** Constancias que se pudieron bajar. */
+  /** Constancias que se bajaron en esta descarga (hasta 250 por tanda). */
   bajadas: number;
+  /** Constancias de estos pagos que aún no se han bajado: la siguiente descarga con los mismos filtros las baja. */
+  pendientes: number;
   aviso?: string;
   error_code?: string;
   error_message?: string;

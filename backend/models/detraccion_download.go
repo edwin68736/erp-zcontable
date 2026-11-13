@@ -29,8 +29,10 @@ type DetraccionDownload struct {
 	Status  string  `gorm:"size:12;not null" json:"status"`
 	Total   int     `gorm:"not null;default:0" json:"total"`   // pagos encontrados
 	Monto   float64 `gorm:"not null;default:0" json:"monto"`   // suma de los depósitos
-	Bajadas int     `gorm:"not null;default:0" json:"bajadas"` // constancias que se pudieron bajar
-	Aviso   string  `gorm:"size:600" json:"aviso,omitempty"`   // constancias que no se pudieron bajar, etc.
+	Bajadas int     `gorm:"not null;default:0" json:"bajadas"` // constancias que se bajaron en esta descarga
+	// Pendientes constancias de estos pagos que aún no se han bajado (por el tope de la tanda o porque SUNAT no las entregó).
+	Pendientes int    `gorm:"not null;default:0" json:"pendientes"`
+	Aviso      string `gorm:"size:600" json:"aviso,omitempty"` // constancias que no se pudieron bajar, etc.
 
 	ErrorCode    string `gorm:"size:40" json:"error_code,omitempty"`
 	ErrorMessage string `gorm:"size:600" json:"error_message,omitempty"`

@@ -23,6 +23,7 @@ import (
 	"miappfiber/models"
 
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm/clause"
 )
 
 // Consulta de Detracciones (SPOT): constancias de depósito de los pagos de detracciones de una empresa.
@@ -39,11 +40,13 @@ import (
 // la pantalla y no se probaron con datos reales.
 
 const (
-	spotAppCode        = "55.2.1.1.4"
-	spotAPIBase        = "https://e-plataformaunica.sunat.gob.pe/v1/recaudacion/tributaria/declapago/detracciones"
-	spotAppOrigin      = "https://e-plataformaunica.sunat.gob.pe/"
-	spotMaxRangeDays   = 30
-	spotMaxConstancias = 400
+	spotAppCode      = "55.2.1.1.4"
+	spotAPIBase      = "https://e-plataformaunica.sunat.gob.pe/v1/recaudacion/tributaria/declapago/detracciones"
+	spotAppOrigin    = "https://e-plataformaunica.sunat.gob.pe/"
+	spotMaxRangeDays = 30
+	// spotMaxConstancias constancias por descarga: se piden de a una; más tiempo seguido cansa a SUNAT. Si hay más pagos, la
+	// siguiente descarga con los mismos filtros baja las que faltan (ver models.DetraccionConstancia).
+	spotMaxConstancias = 250
 	spotStaleAfter     = 20 * time.Minute
 	spotHistoryKeep    = 100
 	spotPace           = 250 * time.Millisecond
@@ -520,10 +523,10 @@ func SpotExcel(rows []spotRow, f SpotFilter) ([]byte, error) {
 // ---------- la descarga ----------
 
 type spotBundle struct {
-	Total, Bajadas int
-	Monto          float64
-	Aviso          string
-	Zip            []byte
+	Total, Bajadas, Pendientes int
+	Monto                      float64
+	Aviso                      string
+	Zip                        []byte
 }
 
 var reSpotFileSafe = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -573,27 +576,47 @@ func (s *SunatSpotService) fetch(companyID uint, allowed []uint, userID uint, f 
 	}
 
 	masivo := f.TipoPago == SpotPagoMasivos
-	fail, skipped := 0, 0
-	for i, r := range rows {
-		key, fname := r["num_constancia"], ""
+	keyOf := func(r spotRow) string {
 		if masivo {
-			key = r["num_detr"]
+			return "M" + r["num_detr"]
 		}
-		if key == "" {
+		return r["num_constancia"]
+	}
+	// Las constancias que ya se bajaron en otra descarga no se piden otra vez.
+	have := map[string]bool{}
+	var keys []string
+	for _, r := range rows {
+		if k := keyOf(r); k != "" && k != "M" {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) > 0 {
+		var done []models.DetraccionConstancia
+		if err := database.DB.Select("numero").Where("company_id = ? AND numero IN ?", companyID, keys).Find(&done).Error; err == nil {
+			for _, d := range done {
+				have[d.Numero] = true
+			}
+		}
+	}
+	var got []string
+	todo, fail := 0, 0
+	for i, r := range rows {
+		key := keyOf(r)
+		if key == "" || key == "M" || have[key] {
 			continue
 		}
-		if i >= spotMaxConstancias {
-			skipped++
-			continue
+		todo++
+		if b.Bajadas+fail >= spotMaxConstancias {
+			continue // queda para la siguiente descarga
 		}
-		if i > 0 && s.pace > 0 {
+		if (b.Bajadas+fail) > 0 && s.pace > 0 {
 			time.Sleep(s.pace)
 		}
 		var data []byte
 		var cerr error
 		for try := 0; try < 2; try++ {
 			if masivo {
-				data, cerr = api.constanciaMasiva(key)
+				data, cerr = api.constanciaMasiva(r["num_detr"])
 			} else {
 				data, cerr = api.constancia(key, i)
 			}
@@ -608,15 +631,18 @@ func (s *SunatSpotService) fetch(companyID uint, allowed []uint, userID uint, f 
 			fail++
 			continue
 		}
-		fname = "constancias/Constancia_" + reSpotFileSafe.ReplaceAllString(key, "") + ".html"
+		fname := "constancias/Constancia_" + reSpotFileSafe.ReplaceAllString(key, "") + ".html"
 		if masivo {
-			fname = "constancias/Constancia_Masivo_" + reSpotFileSafe.ReplaceAllString(key, "") + ".txt"
+			fname = "constancias/Constancia_Masivo_" + reSpotFileSafe.ReplaceAllString(r["num_detr"], "") + ".txt"
 		}
 		if err := add(fname, data); err != nil {
 			return nil, err
 		}
 		b.Bajadas++
+		got = append(got, key)
 	}
+	b.Pendientes = todo - b.Bajadas
+	s.recordConstancias(companyID, userID, got)
 	xlsx, err := SpotExcel(rows, f)
 	if err != nil {
 		return nil, err
@@ -636,11 +662,28 @@ func (s *SunatSpotService) fetch(companyID uint, allowed []uint, userID uint, f 
 			notes = append(notes, fmt.Sprintf("%d constancias no se pudieron bajar", fail))
 		}
 	}
-	if skipped > 0 {
-		notes = append(notes, fmt.Sprintf("se bajaron las primeras %d constancias de %d pagos (el Excel trae todos)", spotMaxConstancias, len(rows)))
+	if left := b.Pendientes - fail; left > 0 {
+		notes = append(notes, fmt.Sprintf("se bajaron %d constancias (tanda de %d); quedan %d por descargar: use «Descargar siguientes»", b.Bajadas, spotMaxConstancias, left))
+	}
+	if todo == 0 {
+		notes = append(notes, "las constancias de estos pagos ya estaban descargadas; el Excel trae todos los pagos")
 	}
 	b.Aviso = strings.Join(notes, "; ")
 	return b, nil
+}
+
+// recordConstancias anota las constancias que se bajaron (mejor esfuerzo: si falla no se pierde la descarga).
+func (s *SunatSpotService) recordConstancias(companyID, userID uint, keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	rows := make([]models.DetraccionConstancia, 0, len(keys))
+	for _, k := range keys {
+		rows = append(rows, models.DetraccionConstancia{CompanyID: companyID, Numero: truncateStr(k, 24), RequestedBy: userID})
+	}
+	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
+		log.Printf("detracciones: no se pudo anotar las constancias bajadas de la empresa %d: %v", companyID, err)
+	}
 }
 
 // Start valida la consulta, la deja «en proceso» en el historial de la empresa y la ejecuta en segundo plano.
@@ -707,7 +750,7 @@ func (s *SunatSpotService) finish(id uint, b *spotBundle, qerr error) {
 			upd["error_message"] = "No se pudo completar la descarga."
 		}
 	case b != nil:
-		upd["total"], upd["monto"], upd["bajadas"], upd["aviso"] = b.Total, b.Monto, b.Bajadas, truncateStr(b.Aviso, 600)
+		upd["total"], upd["monto"], upd["bajadas"], upd["pendientes"], upd["aviso"] = b.Total, b.Monto, b.Bajadas, b.Pendientes, truncateStr(b.Aviso, 600)
 		upd["status"] = models.DetraccionDownloadReady
 		if b.Total == 0 {
 			upd["status"] = models.DetraccionDownloadNoData

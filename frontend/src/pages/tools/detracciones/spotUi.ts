@@ -76,6 +76,14 @@ export function rangoTexto(it: Pick<SpotDownloadItem, 'modo' | 'periodo' | 'desd
   return it.desde === it.hasta ? dmy(it.desde) : `${dmy(it.desde)} – ${dmy(it.hasta)}`;
 }
 
+/** Constancias por tanda (igual que `spotMaxConstancias` del servidor). */
+export const SPOT_BATCH = 250;
+
+/** Los filtros con los que se hizo una descarga (para continuar con las constancias que faltan). */
+export function filtroDe(it: Pick<SpotDownloadItem, 'tipo_cuenta' | 'tipo_pago' | 'modo' | 'desde' | 'hasta' | 'periodo'>): SpotFilter {
+  return { tipo_cuenta: it.tipo_cuenta, tipo_pago: it.tipo_pago, modo: it.modo, desde: it.desde, hasta: it.hasta, periodo: it.periodo };
+}
+
 /** «Descarga Finalizada: 3 detracciones». */
 export function resumenTexto(it: Pick<SpotDownloadItem, 'status' | 'total'>): string {
   if (it.status === 'sin_datos') return 'No se encontraron registros de detracciones.';
