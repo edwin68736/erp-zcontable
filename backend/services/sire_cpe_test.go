@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -320,5 +322,23 @@ func TestCpe_ElegirTiposYCompletarLoQueFalta(t *testing.T) {
 	}
 	if _, err := svc.Start(cid, nil, 1, ref, []string{"zip"}); err == nil {
 		t.Error("un tipo inválido debe rechazarse")
+	}
+}
+
+// Una tanda admite hasta cpeMaxPerBatch comprobantes: uno más se rechaza con el tope en el mensaje, sin tocar SUNAT.
+func TestCpe_TopePorTanda(t *testing.T) {
+	sess := &fakeCpeConsulta{}
+	svc, companyID := cpeSetup(t, sess)
+	if cpeMaxPerBatch != 250 {
+		t.Fatalf("el tope por tanda acordado es 250, hay %d", cpeMaxPerBatch)
+	}
+	refs := make([]CpeRef, 0, cpeMaxPerBatch+1)
+	for i := 1; i <= cpeMaxPerBatch+1; i++ {
+		refs = append(refs, CpeRef{Ruc: "20610043098", Tipo: "01", Serie: "F001", Numero: strconv.Itoa(i)})
+	}
+	_, err := svc.Start(companyID, nil, 1, refs, nil)
+	var se *SireError
+	if !errors.As(err, &se) || !strings.Contains(se.Message, "250 comprobantes por vez") {
+		t.Fatalf("251 comprobantes debían rechazarse: %v", err)
 	}
 }

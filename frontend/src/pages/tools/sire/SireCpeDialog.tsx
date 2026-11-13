@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '../../../components/ui/Button';
 import {
@@ -18,6 +18,8 @@ import {
 } from '../../../services/sire';
 import { notify } from '../../../utils/notify';
 import { SireErrorBox } from './SireShared';
+
+import { CPE_BATCH, CPE_ZIP_PART, batchOf, chunk, countPending, fmtCpeTotal, isPending, nextPending, progressLabel } from './sireCpeSelect';
 
 const POLL_MS = 3000;
 
@@ -69,8 +71,10 @@ export default function SireCpeDialog({
   const [skipped, setSkipped] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<SireApiError | null>(null);
-  const [picked, setPicked] = useState<Set<string> | null>(null); // null = todos
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [kinds, setKinds] = useState<SireCpeKind[]>(CPE_KINDS.map((k) => k.value));
+  // Mientras la persona no toque la selección, se marcan solos los siguientes pendientes (al abrir, al cambiar los formatos y al terminar una tanda).
+  const touched = useRef(false);
   const [sending, setSending] = useState(false);
   const [fileBusy, setFileBusy] = useState('');
 
@@ -111,24 +115,37 @@ export default function SireCpeDialog({
     return () => window.clearInterval(t);
   }, [running, load]);
 
-  const isPicked = (l: SireCpeLine) => picked === null || picked.has(cpeLineKey(l));
-  const pickedCount = picked === null ? lines.length : lines.filter((l) => picked.has(cpeLineKey(l))).length;
-  const toggleAll = () => setPicked(pickedCount === lines.length ? new Set() : null);
-  const toggleOne = (l: SireCpeLine) =>
-    setPicked((cur) => {
-      const next = new Set(cur ?? lines.map(cpeLineKey));
-      const k = cpeLineKey(l);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next.size === lines.length ? null : next;
-    });
+  useEffect(() => {
+    if (loading || running || touched.current) return;
+    setPicked(new Set(nextPending(lines, kinds)));
+  }, [loading, running, lines, kinds]);
+
+  const pending = useMemo(() => countPending(lines, kinds), [lines, kinds]);
+  const isPicked = (l: SireCpeLine) => picked.has(cpeLineKey(l));
+  const pickedCount = useMemo(() => lines.reduce((n, l) => n + (picked.has(cpeLineKey(l)) ? 1 : 0), 0), [lines, picked]);
+  const choose = (keys: string[]) => {
+    touched.current = true;
+    setPicked(new Set(keys));
+  };
+  const toggleAll = () => (pickedCount > 0 ? choose([]) : choose(nextPending(lines, kinds)));
+  const toggleOne = (l: SireCpeLine) => {
+    const next = new Set(picked);
+    const k = cpeLineKey(l);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    choose(Array.from(next));
+  };
+  // Lo marcado puede pasar de la tanda («todos los pendientes»): se manda una tanda y el resto queda para «los siguientes».
+  const overBatch = Math.max(0, pickedCount - CPE_BATCH);
 
   const start = async () => {
     setSending(true);
     setError(null);
     try {
-      const keys = picked === null ? undefined : Array.from(picked);
+      const keys = batchOf(lines, picked);
       const r = await sireCpeService.startFromDownload(companyId, download.id, { keys, kinds });
+      // Al terminar la tanda se vuelven a marcar solos los siguientes pendientes.
+      touched.current = false;
       onStarted(r);
       if (r.items.every((i) => i.status !== 'en_proceso')) void notify.success('Ya estaban descargados', 'Todos los archivos elegidos ya están guardados.');
       await load(true);
@@ -155,7 +172,12 @@ export default function SireCpeDialog({
   const saveZip = async () => {
     setFileBusy('zip');
     try {
-      saveBlobAs(await sireCpeService.zipBlob(companyId, doneIds, kinds), `${ruc}-${download.period}-comprobantes.zip`);
+      // Con muchos comprobantes se baja por partes: un ZIP cada CPE_ZIP_PART.
+      const parts = chunk(doneIds, CPE_ZIP_PART);
+      for (let i = 0; i < parts.length; i++) {
+        const suffix = parts.length > 1 ? `-parte${i + 1}de${parts.length}` : '';
+        saveBlobAs(await sireCpeService.zipBlob(companyId, parts[i], kinds), `${ruc}-${download.period}-comprobantes${suffix}.zip`);
+      }
     } catch (e) {
       setError(e as SireApiError);
     } finally {
@@ -172,7 +194,7 @@ export default function SireCpeDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-labelledby="cpe-dialog-title" className="notify-pop flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="cpe-dialog-title" className="notify-pop flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="relative px-5 pb-2 pt-5 text-center">
           <h2 id="cpe-dialog-title" className="m-0 text-xl font-bold text-slate-800">
             Descarga de CPE (Módulo SIRE)
@@ -206,15 +228,36 @@ export default function SireCpeDialog({
           ) : lines.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-500">La propuesta no tiene comprobantes descargables.</p>
           ) : (
+            <>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-700">
+                {pickedCount} marcado{pickedCount === 1 ? '' : 's'} de {lines.length} · {pending} pendiente{pending === 1 ? '' : 's'}
+              </span>
+              <span className="text-slate-400">· cada tanda baja hasta {CPE_BATCH}</span>
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                <button type="button" disabled={running || pending === 0} onClick={() => choose(nextPending(lines, kinds))} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" title={`Marca los siguientes ${CPE_BATCH} comprobantes que aún no se han descargado`}>
+                  Siguientes {CPE_BATCH} pendientes
+                </button>
+                <button type="button" disabled={running || pending === 0} onClick={() => choose(lines.filter((l) => isPending(l, kinds)).map(cpeLineKey))} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" title="Marca todos los que aún no se han descargado (se bajan por tandas)">
+                  Todos los pendientes
+                </button>
+                <button type="button" disabled={running || pickedCount === 0} onClick={() => choose([])} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  Limpiar
+                </button>
+              </div>
+            </div>
             <table className="w-full overflow-hidden rounded-lg border border-slate-200 text-left text-sm">
               <thead className="sticky top-0 bg-slate-50">
                 <tr className="text-xs text-slate-600">
                   <th className="w-8 px-3 py-2">
-                    <input type="checkbox" className="h-4 w-4 accent-blue-900" checked={pickedCount === lines.length} onChange={toggleAll} aria-label="Marcar todos los comprobantes" disabled={running} />
+                    <input type="checkbox" className="h-4 w-4 accent-blue-900" checked={pickedCount > 0} onChange={toggleAll} aria-label="Marcar los siguientes pendientes o quitar la marca" disabled={running} />
                   </th>
                   <th className="px-2 py-2 font-semibold">RUC</th>
                   <th className="px-2 py-2 font-semibold">Tipo</th>
                   <th className="px-2 py-2 font-semibold">Serie-Número</th>
+                  <th className="px-2 py-2 font-semibold">Emisión</th>
+                  <th className="px-2 py-2 text-right font-semibold">Total</th>
+                  <th className="px-2 py-2 font-semibold">Descargado</th>
                   {CPE_KINDS.map((k) => (
                     <th key={k.value} className="w-14 px-2 py-2 text-center font-semibold">
                       {k.label}
@@ -238,6 +281,15 @@ export default function SireCpeDialog({
                         {Number(l.tipo)}
                       </td>
                       <td className="px-2 py-1.5 font-medium text-slate-800">{cpeNumber(l)}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-slate-600">{l.fecha || '—'}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-slate-700">{fmtCpeTotal(l.total)}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        {(() => {
+                          const pr = progressLabel(l, kinds);
+                          const tone = { ok: 'bg-green-50 text-green-700', warn: 'bg-amber-50 text-amber-700', muted: 'bg-slate-100 text-slate-500', busy: 'bg-blue-50 text-blue-700', bad: 'bg-red-50 text-red-700' }[pr.tone];
+                          return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{pr.text}</span>;
+                        })()}
+                      </td>
                       {CPE_KINDS.map((k) => {
                         const st = fileState(l, k.value);
                         return (
@@ -268,16 +320,22 @@ export default function SireCpeDialog({
                 })}
               </tbody>
             </table>
+            </>
           )}
           {skipped > 0 ? <p className="mt-2 text-xs text-slate-400">{skipped} filas de la propuesta no son comprobantes descargables (recibos, boletas por rango…).</p> : null}
         </div>
 
+        {overBatch > 0 && !running ? (
+          <p className="m-0 px-5 pb-1 text-center text-xs text-amber-700">
+            Se descargarán {CPE_BATCH} ahora; los otros {overBatch} marcados quedan pendientes para la siguiente tanda.
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 px-5 py-4">
           <Button disabled={!canStart} onClick={() => void start()}>
             <i className={`fas ${sending || running ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'} mr-1.5`} aria-hidden />
-            {running ? 'Descargando…' : 'Iniciar descarga'}
+            {running ? 'Descargando…' : pickedCount > CPE_BATCH ? `Iniciar descarga (${CPE_BATCH} de ${pickedCount})` : `Iniciar descarga${pickedCount > 0 ? ` (${pickedCount})` : ''}`}
           </Button>
-          <Button variant="secondary" disabled={doneIds.length === 0 || running || fileBusy === 'zip' || kinds.length === 0} onClick={() => void saveZip()} title="Un ZIP con los formatos marcados de todo lo ya descargado">
+          <Button variant="secondary" disabled={doneIds.length === 0 || running || fileBusy === 'zip' || kinds.length === 0} onClick={() => void saveZip()} title={`Un ZIP con los formatos marcados de todo lo ya descargado (por partes de ${CPE_ZIP_PART} si son muchos)`}>
             <i className={`fas ${fileBusy === 'zip' ? 'fa-spinner fa-spin' : 'fa-file-zipper'} mr-1.5`} aria-hidden />
             Bajar ZIP
           </Button>

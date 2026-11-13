@@ -31,10 +31,13 @@ import (
 const (
 	cpeMenuCode     = "11.38.1.1.1"
 	cpeConsultaBase = "https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/"
-	cpeMaxPerBatch  = 300
-	cpePause        = 700 * time.Millisecond
-	cpeReopenEvery  = 60 // se abre otra sesión SOL cada tantos comprobantes (el token no dura para siempre)
-	cpeStaleAfter   = 45 * time.Minute
+	// cpeMaxPerBatch comprobantes por tanda: una tanda dura ~10 minutos y SUNAT corta las sesiones largas o muy insistentes. La pantalla
+	// (frontend/src/pages/tools/sire/sireCpeSelect.ts, CPE_BATCH) marca de a tantos y ofrece «siguientes» para continuar.
+	cpeMaxPerBatch = 250
+	cpeMaxZip      = 1000 // filas de un solo ZIP (la pantalla pide por partes)
+	cpePause       = 700 * time.Millisecond
+	cpeReopenEvery = 60 // se abre otra sesión SOL cada tantos comprobantes (el token no dura para siempre)
+	cpeStaleAfter  = 45 * time.Minute
 
 	cpeFileCodePDF = "01"
 	cpeFileCodeXML = "02"
@@ -560,7 +563,7 @@ func (s *SireCpeService) Zip(companyID uint, ids []uint, libro, period string, k
 		q = q.Where("period = ?", p)
 	}
 	var rows []models.SireCpeFile
-	if err := q.Order("id").Limit(cpeMaxPerBatch * 4).Find(&rows).Error; err != nil {
+	if err := q.Order("id").Limit(cpeMaxZip).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	if len(rows) == 0 {
