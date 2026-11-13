@@ -31,20 +31,6 @@ import LongTaskPanel from '../../../components/LongTaskPanel';
 import { failTask, finishTask, startTask, taskKey } from '../../../utils/longTasks';
 import { useTask, useTaskSettled } from '../../../utils/useLongTasks';
 
-/** Atajos de rango: (mes actual) → [desde, hasta] en «AAAA-MM». */
-const RANGES: { label: string; make: (cur: string) => [string, string] }[] = [
-  { label: 'Este año', make: (cur) => [`${cur.slice(0, 4)}-01`, cur] },
-  { label: '6 meses', make: (cur) => [addMonths(cur, -5), cur] },
-  { label: '12 meses', make: (cur) => [addMonths(cur, -11), cur] },
-  {
-    label: 'Año anterior',
-    make: (cur) => {
-      const y = Number(cur.slice(0, 4)) - 1;
-      return [`${y}-01`, `${y}-12`];
-    },
-  },
-];
-
 /** Columnas que repiten el dato de la empresa consultada: no se muestran (sí van en el Excel). */
 const HIDDEN_COLS = ['tipo doc', 'contribuyente'];
 
@@ -90,41 +76,45 @@ function DataTable({ t, empty }: { t: ItfTable; empty: string }) {
 /** Una consulta del historial: se abre con un clic (resultado guardado, sin volver a consultar a SUNAT). */
 function HistoryEntry({
   item,
+  company,
   active,
   busy,
   onOpen,
+  onExcel,
   onRemove,
   onRetry,
 }: {
   item: ItfHistoryItem;
+  company: CompanyAccessCredentialRow | null;
   active: boolean;
   busy: boolean;
   onOpen: (it: ItfHistoryItem) => void;
+  onExcel: (it: ItfHistoryItem) => void;
   onRemove: (it: ItfHistoryItem) => void;
   onRetry: (it: ItfHistoryItem) => void;
 }) {
   const [detail, setDetail] = useState(false);
   return (
-    <li className={`rounded-xl border p-3 ${active ? 'border-blue-400 bg-blue-50/60' : 'border-slate-200'}`}>
+    <li className={`rounded-xl border p-3 ${item.status === 'error' ? 'border-red-200 bg-red-50/40' : active ? 'border-blue-400 bg-blue-50/60' : item.status === 'listo' ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
       <div className="space-y-1.5">
-        <div className="flex flex-wrap items-center gap-1.5 text-sm">
-          <span className="font-semibold text-slate-800">
-            {item.desde === item.hasta ? periodLabel(item.desde) : `${periodLabel(item.desde)} al ${periodLabel(item.hasta)}`}
-          </span>
-          {item.status === 'listo' ? <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">{item.total}</span> : null}
-          {item.status === 'sin_datos' ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Sin movimientos</span> : null}
-          {item.status === 'error' ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Error</span> : null}
+        <p className="truncate text-sm font-bold uppercase text-slate-800">{company ? `${company.ruc} - ${company.business_name}` : "Empresa"}</p>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-semibold text-slate-700">{item.desde === item.hasta ? item.desde : `${item.desde} a ${item.hasta}`}</span>
+          <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-2xs font-extrabold text-blue-700">ITF</span>
         </div>
         {item.status === 'listo' ? (
-          <p className="text-xs text-slate-700">
-            ITF S/ {fmtAmount(item.total_impuesto)} · base S/ {fmtAmount(item.total_movimientos)}
+          <p className="text-xs font-medium text-green-700">
+            <i className="fas fa-circle-check mr-1" aria-hidden />
+            Reporte listo: {item.total} registro{item.total === 1 ? '' : 's'} · ITF S/ {fmtAmount(item.total_impuesto)}
           </p>
         ) : null}
+        {item.status === 'sin_datos' ? <p className="text-xs font-medium text-slate-500">No se encontraron movimientos afectos al ITF en estos periodos.</p> : null}
         <p className="text-2xs text-slate-400" title={formatDateTime(item.created_at)}>
           {timeAgo(item.created_at)}
         </p>
         {item.status === 'error' ? (
-          <p className="text-xs text-red-700">
+          <p className="text-xs font-medium text-red-700">
+            <i className="fas fa-circle-exclamation mr-1" aria-hidden />
             {item.error_message || 'No se pudo completar la consulta.'}
             {item.error_detail ? (
               <button type="button" onClick={() => setDetail((v) => !v)} className="ml-2 underline">
@@ -141,10 +131,16 @@ function HistoryEntry({
         ) : null}
         <div className="flex items-center gap-2 pt-0.5">
           {item.status === 'listo' ? (
-            <Button variant="secondary" className="!px-3 !py-1 text-xs" disabled={busy || active} onClick={() => onOpen(item)}>
-              <i className="fas fa-eye mr-1.5" aria-hidden />
-              {active ? 'Viendo' : 'Ver'}
-            </Button>
+            <>
+              <Button variant="secondary" className="!px-3 !py-1 text-xs" disabled={busy} onClick={() => onExcel(item)} title="Bajar el reporte en Excel">
+                <i className="fas fa-file-excel mr-1.5 text-green-700" aria-hidden />
+                Excel
+              </Button>
+              <Button variant="secondary" className="!px-3 !py-1 text-xs" disabled={busy || active} onClick={() => onOpen(item)} title="Ver las tablas de SUNAT">
+                <i className="fas fa-eye mr-1.5" aria-hidden />
+                {active ? 'Viendo' : 'Ver'}
+              </Button>
+            </>
           ) : null}
           {item.status === 'error' || item.status === 'sin_datos' ? (
             <Button variant="secondary" className="!px-3 !py-1 text-xs" disabled={busy} onClick={() => onRetry(item)}>
@@ -179,8 +175,9 @@ const ItfCompany = () => {
   const [company, setCompany] = useState<CompanyAccessCredentialRow | null>(null);
   const [companyError, setCompanyError] = useState('');
   const cur = currentMonth();
-  const [desde, setDesde] = useState(addMonths(cur, -5));
-  const [hasta, setHasta] = useState(cur);
+  // Los periodos se escriben como AAAAMM (así los pide SUNAT y la referencia).
+  const [desde, setDesde] = useState(monthToPeriod(addMonths(cur, -5)));
+  const [hasta, setHasta] = useState(monthToPeriod(cur));
   const [error, setError] = useState<SireApiError | null>(null);
   const [resp, setResp] = useState<ItfResult | null>(null);
   const [history, setHistory] = useState<ItfHistoryItem[]>([]);
@@ -225,21 +222,26 @@ const ItfCompany = () => {
 
   // La consulta usa la clave SOL de la empresa (no las credenciales de API).
   const missingSol = company ? !company.sol_configurado : false;
-  const span = monthsBetween(desde, hasta);
+  const dM = periodToMonth(desde);
+  const hM = periodToMonth(hasta);
+  const validMonth = (p: string) => /^\d{6}$/.test(p) && Number(p.slice(4)) >= 1 && Number(p.slice(4)) <= 12;
+  const span = dM && hM ? monthsBetween(dM, hM) : -1;
   const rangeError = !desde || !hasta
     ? 'Indique los dos periodos.'
-    : span === 0
-      ? 'El periodo inicial no puede ser posterior al final.'
-      : desde < ITF_MIN_MONTH
-        ? 'SUNAT consulta desde marzo de 2004.'
-        : hasta > cur
-          ? 'El periodo final no puede ser posterior al mes actual.'
-          : span > ITF_MAX_MONTHS
-            ? `El rango máximo es de ${ITF_MAX_MONTHS} meses.`
-            : '';
+    : !validMonth(desde) || !validMonth(hasta)
+      ? 'Escriba los periodos como AAAAMM (por ejemplo 202608).'
+      : span === 0
+        ? 'El periodo inicial no puede ser posterior al final.'
+        : dM < ITF_MIN_MONTH
+          ? 'SUNAT consulta desde marzo de 2004.'
+          : hM > cur
+            ? 'El periodo final no puede ser posterior al mes actual.'
+            : span > ITF_MAX_MONTHS
+              ? `El rango máximo es de ${ITF_MAX_MONTHS} meses.`
+              : '';
 
   const run = async (p?: { desde: string; hasta: string }) => {
-    const params = p ?? { desde: monthToPeriod(desde), hasta: monthToPeriod(hasta) };
+    const params = p ?? { desde, hasta };
     setError(null);
     setSavedAt('');
     const t = startTask({
@@ -256,6 +258,20 @@ const ItfCompany = () => {
       finishTask(t.id, { resultId: r.history_id ?? undefined, summary: `ITF de ${periodToMonth(params.desde)} a ${periodToMonth(params.hasta)}` });
       setResp(r.data);
       setActiveId(r.history_id ?? null);
+      // «Generar Reporte Excel»: con los movimientos a la vista, el Excel se baja solo.
+      const n = r.data.acumulados.registros + r.data.contra_asientos.registros + r.data.exoneraciones.registros;
+      if (company) {
+        if (n > 0) {
+          try {
+            await exportItfExcel(r.data, { empresa: company.business_name, ruc: company.ruc });
+            void notify.success('Reporte generado', `ITF ${periodLabel(params.desde)} al ${periodLabel(params.hasta)}: ${n} registro${n === 1 ? '' : 's'}.`);
+          } catch {
+            void notify.error('No se pudo armar el Excel', 'La consulta quedó en el historial: use su botón Excel.');
+          }
+        } else {
+          void notify.warning('Sin movimientos', 'SUNAT no registra movimientos afectos al ITF en esos periodos.');
+        }
+      }
     } catch (e) {
       setResp(null);
       setActiveId(null);
@@ -267,9 +283,23 @@ const ItfCompany = () => {
   };
 
   const applyQuery = (it: ItfHistoryItem) => {
-    setDesde(periodToMonth(it.desde));
-    setHasta(periodToMonth(it.hasta));
+    setDesde(it.desde);
+    setHasta(it.hasta);
     return { desde: it.desde, hasta: it.hasta };
+  };
+
+  /** El Excel de una consulta guardada (sin volver a consultar a SUNAT). */
+  const excelOf = async (it: ItfHistoryItem) => {
+    if (!company) return;
+    setOpening(true);
+    try {
+      const r = await itfService.historyGet(companyId, it.id);
+      await exportItfExcel(r.data, { empresa: company.business_name, ruc: company.ruc });
+    } catch (e) {
+      void notify.error('No se pudo bajar el Excel', (e as SireApiError).message || 'Intente de nuevo.');
+    } finally {
+      setOpening(false);
+    }
   };
 
   /** Muestra el resultado guardado de una consulta (sin volver a consultar a SUNAT). */
@@ -364,49 +394,85 @@ const ItfCompany = () => {
 
       {company && !missingSol ? (
         <>
-          <Alert variant="info">
-            Esta consulta es la de <strong>ITF · Formulario 0695</strong> del Menú SOL de SUNAT: movimientos de las cuentas de la empresa afectos al Impuesto a las
-            Transacciones Financieras, por banco y periodo. La <strong>base imponible es referencial</strong>: SUNAT la calcula a partir del impuesto retenido.
-          </Alert>
-
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
-            <div className="min-w-0 space-y-5">
-              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-end gap-3">
-                  <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Periodo inicial</span>
-                    <input type="month" value={desde} min={ITF_MIN_MONTH} max={hasta || cur} onChange={(e) => setDesde(e.target.value)} className={INPUT_CLS} />
-                  </label>
-                  <label className="text-xs text-slate-600">
-                    <span className="mb-0.5 block">Periodo final</span>
-                    <input type="month" value={hasta} min={desde || ITF_MIN_MONTH} max={cur} onChange={(e) => setHasta(e.target.value)} className={INPUT_CLS} />
-                  </label>
-                  <div className="flex flex-wrap gap-1" aria-label="Rangos rápidos">
-                    {RANGES.map((r) => (
-                      <button
-                        key={r.label}
-                        type="button"
-                        onClick={() => {
-                          const [d, h] = r.make(cur);
-                          setDesde(d);
-                          setHasta(h);
-                        }}
-                        className="rounded-lg border border-slate-300 px-2.5 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                      >
-                        {r.label}
-                      </button>
-                    ))}
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
+            <aside className="min-w-0 space-y-4">
+              <Card title="Consulta de ITF" subtitle="Descarga el reporte del Impuesto a las Transacciones Financieras desde SUNAT.">
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">1. Empresa seleccionada</p>
+                    <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800">
+                      {company.ruc} - {company.business_name}
+                    </div>
                   </div>
-                  <Button className="ml-auto" disabled={loading || !!rangeError} onClick={() => void run()}>
-                    <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5`} aria-hidden />
-                    Consultar en SUNAT
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">2. Desde (AAAAMM)</span>
+                      <input value={desde} inputMode="numeric" maxLength={6} placeholder="202608" disabled={loading} onChange={(e) => setDesde(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`${INPUT_CLS} w-full font-mono`} />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">3. Hasta (AAAAMM)</span>
+                      <input value={hasta} inputMode="numeric" maxLength={6} placeholder="202609" disabled={loading} onChange={(e) => setHasta(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`${INPUT_CLS} w-full font-mono`} />
+                    </label>
+                  </div>
+                  <Button className="w-full" disabled={loading || !!rangeError} onClick={() => void run()}>
+                    <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-file-excel'} mr-1.5`} aria-hidden />
+                    Generar Reporte Excel
                   </Button>
+                  {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
+                  <details className="text-xs text-slate-500">
+                    <summary className="cursor-pointer font-medium text-primary-700 hover:underline">¿Qué hace este proceso?</summary>
+                    <p className="mt-1.5 leading-relaxed">
+                      Entra a <strong>SUNAT</strong> con la clave SOL y abre <em>ITF · Formulario 0695</em>: movimientos de las cuentas de la empresa afectos al Impuesto a las Transacciones
+                      Financieras, por banco y periodo, contra asientos y exoneraciones. Arma el Excel y lo baja. La <strong>base imponible es referencial</strong>: SUNAT la calcula a partir del impuesto
+                      retenido. Solo lee: no cambia nada en SUNAT.
+                    </p>
+                  </details>
                 </div>
-                {rangeError ? <p className="text-xs text-amber-700">{rangeError}</p> : null}
-              </div>
+              </Card>
+            </aside>
 
+            <div className="min-w-0 space-y-4">
               <LongTaskPanel task={task} hint="Entra a SOL con la clave de la empresa. Puede seguir usando el sistema; la consulta queda guardada en el historial." />
               {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
+
+              <Card
+                title="Historial de Consultas"
+                subtitle="Quedan guardadas por empresa: baje el Excel o vea las tablas sin volver a consultar a SUNAT."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{history.length}</span>
+                    <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={history.length === 0 || loading} onClick={() => void clearHistory()}>
+                      <i className="fas fa-broom mr-1.5" aria-hidden />
+                      Limpiar
+                    </Button>
+                  </div>
+                }
+              >
+                {historyError ? (
+                  <div className="mb-3">
+                    <SireErrorBox error={historyError} onRetry={() => void loadHistory()} />
+                  </div>
+                ) : null}
+                {history.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">Aún no hay consultas. Escriba los periodos y pulse «Generar Reporte Excel»: aquí quedará el resultado.</p>
+                ) : (
+                  <ul className="max-h-[50vh] space-y-2 overflow-y-auto pr-0.5">
+                    {history.map((it) => (
+                      <HistoryEntry
+                        key={it.id}
+                        item={it}
+                        company={company}
+                        active={activeId === it.id}
+                        busy={loading || opening}
+                        onOpen={(x) => void openSaved(x)}
+                        onExcel={(x) => void excelOf(x)}
+                        onRemove={(x) => void removeSaved(x)}
+                        onRetry={(x) => void run(applyQuery(x))}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </Card>
 
               {resp && !loading ? (
                 <Card
@@ -489,45 +555,6 @@ const ItfCompany = () => {
                 </Card>
               ) : null}
             </div>
-
-            <aside className="lg:sticky lg:top-2">
-              <Card
-                title="Historial de consultas"
-                subtitle="Quedan guardadas por empresa: ábralas sin volver a consultar a SUNAT."
-                actions={
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{history.length}</span>
-                    <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={history.length === 0 || loading} onClick={() => void clearHistory()}>
-                      <i className="fas fa-broom mr-1.5" aria-hidden />
-                      Limpiar
-                    </Button>
-                  </div>
-                }
-              >
-                {historyError ? (
-                  <div className="mb-3">
-                    <SireErrorBox error={historyError} onRetry={() => void loadHistory()} />
-                  </div>
-                ) : null}
-                {history.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-500">Aún no hay consultas. Elija los periodos y pulse «Consultar en SUNAT»: aquí quedará el resultado.</p>
-                ) : (
-                  <ul className="max-h-[70vh] space-y-2 overflow-y-auto pr-0.5">
-                    {history.map((it) => (
-                      <HistoryEntry
-                        key={it.id}
-                        item={it}
-                        active={activeId === it.id}
-                        busy={loading || opening}
-                        onOpen={(x) => void openSaved(x)}
-                        onRemove={(x) => void removeSaved(x)}
-                        onRetry={(x) => void run(applyQuery(x))}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </aside>
           </div>
         </>
       ) : null}
