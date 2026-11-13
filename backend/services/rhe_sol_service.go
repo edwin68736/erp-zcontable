@@ -79,6 +79,8 @@ type RheSolItem struct {
 	ImpuestoRenta float64 `json:"impuesto_renta"`
 	RentaNeta     float64 `json:"renta_neta"`
 	Pendiente     float64 `json:"monto_pendiente"`
+	// PdfBajado ya se bajó el PDF de este recibo (se completa al entregar la lista; no viene de SUNAT).
+	PdfBajado bool `json:"pdf_bajado,omitempty"`
 }
 
 // RheSolResult resultado de una consulta (todas las búsquedas del rango).

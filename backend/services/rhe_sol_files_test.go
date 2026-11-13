@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"miappfiber/database"
 	"miappfiber/models"
 )
 
@@ -216,5 +217,41 @@ func TestRheSolHistory_descargasYListaDeTodos(t *testing.T) {
 	}
 	if err := svc.RecordDownloads(co.ID+1, idRec, 1, 0, false, false); err == nil {
 		t.Error("no se puede anotar en la consulta de otra empresa")
+	}
+}
+
+// Los recibos cuyo PDF se bajó quedan anotados y la lista los marca como descargados (los que fallaron, no).
+func TestRheSolFetchFiles_anotaLosPdfBajadosYLosMarcaEnLaLista(t *testing.T) {
+	f := newFakeRheFiles(t)
+	svc, co := newRheFilesService(t, f)
+	if _, err := svc.FetchFiles(co.ID, nil, 1, []RheSolFileRef{
+		{Comprobante: "E001-20", FecEmision: "2026-10-06", EmisorDoc: "10737771704"},
+		{Comprobante: "E001-99", FecEmision: "2026-10-07", EmisorDoc: "10737771704"}, // SUNAT no lo encuentra
+	}, []string{"pdf"}); err != nil {
+		t.Fatal(err)
+	}
+	res := &RheSolResult{Items: []RheSolItem{
+		{Comprobante: "E001-20", EmisorDoc: "10737771704"},
+		{Comprobante: "E001-99", EmisorDoc: "10737771704"},
+		{Comprobante: "E001-20", EmisorDoc: "10999999999"}, // mismo número, otro emisor: no es el mismo recibo
+	}}
+	svc.FlagDownloaded(co.ID, res)
+	if !res.Items[0].PdfBajado || res.Items[1].PdfBajado || res.Items[2].PdfBajado {
+		t.Fatalf("marcas: %+v", res.Items)
+	}
+	// Bajarlo otra vez no duplica la anotación.
+	if _, err := svc.FetchFiles(co.ID, nil, 1, []RheSolFileRef{{Comprobante: "e001-0020", FecEmision: "2026-10-06", EmisorDoc: "10737771704"}}, []string{"pdf"}); err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	database.DB.Model(&models.RheSolFile{}).Where("company_id = ?", co.ID).Count(&n)
+	if n != 1 {
+		t.Errorf("anotaciones: %d", n)
+	}
+	// Otra empresa no ve las marcas de ésta.
+	other := &RheSolResult{Items: []RheSolItem{{Comprobante: "E001-20", EmisorDoc: "10737771704"}}}
+	svc.FlagDownloaded(co.ID+100, other)
+	if other.Items[0].PdfBajado {
+		t.Error("las marcas son de cada empresa")
 	}
 }

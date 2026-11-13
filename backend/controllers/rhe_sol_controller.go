@@ -59,6 +59,7 @@ func (ctrl *RheSolController) QueryAPI(c fiber.Ctx) error {
 	if err != nil {
 		return sunatErrorResponse(c, err, "No se pudo consultar los recibos por honorarios")
 	}
+	ctrl.svc.FlagDownloaded(id, res)
 	return c.JSON(fiber.Map{"data": res, "history_id": historyID})
 }
 
@@ -94,6 +95,7 @@ func (ctrl *RheSolController) HistoryGetAPI(c fiber.Ctx) error {
 	if err != nil {
 		return sunatErrorResponse(c, err, "No se pudo leer la consulta")
 	}
+	ctrl.svc.FlagDownloaded(id, res)
 	return c.JSON(fiber.Map{"data": res, "query": row})
 }
 

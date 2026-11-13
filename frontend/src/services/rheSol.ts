@@ -30,6 +30,8 @@ export interface RheSolItem {
   impuesto_renta: number;
   renta_neta: number;
   monto_pendiente: number;
+  /** Ya se bajó el PDF de este recibo (lo anota el servidor al entregarlo). */
+  pdf_bajado?: boolean;
 }
 
 export interface RheSolResult {

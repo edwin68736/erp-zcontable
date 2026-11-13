@@ -4,12 +4,18 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"log"
 	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"miappfiber/database"
+	"miappfiber/models"
+
+	"gorm.io/gorm/clause"
 )
 
 // Archivos de cada recibo por honorarios recibido (PDF y XML firmado), tal como los ofrece SUNAT en el detalle del recibo
@@ -140,6 +146,7 @@ func (s *RheSolService) FetchFiles(companyID uint, allowed []uint, userID uint, 
 	referer := resp.Request.URL.String()
 
 	out := &RheSolFilesResult{Errors: []string{}}
+	var pdfOK []RheSolFileRef // recibos de los que se bajó el PDF: se anotan para marcarlos en la lista
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	used := map[string]bool{}
@@ -231,6 +238,9 @@ func (s *RheSolService) FetchFiles(companyID uint, allowed []uint, userID uint, 
 			}
 			got++
 			out.Files++
+			if kind == "pdf" {
+				pdfOK = append(pdfOK, j.ref)
+			}
 		}
 		switch {
 		case got == 0:
@@ -242,6 +252,7 @@ func (s *RheSolService) FetchFiles(companyID uint, allowed []uint, userID uint, 
 			out.OK++
 		}
 	}
+	s.recordPdfs(companyID, userID, pdfOK)
 	if out.Files == 0 {
 		return nil, accessErr(SunatAccessUnexpected, "SUNAT no entregó ningún archivo de los recibos pedidos.", "RHE archivos: "+truncateStr(strings.Join(out.Errors, " | "), 400))
 	}
@@ -254,6 +265,51 @@ func (s *RheSolService) FetchFiles(companyID uint, allowed []uint, userID uint, 
 	}
 	out.Zip = buf.Bytes()
 	return out, nil
+}
+
+// rheComprobanteKey «e001-0020» y «E001-20» son el mismo recibo: serie en mayúsculas y número sin ceros a la izquierda.
+func rheComprobanteKey(comprobante string) string {
+	c := strings.ToUpper(strings.TrimSpace(comprobante))
+	if i := strings.Index(c, "-"); i >= 0 {
+		return c[:i] + "-" + strings.TrimLeft(c[i+1:], "0")
+	}
+	return c
+}
+
+func rhePdfKey(emisorDoc, comprobante string) string {
+	return strings.TrimSpace(emisorDoc) + "|" + rheComprobanteKey(comprobante)
+}
+
+// recordPdfs anota los recibos cuyo PDF se bajó (mejor esfuerzo: si falla no se pierde la descarga).
+func (s *RheSolService) recordPdfs(companyID, userID uint, refs []RheSolFileRef) {
+	if len(refs) == 0 {
+		return
+	}
+	rows := make([]models.RheSolFile, 0, len(refs))
+	for _, r := range refs {
+		rows = append(rows, models.RheSolFile{CompanyID: companyID, EmisorDoc: strings.TrimSpace(r.EmisorDoc), Comprobante: rheComprobanteKey(r.Comprobante), RequestedBy: userID})
+	}
+	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
+		log.Printf("rh: no se pudo anotar los PDF bajados de la empresa %d: %v", companyID, err)
+	}
+}
+
+// FlagDownloaded marca en la lista los recibos cuyo PDF ya se bajó.
+func (s *RheSolService) FlagDownloaded(companyID uint, res *RheSolResult) {
+	if res == nil || len(res.Items) == 0 {
+		return
+	}
+	var rows []models.RheSolFile
+	if err := database.DB.Select("emisor_doc", "comprobante").Where("company_id = ?", companyID).Find(&rows).Error; err != nil || len(rows) == 0 {
+		return
+	}
+	done := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		done[rhePdfKey(r.EmisorDoc, r.Comprobante)] = true
+	}
+	for i := range res.Items {
+		res.Items[i].PdfBajado = done[rhePdfKey(res.Items[i].EmisorDoc, res.Items[i].Comprobante)]
+	}
 }
 
 var reRheBadName = regexp.MustCompile(`[^A-Za-z0-9._-]`)

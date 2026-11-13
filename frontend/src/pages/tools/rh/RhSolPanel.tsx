@@ -240,6 +240,8 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
         try {
           const d = await runRhDownloads({ companyId, empresa: company.business_name, ruc: company.ruc, lado, items: r.data.items, desde: r.data.desde, hasta: r.data.hasta, formats });
           if (r.history_id) await rheSolService.recordDownloads(companyId, r.history_id, { pdf: d.pdf, excel: d.excel }).catch(() => undefined);
+          // Los PDF bajados quedan anotados en el servidor: se recarga la lista para que salgan como descargados.
+          if (r.history_id && d.pdf > 0) await rheSolService.historyGet(companyId, r.history_id).then(setResp).catch(() => undefined);
           if (d.saved) summary += ` · descargado: ${d.saved}`;
           if (d.notes.length > 0) void notify.warning('Descarga con avisos', d.notes.slice(0, 3).join(' · ') + (d.notes.length > 3 ? ` (y ${d.notes.length - 3} más)` : ''));
         } catch (e) {
@@ -295,6 +297,16 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
       }
     })();
   });
+
+  /** Recarga el resultado abierto para que muestre qué PDF ya se bajaron. */
+  const refreshMarks = async () => {
+    if (activeId == null) return;
+    try {
+      setResp(await rheSolService.historyGet(companyId, activeId));
+    } catch {
+      /* las marcas se verán al abrirlo de nuevo */
+    }
+  };
 
   const removeSaved = async (it: RheSolHistoryItem) => {
     try {
@@ -466,7 +478,7 @@ const RhSolPanel = ({ companyId, company, initialLado = 'receptor' }: { companyI
           </aside>
 
           <div className="min-w-0 space-y-4">
-            {filesOpen && resp && company ? <RhFilesDialog companyId={companyId} ruc={company.ruc} items={resp.data.items} desde={resp.data.desde} hasta={resp.data.hasta} onClose={() => setFilesOpen(false)} /> : null}
+            {filesOpen && resp && company ? <RhFilesDialog companyId={companyId} ruc={company.ruc} items={resp.data.items} desde={resp.data.desde} hasta={resp.data.hasta} onClose={() => setFilesOpen(false)} onDownloaded={() => void refreshMarks()} /> : null}
             <LongTaskPanel task={task} hint={`SUNAT admite ${emitidos ? 'hasta 6 meses' : '1 mes'} por búsqueda, así que un rango largo se consulta por tramos. Puede seguir usando el sistema; la consulta queda guardada en el historial.`} />
             {error ? <SireErrorBox error={error} onRetry={() => void run()} /> : null}
 

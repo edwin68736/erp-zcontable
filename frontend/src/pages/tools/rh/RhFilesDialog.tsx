@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '../../../components/ui/Button';
-import { rheSolService, type RheSolItem } from '../../../services/rheSol';
+import type { RheSolItem } from '../../../services/rheSol';
 import { saveBlobAs, type SireApiError } from '../../../services/sire';
 import { notify } from '../../../utils/notify';
 import { SireErrorBox } from '../sire/SireShared';
 import { fmtDay, fmtMoney } from './rhUi';
+import { RH_BATCH, fetchPdfZip, isPdfPending, nextPdfPending } from './rhProcess';
 
-/** SUNAT se consulta de a un recibo; el servidor admite hasta este número por pedido. */
-const RH_FILES_MAX = 100;
+/** Recibos por tanda: SUNAT se consulta de a uno (ver RH_BATCH). */
+const RH_FILES_MAX = RH_BATCH;
 
 const itemKey = (r: RheSolItem) => `${r.tipo}|${r.comprobante}|${r.emisor_doc}`;
 
@@ -23,6 +24,7 @@ export default function RhFilesDialog({
   desde,
   hasta,
   onClose,
+  onDownloaded,
 }: {
   companyId: number;
   ruc: string;
@@ -30,8 +32,12 @@ export default function RhFilesDialog({
   desde: string;
   hasta: string;
   onClose: () => void;
+  /** Se bajó algún PDF: la lista debe recargarse para mostrar cuáles ya están descargados. */
+  onDownloaded?: () => void;
 }) {
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(items.filter((r) => !r.anulado).slice(0, RH_FILES_MAX).map(itemKey)));
+  // Por defecto, los primeros recibos que aún no tienen su PDF.
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(nextPdfPending(items).map(itemKey)));
+  const pending = useMemo(() => items.filter(isPdfPending).length, [items]);
   const [q, setQ] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<SireApiError | null>(null);
@@ -75,18 +81,21 @@ export default function RhFilesDialog({
     setError(null);
     setProblems([]);
     try {
-      const r = await rheSolService.files(
-        companyId,
-        chosen.map((c) => ({ comprobante: c.comprobante, fec_emision: c.fec_emision, emisor_doc: c.emisor_doc })),
-        ['pdf'],
-      );
-      saveBlobAs(r.blob, `RH-recibos-${ruc}-${desde}_${hasta}.zip`);
+      const r = await fetchPdfZip(companyId, chosen);
+      if (r.pdf > 0) {
+        if (r.errors.length > 0) r.zip.file('errores.txt', `${r.errors.join('\r\n')}\r\n`);
+        saveBlobAs(await r.zip.generateAsync({ type: 'blob' }), `RH-recibos-${ruc}-${desde}_${hasta}.zip`);
+        onDownloaded?.();
+      }
       if (r.errors.length === 0) {
-        void notify.success('Archivos descargados', `${r.files} archivo${r.files === 1 ? '' : 's'} de ${r.ok} recibo${r.ok === 1 ? '' : 's'}.`);
-        onClose();
+        void notify.success('Archivos descargados', `${r.pdf} PDF de ${chosen.length} recibo${chosen.length === 1 ? '' : 's'}.`);
+        // Si quedan pendientes se deja abierto, con los siguientes ya marcados.
+        const left = items.filter((x) => isPdfPending(x) && !picked.has(itemKey(x)));
+        if (left.length === 0) onClose();
+        else setPicked(new Set(nextPdfPending(left).map(itemKey)));
       } else {
         setProblems(r.errors);
-        void notify.warning('Descarga con avisos', `Se bajaron ${r.files} archivos; ${r.errors.length} no los entregó SUNAT. Están listados abajo y en errores.txt del ZIP.`);
+        void notify.warning('Descarga con avisos', `Se bajaron ${r.pdf} PDF; ${r.errors.length} no los entregó SUNAT. Están listados abajo y en errores.txt del ZIP.`);
       }
     } catch (e) {
       setError(e as SireApiError);
@@ -118,6 +127,19 @@ export default function RhFilesDialog({
         </div>
 
         <div className="space-y-2.5 px-5 pb-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-700">
+              {pending} con el PDF pendiente de {items.length}
+            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <button type="button" disabled={sending || pending === 0} onClick={() => setPicked(new Set(nextPdfPending(items).map(itemKey)))} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" title={`Marca los siguientes ${RH_FILES_MAX} recibos sin PDF descargado`}>
+                Siguientes {RH_FILES_MAX} pendientes
+              </button>
+              <button type="button" disabled={sending || picked.size === 0} onClick={() => setPicked(new Set())} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                Limpiar
+              </button>
+            </div>
+          </div>
           <input
             type="search"
             value={q}
@@ -154,6 +176,7 @@ export default function RhFilesDialog({
                   <th className="px-2 py-2 font-semibold">Comprobante</th>
                   <th className="px-2 py-2 font-semibold">Emisor</th>
                   <th className="px-2 py-2 text-right font-semibold">Renta neta</th>
+                  <th className="px-2 py-2 font-semibold">PDF</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,6 +195,16 @@ export default function RhFilesDialog({
                       <div className="text-slate-400">{r.emisor_doc}</div>
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{fmtMoney(r.renta_neta, r.moneda)}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5">
+                      {r.pdf_bajado ? (
+                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          <i className="fas fa-circle-check mr-1" aria-hidden />
+                          Descargado
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{r.anulado ? 'Anulado' : 'Pendiente'}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -181,7 +214,7 @@ export default function RhFilesDialog({
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
           <p className="m-0 text-xs text-slate-500">
-            <strong className="text-slate-700">{picked.size}</strong> marcados (máximo {RH_FILES_MAX} por descarga)
+            <strong className="text-slate-700">{picked.size}</strong> marcados (cada tanda baja hasta {RH_FILES_MAX})
             {sending ? ' · SUNAT los entrega de a uno, puede tardar…' : ''}
           </p>
           <div className="flex items-center gap-2">

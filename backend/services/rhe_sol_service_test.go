@@ -193,7 +193,7 @@ func newFakeSunatRhe(t *testing.T, reports ...any) *fakeSunatRhe {
 
 func newRheSolTest(t *testing.T, f *fakeSunatRhe) (*RheSolService, models.Company) {
 	db := setupCompanyRucTestDB(t)
-	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}, &models.RheSolHistory{}); err != nil {
+	if err := db.AutoMigrate(&models.CompanyAccessCredential{}, &models.CompanyAccessLog{}, &models.RheSolHistory{}, &models.RheSolFile{}); err != nil {
 		t.Fatal(err)
 	}
 	co := models.Company{RUC: "20111111111", BusinessName: "Empresa", Status: "activo", ClientType: models.CompanyClientTypeEstudio}

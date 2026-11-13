@@ -100,6 +100,7 @@ func AutoMigrate() error {
 		&models.RheHistory{},
 		&models.ItfHistory{},
 		&models.RheSolHistory{},
+		&models.RheSolFile{},
 		&models.NpdHistory{},
 		&models.DamHistory{},
 		&models.DetraccionDownload{},

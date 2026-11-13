@@ -7,7 +7,7 @@ vi.mock('file-saver', () => ({ saveAs: (blob: Blob, name: string) => saved.push(
 const files = vi.fn();
 vi.mock('../../../services/rheSol', () => ({ rheSolService: { files: (...a: unknown[]) => files(...a) } }));
 
-import { RH_NO_FORMATS, runRhDownloads } from './rhProcess';
+import { RH_BATCH, RH_NO_FORMATS, isPdfPending, nextPdfPending, runRhDownloads } from './rhProcess';
 
 const item = (n: number): RheSolItem => ({
   fec_emision: '2026-10-14', tipo: 'RH', comprobante: `E001-${n}`, estado: 'NO ANULADO', anulado: false, emisor_tipo_doc: 'RUC', emisor_doc: '10737771704',
@@ -76,5 +76,44 @@ describe('runRhDownloads', () => {
     const items = Array.from({ length: 205 }, (_, i) => item(i + 1));
     await runRhDownloads({ ...base, lado: 'receptor', items, formats: { ...RH_NO_FORMATS, pdf: true } });
     expect(files.mock.calls.map((c) => (c[1] as unknown[]).length)).toEqual([100, 100, 5]);
+  });
+
+  it('una tanda baja como máximo 250 PDF, solo de los pendientes, y avisa cuántos quedan', async () => {
+    expect(RH_BATCH).toBe(250);
+    files.mockImplementation(async (_c: unknown, refs: unknown) => {
+      const entries: Record<string, string> = {};
+      (refs as { comprobante: string }[]).forEach((r) => (entries[`PDF/${r.comprobante}.pdf`] = 'pdf'));
+      return { blob: await serverZip(entries), ok: 0, files: 0, failed: 0, errors: [] };
+    });
+    // 600 recibos: los 100 primeros ya tienen su PDF; uno está anulado.
+    const items = Array.from({ length: 600 }, (_, i) => ({ ...item(i + 1), pdf_bajado: i < 100, anulado: i === 100 }));
+    const r = await runRhDownloads({ ...base, lado: 'receptor', items, formats: { ...RH_NO_FORMATS, pdf: true } });
+    const pedidos = files.mock.calls.flatMap((c) => (c[1] as { comprobante: string }[]).map((x) => x.comprobante));
+    expect(pedidos).toHaveLength(250);
+    expect(pedidos[0]).toBe('E001-102'); // salta los 100 ya descargados y el anulado
+    expect(files.mock.calls.map((c) => (c[1] as unknown[]).length)).toEqual([100, 100, 50]);
+    expect(r.pdf).toBe(250);
+    expect(r.pdfPending).toBe(249); // 499 pendientes - 250 bajados
+    expect(r.notes.join(' ')).toContain('quedan 249 recibos con el PDF pendiente');
+  });
+
+  it('si todos los PDF ya estaban descargados no pide ninguno (el Excel sí sale)', async () => {
+    const items = [{ ...item(20), pdf_bajado: true }, { ...item(21), pdf_bajado: true }];
+    const r = await runRhDownloads({ ...base, lado: 'receptor', items, formats: { pdf: true, excel: true } });
+    expect(files).not.toHaveBeenCalled();
+    expect(r.pdf).toBe(0);
+    expect(r.excel).toBe(true);
+    expect(r.notes[0]).toContain('ya estaban descargados');
+    expect(saved[0].name).toContain('.xlsx');
+  });
+
+  it('pendientes: sin PDF y no anulados, en el orden de la lista', () => {
+    const a = { ...item(1), pdf_bajado: true };
+    const b = { ...item(2), anulado: true };
+    const c = item(3);
+    expect(isPdfPending(a)).toBe(false);
+    expect(isPdfPending(b)).toBe(false);
+    expect(isPdfPending(c)).toBe(true);
+    expect(nextPdfPending([a, b, c, item(4)], 1).map((x) => x.comprobante)).toEqual(['E001-3']);
   });
 });
