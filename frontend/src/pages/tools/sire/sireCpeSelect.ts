@@ -1,5 +1,6 @@
 import type { SireCpeKind, SireCpeLine } from '../../../services/sire';
 import { cpeLineKey } from '../../../services/sire';
+import { parseSunatAmount } from '../../../utils/sunatAmount';
 
 /**
  * Comprobantes por tanda. Debe coincidir con `cpeMaxPerBatch` del servidor (backend/services/sire_cpe.go): una tanda dura unos
@@ -94,8 +95,8 @@ export function progressLabel(l: SireCpeLine, kinds: SireCpeKind[]): { text: str
 /** «1234.5» o «1,234.50» → «1,234.50»; si no es un número se deja tal cual. */
 export function fmtCpeTotal(v: string | undefined): string {
   if (!v) return '—';
-  const n = Number(v.replace(/,/g, ''));
-  return Number.isFinite(n)
+  const n = parseSunatAmount(v);
+  return n != null
     ? n.toLocaleString('es-PE', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,

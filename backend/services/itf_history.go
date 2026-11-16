@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"strings"
 
 	"miappfiber/database"
 	"miappfiber/models"
@@ -104,4 +106,86 @@ func (s *SunatItfService) DeleteHistory(companyID, id uint) error {
 func (s *SunatItfService) ClearHistory(companyID uint) (int64, error) {
 	res := database.DB.Where("company_id = ?", companyID).Delete(&models.ItfHistory{})
 	return res.RowsAffected, res.Error
+}
+
+// itfTableTotals suma las columnas Base e Impuesto de una tabla del resultado leyendo los importes en el formato de SUNAT.
+func itfTableTotals(t *ITFTable) (impuesto, base float64, ok bool) {
+	ib, ii := -1, -1
+	for i, c := range t.Columnas {
+		switch strings.ToLower(strings.TrimSpace(c)) {
+		case "base":
+			ib = i
+		case "impuesto":
+			ii = i
+		}
+	}
+	if ib < 0 || ii < 0 {
+		return 0, 0, false
+	}
+	for _, f := range t.Filas {
+		if ib < len(f) {
+			if v, k := parseSunatAmount(f[ib]); k {
+				base += v
+			}
+		}
+		if ii < len(f) {
+			if v, k := parseSunatAmount(f[ii]); k {
+				impuesto += v
+			}
+		}
+	}
+	return math.Round(impuesto*100) / 100, math.Round(base*100) / 100, true
+}
+
+// RepairItfHistoryAmounts corrige las consultas de ITF guardadas antes de leer bien el formato peruano de los importes
+// («78.000,00» se guardaba como 78 y «3,90» como 390): recalcula los totales desde las filas guardadas. Se puede repetir sin
+// riesgo (el resultado es el mismo) y devuelve cuántas consultas cambió.
+func RepairItfHistoryAmounts() (int, error) {
+	var rows []models.ItfHistory
+	if err := database.DB.Where("data IS NOT NULL AND status IN ?", []string{models.ItfHistoryReady, models.ItfHistoryNoData}).Find(&rows).Error; err != nil {
+		return 0, err
+	}
+	fixed := 0
+	for _, row := range rows {
+		zr, err := gzip.NewReader(bytes.NewReader(row.Data))
+		if err != nil {
+			continue
+		}
+		raw, rerr := io.ReadAll(io.LimitReader(zr, 64<<20))
+		_ = zr.Close()
+		var res ITFResult
+		if rerr != nil || json.Unmarshal(raw, &res) != nil {
+			continue
+		}
+		changed := false
+		for _, t := range []*ITFTable{&res.Acumulados, &res.ContraAsientos, &res.Exoneraciones} {
+			imp, base, ok := itfTableTotals(t)
+			if !ok || len(t.Filas) == 0 {
+				continue
+			}
+			if t.TotalImpuesto == nil || *t.TotalImpuesto != imp || t.TotalMovimientos == nil || *t.TotalMovimientos != base {
+				t.TotalImpuesto, t.TotalMovimientos = &imp, &base
+				changed = true
+			}
+		}
+		if !changed {
+			continue
+		}
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		if err := json.NewEncoder(zw).Encode(&res); err != nil || zw.Close() != nil {
+			continue
+		}
+		upd := map[string]any{"data": buf.Bytes()}
+		if res.Acumulados.TotalImpuesto != nil {
+			upd["total_impuesto"] = *res.Acumulados.TotalImpuesto
+		}
+		if res.Acumulados.TotalMovimientos != nil {
+			upd["total_movimientos"] = *res.Acumulados.TotalMovimientos
+		}
+		if err := database.DB.Model(&models.ItfHistory{}).Where("id = ?", row.ID).Updates(upd).Error; err == nil {
+			fixed++
+		}
+	}
+	return fixed, nil
 }

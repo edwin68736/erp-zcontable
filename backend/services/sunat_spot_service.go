@@ -450,10 +450,8 @@ func spotFechaPago(r spotRow) string {
 
 func spotMonto(r spotRow) float64 {
 	for _, k := range []string{"mto_deposito", "mto_deposito_desc", "mto_importe_total_desc"} {
-		if v := strings.ReplaceAll(r[k], ",", ""); v != "" {
-			if n, err := strconv.ParseFloat(v, 64); err == nil {
-				return n
-			}
+		if n, ok := parseSunatAmount(r[k]); ok {
+			return n
 		}
 	}
 	return 0

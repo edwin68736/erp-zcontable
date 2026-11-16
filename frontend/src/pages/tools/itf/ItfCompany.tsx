@@ -21,6 +21,7 @@ import {
   monthToPeriod,
   monthsBetween,
   periodLabel,
+  parseAmount,
   periodToMonth,
   summarizeByPeriod,
 } from './itfUi';
@@ -62,7 +63,8 @@ function DataTable({ t, empty }: { t: ItfTable; empty: string }) {
                   title={i === iCod ? ITF_COD_OPER[f[i].padStart(2, '0')] : undefined}
                   className={`whitespace-nowrap px-2 py-1.5 ${isAmountColumn(t.columnas[i]) ? 'text-right font-mono' : ''} ${i === iCod && ITF_COD_OPER[f[i].padStart(2, '0')] ? 'cursor-help underline decoration-dotted' : ''}`}
                 >
-                  {f[i]}
+                  {/* Los importes se muestran en un solo formato (SUNAT los entrega como «78.000,00»). */}
+                  {isAmountColumn(t.columnas[i]) ? fmtAmount(parseAmount(f[i])) : f[i]}
                 </td>
               ))}
             </tr>

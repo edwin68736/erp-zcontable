@@ -79,6 +79,13 @@ func main() {
 		log.Printf("backfill payment_allocations: %v", err)
 	}
 
+	// Consultas de ITF guardadas con los importes mal leídos (formato peruano «78.000,00»): se recalculan desde sus filas.
+	if n, err := services.RepairItfHistoryAmounts(); err != nil {
+		log.Printf("repair itf_history: %v", err)
+	} else if n > 0 {
+		log.Printf("repair itf_history: %d consultas de ITF corregidas", n)
+	}
+
 	if err := database.Seed(); err != nil {
 		log.Printf("seed (puede ignorarse si ya hay datos): %v", err)
 	}

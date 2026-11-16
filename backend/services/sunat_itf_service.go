@@ -186,9 +186,9 @@ var (
 	reHTMLRow      = regexp.MustCompile(`(?is)<tr[^>]*>(.*?)</tr>`)
 	reHTMLCell     = regexp.MustCompile(`(?is)<t[dh][^>]*>(.*?)</t[dh]>`)
 	reHTMLTag      = regexp.MustCompile(`(?s)<[^>]+>`)
-	reITFRegistros = regexp.MustCompile(`(?i)Cantidad de registros:\s*([\d,]+)`)
-	reITFImpuesto  = regexp.MustCompile(`(?i)Total Impuesto:\s*([\d,]+(?:\.\d+)?)`)
-	reITFMovs      = regexp.MustCompile(`(?i)Total Movimientos:\s*([\d,]+(?:\.\d+)?)`)
+	reITFRegistros = regexp.MustCompile(`(?i)Cantidad de registros:\s*([\d.,]+)`)
+	reITFImpuesto  = regexp.MustCompile(`(?i)Total Impuesto:\s*(-?[\d.,]+)`)
+	reITFMovs      = regexp.MustCompile(`(?i)Total Movimientos:\s*(-?[\d.,]+)`)
 	reITFIdent     = regexp.MustCompile(`(?is)Documento:\s*(.*?)</b>`)
 	reITFRazon     = regexp.MustCompile(`(?is)Nombre/Raz[^:]*:\s*(.*?)</b>`)
 	reITFNota      = regexp.MustCompile(`(?is)NOTA:\s*(.*?)<`)
@@ -212,9 +212,55 @@ func sunatBodyToUTF8(b []byte) string {
 	return string(r)
 }
 
-func parseFlexFloat(s string) *float64 {
-	v, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(s), ",", ""), 64)
+var (
+	reAmountThousandsComma = regexp.MustCompile(`^\d{1,3}(,\d{3})+$`)
+	reAmountThousandsDot   = regexp.MustCompile(`^\d{1,3}(\.\d{3})+$`)
+)
+
+// parseSunatAmount lee un importe tal como lo muestra SUNAT, que usa el formato peruano antiguo («78.000,00»: punto de miles y coma
+// decimal) y a veces el inglés («78,000.00»). Con los dos separadores manda el último (es el decimal); con uno solo se decide por su
+// forma: «1,234» y «78.000» son miles (grupos de tres), «3,90» y «0.05» son decimales.
+func parseSunatAmount(s string) (float64, bool) {
+	s = strings.TrimSpace(s)
+	s = strings.NewReplacer("S/", "", "s/", "", "$", "", " ", "", " ", "").Replace(s)
+	if s == "" {
+		return 0, false
+	}
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimPrefix(s, "-")
+	dot, comma := strings.LastIndex(s, "."), strings.LastIndex(s, ",")
+	switch {
+	case dot >= 0 && comma >= 0:
+		if comma > dot {
+			s = strings.ReplaceAll(s, ".", "")
+			s = strings.Replace(s, ",", ".", 1)
+		} else {
+			s = strings.ReplaceAll(s, ",", "")
+		}
+	case comma >= 0:
+		if strings.Count(s, ",") > 1 || reAmountThousandsComma.MatchString(s) {
+			s = strings.ReplaceAll(s, ",", "")
+		} else {
+			s = strings.Replace(s, ",", ".", 1)
+		}
+	case dot >= 0:
+		if strings.Count(s, ".") > 1 || reAmountThousandsDot.MatchString(s) {
+			s = strings.ReplaceAll(s, ".", "")
+		}
+	}
+	v, err := strconv.ParseFloat(s, 64)
 	if err != nil {
+		return 0, false
+	}
+	if neg {
+		v = -v
+	}
+	return v, true
+}
+
+func parseFlexFloat(s string) *float64 {
+	v, ok := parseSunatAmount(s)
+	if !ok {
 		return nil
 	}
 	return &v
@@ -280,7 +326,7 @@ func parseITFSection(title, seg string) ITFTable {
 	// Los totales vienen después de la tabla.
 	tail := htmlText(seg)
 	if m := reITFRegistros.FindStringSubmatch(tail); m != nil {
-		if n, err := strconv.Atoi(strings.ReplaceAll(m[1], ",", "")); err == nil {
+		if n, err := strconv.Atoi(strings.NewReplacer(",", "", ".", "").Replace(m[1])); err == nil {
 			t.Registros = n
 		}
 	} else {

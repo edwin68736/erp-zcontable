@@ -288,3 +288,64 @@ func TestItfHistory_conservaSoloLasUltimas(t *testing.T) {
 		t.Fatalf("debía conservar %d, hay %d", itfHistoryKeep, len(rows))
 	}
 }
+
+// SUNAT muestra los importes con punto de miles y coma decimal («78.000,00»): los totales no se deben leer 1000 veces menores
+// (78.000,00 como 78) ni el impuesto 100 veces mayor (3,90 como 390). Caso real de una empresa con 78 mil de base.
+func TestParseITFResult_ImportesEnFormatoPeruano(t *testing.T) {
+	page := itfPage("")
+	for old, nu := range map[string]string{
+		"1,000.00": "78.000,00", "0.05": "3,90", "16,000.00": "2.000,00", "0.80": "0,10",
+		"Total Impuesto: 0.85": "Total Impuesto: 4,00", "Total Movimientos: 17,000.00": "Total Movimientos: 80.000,00",
+	} {
+		page = strings.Replace(page, old, nu, 1)
+	}
+	res, err := parseITFResult([]byte(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := res.Acumulados
+	if a.TotalImpuesto == nil || *a.TotalImpuesto != 4 || a.TotalMovimientos == nil || *a.TotalMovimientos != 80000 {
+		t.Fatalf("totales: impuesto=%v movimientos=%v, quería 4 y 80000", a.TotalImpuesto, a.TotalMovimientos)
+	}
+	if a.Registros != 2 || a.Filas[0][5] != "78.000,00" || a.Filas[0][6] != "3,90" {
+		t.Errorf("las celdas se conservan tal como las muestra SUNAT: %+v", a.Filas)
+	}
+}
+
+// Una consulta guardada cuando los importes se leían mal (78.000,00 como 78 y 3,90 como 390) se corrige al arrancar, desde sus filas.
+func TestRepairItfHistoryAmounts_CorrigeLasConsultasGuardadasConElErrorViejo(t *testing.T) {
+	f := newFakeSunatITF(t, itfPage(""))
+	svc, co := newItfTest(t, f)
+	malo := func(v float64) *float64 { return &v }
+	res := &ITFResult{
+		Desde: "202606", Hasta: "202611",
+		Acumulados: ITFTable{
+			Columnas: []string{"RUC", "Declarante", "Período", "Tipo", "Cod. Oper.", "Base", "Impuesto"},
+			Filas: [][]string{
+				{"20100047218", "BANCO", "202607", "Afecta", "14", "78.000,00", "3,90"},
+				{"20100047218", "BANCO", "202609", "Afecta", "13", "2.000,00", "0,10"},
+			},
+			Registros: 2, TotalImpuesto: malo(400), TotalMovimientos: malo(80), // lo que se guardaba con el error
+		},
+	}
+	id := svc.RecordHistory(co.ID, 1, "202606", "202611", res, nil)
+	if id == 0 {
+		t.Fatal("no se guardó")
+	}
+	n, err := RepairItfHistoryAmounts()
+	if err != nil || n != 1 {
+		t.Fatalf("corregidas: %d, %v", n, err)
+	}
+	rows, _ := svc.ListHistory(co.ID)
+	if len(rows) != 1 || rows[0].TotalImpuesto != 4 || rows[0].TotalMovimientos != 80000 {
+		t.Fatalf("totales del historial: %+v", rows)
+	}
+	_, got, err := svc.GetHistory(co.ID, id)
+	if err != nil || got.Acumulados.TotalImpuesto == nil || *got.Acumulados.TotalImpuesto != 4 || *got.Acumulados.TotalMovimientos != 80000 {
+		t.Fatalf("resultado guardado: %+v %v", got, err)
+	}
+	// Repetirlo no cambia nada.
+	if n, _ := RepairItfHistoryAmounts(); n != 0 {
+		t.Errorf("la segunda pasada no debe cambiar nada: %d", n)
+	}
+}

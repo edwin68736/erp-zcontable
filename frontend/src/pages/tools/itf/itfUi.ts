@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { ItfResult, ItfTable } from '../../../services/itf';
 import { notify } from '../../../utils/notify';
+import { parseSunatAmount } from '../../../utils/sunatAmount';
 
 /** SUNAT no consulta periodos anteriores a marzo de 2004. */
 export const ITF_MIN_MONTH = '2004-03';
@@ -53,10 +54,9 @@ export function monthsBetween(desde: string, hasta: string): number {
   return n > 0 ? n : 0;
 }
 
-/** «1,000.00» → 1000. */
+/** «78.000,00» (formato de SUNAT) o «78,000.00» → 78000; lo que no es número, 0. */
 export function parseAmount(s: string | undefined): number {
-  const v = Number((s ?? '').replace(/,/g, ''));
-  return Number.isFinite(v) ? v : 0;
+  return parseSunatAmount(s) ?? 0;
 }
 
 export const fmtAmount = (n: number): string => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

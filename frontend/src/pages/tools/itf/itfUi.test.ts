@@ -101,4 +101,28 @@ describe('Excel del reporte de ITF (la forma de la referencia)', () => {
   it('el archivo se llama como el de la referencia', () => {
     expect(itfFileName('20611930641', { desde: '202608', hasta: '202609' })).toBe('ITF_20611930641_202608-202609.xlsx');
   });
+
+  it('importes en el formato de SUNAT («78.000,00» y «3,90»): ni 1000 veces menos ni 100 veces más', () => {
+    const t: ItfTable = {
+      titulo: 'Movimientos Acumulados',
+      columnas: ['RUC', 'Declarante', 'Tipo Doc', 'Contribuyente', 'Período', 'Tipo', 'Movimiento', 'Cod. Oper.', 'Base', 'Impuesto'],
+      filas: [
+        ['20100047218', 'BANCO DE CREDITO DEL PERU', '06', '20612257320', '202607', 'Afecta', 'Usando cuenta', '14', '78.000,00', '3,90'],
+        ['20100047218', 'BANCO DE CREDITO DEL PERU', '06', '20612257320', '202609', 'Afecta', 'Usando cuenta', '13', '2.000,00', '0,10'],
+      ],
+      registros: 2,
+      total_impuesto: 4,
+      total_movimientos: 80000,
+    };
+    const res: ItfResult = { desde: '202606', hasta: '202611', documento: '06 - RUC Nro. 20612257320', razon_social: 'NEGOCIOS DIGITALES TUKIFAC S.A.C.', acumulados: t, contra_asientos: empty, exoneraciones: empty };
+    const ws = buildItfWorkbook(res, { empresa: 'NEGOCIOS DIGITALES TUKIFAC S.A.C.', ruc: '20612257320' }).getWorksheet('Movimientos Acumulados')!;
+    expect(ws.getCell('I6').value).toBe(78000);
+    expect(ws.getCell('J6').value).toBe(3.9);
+    expect(ws.getCell('I7').value).toBe(2000);
+    expect(ws.getCell('J7').value).toBe(0.1);
+    expect(ws.getCell('A9').value).toBe('Cantidad de registros: 2 Total Impuesto: 4.00 Total Movimientos: 80000.00');
+    // El resumen por periodo usa los mismos importes.
+    const r = summarizeByPeriod(t);
+    expect(r.map((x) => [x.periodo, x.base, x.impuesto])).toEqual([['202607', 78000, 3.9], ['202609', 2000, 0.1]]);
+  });
 });
