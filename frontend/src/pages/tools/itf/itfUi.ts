@@ -106,6 +106,9 @@ const ITF_SHEETS: { name: string; pick: (r: ItfResult) => ItfTable }[] = [
   { name: 'Exoneraciones', pick: (r) => r.exoneraciones },
 ];
 
+/** 80000 → «80,000.00» (importes del pie del Excel, con miles para que no se confundan 78 y 78 mil). */
+const fmtMoney2 = (n: number): string => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const sumColumn = (t: ItfTable, name: string): number => {
   const i = colIndex(t, name);
   return i < 0 ? 0 : t.filas.reduce((acc, f) => acc + parseAmount(f[i]), 0);
@@ -149,14 +152,18 @@ export function buildItfWorkbook(res: ItfResult, meta: { empresa: string; ruc: s
         row.getCell(i + 1).value = amountCols.includes(i) ? parseAmount(v) : v;
       });
     });
-    // Debajo de la tabla (con una fila en blanco): cantidad de registros y totales, como SUNAT.
-    const impuesto = t.total_impuesto ?? sumColumn(t, 'Impuesto');
-    const movimientos = t.total_movimientos ?? sumColumn(t, 'Base');
+    // Debajo de la tabla (con una fila en blanco): cantidad de registros y totales. Si hay filas, los totales son la suma de lo que se ve
+    // en la hoja (así el pie nunca contradice la tabla); sin filas, los que dio SUNAT.
+    const hasAmounts = t.filas.length > 0 && colIndex(t, 'Impuesto') >= 0 && colIndex(t, 'Base') >= 0;
+    const impuesto = hasAmounts ? sumColumn(t, 'Impuesto') : (t.total_impuesto ?? 0);
+    const movimientos = hasAmounts ? sumColumn(t, 'Base') : (t.total_movimientos ?? 0);
     const sumRow = ws.getRow(6 + t.filas.length + 1);
-    sumRow.getCell(1).value = `Cantidad de registros: ${t.registros} Total Impuesto: ${impuesto.toFixed(2)} Total Movimientos: ${movimientos.toFixed(2)}`;
+    sumRow.getCell(1).value = `Cantidad de registros: ${t.registros} Total Impuesto: ${fmtMoney2(impuesto)} Total Movimientos: ${fmtMoney2(movimientos)}`;
     sumRow.getCell(1).font = { bold: true, italic: true };
+    // Ancho según lo que lleva cada columna (el nombre del banco, por ejemplo, no se corta).
     cols.forEach((c, i) => {
-      ws.getColumn(i + 1).width = i === 0 ? 16 : Math.max(12, Math.min(40, c.length + 6));
+      const longest = Math.max(c.length + 4, ...t.filas.map((f) => String(f[i] ?? '').length + 2));
+      ws.getColumn(i + 1).width = Math.max(12, Math.min(46, longest));
       if (amountCols.includes(i)) ws.getColumn(i + 1).numFmt = '#,##0.00';
     });
   }

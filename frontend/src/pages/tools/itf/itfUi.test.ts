@@ -95,7 +95,7 @@ describe('Excel del reporte de ITF (la forma de la referencia)', () => {
     expect(ws.getCell('J7').value).toBe(0.65);
     expect(ws.getCell('A8').value).toBeNull();
     // Sin totales de SUNAT se suman de las filas.
-    expect(ws.getCell('A9').value).toBe('Cantidad de registros: 2 Total Impuesto: 1.45 Total Movimientos: 29000.00');
+    expect(ws.getCell('A9').value).toBe('Cantidad de registros: 2 Total Impuesto: 1.45 Total Movimientos: 29,000.00');
   });
 
   it('el archivo se llama como el de la referencia', () => {
@@ -120,7 +120,7 @@ describe('Excel del reporte de ITF (la forma de la referencia)', () => {
     expect(ws.getCell('J6').value).toBe(3.9);
     expect(ws.getCell('I7').value).toBe(2000);
     expect(ws.getCell('J7').value).toBe(0.1);
-    expect(ws.getCell('A9').value).toBe('Cantidad de registros: 2 Total Impuesto: 4.00 Total Movimientos: 80000.00');
+    expect(ws.getCell('A9').value).toBe('Cantidad de registros: 2 Total Impuesto: 4.00 Total Movimientos: 80,000.00');
     // El resumen por periodo usa los mismos importes.
     const r = summarizeByPeriod(t);
     expect(r.map((x) => [x.periodo, x.base, x.impuesto])).toEqual([['202607', 78000, 3.9], ['202609', 2000, 0.1]]);
