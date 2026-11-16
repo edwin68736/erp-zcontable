@@ -505,6 +505,15 @@ export const supervisorsService = {
     return res.data.data;
   },
 
+  /**
+   * Una fila por empresa de un módulo en el periodo (entregadas dentro y fuera de plazo, vencidas y por vencer): lo que hay detrás
+   * de cada número del consolidado por dígito. Mismo alcance y filtros que `assistantOverview`.
+   */
+  async assistantModuleDetail(params: { period_ym: string; module_key: string; assistant_user_id?: number; supervisor_user_id?: number }): Promise<AssistantModuleDetail> {
+    const res = await client.get<{ data: AssistantModuleDetail }>('/supervisors/assistant/module-detail', { params });
+    return res.data.data;
+  },
+
   /** Datos agregados del dashboard rediseñado — el alcance (estudio vs. cartera propia) lo resuelve el servidor. */
   async dashboardOverview(params: {
     period_ym?: string;
@@ -664,6 +673,8 @@ export interface AssistantStudioOption {
   user_id: number;
   name: string;
   companies: number;
+  /** Solo en los asistentes: los supervisores de sus empresas y cuántas son de cada uno (para filtrar la lista por supervisor). */
+  supervisors?: { user_id: number; companies: number }[];
 }
 export interface AssistantStudioInfo {
   assistants: AssistantStudioOption[];
@@ -690,6 +701,8 @@ export interface AssistantProgress {
   pending: number;
   overdue: number;
   observed: number;
+  /** De las observadas, las que ya pasaron su plazo (cuentan como vencidas). */
+  observed_overdue?: number;
   not_applicable: number;
   pct: number;
 }
@@ -721,6 +734,55 @@ export interface AssistantPlanillaLoad {
   by_assistant: AssistantPlanillaRow[];
 }
 
+/** Comprobantes de ventas y compras que registró un asistente en el PDT 621 del periodo. */
+export interface AssistantComprobantesRow {
+  /** 0 = empresas sin asistente asignado. */
+  assistant_id: number;
+  name: string;
+  companies: number;
+  ventas: number;
+  compras: number;
+  /** Empresas sin comprobantes registrados todavía (no suman). */
+  no_data: number;
+  open: number;
+}
+export interface AssistantComprobantesLoad {
+  ventas: number;
+  compras: number;
+  companies: number;
+  no_data: number;
+  by_assistant: AssistantComprobantesRow[];
+}
+
+/** Categoría de una fila de módulo: coincide con las columnas del consolidado por dígito. */
+export type AssistantBucket = 'dentro' | 'fuera' | 'vencida' | 'por_vencer';
+/** Una empresa en un módulo del periodo. */
+export interface AssistantModuleRow {
+  company_id: number;
+  company: string;
+  ruc: string;
+  /** Último dígito del RUC (-1 si no hay). */
+  digit: number;
+  assistant_id?: number;
+  assistant?: string;
+  /** completada | pendiente | vencida | por_revisar | observada */
+  state: string;
+  bucket: AssistantBucket;
+  declaration_id?: number;
+  due_date?: string;
+  days_left?: number;
+  /** Cuándo se entregó o declaró (AAAA-MM-DD), si se sabe. */
+  delivered_at?: string;
+  /** Nota del supervisor en el registro (en la declaración: p. ej. el motivo de declarar fuera de plazo). */
+  observacion?: string;
+  hint?: string;
+}
+export interface AssistantModuleDetail {
+  module_key: string;
+  period_ym: string;
+  rows: AssistantModuleRow[];
+}
+
 /** El avance de un módulo para las empresas cuyo RUC termina en `digit` (0 al 9). */
 export interface AssistantDigitProgress extends AssistantProgress {
   digit: number;
@@ -733,6 +795,8 @@ export interface AssistantModuleProgress extends AssistantProgress {
   by_digit?: AssistantDigitProgress[];
   /** Solo PDT 601: trabajadores atendidos por cada asistente. */
   planilla?: AssistantPlanillaLoad;
+  /** Solo PDT 621 · Declaración: comprobantes de ventas y compras que registró cada asistente. */
+  comprobantes?: AssistantComprobantesLoad;
 }
 export interface AssistantTrendPoint {
   period_ym: string;

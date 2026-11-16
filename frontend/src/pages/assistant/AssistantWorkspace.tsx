@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ModulePendingModal from '../../components/assistant/ModulePendingModal';
+import { assistantsForSupervisor } from '../../components/assistant/moduleDigits';
 import { Card, HeroGauge, TrendArea } from '../../components/supervisors/dashboard/DashboardParts';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { MODULE_SLUG, workModuleLabel } from '../../navigation/moduleSlugs';
@@ -240,7 +241,7 @@ const AssistantWorkspace = () => {
                 <span className="text-slate-500">Asistente</span>
                 <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por asistente">
                   <option value="">Todos</option>
-                  {studio.assistants.map((a) => (
+                  {assistantsForSupervisor(studio.assistants, supervisorId ? Number(supervisorId) : null).map((a) => (
                     <option key={a.user_id} value={a.user_id}>
                       {a.name} ({a.companies})
                     </option>
@@ -249,7 +250,15 @@ const AssistantWorkspace = () => {
               </label>
               <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
                 <span className="text-slate-500">Supervisor</span>
-                <select value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por supervisor">
+                <select
+                  value={supervisorId}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSupervisorId(next);
+                    // Si el asistente elegido no tiene empresas de ese supervisor, deja de estar en la lista: se quita.
+                    if (next && assistantId && !assistantsForSupervisor(studio.assistants, Number(next)).some((a) => String(a.user_id) === assistantId)) setAssistantId('');
+                  }}
+                  className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por supervisor">
                   <option value="">Todos</option>
                   {studio.supervisors.map((s) => (
                     <option key={s.user_id} value={s.user_id}>
@@ -613,6 +622,7 @@ const AssistantWorkspace = () => {
         items={work.filter((w) => w.module_key === moduleModalKey)}
         periodYm={periodYm}
         truncated={data?.work_truncated}
+        scope={{ assistantId: assistantId ? Number(assistantId) : undefined, supervisorId: supervisorId ? Number(supervisorId) : undefined }}
         detailPath={detailPath}
         onClose={() => setModuleModalKey(null)}
       />

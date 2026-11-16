@@ -256,6 +256,7 @@ func Setup(app *fiber.App) {
 	sup.Get("/dashboard/overview", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardOverviewAPI)
 	sup.Get("/dashboard/indicators", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardIndicatorsAPI)
 	sup.Get("/assistant/overview", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.AssistantOverviewAPI)
+	sup.Get("/assistant/module-detail", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.AssistantModuleDetailAPI)
 	sup.Get("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsView), supervisorCtrl.ListPeriodsAPI)
 	sup.Post("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsCreate), supervisorCtrl.CreatePeriodAPI)
 	sup.Put("/periods/:id", middleware.RequirePermission(rbac.SupervisorsPeriodsUpdate), supervisorCtrl.UpdatePeriodAPI)

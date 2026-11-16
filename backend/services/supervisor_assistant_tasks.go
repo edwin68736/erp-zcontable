@@ -33,6 +33,8 @@ const (
 	assistantTaskPending  = "pendiente"
 
 	pdt621DeclarationKey = "pdt_621_declaracion"
+	// pdt621ArchivadorLabel el módulo PDT 621 del asistente es la ENTREGA DEL ARCHIVADOR (la declaración es otra tarea, del supervisor).
+	pdt621ArchivadorLabel = "PDT 621 - Entrega de archivadores"
 
 	assistantOwnerAssistant  = "asistente"
 	assistantOwnerSupervisor = "supervisor"
@@ -40,14 +42,14 @@ const (
 
 // AssistantProgress conteo de tareas de un conjunto (un módulo o todo el panel). Total = tareas que aplican.
 type AssistantProgress struct {
-	Total         int64 `json:"total"`
-	Completed     int64 `json:"completed"`
-	OnTime        int64 `json:"on_time"`
-	Late          int64 `json:"late"`
-	InReview      int64 `json:"in_review"`
-	Pending       int64 `json:"pending"`
-	Overdue       int64 `json:"overdue"`
-	Observed      int64 `json:"observed"`
+	Total     int64 `json:"total"`
+	Completed int64 `json:"completed"`
+	OnTime    int64 `json:"on_time"`
+	Late      int64 `json:"late"`
+	InReview  int64 `json:"in_review"`
+	Pending   int64 `json:"pending"`
+	Overdue   int64 `json:"overdue"`
+	Observed  int64 `json:"observed"`
 	// ObservedOverdue de las observadas, las que ya pasaron su plazo (cuentan como vencidas en el cumplimiento).
 	ObservedOverdue int64 `json:"observed_overdue,omitempty"`
 	NotApplicable   int64 `json:"not_applicable"`
@@ -114,6 +116,8 @@ type AssistantModuleProgress struct {
 	ByDigit []AssistantDigitProgress `json:"by_digit,omitempty"`
 	// Planilla solo en PDT 601: trabajadores atendidos por cada asistente (la carga de planillas).
 	Planilla *AssistantPlanillaLoad `json:"planilla,omitempty"`
+	// Comprobantes solo en PDT 621 · Declaración: comprobantes de ventas y compras que registró cada asistente.
+	Comprobantes *AssistantComprobantesLoad `json:"comprobantes,omitempty"`
 }
 
 // AssistantTrendPoint avance de un mes (con la misma fórmula que el panel). Total 0 = ese mes no tiene tareas medidas.
@@ -133,6 +137,8 @@ type assistantBuild struct {
 	PerCompany map[uint]map[string]AssistantProgress
 	// PlanillaLoad la carga de planillas por asistente (solo si el módulo PDT 601 está en el alcance).
 	PlanillaLoad *AssistantPlanillaLoad
+	// Rows una fila por empresa y tarea (también las ya entregadas), solo si se pidió (ver assistantBuildRows).
+	Rows []AssistantModuleRow
 }
 
 type assistantAcc struct {
@@ -202,6 +208,17 @@ func (a *assistantAcc) addDigit(key, ruc, state string, onTime bool) {
 	arr[d].add(state, onTime)
 }
 
+// addDigitObservedOverdue cuenta, en el dígito del RUC, una tarea observada cuyo plazo ya pasó (cuenta como vencida).
+func (a *assistantAcc) addDigitObservedOverdue(key, ruc string) {
+	d := rucDigit(ruc)
+	if d < 0 {
+		return
+	}
+	if arr, ok := a.digits[key]; ok {
+		arr[d].ObservedOverdue++
+	}
+}
+
 // byDigit el consolidado por dígito de un módulo ya contado (nil si no se separó por dígito).
 func (a *assistantAcc) byDigit(key string) []AssistantDigitProgress {
 	arr, ok := a.digits[key]
@@ -242,6 +259,12 @@ func assistantTaskState(status, timeliness string, exempt bool) (state string, o
 // pero no se listan). moduleKey != "" limita todo a ese módulo. includeSupervisor añade las tareas del supervisor
 // (vista del estudio). wantWork false evita armar la lista (la usa la tendencia de meses).
 func (s *SupervisorService) assistantBuild(periodYM string, companies []models.Company, includeSupervisor bool, moduleKey string, wantWork bool) (*assistantBuild, error) {
+	return s.assistantBuildRows(periodYM, companies, includeSupervisor, moduleKey, wantWork, false)
+}
+
+// assistantBuildRows es assistantBuild; con wantRows además entrega una fila por empresa y tarea (entregadas o no) para el
+// detalle de un módulo.
+func (s *SupervisorService) assistantBuildRows(periodYM string, companies []models.Company, includeSupervisor bool, moduleKey string, wantWork, wantRows bool) (*assistantBuild, error) {
 	out := &assistantBuild{Modules: []AssistantModuleProgress{}, Work: []AssistantWorkItem{}}
 	if len(companies) == 0 {
 		return out, nil
@@ -291,7 +314,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	acc := newAssistantAcc()
 	// Se fija el orden de los módulos aunque alguno no tenga tareas.
 	acc.mod(models.SupervisorDeclPDT601, "PDT 601", assistantOwnerAssistant)
-	acc.mod(models.SupervisorDeclPDT621, "PDT 621", assistantOwnerAssistant)
+	acc.mod(models.SupervisorDeclPDT621, pdt621ArchivadorLabel, assistantOwnerAssistant)
 	if includeSupervisor {
 		acc.mod(pdt621DeclarationKey, "PDT 621 · Declaración", assistantOwnerSupervisor)
 	}
@@ -315,6 +338,22 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		return it
 	}
 	// record cuenta la tarea en su módulo y, si sigue abierta, la agrega a la lista de trabajo.
+	var rows []AssistantModuleRow
+	assistantIDOf := map[uint]uint{}
+	if wantRows {
+		for _, c := range companies {
+			if c.AssistantUserID != nil {
+				assistantIDOf[c.ID] = *c.AssistantUserID
+			}
+		}
+	}
+	// lastRow la última fila agregada por record (para completarla con datos propios del módulo); nil si no se piden filas.
+	lastRow := func() *AssistantModuleRow {
+		if !wantRows || len(rows) == 0 {
+			return nil
+		}
+		return &rows[len(rows)-1]
+	}
 	record := func(key, label, owner string, companyID uint, company, ruc string, declID *uint, state string, onTime bool, due *time.Time, detail string) *AssistantWorkItem {
 		m := acc.mod(key, label, owner)
 		m.add(state, onTime)
@@ -323,6 +362,22 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		if state == assistantTaskObserved && due != nil && due.Before(today) {
 			m.ObservedOverdue++
 			acc.company(key, companyID).ObservedOverdue++
+			acc.addDigitObservedOverdue(key, ruc)
+		}
+		if wantRows {
+			row := AssistantModuleRow{
+				CompanyID: companyID, Company: strings.TrimSpace(company), RUC: ruc, Digit: rucDigit(ruc), AssistantID: assistantIDOf[companyID],
+				State: state, Bucket: assistantBucket(state, onTime, due, today), Hint: detail,
+			}
+			if declID != nil {
+				row.DeclarationID = *declID
+			}
+			if due != nil {
+				row.DueDate = due.Format("2006-01-02")
+				d := daysUntil(*due, today)
+				row.DaysLeft = &d
+			}
+			rows = append(rows, row)
 		}
 		if state == assistantTaskDone || !wantWork {
 			return nil
@@ -332,6 +387,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	}
 
 	planillaAcc := newPlanillaLoadAcc(companies)
+	comprobantes := newComprobantesAcc(companies)
 	for _, r := range pdt601 {
 		m := acc.mod(models.SupervisorDeclPDT601, "PDT 601", assistantOwnerAssistant)
 		exempt := r.Suspendida || (r.Planilla != nil && r.Planilla.SinPlanilla)
@@ -352,7 +408,7 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 
 	for _, r := range pdt621 {
 		due := calendarDeadlineFor(periodYM, acts621, r.Dig, cache)
-		arch := acc.mod(models.SupervisorDeclPDT621, "PDT 621", assistantOwnerAssistant)
+		arch := acc.mod(models.SupervisorDeclPDT621, pdt621ArchivadorLabel, assistantOwnerAssistant)
 		if r.Suspendida {
 			arch.NotApplicable++
 			acc.company(models.SupervisorDeclPDT621, r.CompanyID).NotApplicable++
@@ -377,7 +433,10 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 					st = assistantTaskOverdue
 				}
 			}
-			record(models.SupervisorDeclPDT621, "PDT 621", assistantOwnerAssistant, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, due, "")
+			record(models.SupervisorDeclPDT621, pdt621ArchivadorLabel, assistantOwnerAssistant, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, due, "")
+			if row := lastRow(); row != nil && r.Record != nil && r.Record.PrimeraEntregaFecha != nil {
+				row.DeliveredAt = strings.TrimSpace(*r.Record.PrimeraEntregaFecha)
+			}
 		}
 		if includeSupervisor && want(pdt621DeclarationKey) {
 			// Declaración: la fecha de declaración la registra el supervisor, contra la misma actividad del calendario.
@@ -393,6 +452,22 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 			it := record(pdt621DeclarationKey, "PDT 621 · Declaración", assistantOwnerSupervisor, r.CompanyID, r.BusinessName, r.RUC, r.DeclarationID, st, onTime, due, "")
 			if it != nil && r.Status == models.SupervisorDeclPendiente {
 				it.Hint = "Falta que el asistente entregue el archivador"
+			}
+			ventas, compras := 0, 0
+			if r.Record != nil {
+				ventas, compras = r.Record.CantidadComprobantesVenta, r.Record.CantidadComprobantesCompra
+			}
+			comprobantes.add(r.CompanyID, ventas, compras, st != assistantTaskDone)
+			if row := lastRow(); row != nil {
+				if r.Record != nil {
+					row.Observacion = strings.TrimSpace(r.Record.Observacion)
+					if r.Record.FechaDeclaracion != nil {
+						row.DeliveredAt = strings.TrimSpace(*r.Record.FechaDeclaracion)
+					}
+				}
+				if r.Status == models.SupervisorDeclPendiente && st != assistantTaskDone {
+					row.Hint = "Falta que el asistente entregue el archivador"
+				}
 			}
 		}
 	}
@@ -535,6 +610,9 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 		}
 	}
 
+	if m, ok := acc.mods[pdt621DeclarationKey]; ok && includeSupervisor {
+		m.Comprobantes = comprobantes.finish(s)
+	}
 	for _, key := range acc.order {
 		m := acc.mods[key]
 		m.finalize()
@@ -546,6 +624,9 @@ func (s *SupervisorService) assistantBuild(periodYM string, companies []models.C
 	out.PerCompany = acc.snapshotPerCompany()
 	if wantWork {
 		out.Work = items
+	}
+	if wantRows {
+		out.Rows = rows
 	}
 	if wantWork && len(pdt601) > 0 { // la tendencia de meses no lo necesita
 		out.PlanillaLoad = planillaAcc.finish(s, periodYM)

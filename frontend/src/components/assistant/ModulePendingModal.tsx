@@ -2,8 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
-import { STATE_STYLE, dueText, stateLabel } from '../../pages/assistant/assistantUi';
-import type { AssistantDigitProgress, AssistantModuleProgress, AssistantPlanillaLoad, AssistantWorkItem } from '../../services/supervisors';
+import { dueText, stateLabel } from '../../pages/assistant/assistantUi';
+import {
+  supervisorsService,
+  type AssistantBucket,
+  type AssistantComprobantesLoad,
+  type AssistantDigitProgress,
+  type AssistantModuleProgress,
+  type AssistantModuleRow,
+  type AssistantPlanillaLoad,
+  type AssistantWorkItem,
+} from '../../services/supervisors';
+import { BUCKET_LABEL, NO_FILTER, PLAZO_META, countRows, deliveredText, digitRows, digitTotals, filterLabel, filterRows, fmtPct, isFiltered, pctTone, toggleFilter, type DigitFilter, type DigitRow } from './moduleDigits';
 
 const n = (v: number) => (v > 0 ? v.toLocaleString('es-PE') : '·');
 
@@ -70,82 +80,214 @@ function PlanillaLoadTable({ load }: { load: AssistantPlanillaLoad }) {
 }
 
 /**
- * Consolidado de las entregas del módulo por último dígito del RUC: cuántas se hicieron dentro y fuera de plazo y cuántas
- * faltan (los vencimientos de SUNAT se reparten por ese dígito).
+ * Comprobantes de ventas y compras por asistente (PDT 621 · Declaración): cuántos comprobantes atiende cada asistente, para ver quién
+ * tiene más carga. El dato es la cantidad que se registra en el detalle del PDT 621; las empresas que aún no la registraron figuran «sin dato».
  */
-function DigitConsolidated({ byDigit }: { byDigit: AssistantDigitProgress[] }) {
-  const rows: { label: string; tone: string; get: (d: AssistantDigitProgress) => number }[] = [
-    { label: 'Dentro de plazo', tone: 'text-green-700', get: (d) => d.on_time },
-    { label: 'Fuera de plazo', tone: 'text-red-700', get: (d) => d.late },
-    { label: 'Por hacer', tone: 'text-slate-600', get: (d) => d.total - d.completed },
-  ];
-  const sum = (get: (d: AssistantDigitProgress) => number) => byDigit.reduce((acc, d) => acc + get(d), 0);
+function ComprobantesTable({ load }: { load: AssistantComprobantesLoad }) {
+  const max = Math.max(1, ...load.by_assistant.map((r) => r.ventas + r.compras));
   return (
     <div className="border-b border-slate-100 px-5 py-3">
-      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC</p>
+      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        Comprobantes por asistente · {load.ventas.toLocaleString('es-PE')} de ventas y {load.compras.toLocaleString('es-PE')} de compras en {load.companies.toLocaleString('es-PE')} empresas
+      </p>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[30rem] border-collapse text-center text-xs tabular-nums">
+        <table className="w-full min-w-[32rem] border-collapse text-xs tabular-nums">
           <thead>
-            <tr className="text-slate-500">
-              <th className="py-1 pr-2 text-left font-semibold">RUC termina en</th>
-              {byDigit.map((d) => (
-                <th key={d.digit} className="w-9 px-1 py-1 font-bold text-slate-700">
-                  {d.digit}
-                </th>
-              ))}
-              <th className="w-12 px-1 py-1 font-bold text-slate-800">Total</th>
+            <tr className="text-left text-slate-500">
+              <th className="py-1 pr-2 font-semibold">Asistente</th>
+              <th className="px-2 py-1 text-right font-semibold">Empresas</th>
+              <th className="px-2 py-1 text-right font-semibold">Ventas</th>
+              <th className="px-2 py-1 text-right font-semibold">Compras</th>
+              <th className="w-[30%] px-2 py-1 font-semibold">Total</th>
+              <th className="px-2 py-1 text-right font-semibold">Por hacer</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.label} className="border-t border-slate-100">
-                <th className={`py-1 pr-2 text-left font-semibold ${r.tone}`}>{r.label}</th>
-                {byDigit.map((d) => {
-                  const v = r.get(d);
-                  return (
-                    <td key={d.digit} className={`px-1 py-1 ${v > 0 ? `font-semibold ${r.tone}` : 'text-slate-300'}`}>
-                      {n(v)}
-                    </td>
-                  );
-                })}
-                <td className={`px-1 py-1 font-bold ${r.tone}`}>{n(sum(r.get))}</td>
+            {load.by_assistant.map((r) => (
+              <tr key={r.assistant_id} className="border-t border-slate-100">
+                <td className="py-1 pr-2 font-semibold text-slate-800">
+                  {r.name}
+                  {r.no_data > 0 ? <span className="ml-1 text-[10.5px] font-normal text-slate-400">{r.no_data} sin dato</span> : null}
+                </td>
+                <td className="px-2 py-1 text-right text-slate-600">{n(r.companies)}</td>
+                <td className="px-2 py-1 text-right text-slate-700">{n(r.ventas)}</td>
+                <td className="px-2 py-1 text-right text-slate-700">{n(r.compras)}</td>
+                <td className="px-2 py-1">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 overflow-hidden rounded bg-[#EEF3F0]">
+                      <div className="h-full rounded bg-[#0E8F47]" style={{ width: `${Math.round(((r.ventas + r.compras) / max) * 100)}%` }} />
+                    </div>
+                    <span className="w-12 text-right font-bold text-slate-800">{n(r.ventas + r.compras)}</span>
+                  </div>
+                </td>
+                <td className={`px-2 py-1 text-right font-semibold ${r.open > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{n(r.open)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="m-0 mt-1 text-[11px] text-slate-400">Dentro y fuera de plazo cuentan lo ya entregado; «por hacer» es lo que falta del periodo.</p>
+      <p className="m-0 mt-1 text-[11px] text-slate-400">
+        Cantidad de comprobantes (no montos) que se registra en el PDT 621 de cada empresa en el periodo. Las empresas sin ese dato no suman.
+      </p>
     </div>
   );
 }
 
+const CELL_TONE: Record<AssistantBucket, string> = { dentro: 'text-green-700', fuera: 'text-orange-700', vencida: 'text-red-700', por_vencer: 'text-slate-600' };
+
 /**
- * Empresas con tareas por hacer de una actividad (módulo) del panel del asistente. Se abre al pulsar un módulo, en vez de
- * llevar directo a su pantalla; desde aquí se puede abrir cada empresa o ir al módulo completo.
+ * Consolidado de las entregas del módulo por último dígito del RUC (los vencimientos de SUNAT se reparten por ese dígito): dentro y
+ * fuera de plazo, vencidas, por vencer y el % de cumplimiento. Cada número se puede pulsar: la lista de abajo muestra esas empresas.
+ */
+function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean }) {
+  const rows = useMemo(() => digitRows(byDigit), [byDigit]);
+  const totals = useMemo(() => digitTotals(rows), [rows]);
+  const cols: { bucket: AssistantBucket; label: string; get: (r: DigitRow) => number }[] = [
+    { bucket: 'dentro', label: 'Dentro de plazo', get: (r) => r.dentro },
+    { bucket: 'fuera', label: 'Fuera de plazo', get: (r) => r.fuera },
+    { bucket: 'vencida', label: 'Vencidas', get: (r) => r.vencidas },
+    { bucket: 'por_vencer', label: 'Por vencer', get: (r) => r.porVencer },
+  ];
+  const active = (digit: number | null, bucket: AssistantBucket | null) => filter.digit === digit && filter.bucket === bucket;
+  const cell = (value: number, digit: number | null, bucket: AssistantBucket | null, tone: string, bold = false) =>
+    value > 0 && ready ? (
+      <button
+        type="button"
+        onClick={() => onFilter(toggleFilter(filter, { digit, bucket }))}
+        title="Ver estas empresas"
+        className={`min-w-[2rem] rounded-md px-1.5 py-0.5 tabular-nums ${tone} ${bold ? 'font-extrabold' : 'font-semibold'} hover:bg-slate-100 ${active(digit, bucket) ? 'bg-slate-200 ring-1 ring-slate-400' : ''}`}
+      >
+        {value.toLocaleString('es-PE')}
+      </button>
+    ) : (
+      <span className={value > 0 ? `${tone} ${bold ? 'font-extrabold' : 'font-semibold'} tabular-nums` : 'text-slate-300'}>{n(value)}</span>
+    );
+  const bar = (r: DigitRow) => {
+    const tone = pctTone(r.pct);
+    return r.pct == null ? (
+      <span className="text-slate-400" title="Aún no vence ningún plazo de este dígito">
+        —
+      </span>
+    ) : (
+      <div className="relative h-[18px] overflow-hidden rounded bg-[#EEF3F0]">
+        <div className="h-full rounded" style={{ width: `${Math.min(r.pct, 100)}%`, background: tone.fg, opacity: 0.85 }} />
+        <span className="absolute inset-0 flex items-center justify-center text-[10.5px] font-extrabold text-slate-900">{fmtPct(r.pct)}</span>
+      </div>
+    );
+  };
+  return (
+    <div className="border-b border-slate-100 px-5 py-3">
+      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC</p>
+      <div className="overflow-x-auto rounded-xl border border-[#DCE8E1]">
+        <table className="w-full min-w-[34rem] border-collapse text-xs">
+          <thead>
+            <tr className="bg-[#E9F4EE] text-[10.5px] uppercase tracking-[0.4px] text-[#0A5A3A]">
+              <th className="whitespace-nowrap px-2 py-[7px] text-left">Dig</th>
+              <th className="whitespace-nowrap px-2 py-[7px] text-right">Total</th>
+              {cols.map((c) => (
+                <th key={c.bucket} className="whitespace-nowrap px-2 py-[7px] text-right">
+                  {c.label}
+                </th>
+              ))}
+              <th className="w-[26%] px-2 py-[7px] text-left" title="A tiempo ÷ lo que ya venció. Lo que aún está en plazo no baja el porcentaje.">
+                % Cumplimiento
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.digit} className={`border-t border-[#EAF1ED] ${filter.digit === r.digit ? 'bg-slate-50' : ''}`}>
+                <td className="whitespace-nowrap px-2 py-[5px] font-bold text-slate-800">RUC {r.digit}</td>
+                <td className="px-2 py-[5px] text-right">{cell(r.total, r.digit, null, 'text-slate-800')}</td>
+                {cols.map((c) => (
+                  <td key={c.bucket} className="px-2 py-[5px] text-right">
+                    {cell(c.get(r), r.digit, c.bucket, CELL_TONE[c.bucket])}
+                  </td>
+                ))}
+                <td className="px-2 py-[5px]">{bar(r)}</td>
+              </tr>
+            ))}
+            <tr className="border-t-2 border-[#DCE8E1] bg-[#F8FBF9]">
+              <td className="whitespace-nowrap px-2 py-[6px] font-extrabold text-slate-900">Total</td>
+              <td className="px-2 py-[6px] text-right">{cell(totals.total, null, null, 'text-slate-900', true)}</td>
+              {cols.map((c) => (
+                <td key={c.bucket} className="px-2 py-[6px] text-right">
+                  {cell(c.get(totals), null, c.bucket, CELL_TONE[c.bucket], true)}
+                </td>
+              ))}
+              <td className="px-2 py-[6px]">{bar(totals)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 mt-1 text-[11px] text-slate-400">
+        {ready ? 'Pulse un número para ver esas empresas abajo.' : 'Cargando el detalle de las empresas…'} El % es lo entregado a tiempo ÷ lo que ya venció (meta {PLAZO_META}%).
+      </p>
+    </div>
+  );
+}
+
+/** Una tarea abierta del panel como fila del módulo (mientras llega el detalle completo). */
+const BUCKET_OF_STATE: Record<AssistantWorkItem['state'], AssistantBucket> = { vencida: 'vencida', observada: 'por_vencer', pendiente: 'por_vencer', por_revisar: 'por_vencer' };
+
+function workAsRow(w: AssistantWorkItem): AssistantModuleRow {
+  return {
+    company_id: w.company_id, company: w.company, ruc: w.ruc ?? '', digit: /\d$/.test(w.ruc ?? '') ? Number((w.ruc ?? '').slice(-1)) : -1, assistant: w.assistant,
+    state: w.state, bucket: w.state === 'observada' && (w.days_left ?? 1) < 0 ? 'vencida' : BUCKET_OF_STATE[w.state], declaration_id: w.declaration_id, due_date: w.due_date, days_left: w.days_left,
+    hint: w.hint || w.detail,
+  };
+}
+
+/** La fila del detalle como tarea del panel, para reusar los textos de plazo y la ruta de «Abrir». */
+function rowAsWork(r: AssistantModuleRow, moduleKey: string, moduleLabel: string): AssistantWorkItem {
+  const state: AssistantWorkItem['state'] = r.state === 'vencida' || r.state === 'observada' || r.state === 'por_revisar' ? r.state : 'pendiente';
+  return { company_id: r.company_id, company: r.company, ruc: r.ruc, module_key: moduleKey, module_label: moduleLabel, state, due_date: r.due_date, days_left: r.days_left, declaration_id: r.declaration_id };
+}
+
+const BUCKET_BADGE: Record<AssistantBucket, { bg: string; fg: string; stripe: string }> = {
+  dentro: { bg: '#DCF5E6', fg: '#0A7A3B', stripe: '#16A34A' },
+  fuera: { bg: '#FFEDD5', fg: '#C2410C', stripe: '#EA580C' },
+  vencida: { bg: '#FEE2E2', fg: '#B91C1C', stripe: '#DC2626' },
+  por_vencer: { bg: '#E2E8F0', fg: '#475569', stripe: '#94A3B8' },
+};
+
+/**
+ * Empresas de una actividad (módulo) del panel del asistente. Se abre al pulsar un módulo: arriba el consolidado por último dígito del
+ * RUC (con % de cumplimiento) y, abajo, las empresas. Al pulsar un número del consolidado la lista muestra solo esas empresas
+ * (dentro o fuera de plazo, vencidas, por vencer); desde aquí se puede abrir cada empresa o ir al módulo completo.
  */
 const ModulePendingModal = ({
   module,
   items,
   periodYm,
   truncated,
+  scope,
   detailPath,
   onClose,
 }: {
   module: AssistantModuleProgress | null;
-  /** Tareas abiertas de ese módulo (la lista de trabajo del panel, ya filtrada por módulo). */
+  /** Tareas abiertas de ese módulo (la lista de trabajo del panel, ya filtrada por módulo): se muestran mientras llega el detalle completo. */
   items: AssistantWorkItem[];
   periodYm: string;
   /** La lista del panel se recortó por tamaño: aquí puede faltar alguna empresa. */
   truncated?: boolean;
+  /** Los filtros del panel (asistente y supervisor), para pedir el detalle con el mismo alcance. */
+  scope?: { assistantId?: number; supervisorId?: number };
   detailPath: (w: AssistantWorkItem) => string;
   onClose: () => void;
 }) => {
   const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<DigitFilter>(NO_FILTER);
+  const [detail, setDetail] = useState<AssistantModuleRow[] | null>(null);
+  const [detailError, setDetailError] = useState(false);
   const open = module != null;
+  const moduleKey = module?.key ?? '';
+  const hasDigits = Boolean(module?.by_digit && module.by_digit.length > 0);
 
   useEffect(() => {
     if (!open) return;
     setQ('');
+    setFilter(NO_FILTER);
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') onClose();
     };
@@ -153,15 +295,45 @@ const ModulePendingModal = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // El detalle completo (también lo ya entregado) se pide al abrir; el Buzón SOL no tiene consolidado por dígito y usa la lista del panel.
+  useEffect(() => {
+    setDetail(null);
+    setDetailError(false);
+    if (!open || !hasDigits) return;
+    let alive = true;
+    supervisorsService
+      .assistantModuleDetail({
+        period_ym: periodYm,
+        module_key: moduleKey,
+        ...(scope?.assistantId ? { assistant_user_id: scope.assistantId } : {}),
+        ...(scope?.supervisorId ? { supervisor_user_id: scope.supervisorId } : {}),
+      })
+      .then((r) => {
+        if (alive) setDetail(r.rows);
+      })
+      .catch(() => {
+        if (alive) setDetailError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, hasDigits, moduleKey, periodYm, scope?.assistantId, scope?.supervisorId]);
+
+  // Sin el detalle todavía (o si falló), se muestran las tareas abiertas del panel.
+  const allRows = useMemo(() => detail ?? items.map(workAsRow), [detail, items]);
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return items;
-    return items.filter((w) => w.company.toLowerCase().includes(t) || (w.ruc ?? '').includes(t) || (w.assistant ?? '').toLowerCase().includes(t));
-  }, [items, q]);
+    return filterRows(allRows, filter).filter((r) => !t || r.company.toLowerCase().includes(t) || (r.ruc ?? '').includes(t) || (r.assistant ?? '').toLowerCase().includes(t));
+  }, [allRows, filter, q]);
+  const bucketCounts = useMemo(() => {
+    const base = { digit: filter.digit };
+    return (Object.keys(BUCKET_LABEL) as AssistantBucket[]).map((b) => ({ bucket: b, count: countRows(allRows, { ...base, bucket: b }) }));
+  }, [allRows, filter.digit]);
 
   if (!module) return null;
   const slug = MODULE_SLUG[module.key];
   const left = module.total - module.completed;
+  const isDeclaration = module.key === 'pdt_621_declaracion';
 
   return createPortal(
     <div
@@ -174,7 +346,7 @@ const ModulePendingModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="module-pending-title"
-        className="notify-pop flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="notify-pop flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="min-w-0">
@@ -195,73 +367,126 @@ const ModulePendingModal = ({
           </button>
         </div>
 
-        {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
-        {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} /> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
+          {module.comprobantes && module.comprobantes.by_assistant.length > 0 ? <ComprobantesTable load={module.comprobantes} /> : null}
+          {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} /> : null}
 
-        <div className="border-b border-slate-100 px-5 py-3">
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar empresa, RUC o asistente…"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/25"
-            aria-label="Buscar empresa"
-          />
-          {module.key === 'sunat_inbox' ? (
-            <p className="m-0 mt-2 text-[11px] text-slate-500">Buzón SOL: una fila por empresa con sus capturas vencidas (cada semana, SUNAT y SUNAFIL por separado).</p>
-          ) : null}
-        </div>
+          <div className="space-y-2 border-b border-slate-100 px-5 py-3">
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar empresa, RUC o asistente…"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/25"
+              aria-label="Buscar empresa"
+            />
+            {detail != null ? (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFilter({ digit: filter.digit, bucket: null })}
+                  className={`rounded-full border px-2.5 py-1 font-semibold ${filter.bucket == null ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
+                  Todas {countRows(allRows, { digit: filter.digit, bucket: null })}
+                </button>
+                {bucketCounts.map(({ bucket, count }) => (
+                  <button
+                    key={bucket}
+                    type="button"
+                    disabled={count === 0}
+                    onClick={() => setFilter({ digit: filter.digit, bucket: filter.bucket === bucket ? null : bucket })}
+                    className={`rounded-full border px-2.5 py-1 font-semibold disabled:opacity-40 ${filter.bucket === bucket ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    {BUCKET_LABEL[bucket]} {count}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {isFiltered(filter) ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-800">
+                  <i className="fas fa-filter text-[10px]" aria-hidden />
+                  {filterLabel(filter)}
+                  <button type="button" onClick={() => setFilter(NO_FILTER)} className="ml-0.5 text-sky-700 hover:text-sky-900" aria-label="Quitar el filtro">
+                    <i className="fas fa-times" aria-hidden />
+                  </button>
+                </span>
+              </div>
+            ) : null}
+            {detailError ? <p className="m-0 text-[11px] text-amber-700">No se pudo cargar el detalle completo: se muestran solo las tareas por hacer.</p> : null}
+            {module.key === 'sunat_inbox' ? (
+              <p className="m-0 text-[11px] text-slate-500">Buzón SOL: una fila por empresa con sus capturas vencidas (cada semana, SUNAT y SUNAFIL por separado).</p>
+            ) : null}
+          </div>
 
-        <div className="min-h-[8rem] flex-1 overflow-y-auto px-5 py-1">
-          {filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">
-              {items.length === 0 ? 'No hay empresas con tareas por hacer en este módulo y periodo.' : 'Ninguna empresa coincide con la búsqueda.'}
-            </p>
-          ) : (
-            <ul className="m-0 list-none p-0">
-              {filtered.map((w) => {
-                const st = STATE_STYLE[w.state];
-                const due = dueText(w);
-                const supervisorTask = w.owner === 'supervisor';
-                return (
-                  <li key={`${w.company_id}-${w.slot ?? 0}-${w.week_start ?? ''}-${w.detail ?? ''}-${w.state}`} className="flex items-start gap-3 border-b border-[#EAF1ED] py-[10px] last:border-b-0">
-                    <div className="w-1 shrink-0 self-stretch rounded" style={{ background: st.stripe }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong className="text-[13px]">{w.company}</strong>
-                        <span className="rounded-md px-[7px] py-px text-[10.5px] font-extrabold" style={{ background: st.bg, color: st.fg }}>
-                          {stateLabel(w)}
-                        </span>
-                        {w.detail || w.slot ? <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-700">{w.detail || `${w.slot}.ª entrega`}</span> : null}
-                        {w.assistant ? (
-                          <span className="rounded-md bg-sky-50 px-[7px] py-px text-[10.5px] font-bold text-sky-800" title="Asistente de la empresa">
-                            <i className="fas fa-user mr-1 text-[9px]" aria-hidden />
-                            {w.assistant}
+          <div className="min-h-[8rem] px-5 py-1">
+            {filtered.length === 0 ? (
+              <p className="py-10 text-center text-sm text-slate-500">
+                {allRows.length === 0 ? 'No hay empresas con tareas por hacer en este módulo y periodo.' : 'Ninguna empresa coincide con el filtro o la búsqueda.'}
+              </p>
+            ) : (
+              <ul className="m-0 list-none p-0">
+                {filtered.map((r) => {
+                  const w = rowAsWork(r, module.key, module.label);
+                  const done = r.state === 'completada';
+                  const badge = BUCKET_BADGE[r.bucket];
+                  const due = dueText(w);
+                  const supervisorTask = module.owner === 'supervisor';
+                  const delivered = deliveredText(r, isDeclaration ? 'Declaró' : 'Entregó');
+                  // En la declaración, lo fuera de plazo o vencido muestra la nota que dejó el supervisor (el motivo).
+                  const wantsNote = isDeclaration && (r.bucket === 'fuera' || r.bucket === 'vencida');
+                  return (
+                    <li key={`${r.company_id}-${r.state}-${r.hint ?? ''}`} className="flex items-start gap-3 border-b border-[#EAF1ED] py-[10px] last:border-b-0">
+                      <div className="w-1 shrink-0 self-stretch rounded" style={{ background: badge.stripe }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="text-[13px]">{r.company}</strong>
+                          <span className="rounded-md px-[7px] py-px text-[10.5px] font-extrabold" style={{ background: badge.bg, color: badge.fg }}>
+                            {done ? BUCKET_LABEL[r.bucket] : r.state === 'observada' ? 'Observada' : r.state === 'por_revisar' ? 'Por revisar' : stateLabel(w)}
                           </span>
+                          {r.assistant ? (
+                            <span className="rounded-md bg-sky-50 px-[7px] py-px text-[10.5px] font-bold text-sky-800" title="Asistente de la empresa">
+                              <i className="fas fa-user mr-1 text-[9px]" aria-hidden />
+                              {r.assistant}
+                            </span>
+                          ) : null}
+                          {supervisorTask ? <span className="rounded-md bg-violet-50 px-[7px] py-px text-[10.5px] font-bold text-violet-800">Supervisor</span> : null}
+                          {r.digit >= 0 ? <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-600">RUC …{r.digit}</span> : null}
+                        </div>
+                        <div className={`mt-[2px] text-[11.5px] ${!done && due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>
+                          {done ? [delivered, r.due_date ? `plazo ${r.due_date.split('-').reverse().join('/')}` : ''].filter(Boolean).join(' · ') || 'Entregada' : due.text}
+                        </div>
+                        {r.hint ? <div className="mt-[2px] text-[11px] text-slate-500">{r.hint}</div> : null}
+                        {wantsNote ? (
+                          r.observacion ? (
+                            <div className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11.5px] text-amber-900">
+                              <strong>Observación:</strong> {r.observacion}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-[11px] italic text-slate-400">Sin observación registrada</div>
+                          )
                         ) : null}
-                        {supervisorTask ? <span className="rounded-md bg-violet-50 px-[7px] py-px text-[10.5px] font-bold text-violet-800">Supervisor</span> : null}
                       </div>
-                      <div className={`mt-[2px] text-[11.5px] ${due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>{due.text}</div>
-                      {w.hint ? <div className="mt-[2px] text-[11px] text-slate-500">{w.hint}</div> : null}
-                    </div>
-                    <Link
-                      to={detailPath(w)}
-                      onClick={onClose}
-                      className="shrink-0 whitespace-nowrap rounded-[9px] border border-[#CBD5E1] bg-white px-[12px] py-[6px] text-xs font-bold text-slate-700 hover:bg-slate-50"
-                    >
-                      Abrir
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                      <Link
+                        to={detailPath(w)}
+                        onClick={onClose}
+                        className="shrink-0 whitespace-nowrap rounded-[9px] border border-[#CBD5E1] bg-white px-[12px] py-[6px] text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Abrir
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3">
           <span className="text-[11px] text-slate-500">
             {filtered.length.toLocaleString('es-PE')} {filtered.length === 1 ? 'empresa' : 'empresas'}
-            {truncated ? ' · lista parcial: el panel envía solo las más urgentes' : ''}
+            {truncated && detail == null ? ' · lista parcial: el panel envía solo las más urgentes' : ''}
           </span>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">

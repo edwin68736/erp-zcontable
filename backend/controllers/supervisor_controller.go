@@ -2431,6 +2431,39 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": data})
 }
 
+// AssistantModuleDetailAPI GET /api/supervisors/assistant/module-detail — una fila por empresa de un módulo en el periodo
+// (entregadas dentro y fuera de plazo, vencidas y por vencer), para el modal del módulo. Mismo alcance y filtros que el panel.
+func (ctrl *SupervisorController) AssistantModuleDetailAPI(c fiber.Ctx) error {
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	periodYM := c.Query("period_ym", time.Now().Format("2006-01"))
+	moduleKey := strings.TrimSpace(c.Query("module_key", ""))
+	if moduleKey == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Indique el módulo."})
+	}
+	p := services.SupervisorDashboardParams{PeriodYM: periodYM, ModuleKey: moduleKey}
+	if hasStudioScope(c) {
+		ids, _, _, err := ctrl.svc.StudioAssistantScope(queryUserID(c, "assistant_user_id"), queryUserID(c, "supervisor_user_id"))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		p.AllowedCompanyIDs, p.IncludeSupervisorTasks = ids, true
+	} else {
+		ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		p.AllowedCompanyIDs = ids
+	}
+	data, err := ctrl.svc.AssistantModuleDetail(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
 // DashboardIndicatorsAPI GET /api/supervisors/dashboard/indicators — indicadores de supervisión (KPI de
 // planillas, archivadores, declaraciones, balances y buzones por asistente) con el mismo alcance y
 // filtros del dashboard: el supervisor ve su cartera; el administrador ve el estudio o filtra por uno.

@@ -206,7 +206,7 @@ func (s *SupervisorService) AssistantOverview(p SupervisorDashboardParams) (*Ass
 func assistantModuleOptions(includeSupervisor bool) []AssistantModuleRef {
 	opts := []AssistantModuleRef{
 		{models.SupervisorDeclPDT601, "PDT 601"},
-		{models.SupervisorDeclPDT621, "PDT 621"},
+		{models.SupervisorDeclPDT621, pdt621ArchivadorLabel},
 	}
 	if includeSupervisor {
 		opts = append(opts, AssistantModuleRef{pdt621DeclarationKey, "PDT 621 · Declaración"})

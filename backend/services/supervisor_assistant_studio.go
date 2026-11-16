@@ -18,6 +18,15 @@ type AssistantStudioOption struct {
 	UserID    uint   `json:"user_id"`
 	Name      string `json:"name"`
 	Companies int    `json:"companies"`
+	// Supervisors (solo en los asistentes) los supervisores de las empresas del asistente y cuántas son de cada uno: al filtrar por
+	// supervisor, la lista de asistentes muestra solo los que tienen empresas de ese supervisor.
+	Supervisors []AssistantStudioCount `json:"supervisors,omitempty"`
+}
+
+// AssistantStudioCount un usuario relacionado y cuántas empresas comparten.
+type AssistantStudioCount struct {
+	UserID    uint `json:"user_id"`
+	Companies int  `json:"companies"`
 }
 
 // AssistantStudioInfo opciones de los filtros de la vista del estudio. Se calculan sobre TODAS las empresas activas
@@ -49,6 +58,7 @@ func (s *SupervisorService) StudioAssistantScope(assistantID, supervisorID uint)
 	userIDs := make([]uint, 0)
 	seenUser := map[uint]bool{}
 	byAssistant, bySupervisor := map[uint]int{}, map[uint]int{}
+	pairs := map[uint]map[uint]int{} // asistente → supervisor → empresas
 	info = &AssistantStudioInfo{Assistants: []AssistantStudioOption{}, Supervisors: []AssistantStudioOption{}}
 	remember := func(id uint) {
 		if !seenUser[id] {
@@ -66,6 +76,12 @@ func (s *SupervisorService) StudioAssistantScope(assistantID, supervisorID uint)
 		if r.SupervisorUserID != nil && *r.SupervisorUserID != 0 {
 			bySupervisor[*r.SupervisorUserID]++
 			remember(*r.SupervisorUserID)
+			if r.AssistantUserID != nil && *r.AssistantUserID != 0 {
+				if pairs[*r.AssistantUserID] == nil {
+					pairs[*r.AssistantUserID] = map[uint]int{}
+				}
+				pairs[*r.AssistantUserID][*r.SupervisorUserID]++
+			}
 		} else {
 			info.WithoutSupervisor++
 		}
@@ -86,6 +102,14 @@ func (s *SupervisorService) StudioAssistantScope(assistantID, supervisorID uint)
 		return out
 	}
 	info.Assistants, info.Supervisors = build(byAssistant), build(bySupervisor)
+	for i := range info.Assistants {
+		for sup, n := range pairs[info.Assistants[i].UserID] {
+			info.Assistants[i].Supervisors = append(info.Assistants[i].Supervisors, AssistantStudioCount{UserID: sup, Companies: n})
+		}
+		sort.Slice(info.Assistants[i].Supervisors, func(a, b int) bool {
+			return info.Assistants[i].Supervisors[a].UserID < info.Assistants[i].Supervisors[b].UserID
+		})
+	}
 
 	assistantOf = make(map[uint]string, len(rows))
 	for _, r := range rows {
