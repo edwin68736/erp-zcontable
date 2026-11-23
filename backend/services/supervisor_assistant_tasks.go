@@ -367,7 +367,7 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 		if wantRows {
 			row := AssistantModuleRow{
 				CompanyID: companyID, Company: strings.TrimSpace(company), RUC: ruc, Digit: rucDigit(ruc), AssistantID: assistantIDOf[companyID],
-				State: state, Bucket: assistantBucket(state, onTime, due, today), Hint: detail,
+				State: state, Bucket: assistantBucket(state, onTime), Hint: detail,
 			}
 			if declID != nil {
 				row.DeclarationID = *declID

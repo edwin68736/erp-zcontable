@@ -3,33 +3,26 @@ package services
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"miappfiber/models"
 )
 
-func TestAssistantBucket_CategoriasDeLasColumnas(t *testing.T) {
-	today := time.Date(2026, 11, 16, 0, 0, 0, 0, time.Local)
-	past := today.AddDate(0, 0, -3)
-	future := today.AddDate(0, 0, 4)
+func TestAssistantBucket_NoExisteVencida(t *testing.T) {
 	cases := []struct {
 		name   string
 		state  string
 		onTime bool
-		due    *time.Time
 		want   string
 	}{
-		{"entregada a tiempo", assistantTaskDone, true, &past, AssistantBucketDentro},
-		{"entregada tarde", assistantTaskDone, false, &past, AssistantBucketFuera},
-		{"vencida", assistantTaskOverdue, false, &past, AssistantBucketVencida},
-		{"pendiente en plazo", assistantTaskPending, false, &future, AssistantBucketPorVencer},
-		{"en revisión del supervisor", assistantTaskInReview, false, &past, AssistantBucketPorVencer},
-		{"observada con el plazo vencido cuenta como vencida", assistantTaskObserved, false, &past, AssistantBucketVencida},
-		{"observada en plazo", assistantTaskObserved, false, &future, AssistantBucketPorVencer},
-		{"observada sin plazo", assistantTaskObserved, false, nil, AssistantBucketPorVencer},
+		{"entregada a tiempo", assistantTaskDone, true, AssistantBucketDentro},
+		{"entregada tarde", assistantTaskDone, false, AssistantBucketFuera},
+		{"sin entregar con el plazo pasado sigue pendiente", assistantTaskOverdue, false, AssistantBucketPendiente},
+		{"pendiente en plazo", assistantTaskPending, false, AssistantBucketPendiente},
+		{"en revisión del supervisor", assistantTaskInReview, false, AssistantBucketPendiente},
+		{"observada", assistantTaskObserved, false, AssistantBucketPendiente},
 	}
 	for _, c := range cases {
-		if got := assistantBucket(c.state, c.onTime, c.due, today); got != c.want {
+		if got := assistantBucket(c.state, c.onTime); got != c.want {
 			t.Errorf("%s: %s, quería %s", c.name, got, c.want)
 		}
 	}

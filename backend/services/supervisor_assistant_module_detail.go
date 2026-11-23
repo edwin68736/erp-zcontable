@@ -5,22 +5,21 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"miappfiber/models"
 )
 
 // Detalle de un módulo del panel del asistente: UNA FILA POR EMPRESA con su estado en el periodo (dentro de plazo, fuera de
-// plazo, vencida, por vencer), no solo las abiertas. Lo usa el modal del módulo para que, al pulsar un número del consolidado
+// plazo o pendiente), no solo las abiertas. Lo usa el modal del módulo para que, al pulsar un número del consolidado
 // por dígito (por ejemplo «fuera de plazo» del dígito 3), se vea a qué empresas se refiere. Se pide al abrir el modal, no va en
 // el panel principal (son cientos de filas por módulo).
 
-// Categorías de una fila (coinciden con las columnas del consolidado por dígito).
+// Categorías de una fila (coinciden con las columnas del consolidado por dígito). Una tarea no entregada es SIEMPRE «pendiente», esté o
+// no pasado su plazo: solo cuando se entrega pasa a «dentro» o «fuera» de plazo (no existe una categoría «vencida»).
 const (
-	AssistantBucketDentro    = "dentro"     // entregada a tiempo
-	AssistantBucketFuera     = "fuera"      // entregada fuera de plazo
-	AssistantBucketVencida   = "vencida"    // sin entregar y con el plazo vencido (incluye observadas ya vencidas)
-	AssistantBucketPorVencer = "por_vencer" // aún en plazo: pendiente, en revisión del supervisor u observada en plazo
+	AssistantBucketDentro    = "dentro"    // entregada a tiempo
+	AssistantBucketFuera     = "fuera"     // entregada fuera de plazo
+	AssistantBucketPendiente = "pendiente" // sin entregar (pendiente, en revisión del supervisor u observada), venza cuando venza
 )
 
 // AssistantModuleRow una empresa en un módulo del periodo.
@@ -32,7 +31,7 @@ type AssistantModuleRow struct {
 	Digit       int    `json:"digit"`
 	AssistantID uint   `json:"assistant_id,omitempty"`
 	Assistant   string `json:"assistant,omitempty"`
-	// State el estado de la tarea (completada | pendiente | vencida | por_revisar | observada) y Bucket su categoría.
+	// State el estado de la tarea (completada | pendiente | vencida | por_revisar | observada) y Bucket su categoría (dentro | fuera | pendiente).
 	State  string `json:"state"`
 	Bucket string `json:"bucket"`
 	// DeclarationID la entrega a la que se abre desde la fila.
@@ -46,7 +45,7 @@ type AssistantModuleRow struct {
 	Hint        string `json:"hint,omitempty"`
 }
 
-var assistantBucketRank = map[string]int{AssistantBucketVencida: 0, AssistantBucketPorVencer: 1, AssistantBucketFuera: 2, AssistantBucketDentro: 3}
+var assistantBucketRank = map[string]int{AssistantBucketPendiente: 0, AssistantBucketFuera: 1, AssistantBucketDentro: 2}
 
 // AssistantModuleDetail las filas de un módulo en el periodo.
 type AssistantModuleDetail struct {
@@ -68,23 +67,15 @@ func rucDigit(ruc string) int {
 	return d
 }
 
-// assistantBucket la categoría de una tarea según su estado y su plazo.
-func assistantBucket(state string, onTime bool, due *time.Time, today time.Time) string {
-	switch state {
-	case assistantTaskDone:
+// assistantBucket la categoría de una tarea: entregada a tiempo, entregada fuera de plazo o pendiente (lo no entregado).
+func assistantBucket(state string, onTime bool) string {
+	if state == assistantTaskDone {
 		if onTime {
 			return AssistantBucketDentro
 		}
 		return AssistantBucketFuera
-	case assistantTaskOverdue:
-		return AssistantBucketVencida
-	case assistantTaskObserved:
-		// Una observada cuyo plazo ya pasó cuenta como vencida en el cumplimiento (ver ObservedOverdue).
-		if due != nil && due.Before(today) {
-			return AssistantBucketVencida
-		}
 	}
-	return AssistantBucketPorVencer
+	return AssistantBucketPendiente
 }
 
 // AssistantModuleDetail arma las filas de un módulo con el alcance de p (mismas reglas que el panel).

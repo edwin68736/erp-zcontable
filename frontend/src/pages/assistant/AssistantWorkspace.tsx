@@ -21,21 +21,15 @@ import { STATE_STYLE, dueText, shortDate, stateLabel } from './assistantUi';
 const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
 const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
 
-type Tab = 'todas' | 'vencidas' | 'semana' | 'observadas' | 'revisar';
+type Tab = 'todas' | 'semana' | 'observadas' | 'revisar';
 
-/** Cada pestaña lleva su color: el mismo del estado que filtra (rojo vencidas, ámbar por vencer, naranja observadas, índigo en revisión). */
+/** Cada pestaña lleva su color: el mismo del estado que filtra (ámbar por vencer, naranja observadas, índigo en revisión). */
 const TAB_STYLE: Record<Tab, { on: string; off: string; badgeOn: string; badgeOff: string }> = {
   todas: {
     on: 'border-[1.5px] border-slate-700 bg-slate-100 font-bold text-slate-900',
     off: 'border border-slate-200 bg-white font-semibold text-slate-700',
     badgeOn: 'bg-slate-700 text-white',
     badgeOff: 'bg-slate-100 text-slate-600',
-  },
-  vencidas: {
-    on: 'border-[1.5px] border-red-500 bg-red-50 font-bold text-red-800',
-    off: 'border border-red-100 bg-white font-semibold text-red-700',
-    badgeOn: 'bg-red-600 text-white',
-    badgeOff: 'bg-red-100 text-red-700',
   },
   semana: {
     on: 'border-[1.5px] border-amber-500 bg-amber-50 font-bold text-amber-900',
@@ -63,7 +57,6 @@ const SEG = {
   late: '#2563EB',
   review: '#6366F1',
   pending: '#CBD5E1',
-  overdue: '#DC2626',
   observed: '#EA580C',
 } as const;
 
@@ -73,8 +66,8 @@ const TaskStateBar = ({ p }: { p: AssistantProgress }) => {
     { label: 'Completadas a tiempo', value: p.on_time, color: SEG.onTime },
     { label: 'Completadas fuera de fecha', value: p.late, color: SEG.late },
     { label: 'En revisión del supervisor', value: p.in_review, color: SEG.review },
-    { label: 'Pendientes (sin vencer)', value: p.pending, color: SEG.pending },
-    { label: 'Vencidas', value: p.overdue, color: SEG.overdue },
+    // Lo no entregado es «pendiente» aunque su plazo ya haya pasado (no existe el estado «vencida»).
+    { label: 'Pendientes', value: p.pending + p.overdue, color: SEG.pending },
     { label: 'Observadas', value: p.observed, color: SEG.observed },
   ];
   const total = p.total;
@@ -162,7 +155,6 @@ const AssistantWorkspace = () => {
   const counts = data?.counts;
   const shown = useMemo(() => {
     const list = work.filter((w) => {
-      if (tab === 'vencidas') return w.state === 'vencida';
       if (tab === 'observadas') return w.state === 'observada';
       if (tab === 'semana') return w.state === 'pendiente' && (w.days_left ?? 99) >= 0 && (w.days_left ?? 99) <= 7;
       if (tab === 'revisar') return w.state === 'por_revisar';
@@ -194,7 +186,6 @@ const AssistantWorkspace = () => {
   const trendPoints = (data?.trend ?? []).filter((t) => t.completed > 0);
   const tabTotals: Record<Tab, number> = {
     todas: counts?.all ?? 0,
-    vencidas: counts?.overdue ?? 0,
     semana: counts?.due_this_week ?? 0,
     observadas: counts?.observed ?? 0,
     revisar: counts?.in_review ?? 0,
@@ -207,7 +198,6 @@ const AssistantWorkspace = () => {
 
   const TABS: Array<{ id: Tab; label: string }> = [
     { id: 'todas', label: 'Todas' },
-    { id: 'vencidas', label: 'Vencidas' },
     { id: 'semana', label: 'Vencen esta semana' },
     { id: 'observadas', label: 'Observadas' },
     { id: 'revisar', label: 'Por revisar' },
@@ -221,7 +211,7 @@ const AssistantWorkspace = () => {
           <p className="mt-1 text-[13px] text-slate-600">
             {data && counts ? (
               <>
-                {mineOr('Tienes', 'Hay')} <strong className="text-red-700">{counts.overdue} {counts.overdue === 1 ? 'entrega vencida' : 'entregas vencidas'}</strong> y{' '}
+                {mineOr('Tienes', 'Hay')} <strong className="text-red-700">{counts.to_deliver} {counts.to_deliver === 1 ? 'entrega pendiente' : 'entregas pendientes'}</strong> y{' '}
                 <strong className="text-amber-700">{counts.due_this_week} que {counts.due_this_week === 1 ? 'vence' : 'vencen'} esta semana</strong> ·{' '}
                 {data.companies} {mineOr('empresas asignadas', filtered ? 'empresas con este filtro' : 'empresas del estudio')}
               </>
@@ -238,17 +228,6 @@ const AssistantWorkspace = () => {
           {studio ? (
             <>
               <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
-                <span className="text-slate-500">Asistente</span>
-                <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por asistente">
-                  <option value="">Todos</option>
-                  {assistantsForSupervisor(studio.assistants, supervisorId ? Number(supervisorId) : null).map((a) => (
-                    <option key={a.user_id} value={a.user_id}>
-                      {a.name} ({a.companies})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
                 <span className="text-slate-500">Supervisor</span>
                 <select
                   value={supervisorId}
@@ -263,6 +242,17 @@ const AssistantWorkspace = () => {
                   {studio.supervisors.map((s) => (
                     <option key={s.user_id} value={s.user_id}>
                       {s.name} ({s.companies})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
+                <span className="text-slate-500">Asistente</span>
+                <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por asistente">
+                  <option value="">Todos</option>
+                  {assistantsForSupervisor(studio.assistants, supervisorId ? Number(supervisorId) : null).map((a) => (
+                    <option key={a.user_id} value={a.user_id}>
+                      {a.name} ({a.companies})
                     </option>
                   ))}
                 </select>
@@ -425,7 +415,7 @@ const AssistantWorkspace = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="m-0 text-[15px] font-extrabold">{mineOr('Mi lista de trabajo', 'Lista de trabajo')}</h2>
-                    <p className="m-0 mt-[2px] text-[11.5px] text-slate-500">Ordenada por urgencia: lo vencido primero, luego lo que te devolvieron y lo que vence antes.</p>
+                    <p className="m-0 mt-[2px] text-[11.5px] text-slate-500">Ordenada por urgencia: primero lo que más tiempo lleva pendiente, luego lo que te devolvieron y lo que vence antes.</p>
                   </div>
                   {firstUrgent ? (
                     <Link to={detailPath(firstUrgent)} className="rounded-[9px] border border-[#0E8F47] bg-[#0E8F47] px-[14px] py-[7px] text-xs font-bold text-white hover:bg-[#0A7A3B]">
@@ -457,7 +447,7 @@ const AssistantWorkspace = () => {
                 </div>
                 {work.some((w) => w.module_key === 'sunat_inbox' && w.state === 'vencida') ? (
                   <p className="m-0 mt-2 text-[11px] text-slate-500">
-                    El Buzón SOL se agrupa: una fila por empresa con todas sus capturas vencidas. Los totales de arriba cuentan cada captura (cada semana, SUNAT y SUNAFIL por separado).
+                    El Buzón SOL se agrupa: una fila por empresa con todas sus capturas sin hacer. Los totales de arriba cuentan cada captura (cada semana, SUNAT y SUNAFIL por separado).
                   </p>
                 ) : null}
                 {shown.length === 0 ? (

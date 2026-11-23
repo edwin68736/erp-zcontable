@@ -754,8 +754,11 @@ export interface AssistantComprobantesLoad {
   by_assistant: AssistantComprobantesRow[];
 }
 
-/** Categoría de una fila de módulo: coincide con las columnas del consolidado por dígito. */
-export type AssistantBucket = 'dentro' | 'fuera' | 'vencida' | 'por_vencer';
+/**
+ * Categoría de una fila de módulo (coincide con las columnas del consolidado por dígito): entregada a tiempo, entregada fuera de
+ * plazo, o pendiente (lo no entregado, haya vencido o no su plazo: no existe «vencida»).
+ */
+export type AssistantBucket = 'dentro' | 'fuera' | 'pendiente';
 /** Una empresa en un módulo del periodo. */
 export interface AssistantModuleRow {
   company_id: number;

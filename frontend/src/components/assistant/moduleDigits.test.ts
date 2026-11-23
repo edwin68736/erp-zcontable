@@ -7,16 +7,17 @@ const dp = (digit: number, over: Partial<AssistantDigitProgress> = {}): Assistan
 });
 
 describe('consolidado por dígito con porcentajes', () => {
-  it('arma las columnas: vencidas incluyen las observadas vencidas y por vencer lo que sigue en plazo', () => {
+  it('arma las columnas: todo lo no entregado es pendiente (haya vencido o no su plazo); el % cuenta contra lo que ya tenía plazo cumplido', () => {
     const [r] = digitRows([dp(3, { total: 20, on_time: 8, late: 2, overdue: 3, pending: 4, in_review: 1, observed: 2, observed_overdue: 1 })]);
-    expect(r).toMatchObject({ digit: 3, total: 20, dentro: 8, fuera: 2, vencidas: 4, porVencer: 6, due: 14 });
+    expect(r).toMatchObject({ digit: 3, total: 20, dentro: 8, fuera: 2, pendientes: 10, conPlazoPasado: 4, due: 14 });
+    expect(r.dentro + r.fuera + r.pendientes).toBe(r.total); // cada tarea está en una sola columna
     expect(r.pct).toBe(57.1); // 8 de los 14 que ya se pueden medir
   });
 
   it('un dígito sin nada vencido ni entregado no tiene porcentaje (no figura con 0 %)', () => {
     const [r] = digitRows([dp(7, { total: 10, pending: 10 })]);
     expect(r.pct).toBeNull();
-    expect(r.porVencer).toBe(10);
+    expect(r.pendientes).toBe(10);
     expect(pctTone(null).fg).toBe('#94A3B8');
   });
 
@@ -27,7 +28,7 @@ describe('consolidado por dígito con porcentajes', () => {
   it('el total suma los dígitos y calcula su propio porcentaje', () => {
     const rows = digitRows([dp(0, { total: 10, on_time: 9, late: 1 }), dp(1, { total: 10, on_time: 5, overdue: 5 }), dp(2, { total: 4, pending: 4 })]);
     const t = digitTotals(rows);
-    expect(t).toMatchObject({ total: 24, dentro: 14, fuera: 1, vencidas: 5, porVencer: 4, due: 20 });
+    expect(t).toMatchObject({ total: 24, dentro: 14, fuera: 1, pendientes: 9, conPlazoPasado: 5, due: 20 });
     expect(t.pct).toBe(70);
   });
 
@@ -45,11 +46,11 @@ describe('consolidado por dígito con porcentajes', () => {
 const row = (id: number, digit: number, bucket: AssistantModuleRow['bucket']): AssistantModuleRow => ({ company_id: id, company: `Empresa ${id}`, ruc: `2010000000${digit}`, digit, state: 'pendiente', bucket });
 
 describe('filtrar las empresas al pulsar un número', () => {
-  const rows = [row(1, 3, 'vencida'), row(2, 3, 'fuera'), row(3, 1, 'vencida'), row(4, 3, 'por_vencer'), row(5, 1, 'dentro')];
+  const rows = [row(1, 3, 'pendiente'), row(2, 3, 'fuera'), row(3, 1, 'pendiente'), row(4, 3, 'pendiente'), row(5, 1, 'dentro')];
 
   it('por dígito y categoría, solo por categoría (columna Total) o solo por dígito', () => {
-    expect(filterRows(rows, { digit: 3, bucket: 'vencida' }).map((r) => r.company_id)).toEqual([1]);
-    expect(filterRows(rows, { digit: null, bucket: 'vencida' }).map((r) => r.company_id)).toEqual([1, 3]);
+    expect(filterRows(rows, { digit: 3, bucket: 'fuera' }).map((r) => r.company_id)).toEqual([2]);
+    expect(filterRows(rows, { digit: null, bucket: 'pendiente' }).map((r) => r.company_id)).toEqual([1, 3, 4]);
     expect(filterRows(rows, { digit: 3, bucket: null }).map((r) => r.company_id)).toEqual([1, 2, 4]);
     expect(filterRows(rows, NO_FILTER)).toHaveLength(5);
     expect(countRows(rows, { digit: 1, bucket: 'dentro' })).toBe(1);
@@ -59,18 +60,18 @@ describe('filtrar las empresas al pulsar un número', () => {
     const f = toggleFilter(NO_FILTER, { digit: 3, bucket: 'fuera' });
     expect(isFiltered(f)).toBe(true);
     expect(toggleFilter(f, { digit: 3, bucket: 'fuera' })).toEqual(NO_FILTER);
-    expect(toggleFilter(f, { digit: 3, bucket: 'vencida' })).toEqual({ digit: 3, bucket: 'vencida' });
+    expect(toggleFilter(f, { digit: 3, bucket: 'pendiente' })).toEqual({ digit: 3, bucket: 'pendiente' });
   });
 
   it('el chip dice qué se está viendo', () => {
     expect(filterLabel({ digit: 3, bucket: 'fuera' })).toBe('RUC termina en 3 · Fuera de plazo');
-    expect(filterLabel({ digit: null, bucket: 'vencida' })).toBe('Vencidas');
+    expect(filterLabel({ digit: null, bucket: 'pendiente' })).toBe('Pendientes');
     expect(filterLabel(NO_FILTER)).toBe('');
   });
 
   it('fecha de entrega', () => {
     expect(deliveredText({ delivered_at: '2026-07-20', bucket: 'fuera' }, 'Declaró')).toBe('Declaró el 20/07/2026');
-    expect(deliveredText({ bucket: 'vencida' }, 'Declaró')).toBe('');
+    expect(deliveredText({ bucket: 'pendiente' }, 'Declaró')).toBe('');
   });
 });
 

@@ -133,11 +133,11 @@ function ComprobantesTable({ load }: { load: AssistantComprobantesLoad }) {
   );
 }
 
-const CELL_TONE: Record<AssistantBucket, string> = { dentro: 'text-green-700', fuera: 'text-orange-700', vencida: 'text-red-700', por_vencer: 'text-slate-600' };
+const CELL_TONE: Record<AssistantBucket, string> = { dentro: 'text-green-700', fuera: 'text-orange-700', pendiente: 'text-slate-700' };
 
 /**
  * Consolidado de las entregas del módulo por último dígito del RUC (los vencimientos de SUNAT se reparten por ese dígito): dentro y
- * fuera de plazo, vencidas, por vencer y el % de cumplimiento. Cada número se puede pulsar: la lista de abajo muestra esas empresas.
+ * fuera de plazo y pendientes, y el % de cumplimiento. Cada número se puede pulsar: la lista de abajo muestra esas empresas.
  */
 function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean }) {
   const rows = useMemo(() => digitRows(byDigit), [byDigit]);
@@ -145,8 +145,7 @@ function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: Assi
   const cols: { bucket: AssistantBucket; label: string; get: (r: DigitRow) => number }[] = [
     { bucket: 'dentro', label: 'Dentro de plazo', get: (r) => r.dentro },
     { bucket: 'fuera', label: 'Fuera de plazo', get: (r) => r.fuera },
-    { bucket: 'vencida', label: 'Vencidas', get: (r) => r.vencidas },
-    { bucket: 'por_vencer', label: 'Por vencer', get: (r) => r.porVencer },
+    { bucket: 'pendiente', label: 'Pendientes', get: (r) => r.pendientes },
   ];
   const active = (digit: number | null, bucket: AssistantBucket | null) => filter.digit === digit && filter.bucket === bucket;
   const cell = (value: number, digit: number | null, bucket: AssistantBucket | null, tone: string, bold = false) =>
@@ -221,19 +220,17 @@ function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: Assi
         </table>
       </div>
       <p className="m-0 mt-1 text-[11px] text-slate-400">
-        {ready ? 'Pulse un número para ver esas empresas abajo.' : 'Cargando el detalle de las empresas…'} El % es lo entregado a tiempo ÷ lo que ya venció (meta {PLAZO_META}%).
+        {ready ? 'Pulse un número para ver esas empresas abajo.' : 'Cargando el detalle de las empresas…'} El % es lo entregado a tiempo ÷ lo que ya tenía plazo cumplido, entregado o no (meta {PLAZO_META}%).
       </p>
     </div>
   );
 }
 
 /** Una tarea abierta del panel como fila del módulo (mientras llega el detalle completo). */
-const BUCKET_OF_STATE: Record<AssistantWorkItem['state'], AssistantBucket> = { vencida: 'vencida', observada: 'por_vencer', pendiente: 'por_vencer', por_revisar: 'por_vencer' };
-
 function workAsRow(w: AssistantWorkItem): AssistantModuleRow {
   return {
     company_id: w.company_id, company: w.company, ruc: w.ruc ?? '', digit: /\d$/.test(w.ruc ?? '') ? Number((w.ruc ?? '').slice(-1)) : -1, assistant: w.assistant,
-    state: w.state, bucket: w.state === 'observada' && (w.days_left ?? 1) < 0 ? 'vencida' : BUCKET_OF_STATE[w.state], declaration_id: w.declaration_id, due_date: w.due_date, days_left: w.days_left,
+    state: w.state, bucket: 'pendiente', declaration_id: w.declaration_id, due_date: w.due_date, days_left: w.days_left,
     hint: w.hint || w.detail,
   };
 }
@@ -247,14 +244,13 @@ function rowAsWork(r: AssistantModuleRow, moduleKey: string, moduleLabel: string
 const BUCKET_BADGE: Record<AssistantBucket, { bg: string; fg: string; stripe: string }> = {
   dentro: { bg: '#DCF5E6', fg: '#0A7A3B', stripe: '#16A34A' },
   fuera: { bg: '#FFEDD5', fg: '#C2410C', stripe: '#EA580C' },
-  vencida: { bg: '#FEE2E2', fg: '#B91C1C', stripe: '#DC2626' },
-  por_vencer: { bg: '#E2E8F0', fg: '#475569', stripe: '#94A3B8' },
+  pendiente: { bg: '#E2E8F0', fg: '#475569', stripe: '#94A3B8' },
 };
 
 /**
  * Empresas de una actividad (módulo) del panel del asistente. Se abre al pulsar un módulo: arriba el consolidado por último dígito del
  * RUC (con % de cumplimiento) y, abajo, las empresas. Al pulsar un número del consolidado la lista muestra solo esas empresas
- * (dentro o fuera de plazo, vencidas, por vencer); desde aquí se puede abrir cada empresa o ir al módulo completo.
+ * (dentro de plazo, fuera de plazo o pendientes); desde aquí se puede abrir cada empresa o ir al módulo completo.
  */
 const ModulePendingModal = ({
   module,
@@ -416,7 +412,7 @@ const ModulePendingModal = ({
             ) : null}
             {detailError ? <p className="m-0 text-[11px] text-amber-700">No se pudo cargar el detalle completo: se muestran solo las tareas por hacer.</p> : null}
             {module.key === 'sunat_inbox' ? (
-              <p className="m-0 text-[11px] text-slate-500">Buzón SOL: una fila por empresa con sus capturas vencidas (cada semana, SUNAT y SUNAFIL por separado).</p>
+              <p className="m-0 text-[11px] text-slate-500">Buzón SOL: una fila por empresa con sus capturas sin hacer (cada semana, SUNAT y SUNAFIL por separado).</p>
             ) : null}
           </div>
 
@@ -430,12 +426,13 @@ const ModulePendingModal = ({
                 {filtered.map((r) => {
                   const w = rowAsWork(r, module.key, module.label);
                   const done = r.state === 'completada';
-                  const badge = BUCKET_BADGE[r.bucket];
+                  const atrasada = r.bucket === 'pendiente' && (r.days_left ?? 0) < 0;
+                  const badge = atrasada ? { bg: '#FEE2E2', fg: '#B91C1C', stripe: '#DC2626' } : BUCKET_BADGE[r.bucket];
                   const due = dueText(w);
                   const supervisorTask = module.owner === 'supervisor';
                   const delivered = deliveredText(r, isDeclaration ? 'Declaró' : 'Entregó');
-                  // En la declaración, lo fuera de plazo o vencido muestra la nota que dejó el supervisor (el motivo).
-                  const wantsNote = isDeclaration && (r.bucket === 'fuera' || r.bucket === 'vencida');
+                  // En la declaración, lo fuera de plazo o lo pendiente con el plazo ya pasado muestra la nota que dejó el supervisor (el motivo).
+                  const wantsNote = isDeclaration && (r.bucket === 'fuera' || (r.bucket === 'pendiente' && (r.days_left ?? 0) < 0));
                   return (
                     <li key={`${r.company_id}-${r.state}-${r.hint ?? ''}`} className="flex items-start gap-3 border-b border-[#EAF1ED] py-[10px] last:border-b-0">
                       <div className="w-1 shrink-0 self-stretch rounded" style={{ background: badge.stripe }} />

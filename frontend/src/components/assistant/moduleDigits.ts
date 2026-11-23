@@ -9,34 +9,34 @@ export interface DigitRow {
   total: number;
   dentro: number;
   fuera: number;
-  /** Sin entregar y con el plazo vencido (incluye las observadas ya vencidas). */
-  vencidas: number;
-  /** Aún en plazo: pendientes, en revisión del supervisor y observadas en plazo. */
-  porVencer: number;
-  /** Lo que ya se puede medir: entregado a tiempo + fuera de plazo + vencido. */
+  /** Todo lo no entregado (pendiente, en revisión del supervisor u observada), haya vencido o no su plazo: no existe «vencida». */
+  pendientes: number;
+  /** De los pendientes, los que ya pasaron su plazo: no se muestran como estado, pero cuentan contra el % de cumplimiento. */
+  conPlazoPasado: number;
+  /** Lo que ya se puede medir para el %: entregado a tiempo + fuera de plazo + pendiente con el plazo ya pasado. */
   due: number;
   /** % de cumplimiento = a tiempo ÷ lo medible; null si todavía no hay nada que medir (no vence nada). */
   pct: number | null;
 }
 
-export const emptyDigitRow = (digit: number): DigitRow => ({ digit, total: 0, dentro: 0, fuera: 0, vencidas: 0, porVencer: 0, due: 0, pct: null });
+export const emptyDigitRow = (digit: number): DigitRow => ({ digit, total: 0, dentro: 0, fuera: 0, pendientes: 0, conPlazoPasado: 0, due: 0, pct: null });
 
 const pctOf = (dentro: number, due: number): number | null => (due > 0 ? Math.round((dentro / due) * 1000) / 10 : null);
 
 /** El consolidado por dígito del servidor, en las columnas de la tabla. */
 export function digitRows(byDigit: AssistantDigitProgress[]): DigitRow[] {
   return byDigit.map((d) => {
-    const vencidas = d.overdue + (d.observed_overdue ?? 0);
-    const porVencer = d.pending + d.in_review + Math.max(0, d.observed - (d.observed_overdue ?? 0));
-    const due = d.on_time + d.late + vencidas;
-    return { digit: d.digit, total: d.total, dentro: d.on_time, fuera: d.late, vencidas, porVencer, due, pct: pctOf(d.on_time, due) };
+    const conPlazoPasado = d.overdue + (d.observed_overdue ?? 0);
+    const pendientes = d.pending + d.in_review + d.observed + d.overdue;
+    const due = d.on_time + d.late + conPlazoPasado;
+    return { digit: d.digit, total: d.total, dentro: d.on_time, fuera: d.late, pendientes, conPlazoPasado, due, pct: pctOf(d.on_time, due) };
   });
 }
 
 /** La fila de totales (suma de todos los dígitos). */
 export function digitTotals(rows: DigitRow[]): DigitRow {
   const t = rows.reduce(
-    (a, r) => ({ ...a, total: a.total + r.total, dentro: a.dentro + r.dentro, fuera: a.fuera + r.fuera, vencidas: a.vencidas + r.vencidas, porVencer: a.porVencer + r.porVencer, due: a.due + r.due }),
+    (a, r) => ({ ...a, total: a.total + r.total, dentro: a.dentro + r.dentro, fuera: a.fuera + r.fuera, pendientes: a.pendientes + r.pendientes, conPlazoPasado: a.conPlazoPasado + r.conPlazoPasado, due: a.due + r.due }),
     emptyDigitRow(-1),
   );
   return { ...t, pct: pctOf(t.dentro, t.due) };
@@ -63,8 +63,7 @@ export const NO_FILTER: DigitFilter = { digit: null, bucket: null };
 export const BUCKET_LABEL: Record<AssistantBucket, string> = {
   dentro: 'Dentro de plazo',
   fuera: 'Fuera de plazo',
-  vencida: 'Vencidas',
-  por_vencer: 'Por vencer',
+  pendiente: 'Pendientes',
 };
 
 export const isFiltered = (f: DigitFilter): boolean => f.digit != null || f.bucket != null;

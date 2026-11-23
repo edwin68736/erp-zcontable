@@ -16,7 +16,8 @@ export function shortDate(iso?: string): string {
 }
 
 export function stateLabel(w: AssistantWorkItem): string {
-  if (w.state === 'vencida') return 'Vencida';
+  // Lo no entregado es «Pendiente» aunque su plazo ya haya pasado: «vencida» no se muestra como estado.
+  if (w.state === 'vencida') return 'Pendiente';
   if (w.state === 'observada') return 'Observada';
   if (w.state === 'por_revisar') return 'Por revisar';
   if (w.days_left === 0) return 'Vence hoy';
@@ -27,7 +28,7 @@ export function stateLabel(w: AssistantWorkItem): string {
 export function dueText(w: AssistantWorkItem): { text: string; urgent: boolean } {
   const d = w.days_left;
   const date = shortDate(w.due_date);
-  // Buzón SOL: una fila por empresa con todas sus capturas vencidas (no tiene una sola fecha límite).
+  // Buzón SOL: una fila por empresa con todas sus capturas sin hacer (no tiene una sola fecha límite).
   if (w.module_key === 'sunat_inbox' && w.state === 'vencida' && (d === undefined || d === null)) {
     return { text: 'Capturas semanales sin hacer en este periodo', urgent: true };
   }
@@ -37,7 +38,7 @@ export function dueText(w: AssistantWorkItem): { text: string; urgent: boolean }
   }
   if (d < 0) {
     const ago = d === -1 ? 'ayer' : `hace ${Math.abs(d)} días`;
-    return { text: `Venció ${ago}${date ? ` (${date})` : ''}${w.state === 'observada' ? ' — corrige y vuelve a cargar' : ''}`, urgent: true };
+    return { text: `Debió entregarse ${ago}${date ? ` (${date})` : ''}${w.state === 'observada' ? ' — corrige y vuelve a cargar' : ''}`, urgent: true };
   }
   if (d === 0) return { text: 'Vence hoy', urgent: true };
   if (d === 1) return { text: `Vence mañana${date ? ` (${date})` : ''}`, urgent: true };
