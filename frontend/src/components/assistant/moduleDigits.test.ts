@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssistantDigitProgress, AssistantModuleRow, AssistantStudioOption } from '../../services/supervisors';
-import { NO_FILTER, assistantsForSupervisor, countRows, deliveredText, digitRows, digitTotals, filterLabel, filterRows, fmtPct, isFiltered, pctTone, toggleFilter } from './moduleDigits';
+import { NO_FILTER, assistantsForSupervisor, countRows, deliveredText, digitRows, digitTotals, filterLabel, filterRows, fmtPct, isFiltered, moduleSummary, pctTone, toggleFilter } from './moduleDigits';
 
 const dp = (digit: number, over: Partial<AssistantDigitProgress> = {}): AssistantDigitProgress => ({
   digit, total: 0, completed: 0, on_time: 0, late: 0, in_review: 0, pending: 0, overdue: 0, observed: 0, not_applicable: 0, pct: 0, ...over,
@@ -92,5 +92,22 @@ describe('asistentes del supervisor elegido', () => {
     expect(r.map((a) => [a.name, a.companies])).toEqual([['Ana', 2], ['Luis', 1]]);
     expect(assistantsForSupervisor(asst, 11).map((a) => a.name)).toEqual(['Ana', 'Eva']);
     expect(assistantsForSupervisor(asst, 99)).toEqual([]);
+  });
+});
+
+describe('resumen del módulo en empresas', () => {
+  it('empresas completas de empresas, y las que faltan', () => {
+    expect(moduleSummary({ companies: 255, companies_done: 0, total: 255, completed: 0 })).toEqual({ text: '0 de 255 empresas completadas', left: 255 });
+    expect(moduleSummary({ companies: 72, companies_done: 19, total: 72, completed: 19 })).toEqual({ text: '19 de 72 empresas completadas', left: 53 });
+    expect(moduleSummary({ companies: 1, companies_done: 1, total: 1, completed: 1 })).toEqual({ text: '1 de 1 empresa completada', left: 0 });
+  });
+
+  it('con varias tareas por empresa cuentan las empresas, no las tareas', () => {
+    // Preliminar de ventas: 2 entregas por empresa. 10 empresas = 20 tareas; 6 entregas hechas, pero solo 2 empresas las tienen las dos.
+    expect(moduleSummary({ companies: 10, companies_done: 2, total: 20, completed: 6 })).toEqual({ text: '2 de 10 empresas completadas', left: 8 });
+  });
+
+  it('sin el dato de empresas se cae a las tareas', () => {
+    expect(moduleSummary({ total: 30, completed: 12 })).toEqual({ text: '12 de 30 tareas completadas', left: 18 });
   });
 });

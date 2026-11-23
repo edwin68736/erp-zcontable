@@ -102,6 +102,19 @@ export function assistantsForSupervisor(assistants: AssistantStudioOption[], sup
   return out;
 }
 
+/**
+ * El resumen del módulo en EMPRESAS (no en tareas): cuántas están completas de cuántas, y cuántas faltan. Una empresa con varias tareas
+ * en el módulo solo cuenta como completa si están todas. Si el servidor no trae el dato, se cae a las tareas.
+ */
+export function moduleSummary(m: { companies?: number; companies_done?: number; total: number; completed: number }): { text: string; left: number } {
+  if (m.companies == null) {
+    return { text: `${m.completed.toLocaleString('es-PE')} de ${m.total.toLocaleString('es-PE')} tareas completadas`, left: m.total - m.completed };
+  }
+  const done = m.companies_done ?? 0;
+  const noun = m.companies === 1 ? 'empresa completada' : 'empresas completadas';
+  return { text: `${done.toLocaleString('es-PE')} de ${m.companies.toLocaleString('es-PE')} ${noun}`, left: m.companies - done };
+}
+
 /** Textos de la fecha de entrega de una fila («Declaró el 20/07» / «Entregó el …»). */
 export function deliveredText(r: Pick<AssistantModuleRow, 'delivered_at' | 'bucket'>, verb: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.delivered_at ?? '');

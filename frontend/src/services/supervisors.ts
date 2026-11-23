@@ -800,6 +800,9 @@ export interface AssistantModuleProgress extends AssistantProgress {
   planilla?: AssistantPlanillaLoad;
   /** Solo PDT 621 · Declaración: comprobantes de ventas y compras que registró cada asistente. */
   comprobantes?: AssistantComprobantesLoad;
+  /** Empresas con tareas que aplican en el módulo y cuántas las tienen todas completadas. */
+  companies?: number;
+  companies_done?: number;
 }
 export interface AssistantTrendPoint {
   period_ym: string;

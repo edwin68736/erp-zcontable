@@ -118,6 +118,10 @@ type AssistantModuleProgress struct {
 	Planilla *AssistantPlanillaLoad `json:"planilla,omitempty"`
 	// Comprobantes solo en PDT 621 · Declaración: comprobantes de ventas y compras que registró cada asistente.
 	Comprobantes *AssistantComprobantesLoad `json:"comprobantes,omitempty"`
+	// Companies empresas con tareas que aplican en este módulo y CompaniesDone las que ya lo tienen todo completado (una empresa
+	// con varias tareas —las dos entregas del preliminar, las capturas del Buzón— solo cuenta como completa si están todas).
+	Companies     int64 `json:"companies"`
+	CompaniesDone int64 `json:"companies_done"`
 }
 
 // AssistantTrendPoint avance de un mes (con la misma fórmula que el panel). Total 0 = ese mes no tiene tareas medidas.
@@ -206,6 +210,25 @@ func (a *assistantAcc) addDigit(key, ruc, state string, onTime bool) {
 		a.digits[key] = arr
 	}
 	arr[d].add(state, onTime)
+}
+
+// companiesOf cuántas empresas tienen tareas que aplican en el módulo y cuántas las tienen todas completadas.
+func (a *assistantAcc) companiesOf(key string) (total, done int64) {
+	for _, byMod := range a.perCompany {
+		p, ok := byMod[key]
+		if !ok {
+			continue
+		}
+		tasks := p.Completed + p.InReview + p.Pending + p.Overdue + p.Observed
+		if tasks == 0 {
+			continue
+		}
+		total++
+		if p.Completed == tasks {
+			done++
+		}
+	}
+	return total, done
 }
 
 // addDigitObservedOverdue cuenta, en el dígito del RUC, una tarea observada cuyo plazo ya pasó (cuenta como vencida).
@@ -616,6 +639,7 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 	for _, key := range acc.order {
 		m := acc.mods[key]
 		m.finalize()
+		m.Companies, m.CompaniesDone = acc.companiesOf(key)
 		m.ByDigit = acc.byDigit(key)
 		out.Modules = append(out.Modules, *m)
 		out.Progress.merge(m.AssistantProgress)

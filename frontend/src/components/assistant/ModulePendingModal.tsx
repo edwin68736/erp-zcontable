@@ -13,7 +13,7 @@ import {
   type AssistantPlanillaLoad,
   type AssistantWorkItem,
 } from '../../services/supervisors';
-import { BUCKET_LABEL, NO_FILTER, PLAZO_META, countRows, deliveredText, digitRows, digitTotals, filterLabel, filterRows, fmtPct, isFiltered, pctTone, toggleFilter, type DigitFilter, type DigitRow } from './moduleDigits';
+import { BUCKET_LABEL, NO_FILTER, PLAZO_META, moduleSummary, countRows, deliveredText, digitRows, digitTotals, filterLabel, filterRows, fmtPct, isFiltered, pctTone, toggleFilter, type DigitFilter, type DigitRow } from './moduleDigits';
 
 const n = (v: number) => (v > 0 ? v.toLocaleString('es-PE') : '·');
 
@@ -328,7 +328,7 @@ const ModulePendingModal = ({
 
   if (!module) return null;
   const slug = MODULE_SLUG[module.key];
-  const left = module.total - module.completed;
+  const summary = moduleSummary(module);
   const isDeclaration = module.key === 'pdt_621_declaracion';
 
   return createPortal(
@@ -350,7 +350,7 @@ const ModulePendingModal = ({
               {module.label}
             </h2>
             <p className="m-0 mt-1 text-[12.5px] text-slate-600">
-              {module.completed.toLocaleString('es-PE')} de {module.total.toLocaleString('es-PE')} tareas completadas · <strong>{left.toLocaleString('es-PE')} por hacer</strong> · periodo {periodYm}
+              {summary.text} · <strong>{summary.left.toLocaleString('es-PE')} por hacer</strong> · periodo {periodYm}
             </p>
           </div>
           <button

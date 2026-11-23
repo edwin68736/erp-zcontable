@@ -174,6 +174,10 @@ func TestAssistantModuleDetail_FilasObservacionYComprobantes(t *testing.T) {
 			decl = &ov.Modules[i]
 		}
 	}
+	// Empresas completas del módulo: la declaración de A y C está hecha y la de B no.
+	if decl != nil && (decl.Companies != 3 || decl.CompaniesDone != 2) {
+		t.Errorf("empresas del módulo: %d completas de %d, quería 2 de 3", decl.CompaniesDone, decl.Companies)
+	}
 	if decl == nil || decl.Total != int64(len(d.Rows)) {
 		t.Fatalf("el módulo y el detalle deben coincidir: %+v vs %d filas", decl, len(d.Rows))
 	}
