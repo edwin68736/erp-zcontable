@@ -231,6 +231,28 @@ func (a *assistantAcc) companiesOf(key string) (total, done int64) {
 	return total, done
 }
 
+// digitObserved pasa, en el dígito del RUC, una tarea ya contada como completada a observada (la que el supervisor devolvió).
+func (a *assistantAcc) digitObserved(key, ruc string) {
+	d := rucDigit(ruc)
+	if d < 0 {
+		return
+	}
+	arr, ok := a.digits[key]
+	if !ok {
+		return
+	}
+	p := &arr[d]
+	if p.Completed > 0 {
+		p.Completed--
+		if p.OnTime > 0 {
+			p.OnTime--
+		} else if p.Late > 0 {
+			p.Late--
+		}
+	}
+	p.Observed++
+}
+
 // addDigitObservedOverdue cuenta, en el dígito del RUC, una tarea observada cuyo plazo ya pasó (cuenta como vencida).
 func (a *assistantAcc) addDigitObservedOverdue(key, ruc string) {
 	d := rucDigit(ruc)
@@ -566,9 +588,14 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 			// Cada semana de cada empresa son dos tareas: la captura de SUNAT y la de SUNAFIL. Las vencidas se cuentan por
 			// empresa para la lista de trabajo (una fila por empresa, no miles de filas).
 			overduePerCompany := map[uint]int64{}
+			rucOf := make(map[uint]string, len(companies))
+			for _, c := range companies {
+				rucOf[c.ID] = c.RUC
+			}
 			bmAdd := func(companyID uint, state string, onTime bool) {
 				bm.add(state, onTime)
 				acc.company(models.SupervisorDeclSunatInbox, companyID).add(state, onTime)
+				acc.addDigit(models.SupervisorDeclSunatInbox, rucOf[companyID], state, onTime)
 			}
 			sunatInboxEachVerdict(periodYM, ids, slots, func(companyID uint, sunat, sunafil string) {
 				for _, v := range []string{sunat, sunafil} {
@@ -595,9 +622,9 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 						continue
 					}
 					it := newItem(models.SupervisorDeclSunatInbox, "Buzón SOL", assistantOwnerAssistant, c.ID, c.BusinessName, c.RUC, nil, assistantTaskOverdue, nil, "")
-					it.Detail = fmt.Sprintf("%d capturas vencidas", n)
+					it.Detail = fmt.Sprintf("%d capturas sin hacer", n)
 					if n == 1 {
-						it.Detail = "1 captura vencida"
+						it.Detail = "1 captura sin hacer"
 					}
 					it.Hint = "Capturas semanales de SUNAT y SUNAFIL sin hacer en este periodo"
 					items = append(items, it)
@@ -626,9 +653,58 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 				}
 			}
 			pc.Observed++
+			var ruc string
+			for _, c := range companies {
+				if c.ID == obs.CompanyID {
+					ruc = c.RUC
+					break
+				}
+			}
+			acc.digitObserved(models.SupervisorDeclSunatInbox, ruc)
 			if wantWork {
 				obs.Owner = assistantOwnerAssistant
 				items = append(items, obs)
+			}
+		}
+		// Detalle del módulo: una fila por empresa con cuántas capturas tiene en cada categoría.
+		if wantRows {
+			for _, c := range companies {
+				p, ok := acc.perCompany[c.ID][models.SupervisorDeclSunatInbox]
+				if !ok {
+					continue
+				}
+				pend := p.Pending + p.Overdue + p.Observed + p.InReview
+				if p.Completed+pend == 0 {
+					continue
+				}
+				row := AssistantModuleRow{
+					CompanyID: c.ID, Company: strings.TrimSpace(c.BusinessName), RUC: c.RUC, Digit: rucDigit(c.RUC), AssistantID: assistantIDOf[c.ID],
+					State: assistantTaskDone, Bucket: AssistantBucketDentro, Counts: &AssistantBucketCounts{Dentro: p.OnTime, Fuera: p.Late, Pendiente: pend},
+				}
+				switch {
+				case pend > 0:
+					row.Bucket = AssistantBucketPendiente
+					row.State = assistantTaskPending
+					if p.Overdue > 0 {
+						row.State = assistantTaskOverdue
+					} else if p.Observed > 0 {
+						row.State = assistantTaskObserved
+					}
+				case p.Late > 0:
+					row.Bucket = AssistantBucketFuera
+				}
+				parts := []string{}
+				if p.OnTime > 0 {
+					parts = append(parts, fmt.Sprintf("%d a tiempo", p.OnTime))
+				}
+				if p.Late > 0 {
+					parts = append(parts, fmt.Sprintf("%d fuera de plazo", p.Late))
+				}
+				if pend > 0 {
+					parts = append(parts, fmt.Sprintf("%d pendientes", pend))
+				}
+				row.Hint = fmt.Sprintf("%d capturas: %s", p.Completed+pend, strings.Join(parts, " · "))
+				rows = append(rows, row)
 			}
 		}
 	}

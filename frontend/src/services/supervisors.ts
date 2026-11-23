@@ -779,6 +779,8 @@ export interface AssistantModuleRow {
   /** Nota del supervisor en el registro (en la declaración: p. ej. el motivo de declarar fuera de plazo). */
   observacion?: string;
   hint?: string;
+  /** Solo en módulos de varias tareas por empresa (Buzón SOL: una captura por semana de SUNAT y de SUNAFIL): cuántas hay en cada categoría. */
+  counts?: { dentro: number; fuera: number; pendiente: number };
 }
 export interface AssistantModuleDetail {
   module_key: string;

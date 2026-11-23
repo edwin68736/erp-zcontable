@@ -139,7 +139,7 @@ const CELL_TONE: Record<AssistantBucket, string> = { dentro: 'text-green-700', f
  * Consolidado de las entregas del módulo por último dígito del RUC (los vencimientos de SUNAT se reparten por ese dígito): dentro y
  * fuera de plazo y pendientes, y el % de cumplimiento. Cada número se puede pulsar: la lista de abajo muestra esas empresas.
  */
-function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean }) {
+function DigitConsolidated({ byDigit, filter, onFilter, ready, unit }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean; unit?: string }) {
   const rows = useMemo(() => digitRows(byDigit), [byDigit]);
   const totals = useMemo(() => digitTotals(rows), [rows]);
   const cols: { bucket: AssistantBucket; label: string; get: (r: DigitRow) => number }[] = [
@@ -176,7 +176,7 @@ function DigitConsolidated({ byDigit, filter, onFilter, ready }: { byDigit: Assi
   };
   return (
     <div className="border-b border-slate-100 px-5 py-3">
-      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC</p>
+      <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC{unit ? ` · ${unit}` : ''}</p>
       <div className="overflow-x-auto rounded-xl border border-[#DCE8E1]">
         <table className="w-full min-w-[34rem] border-collapse text-xs">
           <thead>
@@ -366,7 +366,7 @@ const ModulePendingModal = ({
         <div className="min-h-0 flex-1 overflow-y-auto">
           {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
           {module.comprobantes && module.comprobantes.by_assistant.length > 0 ? <ComprobantesTable load={module.comprobantes} /> : null}
-          {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} /> : null}
+          {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} unit={module.key === 'sunat_inbox' ? 'cada captura semanal (SUNAT y SUNAFIL) cuenta por separado' : undefined} /> : null}
 
           <div className="space-y-2 border-b border-slate-100 px-5 py-3">
             <input
@@ -440,7 +440,7 @@ const ModulePendingModal = ({
                         <div className="flex flex-wrap items-center gap-2">
                           <strong className="text-[13px]">{r.company}</strong>
                           <span className="rounded-md px-[7px] py-px text-[10.5px] font-extrabold" style={{ background: badge.bg, color: badge.fg }}>
-                            {done ? BUCKET_LABEL[r.bucket] : r.state === 'observada' ? 'Observada' : r.state === 'por_revisar' ? 'Por revisar' : stateLabel(w)}
+                            {done ? BUCKET_LABEL[r.bucket] : r.counts ? BUCKET_LABEL[r.bucket] : r.state === 'observada' ? 'Observada' : r.state === 'por_revisar' ? 'Por revisar' : stateLabel(w)}
                           </span>
                           {r.assistant ? (
                             <span className="rounded-md bg-sky-50 px-[7px] py-px text-[10.5px] font-bold text-sky-800" title="Asistente de la empresa">
@@ -451,9 +451,11 @@ const ModulePendingModal = ({
                           {supervisorTask ? <span className="rounded-md bg-violet-50 px-[7px] py-px text-[10.5px] font-bold text-violet-800">Supervisor</span> : null}
                           {r.digit >= 0 ? <span className="rounded-md bg-slate-100 px-[7px] py-px text-[10.5px] font-bold text-slate-600">RUC …{r.digit}</span> : null}
                         </div>
-                        <div className={`mt-[2px] text-[11.5px] ${!done && due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>
-                          {done ? [delivered, r.due_date ? `plazo ${r.due_date.split('-').reverse().join('/')}` : ''].filter(Boolean).join(' · ') || 'Entregada' : due.text}
-                        </div>
+                        {r.counts ? null : (
+                          <div className={`mt-[2px] text-[11.5px] ${!done && due.urgent ? 'font-bold text-red-700' : 'text-slate-600'}`}>
+                            {done ? [delivered, r.due_date ? `plazo ${r.due_date.split('-').reverse().join('/')}` : ''].filter(Boolean).join(' · ') || 'Entregada' : due.text}
+                          </div>
+                        )}
                         {r.hint ? <div className="mt-[2px] text-[11px] text-slate-500">{r.hint}</div> : null}
                         {wantsNote ? (
                           r.observacion ? (

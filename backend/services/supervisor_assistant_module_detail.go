@@ -43,6 +43,16 @@ type AssistantModuleRow struct {
 	// Observacion la nota que escribió el supervisor en el registro (PDT 621 · Declaración): por ejemplo el motivo de declarar fuera de plazo.
 	Observacion string `json:"observacion,omitempty"`
 	Hint        string `json:"hint,omitempty"`
+	// Counts solo en módulos de VARIAS tareas por empresa (Buzón SOL: una captura por semana de SUNAT y de SUNAFIL): cuántas tareas de la
+	// empresa hay en cada categoría. La fila entra en cada categoría en la que tenga alguna.
+	Counts *AssistantBucketCounts `json:"counts,omitempty"`
+}
+
+// AssistantBucketCounts tareas de una empresa por categoría.
+type AssistantBucketCounts struct {
+	Dentro    int64 `json:"dentro"`
+	Fuera     int64 `json:"fuera"`
+	Pendiente int64 `json:"pendiente"`
 }
 
 var assistantBucketRank = map[string]int{AssistantBucketPendiente: 0, AssistantBucketFuera: 1, AssistantBucketDentro: 2}

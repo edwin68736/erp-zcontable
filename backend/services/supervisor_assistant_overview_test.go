@@ -129,14 +129,8 @@ func TestAssistantOverview_ProgressIsOneListOfTasks(t *testing.T) {
 		t.Fatalf("el total del panel (%d) debe ser la suma de sus módulos (%d)", got.Progress.Total, sum)
 	}
 	// Consolidado por último dígito del RUC (esta empresa termina en 1): cada módulo por empresa trae los 10 dígitos y su
-	// suma es el total del módulo; el Buzón SOL no se separa por dígito.
+	// suma es el total del módulo (también el Buzón SOL, por capturas).
 	for _, m := range got.Modules {
-		if m.Key == models.SupervisorDeclSunatInbox {
-			if len(m.ByDigit) != 0 {
-				t.Errorf("el Buzón SOL no debe traer consolidado por dígito: %+v", m.ByDigit)
-			}
-			continue
-		}
 		if m.Total == 0 && len(m.ByDigit) == 0 { // un módulo sin tareas no trae consolidado
 			continue
 		}
@@ -279,8 +273,26 @@ func TestAssistantOverview_BuzonOverdueIsOneRowPerCompany(t *testing.T) {
 		t.Fatalf("filas de Buzón vencido = %d, want 1 por empresa (2)", len(rows))
 	}
 	for id, w := range rows {
-		if w.Detail != "4 capturas vencidas" {
-			t.Fatalf("empresa %d: detalle = %q, want «4 capturas vencidas»", id, w.Detail)
+		if w.Detail != "4 capturas sin hacer" {
+			t.Fatalf("empresa %d: detalle = %q, want «4 capturas sin hacer»", id, w.Detail)
+		}
+	}
+
+	// El Buzón SOL también trae el consolidado por último dígito (por capturas: las dos empresas terminan en 1).
+	if len(buzon.ByDigit) != 10 || buzon.ByDigit[1].Total != 8 || buzon.ByDigit[1].Overdue != 8 || buzon.ByDigit[0].Total != 0 {
+		t.Fatalf("consolidado por dígito del Buzón: %+v", buzon.ByDigit)
+	}
+	// Y el detalle: una fila por empresa con sus capturas por categoría.
+	d, err := svc.AssistantModuleDetail(SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{c1.ID, c2.ID}, ModuleKey: models.SupervisorDeclSunatInbox})
+	if err != nil {
+		t.Fatalf("AssistantModuleDetail: %v", err)
+	}
+	if len(d.Rows) != 2 {
+		t.Fatalf("filas del Buzón = %d, want 1 por empresa (2)", len(d.Rows))
+	}
+	for _, r := range d.Rows {
+		if r.Digit != 1 || r.Bucket != AssistantBucketPendiente || r.Counts == nil || r.Counts.Pendiente != 4 || r.Counts.Dentro != 0 || r.Counts.Fuera != 0 || r.Hint != "4 capturas: 4 pendientes" {
+			t.Fatalf("fila del Buzón: %+v", r)
 		}
 	}
 }

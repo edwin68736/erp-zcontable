@@ -81,8 +81,13 @@ export function toggleFilter(cur: DigitFilter, next: DigitFilter): DigitFilter {
   return cur.digit === next.digit && cur.bucket === next.bucket ? NO_FILTER : next;
 }
 
+/** ¿La fila está en esa categoría? Una empresa con varias tareas (Buzón SOL) está en cada categoría en la que tenga alguna. */
+export function inBucket(r: AssistantModuleRow, bucket: AssistantBucket): boolean {
+  return r.counts ? r.counts[bucket] > 0 : r.bucket === bucket;
+}
+
 export function filterRows(rows: AssistantModuleRow[], f: DigitFilter): AssistantModuleRow[] {
-  return rows.filter((r) => (f.digit == null || r.digit === f.digit) && (f.bucket == null || r.bucket === f.bucket));
+  return rows.filter((r) => (f.digit == null || r.digit === f.digit) && (f.bucket == null || inBucket(r, f.bucket)));
 }
 
 /** Cuántas filas hay en una celda (para mostrar el contador antes de pulsarla). */

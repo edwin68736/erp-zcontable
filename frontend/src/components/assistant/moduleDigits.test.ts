@@ -111,3 +111,18 @@ describe('resumen del módulo en empresas', () => {
     expect(moduleSummary({ total: 30, completed: 12 })).toEqual({ text: '12 de 30 tareas completadas', left: 18 });
   });
 });
+
+describe('Buzón SOL: varias capturas por empresa', () => {
+  const buzon = (id: number, digit: number, counts: { dentro: number; fuera: number; pendiente: number }): AssistantModuleRow => ({
+    company_id: id, company: `Empresa ${id}`, ruc: `2010000000${digit}`, digit, state: 'pendiente', bucket: counts.pendiente > 0 ? 'pendiente' : counts.fuera > 0 ? 'fuera' : 'dentro', counts,
+  });
+
+  it('una empresa entra en cada categoría en la que tenga alguna captura', () => {
+    const rows = [buzon(1, 3, { dentro: 6, fuera: 1, pendiente: 1 }), buzon(2, 3, { dentro: 8, fuera: 0, pendiente: 0 }), buzon(3, 5, { dentro: 0, fuera: 2, pendiente: 0 })];
+    expect(filterRows(rows, { digit: null, bucket: 'pendiente' }).map((r) => r.company_id)).toEqual([1]);
+    expect(filterRows(rows, { digit: null, bucket: 'fuera' }).map((r) => r.company_id)).toEqual([1, 3]);
+    expect(filterRows(rows, { digit: null, bucket: 'dentro' }).map((r) => r.company_id)).toEqual([1, 2]);
+    expect(filterRows(rows, { digit: 3, bucket: 'dentro' }).map((r) => r.company_id)).toEqual([1, 2]);
+    expect(filterRows(rows, { digit: 5, bucket: 'pendiente' })).toEqual([]);
+  });
+});
