@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import ModulePendingModal, { DigitConsolidated, PlanillaLoadTable } from '../../components/assistant/ModulePendingModal';
+import ModuleCards from '../../components/assistant/ModuleCards';
+import ModulePendingModal from '../../components/assistant/ModulePendingModal';
 import { NO_FILTER, type DigitFilter } from '../../components/assistant/moduleDigits';
 import SearchableSelect from '../../components/SearchableSelect';
 import CompanyListModal, { type CompanyListItem } from '../../components/supervisors/dashboard/CompanyListModal';
@@ -429,6 +430,14 @@ const SupervisorDashboardView = () => {
                 </div>
               </div>
 
+              <Card>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="m-0 text-[15px] font-extrabold">{studioView ? 'Módulos' : 'Mis módulos'}</h2>
+                  <span className="text-[11.5px] text-slate-500">tareas completadas de las que aplican · pulse un módulo para ver su detalle</span>
+                </div>
+                <ModuleCards modules={progress.modules} onOpen={(m) => openModule(m, NO_FILTER)} />
+              </Card>
+
               <Section title="Revisión de buzones" hint="Capturas SUNAT y SUNAFIL por asistente: a tiempo, fuera de plazo y pendientes (incluye lo vencido sin subir).">
                 {progress.mailboxes.length === 0 ? (
                   <p className="py-8 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este periodo.</p>
@@ -436,30 +445,6 @@ const SupervisorDashboardView = () => {
                   <MailboxBars rows={progress.mailboxes} onPick={openMailbox} />
                 )}
               </Section>
-
-              {mPlanillas ? (
-                <Section title="KPI 2: Entrega de planillas" hint="PDT 601: trabajadores que atiende cada asistente y entrega por último dígito del RUC.">
-                  <div className="flex flex-col gap-4">
-                    {mPlanillas.planilla && mPlanillas.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={mPlanillas.planilla} className="" /> : null}
-                    {mPlanillas.by_digit && mPlanillas.by_digit.length > 0 ? <DigitConsolidated byDigit={mPlanillas.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mPlanillas, f)} ready className="" hint="Pulse un número para ver esas empresas." /> : null}
-                  </div>
-                </Section>
-              ) : null}
-              {mArchivadores?.by_digit && mArchivadores.by_digit.length > 0 ? (
-                <Section title="KPI 3: Entrega de archivadores" hint="PDT 621: 1.ª entrega del asistente frente al plazo interno del estudio.">
-                  <DigitConsolidated byDigit={mArchivadores.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mArchivadores, f)} ready className="" hint="Pulse un número para ver esas empresas." />
-                </Section>
-              ) : null}
-              {mDeclaracion?.by_digit && mDeclaracion.by_digit.length > 0 ? (
-                <Section title="KPI 4: Declaraciones dentro de plazo" hint="PDT 621 · Declaración: fecha de declaración frente a la fecha límite del calendario para cada dígito de RUC.">
-                  <DigitConsolidated byDigit={mDeclaracion.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mDeclaracion, f)} ready className="" hint="Pulse un número para ver esas empresas." />
-                </Section>
-              ) : null}
-              {mBalances?.by_digit && mBalances.by_digit.length > 0 && !k5.unused ? (
-                <Section title="KPI 5: Revisión de balances" hint="Siscont balances revisados por último dígito del RUC.">
-                  <DigitConsolidated byDigit={mBalances.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mBalances, f)} ready className="" hint="Pulse un número para ver esas empresas." />
-                </Section>
-              ) : null}
 
               {/* Avance de los últimos meses y asistentes */}
               <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
@@ -708,7 +693,7 @@ const SupervisorDashboardView = () => {
         onClose={closeModuleModal}
         fetchDetail={fetchDetail}
         initialFilter={moduleModal?.filter}
-        listOnly
+        moduleHref={(slug) => `/supervisors/activities/${slug}?period_ym=${encodeURIComponent(periodYm)}`}
       />
       {listModal ? <CompanyListModal title={listModal.title} subtitle={listModal.subtitle} items={listModal.items} empty={listModal.empty} onClose={() => setListModal(null)} /> : null}
     </div>
