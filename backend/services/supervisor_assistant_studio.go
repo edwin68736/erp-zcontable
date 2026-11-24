@@ -43,15 +43,29 @@ type AssistantStudioInfo struct {
 // filtros y el asistente de cada empresa. ids == nil significa «todo el estudio» (sin filtro); con filtro es la lista
 // explícita, y si ninguna empresa coincide queda vacía (no nil), que el panel muestra en cero.
 func (s *SupervisorService) StudioAssistantScope(assistantID, supervisorID uint) (ids []uint, info *AssistantStudioInfo, assistantOf map[uint]string, err error) {
+	return s.AssistantScopeWithin(assistantID, supervisorID, nil)
+}
+
+// AssistantScopeWithin es StudioAssistantScope limitado a un conjunto de empresas (within): lo usa el supervisor, que ve solo su cartera
+// pero también puede filtrar por cada uno de sus asistentes. Las opciones de los filtros salen de ese conjunto. within == nil es todo
+// el estudio. Con ambos filtros en 0 devuelve ids nil: quien llama usa entonces el conjunto completo.
+func (s *SupervisorService) AssistantScopeWithin(assistantID, supervisorID uint, within []uint) (ids []uint, info *AssistantStudioInfo, assistantOf map[uint]string, err error) {
 	var rows []struct {
 		ID               uint
 		AssistantUserID  *uint
 		SupervisorUserID *uint
 	}
-	if err = database.DB.Model(&models.Company{}).
+	q := database.DB.Model(&models.Company{}).
 		Select("id, assistant_user_id, supervisor_user_id").
-		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo").
-		Scan(&rows).Error; err != nil {
+		Where("client_type = ? AND status = ?", models.CompanyClientTypeEstudio, "activo")
+	if within != nil {
+		if len(within) == 0 {
+			q = q.Where("1 = 0")
+		} else {
+			q = q.Where("id IN ?", within)
+		}
+	}
+	if err = q.Scan(&rows).Error; err != nil {
 		return nil, nil, nil, err
 	}
 

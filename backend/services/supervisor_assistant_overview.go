@@ -81,6 +81,8 @@ type AssistantOverview struct {
 	Upcoming      []DashboardUpcoming `json:"upcoming"`
 	// Studio solo en la vista del estudio (administrador): las opciones de los filtros por asistente y supervisor.
 	Studio *AssistantStudioInfo `json:"studio,omitempty"`
+	// Team para quien ve solo su cartera (supervisor o asistente): sus asistentes, para filtrar el panel por cada uno.
+	Team *AssistantStudioInfo `json:"team,omitempty"`
 }
 
 var assistantWorkRank = map[string]int{"vencida": 0, "observada": 1, "pendiente": 2, "por_revisar": 3}

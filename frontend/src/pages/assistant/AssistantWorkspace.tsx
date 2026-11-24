@@ -116,6 +116,8 @@ const AssistantWorkspace = () => {
   const [data, setData] = useState<AssistantOverview | null>(null);
   // Opciones de los filtros: se guardan aparte para que sigan a la vista aunque una consulta falle.
   const [studio, setStudio] = useState<AssistantStudioInfo | null>(null);
+  // Quien ve solo su cartera (supervisor) también filtra por cada uno de sus asistentes.
+  const [team, setTeam] = useState<AssistantStudioInfo | null>(null);
   const [moduleOptions, setModuleOptions] = useState<Array<{ key: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -136,6 +138,7 @@ const AssistantWorkspace = () => {
         if (cancelled) return;
         setData(res);
         if (res.studio) setStudio(res.studio);
+        if (res.team) setTeam(res.team);
         if (res.module_options?.length) setModuleOptions(res.module_options);
       })
       .catch((err: unknown) => {
@@ -267,6 +270,25 @@ const AssistantWorkspace = () => {
                   className="rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[7px] text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Quitar filtros
+                </button>
+              ) : null}
+            </>
+          ) : team && team.assistants.length > 1 ? (
+            <>
+              <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
+                <span className="text-slate-500">Asistente</span>
+                <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className="max-w-[170px] border-0 bg-transparent py-[3px] pr-1 text-xs font-bold outline-none" aria-label="Filtrar por asistente">
+                  <option value="">Todos</option>
+                  {team.assistants.map((a) => (
+                    <option key={a.user_id} value={a.user_id}>
+                      {a.name} ({a.companies})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {assistantId ? (
+                <button type="button" onClick={() => setAssistantId('')} className="rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[7px] text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  Quitar filtro
                 </button>
               ) : null}
             </>

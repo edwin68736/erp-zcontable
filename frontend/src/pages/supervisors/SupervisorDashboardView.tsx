@@ -82,10 +82,12 @@ const SupervisorDashboardView = () => {
   const [periodYm, setPeriodYm] = useState(previousMonthPeriodYM());
   const [companyId, setCompanyId] = useState('');
   const [supervisorUserId, setSupervisorUserId] = useState('');
+  const [assistantUserId, setAssistantUserId] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [progress, setProgress] = useState<DashboardProgress | null>(null);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [supervisorChips, setSupervisorChips] = useState<DashboardEntityRow[]>([]);
+  const [assistantChips, setAssistantChips] = useState<DashboardEntityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [error, setError] = useState('');
@@ -109,8 +111,9 @@ const SupervisorDashboardView = () => {
       period_ym: periodYm,
       company_id: companyId ? Number(companyId) : undefined,
       supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
+      assistant_user_id: assistantUserId ? Number(assistantUserId) : undefined,
     }),
-    [periodYm, companyId, supervisorUserId],
+    [periodYm, companyId, supervisorUserId, assistantUserId],
   );
 
   // Dos cargas independientes: el avance (lo principal) y la cola por revisar con sus alertas. Se descartan respuestas viejas si los
@@ -148,7 +151,9 @@ const SupervisorDashboardView = () => {
         if (cancelled) return;
         setOverview(o);
         // La lista de supervisores para "Ver como" se toma de la vista sin filtrar por supervisor.
-        if (!params.supervisor_user_id && o.by_supervisor.length > 0) setSupervisorChips(o.by_supervisor);
+        if (!params.supervisor_user_id && !params.assistant_user_id && o.by_supervisor.length > 0) setSupervisorChips(o.by_supervisor);
+        // Los asistentes del alcance (el del supervisor elegido, o los míos), sin filtrar por asistente para que elegir uno no borre a los demás.
+        if (!params.assistant_user_id) setAssistantChips(o.by_assistant);
       })
       .catch(() => {
         if (!cancelled) setOverview(null);
@@ -309,6 +314,18 @@ const SupervisorDashboardView = () => {
               </div>
             </FilterChip>
           ) : null}
+          {assistantChips.length > 1 || assistantUserId ? (
+            <FilterChip label="Asistente">
+              <select value={assistantUserId} onChange={(e) => setAssistantUserId(e.target.value)} className={SELECT_CLS} aria-label="Filtrar por asistente">
+                <option value="">Todos</option>
+                {assistantChips.map((a) => (
+                  <option key={a.user_id} value={a.user_id}>
+                    {a.name} ({a.companies})
+                  </option>
+                ))}
+              </select>
+            </FilterChip>
+          ) : null}
         </div>
       </div>
 
@@ -319,7 +336,10 @@ const SupervisorDashboardView = () => {
           <button
             type="button"
             aria-pressed={!supervisorUserId}
-            onClick={() => setSupervisorUserId('')}
+            onClick={() => {
+              setSupervisorUserId('');
+              setAssistantUserId('');
+            }}
             className={`rounded-lg border px-3 py-[5px] text-xs font-bold ${!supervisorUserId ? 'border-[1.5px] border-[#0E8F47] bg-[#E3F5EA] text-[#0A5A3A]' : 'border-[#DCE8E1] bg-white font-semibold text-slate-700'}`}
           >
             Estudio completo
@@ -329,7 +349,10 @@ const SupervisorDashboardView = () => {
               key={s.user_id}
               type="button"
               aria-pressed={String(s.user_id) === supervisorUserId}
-              onClick={() => setSupervisorUserId(String(s.user_id))}
+              onClick={() => {
+                setSupervisorUserId(String(s.user_id));
+                setAssistantUserId('');
+              }}
               className={`flex items-center gap-[7px] rounded-lg border px-[11px] py-[5px] text-xs ${String(s.user_id) === supervisorUserId ? 'border-[1.5px] border-[#0E8F47] bg-[#E3F5EA] font-bold text-[#0A5A3A]' : 'border-[#DCE8E1] bg-white font-semibold text-slate-700'}`}
             >
               <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full text-[9px] font-extrabold text-white" style={{ background: SUP_COLORS[i % SUP_COLORS.length] }}>

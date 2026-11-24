@@ -522,6 +522,7 @@ export const supervisorsService = {
     company_id?: number;
     responsible_user_id?: number;
     supervisor_user_id?: number;
+    assistant_user_id?: number;
   }): Promise<DashboardOverview> {
     const res = await client.get<{ data: DashboardOverview }>('/supervisors/dashboard/overview', { params });
     return res.data.data;
@@ -532,13 +533,13 @@ export const supervisorsService = {
    * carga de planillas, buzones por asistente, suspendidas, tendencia), sobre su cartera; el administrador ve el estudio o mira como
    * un supervisor (`supervisor_user_id`).
    */
-  async dashboardProgress(params: { period_ym?: string; company_id?: number; supervisor_user_id?: number }): Promise<DashboardProgress> {
+  async dashboardProgress(params: { period_ym?: string; company_id?: number; supervisor_user_id?: number; assistant_user_id?: number }): Promise<DashboardProgress> {
     const res = await client.get<{ data: DashboardProgress }>('/supervisors/dashboard/progress', { params });
     return res.data.data;
   },
 
   /** Una fila por empresa de una actividad en el periodo, con el alcance del dashboard del supervisor (para listar las empresas de un número). */
-  async dashboardModuleDetail(params: { period_ym: string; module_key: string; company_id?: number; supervisor_user_id?: number }): Promise<AssistantModuleDetail> {
+  async dashboardModuleDetail(params: { period_ym: string; module_key: string; company_id?: number; supervisor_user_id?: number; assistant_user_id?: number }): Promise<AssistantModuleDetail> {
     const res = await client.get<{ data: AssistantModuleDetail }>('/supervisors/dashboard/module-detail', { params });
     return res.data.data;
   },
@@ -840,6 +841,8 @@ export interface AssistantOverview {
   upcoming: DashboardUpcoming[];
   /** Presente solo para el administrador: el panel es del estudio completo y estas son las opciones de los filtros. */
   studio?: AssistantStudioInfo;
+  /** Para quien ve solo su cartera (supervisor): sus asistentes, para filtrar el panel por cada uno. */
+  team?: AssistantStudioInfo;
 }
 
 /** Las capturas de buzón de una empresa que están pendientes o se subieron fuera de plazo. */

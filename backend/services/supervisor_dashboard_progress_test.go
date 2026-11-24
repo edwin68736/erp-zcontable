@@ -100,3 +100,53 @@ func TestDashboardProgress_AvanceComoElAsistenteConSuspendidasYPorAsistente(t *t
 		t.Error("un periodo inválido debía fallar")
 	}
 }
+
+// El supervisor ve solo su cartera pero puede filtrar por cada uno de sus asistentes: las opciones salen de SUS empresas y el filtro no
+// deja pasar empresas ajenas.
+func TestAssistantScopeWithin_SupervisorFiltraPorSusAsistentes(t *testing.T) {
+	db := setupDashboardOverviewTestDB(t)
+	svc := NewSupervisorService()
+	mk := func(name string) models.User {
+		u := models.User{Name: name, Username: name}
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatal(err)
+		}
+		return u
+	}
+	sup, otra, ana, luis, eva := mk("Claudia"), mk("Rosa"), mk("Ana"), mk("Luis"), mk("Eva")
+	add := func(code string, s, a *models.User) uint {
+		co := models.Company{RUC: "20" + code + "1", BusinessName: "E" + code, InternalCode: code, ClientType: models.CompanyClientTypeEstudio, Status: "activo", SupervisorUserID: &s.ID, AssistantUserID: &a.ID}
+		if err := db.Create(&co).Error; err != nil {
+			t.Fatal(err)
+		}
+		return co.ID
+	}
+	a1, a2, l1 := add("A1", &sup, &ana), add("A2", &sup, &ana), add("L1", &sup, &luis)
+	e1 := add("E1", &otra, &eva) // de otra supervisora: no es de su cartera
+	mine := []uint{a1, a2, l1}
+
+	ids, info, _, err := svc.AssistantScopeWithin(0, 0, mine)
+	if err != nil || ids != nil {
+		t.Fatalf("sin filtro devuelve nil para usar toda la cartera: ids=%v err=%v", ids, err)
+	}
+	names := map[string]int{}
+	for _, a := range info.Assistants {
+		names[a.Name] = a.Companies
+	}
+	if len(names) != 2 || names["Ana"] != 2 || names["Luis"] != 1 {
+		t.Fatalf("asistentes de su cartera: %+v (Eva no debe aparecer)", info.Assistants)
+	}
+	ids, _, _, _ = svc.AssistantScopeWithin(ana.ID, 0, mine)
+	if len(ids) != 2 {
+		t.Fatalf("filtro por Ana: %v", ids)
+	}
+	// Un asistente ajeno a su cartera no da empresas (ni se cuela e1).
+	ids, _, _, _ = svc.AssistantScopeWithin(eva.ID, 0, mine)
+	if len(ids) != 0 || ids == nil {
+		t.Fatalf("Eva no es de su cartera: %v", ids)
+	}
+	_ = e1
+	if ids, info, _, _ = svc.AssistantScopeWithin(0, 0, []uint{}); ids != nil || len(info.Assistants) != 0 {
+		t.Fatalf("sin empresas no hay opciones: %+v", info)
+	}
+}

@@ -2421,7 +2421,7 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"data": data})
 	}
 
-	ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+	ids, team, err := ctrl.ownAssistantScope(uid, queryUserID(c, "assistant_user_id"))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 	}
@@ -2429,6 +2429,7 @@ func (ctrl *SupervisorController) AssistantOverviewAPI(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	data.Team = team
 	return c.JSON(fiber.Map{"data": data})
 }
 
@@ -2452,7 +2453,7 @@ func (ctrl *SupervisorController) AssistantModuleDetailAPI(c fiber.Ctx) error {
 		}
 		p.AllowedCompanyIDs, p.IncludeSupervisorTasks = ids, true
 	} else {
-		ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+		ids, _, err := ctrl.ownAssistantScope(uid, queryUserID(c, "assistant_user_id"))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
 		}
@@ -2489,8 +2490,9 @@ func (ctrl *SupervisorController) dashboardProgressParams(c fiber.Ctx) (services
 		CompanyID:              queryUserID(c, "company_id"),
 		IncludeSupervisorTasks: true,
 	}
+	assistantID := queryUserID(c, "assistant_user_id")
 	if hasStudioScope(c) {
-		ids, _, _, err := ctrl.svc.StudioAssistantScope(0, queryUserID(c, "supervisor_user_id"))
+		ids, _, _, err := ctrl.svc.StudioAssistantScope(assistantID, queryUserID(c, "supervisor_user_id"))
 		if err != nil {
 			return p, fiber.NewError(fiber.StatusInternalServerError, "Error de acceso")
 		}
@@ -2501,15 +2503,32 @@ func (ctrl *SupervisorController) dashboardProgressParams(c fiber.Ctx) (services
 	if err != nil {
 		return p, fiber.NewError(fiber.StatusUnauthorized, "No autenticado")
 	}
-	ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+	ids, _, err := ctrl.ownAssistantScope(uid, assistantID)
 	if err != nil {
 		return p, fiber.NewError(fiber.StatusInternalServerError, "Error de acceso")
 	}
-	if ids == nil {
-		ids = []uint{} // sin empresas: no es «todas»
-	}
 	p.AllowedCompanyIDs = ids
 	return p, nil
+}
+
+// ownAssistantScope las empresas que ve quien NO tiene alcance de estudio (su cartera), limitadas al asistente elegido si hay uno, y la
+// lista de sus asistentes para el filtro. Sin empresas devuelve una lista vacía (no «todas»).
+func (ctrl *SupervisorController) ownAssistantScope(uid, assistantID uint) ([]uint, *services.AssistantStudioInfo, error) {
+	allowed, err := ctrl.access.GetAllowedCompanyIDs(uid)
+	if err != nil {
+		return nil, nil, err
+	}
+	if allowed == nil {
+		allowed = []uint{}
+	}
+	filtered, team, _, err := ctrl.svc.AssistantScopeWithin(assistantID, 0, allowed)
+	if err != nil {
+		return nil, nil, err
+	}
+	if filtered == nil { // sin filtro de asistente: toda su cartera
+		filtered = allowed
+	}
+	return filtered, team, nil
 }
 
 // DashboardProgressAPI GET /api/supervisors/dashboard/progress — el avance del periodo con las mismas reglas que el panel del asistente
