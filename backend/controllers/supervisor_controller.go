@@ -2378,7 +2378,8 @@ func (ctrl *SupervisorController) UpdateTaxSettlementAPI(c fiber.Ctx) error {
 // próximos). El alcance sale del propio usuario: el administrador (alcance de estudio) ve todo y
 // el supervisor solo las empresas asignadas; de los demás solo recibe el agregado del estudio.
 func (ctrl *SupervisorController) DashboardOverviewAPI(c fiber.Ctx) error {
-	p, err := ctrl.dashboardParamsFromQuery(c)
+	// Mismo alcance que el avance (por asignación de empresas): lo que se ve arriba y esta cola hablan de las mismas empresas.
+	p, err := ctrl.dashboardProgressParams(c)
 	if err != nil {
 		return fiberErrorJSON(c, err)
 	}
@@ -2473,6 +2474,71 @@ func (ctrl *SupervisorController) DashboardIndicatorsAPI(c fiber.Ctx) error {
 		return fiberErrorJSON(c, err)
 	}
 	data, err := ctrl.svc.SupervisorIndicators(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
+// dashboardProgressParams el alcance del dashboard del supervisor, por ASIGNACIÓN de empresas (companies.supervisor_user_id): quien
+// tiene alcance de estudio (administrador) ve todo y puede mirar como un supervisor concreto (`supervisor_user_id`); el resto ve solo
+// sus empresas. `company_id` limita a una empresa. Las tareas del supervisor (declaración del PDT 621) siempre entran.
+func (ctrl *SupervisorController) dashboardProgressParams(c fiber.Ctx) (services.SupervisorDashboardParams, error) {
+	p := services.SupervisorDashboardParams{
+		PeriodYM:               c.Query("period_ym", time.Now().Format("2006-01")),
+		CompanyID:              queryUserID(c, "company_id"),
+		IncludeSupervisorTasks: true,
+	}
+	if hasStudioScope(c) {
+		ids, _, _, err := ctrl.svc.StudioAssistantScope(0, queryUserID(c, "supervisor_user_id"))
+		if err != nil {
+			return p, fiber.NewError(fiber.StatusInternalServerError, "Error de acceso")
+		}
+		p.AllowedCompanyIDs = ids // nil = todo el estudio
+		return p, nil
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return p, fiber.NewError(fiber.StatusUnauthorized, "No autenticado")
+	}
+	ids, err := ctrl.access.GetAllowedCompanyIDs(uid)
+	if err != nil {
+		return p, fiber.NewError(fiber.StatusInternalServerError, "Error de acceso")
+	}
+	if ids == nil {
+		ids = []uint{} // sin empresas: no es «todas»
+	}
+	p.AllowedCompanyIDs = ids
+	return p, nil
+}
+
+// DashboardProgressAPI GET /api/supervisors/dashboard/progress — el avance del periodo con las mismas reglas que el panel del asistente
+// (avance, tablas por dígito de RUC, carga de planillas, buzones por asistente, suspendidas, tendencia de 6 meses).
+func (ctrl *SupervisorController) DashboardProgressAPI(c fiber.Ctx) error {
+	p, err := ctrl.dashboardProgressParams(c)
+	if err != nil {
+		return fiberErrorJSON(c, err)
+	}
+	data, err := ctrl.svc.DashboardProgress(p)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": data})
+}
+
+// DashboardModuleDetailAPI GET /api/supervisors/dashboard/module-detail — una fila por empresa de una actividad (con su estado en el
+// periodo), para listar las empresas de un número del dashboard. Mismo alcance que DashboardProgressAPI.
+func (ctrl *SupervisorController) DashboardModuleDetailAPI(c fiber.Ctx) error {
+	moduleKey := strings.TrimSpace(c.Query("module_key", ""))
+	if moduleKey == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Indique el módulo."})
+	}
+	p, err := ctrl.dashboardProgressParams(c)
+	if err != nil {
+		return fiberErrorJSON(c, err)
+	}
+	p.ModuleKey = moduleKey
+	data, err := ctrl.svc.AssistantModuleDetail(p)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

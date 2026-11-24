@@ -60,6 +60,19 @@ type IndicatorMailboxRow struct {
 	SunafilOk      int64  `json:"sunafil_ok"`
 	SunafilPending int64  `json:"sunafil_pending"`
 	SunafilLate    int64  `json:"sunafil_late"`
+	// Companies las empresas del asistente con alguna captura pendiente o fuera de plazo, para listarlas al pulsar un segmento.
+	Companies []IndicatorMailboxCompany `json:"companies,omitempty"`
+}
+
+// IndicatorMailboxCompany las capturas de buzón de una empresa que están pendientes o se subieron fuera de plazo.
+type IndicatorMailboxCompany struct {
+	CompanyID      uint   `json:"company_id"`
+	Company        string `json:"company"`
+	RUC            string `json:"ruc"`
+	SunatPending   int64  `json:"sunat_pending"`
+	SunatLate      int64  `json:"sunat_late"`
+	SunafilPending int64  `json:"sunafil_pending"`
+	SunafilLate    int64  `json:"sunafil_late"`
 }
 
 type SupervisorIndicators struct {
@@ -292,6 +305,12 @@ func (s *SupervisorService) indicatorMailboxes(periodYM string, companies []mode
 	}
 
 	byAssistant := map[uint]*IndicatorMailboxRow{}
+	companyInfo := make(map[uint]models.Company, len(companies))
+	for _, c := range companies {
+		companyInfo[c.ID] = c
+	}
+	// Empresas con pendientes o tardías de cada asistente (para listarlas).
+	listed := map[uint]map[uint]*IndicatorMailboxCompany{}
 	bump := func(timeliness string, ok, pending, late *int64) {
 		switch timeliness {
 		case TimelinessOnTime:
@@ -317,9 +336,40 @@ func (s *SupervisorService) indicatorMailboxes(periodYM string, companies []mode
 		}
 		bump(sunat, &row.SunatOk, &row.SunatPending, &row.SunatLate)
 		bump(sunafil, &row.SunafilOk, &row.SunafilPending, &row.SunafilLate)
+
+		isPending := func(v string) bool { return v == TimelinessPending || v == TimelinessMissing }
+		if isPending(sunat) || sunat == TimelinessLate || isPending(sunafil) || sunafil == TimelinessLate {
+			if listed[aid] == nil {
+				listed[aid] = map[uint]*IndicatorMailboxCompany{}
+			}
+			e := listed[aid][companyID]
+			if e == nil {
+				c := companyInfo[companyID]
+				e = &IndicatorMailboxCompany{CompanyID: companyID, Company: strings.TrimSpace(c.BusinessName), RUC: c.RUC}
+				listed[aid][companyID] = e
+			}
+			switch {
+			case isPending(sunat):
+				e.SunatPending++
+			case sunat == TimelinessLate:
+				e.SunatLate++
+			}
+			switch {
+			case isPending(sunafil):
+				e.SunafilPending++
+			case sunafil == TimelinessLate:
+				e.SunafilLate++
+			}
+		}
 	})
 	out := make([]IndicatorMailboxRow, 0, len(byAssistant))
-	for _, r := range byAssistant {
+	for aid, r := range byAssistant {
+		for _, e := range listed[aid] {
+			r.Companies = append(r.Companies, *e)
+		}
+		sort.Slice(r.Companies, func(i, j int) bool {
+			return strings.ToLower(r.Companies[i].Company) < strings.ToLower(r.Companies[j].Company)
+		})
 		out = append(out, *r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Assistant < out[j].Assistant })

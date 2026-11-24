@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
@@ -17,14 +17,17 @@ import { BUCKET_LABEL, NO_FILTER, PLAZO_META, moduleSummary, countRows, delivere
 
 const n = (v: number) => (v > 0 ? v.toLocaleString('es-PE') : '·');
 
+/** Marco de cada bloque dentro del modal; el dashboard del supervisor usa los mismos bloques sin él. */
+const BLOCK_CLASS = 'border-b border-slate-100 px-5 py-3';
+
 /**
  * Carga de planillas (PDT 601): cuántos trabajadores atiende cada asistente, para ver quién tiene más trabajo. El número de
  * empresas no basta: una empresa con 80 trabajadores pesa mucho más que una con 2.
  */
-function PlanillaLoadTable({ load }: { load: AssistantPlanillaLoad }) {
+export function PlanillaLoadTable({ load, className = BLOCK_CLASS }: { load: AssistantPlanillaLoad; className?: string }) {
   const max = Math.max(1, ...load.by_assistant.map((r) => r.workers));
   return (
-    <div className="border-b border-slate-100 px-5 py-3">
+    <div className={className}>
       <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
         Carga de planillas por asistente · {load.workers.toLocaleString('es-PE')} trabajadores en {load.companies.toLocaleString('es-PE')} empresas
       </p>
@@ -139,7 +142,7 @@ const CELL_TONE: Record<AssistantBucket, string> = { dentro: 'text-green-700', f
  * Consolidado de las entregas del módulo por último dígito del RUC (los vencimientos de SUNAT se reparten por ese dígito): dentro y
  * fuera de plazo y pendientes, y el % de cumplimiento. Cada número se puede pulsar: la lista de abajo muestra esas empresas.
  */
-function DigitConsolidated({ byDigit, filter, onFilter, ready, unit }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean; unit?: string }) {
+export function DigitConsolidated({ byDigit, filter, onFilter, ready, unit, className = BLOCK_CLASS, hint }: { byDigit: AssistantDigitProgress[]; filter: DigitFilter; onFilter: (f: DigitFilter) => void; ready: boolean; unit?: string; className?: string; hint?: string }) {
   const rows = useMemo(() => digitRows(byDigit), [byDigit]);
   const totals = useMemo(() => digitTotals(rows), [rows]);
   const cols: { bucket: AssistantBucket; label: string; get: (r: DigitRow) => number }[] = [
@@ -175,7 +178,7 @@ function DigitConsolidated({ byDigit, filter, onFilter, ready, unit }: { byDigit
     );
   };
   return (
-    <div className="border-b border-slate-100 px-5 py-3">
+    <div className={className}>
       <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Consolidado por último dígito del RUC{unit ? ` · ${unit}` : ''}</p>
       <div className="overflow-x-auto rounded-xl border border-[#DCE8E1]">
         <table className="w-full min-w-[34rem] border-collapse text-xs">
@@ -220,7 +223,7 @@ function DigitConsolidated({ byDigit, filter, onFilter, ready, unit }: { byDigit
         </table>
       </div>
       <p className="m-0 mt-1 text-[11px] text-slate-400">
-        {ready ? 'Pulse un número para ver esas empresas abajo.' : 'Cargando el detalle de las empresas…'} El % es lo entregado a tiempo ÷ lo que ya tenía plazo cumplido, entregado o no (meta {PLAZO_META}%).
+        {ready ? (hint ?? 'Pulse un número para ver esas empresas abajo.') : 'Cargando el detalle de las empresas…'} El % es lo entregado a tiempo ÷ lo que ya tenía plazo cumplido, entregado o no (meta {PLAZO_META}%).
       </p>
     </div>
   );
@@ -260,6 +263,9 @@ const ModulePendingModal = ({
   scope,
   detailPath,
   onClose,
+  fetchDetail,
+  initialFilter,
+  listOnly,
 }: {
   module: AssistantModuleProgress | null;
   /** Tareas abiertas de ese módulo (la lista de trabajo del panel, ya filtrada por módulo): se muestran mientras llega el detalle completo. */
@@ -271,6 +277,12 @@ const ModulePendingModal = ({
   scope?: { assistantId?: number; supervisorId?: number };
   detailPath: (w: AssistantWorkItem) => string;
   onClose: () => void;
+  /** Cómo pedir el detalle por empresa; sin esto se usa el del panel del asistente (con `scope`). El dashboard del supervisor pasa el suyo. */
+  fetchDetail?: (moduleKey: string) => Promise<AssistantModuleRow[]>;
+  /** Filtro con el que se abre (el número que se pulsó en el dashboard). */
+  initialFilter?: DigitFilter;
+  /** Solo la lista de empresas: sin las tablas de arriba (el dashboard ya las muestra) ni el enlace al módulo del asistente. */
+  listOnly?: boolean;
 }) => {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<DigitFilter>(NO_FILTER);
@@ -279,11 +291,15 @@ const ModulePendingModal = ({
   const open = module != null;
   const moduleKey = module?.key ?? '';
   const hasDigits = Boolean(module?.by_digit && module.by_digit.length > 0);
+  const fetchRef = useRef(fetchDetail);
+  fetchRef.current = fetchDetail;
+  const initialFilterRef = useRef(initialFilter);
+  initialFilterRef.current = initialFilter;
 
   useEffect(() => {
     if (!open) return;
     setQ('');
-    setFilter(NO_FILTER);
+    setFilter(initialFilterRef.current ?? NO_FILTER);
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') onClose();
     };
@@ -297,15 +313,19 @@ const ModulePendingModal = ({
     setDetailError(false);
     if (!open || !hasDigits) return;
     let alive = true;
-    supervisorsService
-      .assistantModuleDetail({
-        period_ym: periodYm,
-        module_key: moduleKey,
-        ...(scope?.assistantId ? { assistant_user_id: scope.assistantId } : {}),
-        ...(scope?.supervisorId ? { supervisor_user_id: scope.supervisorId } : {}),
-      })
-      .then((r) => {
-        if (alive) setDetail(r.rows);
+    const load = fetchRef.current
+      ? fetchRef.current(moduleKey)
+      : supervisorsService
+          .assistantModuleDetail({
+            period_ym: periodYm,
+            module_key: moduleKey,
+            ...(scope?.assistantId ? { assistant_user_id: scope.assistantId } : {}),
+            ...(scope?.supervisorId ? { supervisor_user_id: scope.supervisorId } : {}),
+          })
+          .then((r) => r.rows);
+    load
+      .then((rows) => {
+        if (alive) setDetail(rows);
       })
       .catch(() => {
         if (alive) setDetailError(true);
@@ -364,9 +384,9 @@ const ModulePendingModal = ({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
-          {module.comprobantes && module.comprobantes.by_assistant.length > 0 ? <ComprobantesTable load={module.comprobantes} /> : null}
-          {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} unit={module.key === 'sunat_inbox' ? 'cada captura semanal (SUNAT y SUNAFIL) cuenta por separado' : undefined} /> : null}
+          {!listOnly && module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
+          {!listOnly && module.comprobantes && module.comprobantes.by_assistant.length > 0 ? <ComprobantesTable load={module.comprobantes} /> : null}
+          {!listOnly && module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} unit={module.key === 'sunat_inbox' ? 'cada captura semanal (SUNAT y SUNAFIL) cuenta por separado' : undefined} /> : null}
 
           <div className="space-y-2 border-b border-slate-100 px-5 py-3">
             <input
@@ -491,7 +511,7 @@ const ModulePendingModal = ({
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
               Cerrar
             </button>
-            {slug ? (
+            {slug && !listOnly ? (
               <Link
                 to={`/assistant/activities/${slug}?period_ym=${encodeURIComponent(periodYm)}`}
                 onClick={onClose}

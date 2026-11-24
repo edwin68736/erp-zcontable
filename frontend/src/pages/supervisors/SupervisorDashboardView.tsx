@@ -1,45 +1,33 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import ModulePendingModal, { DigitConsolidated, PlanillaLoadTable } from '../../components/assistant/ModulePendingModal';
+import { NO_FILTER, type DigitFilter } from '../../components/assistant/moduleDigits';
 import SearchableSelect from '../../components/SearchableSelect';
-import {
-  Card,
-  ColumnsLegend,
-  DASH_COLORS,
-  Donut,
-  DonutLegend,
-  HeroGauge,
-  KpiTile,
-  RankBars,
-  StackedColumns,
-  TrendArea,
-  type ColumnDatum,
-  type DonutSlice,
-  type RankDatum,
-} from '../../components/supervisors/dashboard/DashboardParts';
-import SupervisorIndicatorsPanel from '../../components/supervisors/dashboard/SupervisorIndicators';
+import CompanyListModal, { type CompanyListItem } from '../../components/supervisors/dashboard/CompanyListModal';
+import { Card, DASH_COLORS, HeroGauge, KpiTile, RankBars, type RankDatum } from '../../components/supervisors/dashboard/DashboardParts';
+import { AvanceColumns, KpiCard, MailboxBars, Section, SummaryBox } from '../../components/supervisors/dashboard/ProgressSections';
+import { groupTrend, mailboxCompanies, moduleKpi, type MailboxKind, type ModuleKpi, type TrendMode } from '../../components/supervisors/dashboard/progressUi';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
+import { MODULE_SLUG } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
 import { auth } from '../../services/auth';
 import { companiesService } from '../../services/companies';
 import {
   supervisorsService,
-  type ComplianceSummary,
-  type ComplianceTrendPoint,
+  type AssistantModuleProgress,
+  type AssistantModuleRow,
+  type AssistantWorkItem,
   type DashboardEntityRow,
-  type DashboardModuleRow,
   type DashboardOverview,
+  type DashboardProgress,
   type DashboardReviewItem,
-  type SupervisorDashboardData,
+  type IndicatorMailboxRow,
 } from '../../services/supervisors';
-import { usersService } from '../../services/users';
-import type { Company, User } from '../../types/dashboard';
+import type { Company } from '../../types/dashboard';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { previousMonthPeriodYM } from '../../utils/supervisorLabels';
 import { confirmDialog } from '../../utils/confirmDialog';
 import { notify } from '../../utils/notify';
-
-const MONTH_ABBR = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SET', 'OCT', 'NOV', 'DIC'];
-const monthLabel = (ym: string) => MONTH_ABBR[Number(ym.slice(5, 7)) - 1] ?? ym;
 
 const MODULE_PATH: Record<string, string> = {
   pdt_601: 'pdt-601',
@@ -48,22 +36,8 @@ const MODULE_PATH: Record<string, string> = {
   siscont_balances: 'siscont-balances',
 };
 
-const MODULE_COLORS = ['#2563EB', '#0E8F47', '#F59E0B', '#8B5CF6', '#0891B2', '#DB2777', '#64748B'];
 const SUP_COLORS = ['#0E8F47', '#2563EB', '#C2410C', '#7C3AED', '#0891B2', '#DB2777'];
 
-const base = (cs: ComplianceSummary) => cs.total - cs.exempt;
-const pctOf = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
-const toColumn = (name: string, cs: ComplianceSummary, faded?: boolean): ColumnDatum => {
-  const b = base(cs);
-  return { name, ok: pctOf(cs.on_time + cs.late, b), pend: pctOf(cs.pending, b), over: pctOf(cs.missing, b), faded };
-};
-const toRank = (name: string, cs: ComplianceSummary, tone?: RankDatum['tone'], separated?: boolean): RankDatum => ({
-  name,
-  pct: cs.compliance_pct,
-  frac: `${cs.on_time}/${cs.on_time + cs.late + cs.missing}`,
-  tone,
-  separated,
-});
 const initials = (name: string) =>
   name
     .split(/\s+/)
@@ -72,22 +46,11 @@ const initials = (name: string) =>
     .map((w) => w[0]?.toUpperCase())
     .join('');
 
-function deltaText(series: number[], unit = '', goodWhenUp = true): { text: string; tone: 'good' | 'warn' | 'bad' | 'neutral' } | undefined {
-  if (series.length < 2) return undefined;
-  const d = series[series.length - 1] - series[series.length - 2];
-  if (d === 0) return { text: '= vs. periodo anterior', tone: 'neutral' };
-  const up = d > 0;
-  const good = up === goodWhenUp;
-  return { text: `${up ? '▲ +' : '▼ −'}${Math.abs(Math.round(d * 10) / 10)}${unit}`, tone: good ? 'good' : 'bad' };
-}
-
 type AlertItem = { key: string; title: string; text?: string; color: string; soft: string; icon: string; to?: string };
 
-function FilterChip({ label, children, locked }: { label: string; children: ReactNode; locked?: boolean }) {
+function FilterChip({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label
-      className={`flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] px-[10px] py-[3px] text-xs ${locked ? 'bg-slate-100 text-slate-600' : 'bg-white'}`}
-    >
+    <label className="flex items-center gap-[6px] rounded-[9px] border border-[#DCE8E1] bg-white px-[10px] py-[3px] text-xs">
       <span className="text-slate-500">{label}</span>
       {children}
     </label>
@@ -96,30 +59,31 @@ function FilterChip({ label, children, locked }: { label: string; children: Reac
 
 const SELECT_CLS = 'border-0 bg-transparent py-[3px] pr-1 text-xs font-bold text-slate-900 outline-none';
 
+/** «117 de 138 a tiempo · 40 por vencer»: lo que ya se puede medir y, aparte, lo que aún no vence. */
+const kpiSub = (k: ModuleKpi, word: string): string | undefined => (k.total === 0 ? undefined : `${k.onTime} de ${k.due} ${word}${k.upcoming > 0 ? ` · ${k.upcoming} por vencer` : ''}`);
+
+const TREND_MODES: { id: TrendMode; label: string }[] = [
+  { id: 'mensual', label: 'Mensual' },
+  { id: 'trimestral', label: 'Trimestral' },
+  { id: 'semestral', label: 'Semestral' },
+];
+
+/**
+ * Dashboard del supervisor. Mide con las MISMAS tareas y reglas que el panel del asistente (avance = tareas completadas ÷ tareas
+ * que aplican; tablas por último dígito del RUC con dentro/fuera de plazo y pendientes), sobre su cartera. El administrador ve el
+ * estudio completo o mira como un supervisor concreto.
+ */
 const SupervisorDashboardView = () => {
   const allowed = useMemo(() => auth.hasPermission(P.supervisorsDashboardView), []);
   const isStudio = useMemo(() => auth.hasPermission(P.accessStudio), []);
   const canPickCompanies = useMemo(() => auth.hasPermission(P.companiesView), []);
-  const canPickUsers = useMemo(() => auth.hasPermission(P.usersView), []);
   const canApprove = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsApprove), []);
-  const me = auth.getUser();
-
-  const isAnalistaScope = useMemo(
-    () => auth.hasPermission(P.supervisorsControlsUpdate) && !auth.hasPermission(P.supervisorsDeclarationsApprove),
-    [],
-  );
 
   const [periodYm, setPeriodYm] = useState(previousMonthPeriodYM());
-  const [generalStatus, setGeneralStatus] = useState('');
-  const [riskLevel, setRiskLevel] = useState('');
   const [companyId, setCompanyId] = useState('');
-  // Un analista (sin aprobación) ve siempre sus propios controles: el filtro nace ya aplicado para no
-  // pedir los datos dos veces (una sin filtro y otra con él).
-  const [responsibleUserId, setResponsibleUserId] = useState(() => (isAnalistaScope && me?.id ? String(me.id) : ''));
   const [supervisorUserId, setSupervisorUserId] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [data, setData] = useState<SupervisorDashboardData | null>(null);
+  const [progress, setProgress] = useState<DashboardProgress | null>(null);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [supervisorChips, setSupervisorChips] = useState<DashboardEntityRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,44 +91,44 @@ const SupervisorDashboardView = () => {
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [trendMode, setTrendMode] = useState<TrendMode>('mensual');
+  /** Actividad cuyo modal de empresas está abierto, con el número que se pulsó (dígito y/o categoría). */
+  const [moduleModal, setModuleModal] = useState<{ module: AssistantModuleProgress; filter: DigitFilter } | null>(null);
+  const [listModal, setListModal] = useState<{ title: string; subtitle?: string; items: CompanyListItem[]; empty?: string } | null>(null);
 
   useEffect(() => {
-    if (!allowed) return;
-    const tasks: Promise<void>[] = [];
-    if (canPickCompanies) tasks.push(companiesService.list({ status: 'activo' }).then(setCompanies).catch(() => setCompanies([])));
-    if (canPickUsers) tasks.push(usersService.list().then(setUsers).catch(() => setUsers([])));
-    void Promise.all(tasks);
-  }, [allowed, canPickCompanies, canPickUsers]);
+    if (!allowed || !canPickCompanies) return;
+    void companiesService
+      .list({ status: 'activo' })
+      .then(setCompanies)
+      .catch(() => setCompanies([]));
+  }, [allowed, canPickCompanies]);
 
   const params = useMemo(
     () => ({
       period_ym: periodYm,
-      general_status: generalStatus || undefined,
-      risk_level: riskLevel || undefined,
       company_id: companyId ? Number(companyId) : undefined,
-      responsible_user_id: responsibleUserId ? Number(responsibleUserId) : undefined,
       supervisor_user_id: supervisorUserId ? Number(supervisorUserId) : undefined,
     }),
-    [periodYm, generalStatus, riskLevel, companyId, responsibleUserId, supervisorUserId],
+    [periodYm, companyId, supervisorUserId],
   );
 
-  // Dos cargas independientes: los totales (rápidos) aparecen enseguida y el detalle pesado (cola por
-  // revisar, módulos, por supervisor/asistente) se completa cuando llega. Se descartan respuestas
-  // viejas si los filtros cambian varias veces seguidas.
+  // Dos cargas independientes: el avance (lo principal) y la cola por revisar con sus alertas. Se descartan respuestas viejas si los
+  // filtros cambian varias veces seguidas.
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
     setLoading(true);
     setError('');
     void supervisorsService
-      .dashboard(params)
+      .dashboardProgress(params)
       .then((d) => {
-        if (!cancelled) setData(d);
+        if (!cancelled) setProgress(d);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         setError(extractApiErrorMessage(err, 'No se pudo cargar el dashboard de supervisores'));
-        setData(null);
+        setProgress(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -201,10 +165,58 @@ const SupervisorDashboardView = () => {
     () => companies.map((c) => ({ value: String(c.id), label: c.business_name || c.ruc || `#${c.id}`, searchText: [c.ruc, c.code].filter(Boolean).join(' ') })),
     [companies],
   );
-  const userOptions = useMemo(
-    () => users.map((u) => ({ value: String(u.id), label: u.name || u.username || `#${u.id}`, searchText: [u.username, u.email].filter(Boolean).join(' ') })),
-    [users],
+
+  const modules = useMemo(() => new Map((progress?.modules ?? []).map((m) => [m.key, m])), [progress]);
+  const mPlanillas = modules.get('pdt_601');
+  const mArchivadores = modules.get('pdt_621');
+  const mDeclaracion = modules.get('pdt_621_declaracion');
+  const mBalances = modules.get('siscont_balances');
+  const k2 = useMemo(() => moduleKpi(mPlanillas), [mPlanillas]);
+  const k3 = useMemo(() => moduleKpi(mArchivadores), [mArchivadores]);
+  const k4 = useMemo(() => moduleKpi(mDeclaracion), [mDeclaracion]);
+  const k5 = useMemo(() => moduleKpi(mBalances, { unusedWhenEmpty: true }), [mBalances]);
+  const trendBars = useMemo(() => groupTrend(progress?.trend ?? [], trendMode), [progress, trendMode]);
+
+  const closeModuleModal = useCallback(() => setModuleModal(null), []);
+  const openModule = useCallback((module: AssistantModuleProgress | undefined, filter: DigitFilter) => {
+    if (module) setModuleModal({ module, filter });
+  }, []);
+  const fetchDetail = useCallback(
+    (moduleKey: string): Promise<AssistantModuleRow[]> => supervisorsService.dashboardModuleDetail({ ...params, period_ym: periodYm, module_key: moduleKey }).then((r) => r.rows),
+    [params, periodYm],
   );
+  const detailPath = (w: AssistantWorkItem) => {
+    const slug = MODULE_SLUG[w.module_key];
+    if (!slug) return '/supervisors/dashboard';
+    return `/supervisors/activities/${slug}/${w.company_id}?period_ym=${encodeURIComponent(periodYm)}`;
+  };
+
+  const openMailbox = (row: IndicatorMailboxRow, kind: MailboxKind, state: 'late' | 'pending') => {
+    const label = kind === 'sunat' ? 'SUNAT' : 'SUNAFIL';
+    const what = state === 'late' ? 'subidas fuera de plazo' : 'pendientes';
+    const list = mailboxCompanies(row, kind, state);
+    setListModal({
+      title: `Buzón ${label} · ${state === 'late' ? 'fuera de plazo' : 'pendientes'}`,
+      subtitle: `${row.assistant} · ${list.length} ${list.length === 1 ? 'empresa' : 'empresas'} · periodo ${periodYm}`,
+      items: list.map(({ company, count }) => ({
+        key: company.company_id,
+        company: company.company,
+        ruc: company.ruc,
+        detail: `${count} ${count === 1 ? 'captura' : 'capturas'} ${what}`,
+        to: `/supervisors/activities/sunat-inbox/${company.company_id}?period_ym=${encodeURIComponent(periodYm)}`,
+      })),
+    });
+  };
+
+  const openSuspended = () => {
+    const list = progress?.suspended ?? [];
+    setListModal({
+      title: 'Empresas suspendidas',
+      subtitle: `${list.length} ${list.length === 1 ? 'empresa' : 'empresas'} · periodo ${periodYm}. No aplican en ninguna actividad.`,
+      items: list.map((s) => ({ key: s.company_id, company: s.company, ruc: s.ruc, assistant: s.assistant })),
+      empty: 'No hay empresas suspendidas en este periodo.',
+    });
+  };
 
   const handleApprove = async (item: DashboardReviewItem) => {
     if (!canApprove || approvingId) return;
@@ -229,118 +241,32 @@ const SupervisorDashboardView = () => {
   // o el administrador viendo como un supervisor concreto).
   const studioView = isStudio && !supervisorUserId;
   const viewedSupervisor = supervisorChips.find((s) => String(s.user_id) === supervisorUserId);
-
-  const trend: ComplianceTrendPoint[] = overview?.trend ?? [];
-  const studioTrend: ComplianceTrendPoint[] = overview?.studio_trend ?? [];
-  const bd = data?.compliance_breakdown;
-  const compliancePct = data?.monthly_compliance_pct ?? 0;
-  const lastStudio = studioTrend[studioTrend.length - 1];
-  const series = (k: 'on_time' | 'pending' | 'missing') => trend.map((t) => t[k] ?? 0);
-
-  const distribution: DonutSlice[] = bd
-    ? [
-        { label: 'Cumplido a tiempo', value: bd.on_time, color: DASH_COLORS.ok },
-        { label: 'Entregado fuera de fecha', value: bd.late, color: DASH_COLORS.late },
-        { label: 'Vencido sin entregar', value: bd.missing, color: DASH_COLORS.over },
-        { label: 'Pendiente (sin vencer)', value: bd.pending, color: DASH_COLORS.pend },
-        { label: 'Exento o no aplica', value: bd.exempt, color: DASH_COLORS.exempt },
-      ]
-    : [];
-
-  const modules: DashboardModuleRow[] = overview?.modules ?? [];
-  // Dos indicadores: el tributario (titular) y el operativo. Lo «sin uso» (nadie lo entrega todavía) se muestra pero no suma.
-  const taxModules = modules.filter((m) => m.group === 'tributario');
-  const opsModules = modules.filter((m) => m.group !== 'tributario');
-  const moduleSlices: DonutSlice[] = taxModules.filter((m) => m.counts).map((m, i) => ({ label: m.label, value: m.sin_completar, color: MODULE_COLORS[i % MODULE_COLORS.length] }));
-  const modulesTotal = taxModules.filter((m) => m.counts).reduce((a, m) => a + m.sin_completar, 0);
-  type ModKey = 'pendiente' | 'observado' | 'vencido' | 'a_tiempo' | 'fuera_fecha' | 'total';
-  const sumOf = (rows: DashboardModuleRow[], k: ModKey) => rows.filter((m) => m.counts).reduce((a, m) => a + m[k], 0);
-
+  const scope = overview?.scope;
+  const review = overview?.review;
   const bySup = overview?.by_supervisor ?? [];
-  const byAssist = overview?.by_assistant ?? [];
+  const pr = progress?.progress;
 
-  const columns: ColumnDatum[] = studioView
-    ? bySup.map((s) => toColumn(s.name, s.compliance))
-    : [
-        ...byAssist.map((a) => toColumn(a.name, a.compliance)),
-        ...(lastStudio
-          ? [
-              toColumn(
-                'Estudio',
-                { on_time: lastStudio.on_time ?? 0, late: lastStudio.late ?? 0, missing: lastStudio.missing ?? 0, pending: lastStudio.pending ?? 0, exempt: lastStudio.exempt ?? 0, total: lastStudio.total_controls, compliance_pct: lastStudio.compliance_pct },
-                true,
-              ),
-            ]
-          : []),
-      ];
-
-  const ranking: RankDatum[] = studioView
-    ? [...bySup].sort((a, b) => b.compliance.compliance_pct - a.compliance.compliance_pct).map((s) => toRank(s.name, s.compliance))
-    : [
-        ...[...byAssist].sort((a, b) => b.compliance.compliance_pct - a.compliance.compliance_pct).map((a) => toRank(a.name, a.compliance)),
-        ...(bd ? [toRank('Mi cartera', bd, 'mine', true)] : []),
-        ...(lastStudio
-          ? [
-              toRank(
-                'Prom. estudio',
-                { on_time: lastStudio.on_time ?? 0, late: lastStudio.late ?? 0, missing: lastStudio.missing ?? 0, pending: lastStudio.pending ?? 0, exempt: lastStudio.exempt ?? 0, total: lastStudio.total_controls, compliance_pct: lastStudio.compliance_pct },
-                'ref',
-              ),
-            ]
-          : []),
-      ];
-
-  // Un mes sin nada medido no es 0 %: no entra en la comparación contra el periodo anterior.
-  const heroDelta = deltaText(trend.filter((t) => t.has_data !== false).map((t) => t.compliance_pct), ' pts');
-  const ops = data?.operational_breakdown;
-  const opsPct = data?.operational_compliance_pct ?? 0;
-  const opsMeasured = ops ? ops.on_time + ops.late + ops.missing : 0;
-  const heroLine1 = studioView
-    ? `${heroDelta ? `${heroDelta.text} vs. periodo anterior` : 'Cumplimiento del periodo'}`
-    : lastStudio
-      ? `${compliancePct >= lastStudio.compliance_pct ? '▲ +' : '▼ −'}${Math.abs(Math.round((compliancePct - lastStudio.compliance_pct) * 10) / 10)} pts sobre el estudio (${lastStudio.compliance_pct}%)`
-      : 'Cumplimiento del periodo';
-  const heroLine2 = studioView ? 'PDT 601, PDT 621 y detracciones · a tiempo ÷ (a tiempo + fuera de plazo + vencidas)' : heroDelta ? `${heroDelta.text} vs. periodo anterior` : undefined;
-
-  const onTimeDelta = deltaText(series('on_time'), '', true);
-  const pendingDelta = deltaText(series('pending'), '', false);
-  const missingDelta = deltaText(series('missing'), '', false);
+  const ranking: RankDatum[] = (progress?.by_assistant ?? []).filter((a) => a.total > 0).map((a) => ({ name: a.name, pct: a.pct, frac: `${a.completed}/${a.total}` }));
+  // Asistentes con más tareas sin completar (las que aplican y aún no se entregan).
+  const topOpen = (progress?.by_assistant ?? [])
+    .map((a) => ({ ...a, open: a.total - a.completed }))
+    .filter((a) => a.total > 0)
+    .sort((a, b) => b.open - a.open)
+    .slice(0, 5);
 
   // ---- Alertas ----
   const alerts: AlertItem[] = [];
-  const review = overview?.review;
-  const scope = overview?.scope;
   if (studioView && scope && scope.without_supervisor > 0) {
     alerts.push({ key: 'sin-sup', title: `${scope.without_supervisor} empresas activas sin supervisor`, text: 'Asígnalas para que aparezcan en algún dashboard.', color: '#DC2626', soft: '#FEF2F2', icon: 'fas fa-exclamation-triangle', to: '/supervisors/companies' });
-  }
-  if (studioView && bySup.length > 1) {
-    const worst = [...bySup].sort((a, b) => b.compliance.missing / Math.max(base(b.compliance), 1) - a.compliance.missing / Math.max(base(a.compliance), 1))[0];
-    if (worst && worst.compliance.missing > 0) {
-      alerts.push({ key: 'worst', title: `${worst.name}: ${worst.compliance.missing} controles vencidos`, text: `${Math.round(pctOf(worst.compliance.missing, base(worst.compliance)))}% de su cartera, la más alta del estudio.`, color: '#B45309', soft: '#FFF7E6', icon: 'fas fa-clock' });
-    }
   }
   if (review && review.over_3_days > 0) {
     alerts.push({ key: 'rev3', title: `${review.over_3_days} entregas por revisar con +3 días`, text: studioView ? 'Llevan varios días sin revisión del supervisor.' : 'Tus asistentes esperan tu visto bueno.', color: '#4338CA', soft: '#EEF2FF', icon: 'fas fa-clipboard-check' });
   }
-  if ((data?.declarations_observed ?? 0) > 0) {
-    alerts.push({ key: 'obs', title: `${data?.declarations_observed} declaraciones observadas`, text: 'Esperan la corrección del asistente.', color: '#DC2626', soft: '#FEF2F2', icon: 'fas fa-exclamation-circle' });
+  if (review && review.observed > 0) {
+    alerts.push({ key: 'obs', title: `${review.observed} entregas observadas`, text: 'Esperan la corrección del asistente.', color: '#DC2626', soft: '#FEF2F2', icon: 'fas fa-exclamation-circle' });
   }
-  if ((data?.companies_without_control ?? 0) > 0) {
-    alerts.push({ key: 'noctl', title: `${data?.companies_without_control} empresas sin control en ${periodYm}`, text: 'Abre el control del periodo para medirlas.', color: '#7C3AED', soft: '#F5F3FF', icon: 'fas fa-plus-circle' });
-  }
-  (data?.alerts ?? []).slice(0, 2).forEach((a, i) => {
-    alerts.push({ key: `be-${i}`, title: a.message, color: '#B45309', soft: '#FFF7E6', icon: 'fas fa-bell', to: a.control_id ? `/supervisors/controls/${a.control_id}` : undefined });
-  });
 
   const maxReview = Math.max(1, ...bySup.map((s) => s.review));
-  const topPending = [...byAssist]
-    .map((a) => ({
-      ...a,
-      open: a.compliance.pending + a.compliance.missing + (a.operational?.pending ?? 0) + (a.operational?.missing ?? 0),
-      done: a.compliance.on_time + a.compliance.late + (a.operational?.on_time ?? 0) + (a.operational?.late ?? 0),
-    }))
-    .sort((a, b) => b.open - a.open)
-    .slice(0, 5);
 
   return (
     <div className={PAGE_WORKSPACE_CLASS}>
@@ -368,7 +294,7 @@ const SupervisorDashboardView = () => {
                 · periodo {periodYm}
               </>
             ) : (
-              <>Cumplimiento, avance y alertas del periodo contable.</>
+              <>Avance y alertas del periodo contable.</>
             )}
           </p>
         </div>
@@ -383,48 +309,6 @@ const SupervisorDashboardView = () => {
               </div>
             </FilterChip>
           ) : null}
-          {isStudio ? (
-            <FilterChip label="Supervisor">
-              <select value={supervisorUserId} onChange={(e) => setSupervisorUserId(e.target.value)} className={SELECT_CLS}>
-                <option value="">Todos</option>
-                {supervisorChips.map((s) => (
-                  <option key={s.user_id} value={s.user_id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </FilterChip>
-          ) : (
-            <FilterChip label="Supervisor" locked>
-              <strong>{me?.name || me?.username || 'Tú'} (tú)</strong>
-              <i className="fas fa-lock text-[9px] text-slate-400" aria-hidden />
-            </FilterChip>
-          )}
-          {canPickUsers ? (
-            <FilterChip label="Responsable">
-              <div className="min-w-[130px]">
-                <SearchableSelect value={responsibleUserId} onChange={setResponsibleUserId} options={[{ value: '', label: 'Todos' }, ...userOptions]} placeholder="Todos" />
-              </div>
-            </FilterChip>
-          ) : null}
-          <FilterChip label="Estado">
-            <select value={generalStatus} onChange={(e) => setGeneralStatus(e.target.value)} className={SELECT_CLS}>
-              <option value="">Todos</option>
-              <option value="al_dia">Al día</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="vencido">Vencido</option>
-              <option value="observado">Observado</option>
-            </select>
-          </FilterChip>
-          <FilterChip label="Riesgo">
-            <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className={SELECT_CLS}>
-              <option value="">Todos</option>
-              <option value="bajo">Bajo</option>
-              <option value="medio">Medio</option>
-              <option value="alto">Alto</option>
-              <option value="critico">Crítico</option>
-            </select>
-          </FilterChip>
         </div>
       </div>
 
@@ -460,37 +344,24 @@ const SupervisorDashboardView = () => {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D9DEFB] bg-[#F3F5FF] px-3 py-2">
           <i className="fas fa-lock text-[12px] text-indigo-800" aria-hidden />
           <span className="text-xs text-indigo-950">
-            <strong>Solo ves lo tuyo:</strong> las empresas que el administrador te asignó y el trabajo de tus asistentes. Del resto del estudio solo se muestra el promedio, para compararte.
+            <strong>Solo ves lo tuyo:</strong> las empresas que el administrador te asignó y el trabajo de tus asistentes.
           </span>
         </div>
       )}
 
-      {loading && !data ? (
+      {loading && !progress ? (
         <p className="text-sm text-slate-500">Cargando…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
-      ) : data ? (
+      ) : progress && pr ? (
         <>
-          {/* KPIs */}
-          <div className="flex flex-wrap gap-3">
-            <HeroGauge pct={compliancePct} title={studioView ? 'Cumplimiento tributario' : 'Tu cumplimiento tributario'} line1={heroLine1} line2={heroLine2} />
-            <KpiTile
-              label="Cumplimiento operativo"
-              value={opsMeasured > 0 ? `${opsPct}%` : '—'}
-              delta={ops ? `${ops.on_time} a tiempo · ${ops.missing} vencidas` : undefined}
-              deltaTone={ops && ops.missing > 0 ? 'warn' : 'neutral'}
-              sub="Buzón SOL, archivador, Preliminar, informe y balances"
-              icon="fas fa-gears"
-              color="#0F766E"
-              soft="#FFFFFF"
-              tint="#CCFBF1"
-              tintBorder="#99F6E4"
-            />
+          {/* Empresas y avance del periodo: tareas completadas ÷ tareas que aplican (igual que el panel del asistente). */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <KpiTile
               label={studioView ? 'Empresas activas' : 'Mis empresas activas'}
-              value={data.total_active_companies}
-              delta={`${data.companies_without_control ?? 0} sin control`}
-              deltaTone={(data.companies_without_control ?? 0) > 0 ? 'warn' : 'neutral'}
+              value={progress.companies}
+              delta={progress.suspended.length > 0 ? `${progress.suspended.length} suspendidas` : undefined}
+              deltaTone="neutral"
               sub="en el periodo"
               icon="fas fa-building"
               color="#0369A1"
@@ -498,161 +369,104 @@ const SupervisorDashboardView = () => {
               tint="#E0F2FE"
               tintBorder="#BAE6FD"
             />
-            <KpiTile label="Cumplidos a tiempo" value={bd?.on_time ?? 0} delta={onTimeDelta?.text} deltaTone={onTimeDelta?.tone} sub="controles entregados a tiempo" icon="fas fa-check" color="#12A150" soft="#FFFFFF" tint="#DCFCE7" tintBorder="#BBF7D0" spark={series('on_time')} />
-            <KpiTile label="Controles pendientes" value={bd?.pending ?? 0} delta={pendingDelta?.text} deltaTone={pendingDelta?.tone} sub="sin vencer todavía" icon="fas fa-clock" color="#B45309" soft="#FFFFFF" tint="#FEF3C7" tintBorder="#FDE68A" spark={series('pending')} />
-            <KpiTile label="Controles vencidos" value={bd?.missing ?? 0} delta={missingDelta?.text} deltaTone={missingDelta?.tone} sub="sin entregar fuera de plazo" icon="fas fa-exclamation-triangle" color="#DC2626" soft="#FFFFFF" tint="#FEE2E2" tintBorder="#FECACA" spark={series('missing')} />
-            <KpiTile
-              label={studioView ? 'Por revisar' : 'Por revisar (tu cola)'}
-              value={overviewLoading ? "…" : (review?.total ?? 0)}
-              delta={`${review?.over_3_days ?? 0} con +3 días`}
-              deltaTone={(review?.over_3_days ?? 0) > 0 ? 'warn' : 'neutral'}
-              sub={`${review?.observed ?? 0} observadas en total`}
-              icon="fas fa-clipboard-check"
-              color="#4338CA"
-              soft="#FFFFFF"
-              tint="#E0E7FF"
-              tintBorder="#C7D2FE"
+            <HeroGauge
+              pct={pr.pct}
+              title={studioView ? 'Avance' : 'Avance de mi cartera'}
+              line1={`${pr.completed.toLocaleString('es-PE')} de ${pr.total.toLocaleString('es-PE')} tareas completadas`}
+              line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas o sin planilla)`}
             />
           </div>
 
           <div className="flex flex-wrap items-start gap-[14px]">
             {/* ===== principal ===== */}
             <div className="flex min-w-0 flex-col gap-[14px]" style={{ flex: '2.3 1 600px' }}>
-              <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
-                <div className="min-w-0" style={{ flex: '1 1 280px' }}>
-                  <h2 className="m-0 text-sm font-extrabold">Distribución del cumplimiento tributario</h2>
-                  <p className="mb-[10px] mt-[2px] text-[11.5px] text-slate-500">
-                    {bd?.total ?? 0} controles · {studioView ? 'todo el estudio' : 'mi cartera'}
-                  </p>
-                  <div className="flex items-center gap-[14px]">
-                    <Donut slices={distribution} center={bd?.total ?? 0} caption="controles" label="Distribución de cumplimiento" />
-                    <DonutLegend slices={distribution} />
+              {/* KPI 1 a 5 y resumen del KPI 4 */}
+              <div className="flex flex-wrap items-stretch gap-3">
+                <div className="flex min-w-0 flex-[3_1_520px] flex-wrap gap-3">
+                  <div className="flex min-w-[150px] flex-1 flex-col justify-center rounded-2xl border border-dashed border-[#DCE8E1] bg-[#F8FBF9] px-3 py-4 text-center" title="El sistema todavía no registra el tiempo de primera respuesta a los clientes.">
+                    <div className="text-[10.5px] font-extrabold uppercase tracking-[0.6px] text-slate-500">KPI 1</div>
+                    <div className="mt-[2px] text-[13px] font-extrabold leading-tight text-slate-700">Tiempo 1.ª respuesta</div>
+                    <div className="mt-2 text-[22px] font-extrabold text-slate-400">—</div>
+                    <div className="mt-1 text-[10.5px] text-slate-400">Aún no se registra · Meta: ≤10 min</div>
                   </div>
+                  <KpiCard n={2} title="Entrega de planillas" pct={k2.pct} meta={95} sub={kpiSub(k2, 'a tiempo')} />
+                  <KpiCard n={3} title="Entrega de archivadores" pct={k3.pct} meta={95} sub={kpiSub(k3, 'a tiempo')} />
+                  <KpiCard n={4} title="Declaraciones en plazo" pct={k4.pct} meta={95} sub={kpiSub(k4, 'en plazo')} />
+                  <KpiCard n={5} title="Revisión de balances" pct={k5.pct} meta={100} unused={k5.unused} sub={kpiSub(k5, 'revisados')} />
                 </div>
-                <div className="min-w-0 border-l border-[#EAF1ED] pl-[22px]" style={{ flex: '1.2 1 320px' }}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <h2 className="m-0 text-sm font-extrabold">{studioView ? 'Avance por supervisor' : 'Avance por asistente'}</h2>
-                      <p className="m-0 mt-[2px] text-[11.5px] text-slate-500">% de controles por estado{studioView ? ' · solo admin' : ' · vs. estudio'}</p>
-                    </div>
+                <div className="flex min-w-[250px] flex-[1_1_250px] flex-col gap-2 rounded-2xl border border-[#DCE8E1] bg-[#F8FBF9] p-3">
+                  <div className="text-[12px] font-extrabold uppercase tracking-[0.5px] text-[#0A5A3A]">Resumen KPI 4</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <SummaryBox label="Dentro de plazo" value={k4.onTime} color="#0A7A3B" onClick={() => openModule(mDeclaracion, { digit: null, bucket: 'dentro' })} />
+                    <SummaryBox label="Fuera de plazo" value={mDeclaracion?.late ?? 0} color="#C2410C" onClick={() => openModule(mDeclaracion, { digit: null, bucket: 'fuera' })} />
+                    <SummaryBox label="Pendientes" value={k4.pending} color="#475569" onClick={() => openModule(mDeclaracion, { digit: null, bucket: 'pendiente' })} />
+                    <SummaryBox label="Suspendidas" value={progress.suspended.length} color="#7C3AED" onClick={openSuspended} />
                   </div>
-                  <ColumnsLegend />
-                  {columns.length > 0 ? <StackedColumns cols={columns} /> : <p className="py-8 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "Sin datos para este alcance."}</p>}
+                  <p className="m-0 text-[10.5px] text-slate-500">Declaración del PDT 621. Pulse una cifra para ver las empresas.</p>
                 </div>
-              </Card>
+              </div>
 
+              <Section title="Revisión de buzones" hint="Capturas SUNAT y SUNAFIL por asistente: a tiempo, fuera de plazo y pendientes (incluye lo vencido sin subir).">
+                {progress.mailboxes.length === 0 ? (
+                  <p className="py-8 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este periodo.</p>
+                ) : (
+                  <MailboxBars rows={progress.mailboxes} onPick={openMailbox} />
+                )}
+              </Section>
+
+              {mPlanillas ? (
+                <Section title="KPI 2: Entrega de planillas" hint="PDT 601: trabajadores que atiende cada asistente y entrega por último dígito del RUC.">
+                  <div className="flex flex-col gap-4">
+                    {mPlanillas.planilla && mPlanillas.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={mPlanillas.planilla} className="" /> : null}
+                    {mPlanillas.by_digit && mPlanillas.by_digit.length > 0 ? <DigitConsolidated byDigit={mPlanillas.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mPlanillas, f)} ready className="" hint="Pulse un número para ver esas empresas." /> : null}
+                  </div>
+                </Section>
+              ) : null}
+              {mArchivadores?.by_digit && mArchivadores.by_digit.length > 0 ? (
+                <Section title="KPI 3: Entrega de archivadores" hint="PDT 621: 1.ª entrega del asistente frente al plazo interno del estudio.">
+                  <DigitConsolidated byDigit={mArchivadores.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mArchivadores, f)} ready className="" hint="Pulse un número para ver esas empresas." />
+                </Section>
+              ) : null}
+              {mDeclaracion?.by_digit && mDeclaracion.by_digit.length > 0 ? (
+                <Section title="KPI 4: Declaraciones dentro de plazo" hint="PDT 621 · Declaración: fecha de declaración frente a la fecha límite del calendario para cada dígito de RUC.">
+                  <DigitConsolidated byDigit={mDeclaracion.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mDeclaracion, f)} ready className="" hint="Pulse un número para ver esas empresas." />
+                </Section>
+              ) : null}
+              {mBalances?.by_digit && mBalances.by_digit.length > 0 && !k5.unused ? (
+                <Section title="KPI 5: Revisión de balances" hint="Siscont balances revisados por último dígito del RUC.">
+                  <DigitConsolidated byDigit={mBalances.by_digit} filter={NO_FILTER} onFilter={(f) => openModule(mBalances, f)} ready className="" hint="Pulse un número para ver esas empresas." />
+                </Section>
+              ) : null}
+
+              {/* Avance de los últimos meses y asistentes */}
               <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
                 <div className="min-w-0" style={{ flex: '1.1 1 320px' }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="m-0 text-sm font-extrabold">{studioView ? 'Tendencia de cumplimiento (6 meses)' : 'Mi cumplimiento vs. estudio (6 meses)'}</h2>
-                    {heroDelta ? (
-                      <span className="rounded-[7px] px-2 py-[2px] text-[11px] font-bold" style={{ background: heroDelta.tone === 'good' ? '#E3F5EA' : '#FEE2E2', color: heroDelta.tone === 'good' ? '#0A5A3A' : '#B91C1C' }}>
-                        {heroDelta.text}
-                      </span>
-                    ) : null}
-                  </div>
-                  {!studioView ? (
-                    <div className="mt-[6px] flex gap-[14px] text-[11px] text-slate-600">
-                      <span className="flex items-center gap-[6px]"><span className="h-[3px] w-[18px] rounded bg-[#0E8F47]" />Mi cartera</span>
-                      <span className="flex items-center gap-[6px]"><span className="w-[18px] border-t-2 border-dashed border-slate-500" />Promedio del estudio</span>
+                    <h2 className="m-0 text-sm font-extrabold">Avance (6 meses)</h2>
+                    <div className="flex gap-1" role="group" aria-label="Agrupar el avance">
+                      {TREND_MODES.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          aria-pressed={trendMode === m.id}
+                          onClick={() => setTrendMode(m.id)}
+                          className={`rounded-lg border px-[10px] py-[3px] text-[11px] ${trendMode === m.id ? 'border-[1.5px] border-[#0E8F47] bg-[#E3F5EA] font-bold text-[#0A5A3A]' : 'border-[#DCE8E1] bg-white font-semibold text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
                     </div>
-                  ) : null}
-                  <TrendArea
-                    points={trend.map((t) => ({ label: monthLabel(t.period_ym), value: t.has_data === false ? null : t.compliance_pct }))}
-                    compare={!studioView ? studioTrend.map((t) => t.compliance_pct) : undefined}
-                  />
+                  </div>
+                  <p className="m-0 mt-[2px] text-[11.5px] text-slate-500">Tareas completadas ÷ tareas que aplican{trendMode === 'mensual' ? ' en cada mes' : ' en todo el tramo'}.</p>
+                  <AvanceColumns bars={trendBars} />
                 </div>
                 <div className="min-w-0 border-l border-[#EAF1ED] pl-[22px]" style={{ flex: '1 1 280px' }}>
                   <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="m-0 text-sm font-extrabold">{studioView ? 'Top supervisores por cumplimiento' : 'Mis asistentes por cumplimiento'}</h2>
-                    <span className="text-[10.5px] text-slate-500">Cumplimiento</span>
+                    <h2 className="m-0 text-sm font-extrabold">{studioView ? 'Asistentes por cumplimiento' : 'Mis asistentes por cumplimiento'}</h2>
+                    <span className="text-[10.5px] text-slate-500">Avance</span>
                   </div>
-                  {ranking.length > 0 ? <RankBars rows={ranking} /> : <p className="py-8 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "Sin datos para este alcance."}</p>}
-                  {studioView && bd ? (
-                    <p className="mb-0 mt-[14px] border-t border-[#EAF1ED] pt-2 text-[11px] text-slate-500">
-                      Promedio del estudio: <strong className="text-slate-900">{compliancePct}%</strong>
-                    </p>
-                  ) : null}
-                </div>
-              </Card>
-
-              <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
-                <div className="min-w-[230px]" style={{ flex: '0 1 250px' }}>
-                  <h2 className="m-0 text-sm font-extrabold">Sin completar por módulo</h2>
-                  <p className="mb-[10px] mt-[2px] text-[11.5px] text-slate-500">Pendientes, observados y vencidos</p>
-                  <div className="flex justify-center">
-                    <Donut slices={moduleSlices} size={112} center={modulesTotal.toLocaleString('es-PE')} caption="sin completar" label="Controles sin completar por módulo" />
-                  </div>
-                  <div className="mt-3">
-                    <DonutLegend slices={moduleSlices} showPct small />
-                  </div>
-                </div>
-                <div className="min-w-0 overflow-hidden" style={{ flex: '1 1 340px' }}>
-                  <h2 className="mb-[10px] mt-0 text-sm font-extrabold">Resumen por módulo</h2>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[340px] border-collapse text-[11.5px]">
-                      <thead>
-                        <tr className="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2px] text-slate-500">
-                          <th scope="col" className="rounded-l-md bg-[#F1F6F3] px-[6px] py-[6px] text-left">Módulo</th>
-                          <th scope="col" className="bg-amber-100 px-[3px] py-[6px] text-amber-800">Pend.</th>
-                          <th scope="col" className="bg-orange-100 px-[3px] py-[6px] text-orange-800">Obs.</th>
-                          <th scope="col" className="bg-red-100 px-[3px] py-[6px] text-red-800">Venc.</th>
-                          <th scope="col" className="bg-green-100 px-[3px] py-[6px] text-green-800">A tiem.</th>
-                          <th scope="col" className="bg-blue-100 px-[3px] py-[6px] text-blue-800">Fuera</th>
-                          <th scope="col" className="rounded-r-md bg-[#F1F6F3] px-[6px] py-[6px]">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="tabular-nums">
-                        {modules.length === 0 ? (
-                          <tr><td colSpan={7} className="py-6 text-center text-slate-500">{overviewLoading ? "Cargando…" : "Sin datos para este alcance."}</td></tr>
-                        ) : null}
-                        {[
-                          { title: 'Cumplimiento tributario', hint: 'PDT 601, PDT 621 · Declaración y detracciones', rows: taxModules },
-                          { title: 'Cumplimiento operativo', hint: 'Buzón SOL, archivador, Preliminar, informe y balances', rows: opsModules },
-                        ].map((g) =>
-                          g.rows.length === 0 ? null : (
-                            <Fragment key={g.title}>
-                              <tr className="bg-[#F6FAF8]">
-                                <th colSpan={7} scope="colgroup" className="px-[6px] py-[5px] text-left text-[10.5px] font-extrabold uppercase tracking-[0.4px] text-[#0A5A3A]">
-                                  {g.title} <span className="ml-1 font-medium normal-case tracking-normal text-slate-500">{g.hint}</span>
-                                </th>
-                              </tr>
-                              {g.rows.map((m) => (
-                                <tr key={m.key} className={`border-b border-[#EAF1ED] text-center ${m.counts ? '' : 'opacity-55'}`}>
-                                  <th scope="row" className="px-[6px] py-[7px] text-left font-bold">
-                                    {m.label}
-                                    {m.unused ? <span className="ml-1.5 rounded bg-slate-100 px-[5px] py-px text-[9px] font-bold uppercase text-slate-500" title="Nadie del estudio lo entrega todavía: se muestra pero no cuenta">sin uso</span> : null}
-                                  </th>
-                                  <td className="px-[3px] py-[7px] font-bold text-amber-700">{m.pendiente}</td>
-                                  <td className="px-[3px] py-[7px] font-bold text-orange-700">{m.observado}</td>
-                                  <td className="px-[3px] py-[7px] font-bold text-red-700">{m.vencido}</td>
-                                  <td className="px-[3px] py-[7px] font-bold text-green-700">{m.a_tiempo}</td>
-                                  <td className="px-[3px] py-[7px] font-bold text-blue-700">{m.fuera_fecha}</td>
-                                  <td className="px-[6px] py-[7px] font-extrabold">{m.total}</td>
-                                </tr>
-                              ))}
-                              <tr className="border-b-2 border-[#DCE8E1] text-center font-extrabold">
-                                <th scope="row" className="px-[6px] py-2 text-left" title="Suma de los módulos de este indicador (sin los «sin uso»)">
-                                  Total {g.title === 'Cumplimiento tributario' ? 'tributario' : 'operativo'}
-                                </th>
-                                <td className="px-[3px] py-2">{sumOf(g.rows, 'pendiente')}</td>
-                                <td className="px-[3px] py-2">{sumOf(g.rows, 'observado')}</td>
-                                <td className="px-[3px] py-2">{sumOf(g.rows, 'vencido')}</td>
-                                <td className="px-[3px] py-2">{sumOf(g.rows, 'a_tiempo')}</td>
-                                <td className="px-[3px] py-2">{sumOf(g.rows, 'fuera_fecha')}</td>
-                                <td className="px-[6px] py-2">{sumOf(g.rows, 'total')}</td>
-                              </tr>
-                            </Fragment>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {modules.length > 0 ? (
-                    <p className="mb-0 mt-2 text-[10.5px] text-slate-500">
-                      Pend. incluye lo ya entregado que espera revisión. Obs. es lo observado con plazo vigente; si su plazo ya venció cuenta en Venc. «Sin uso»: nadie lo entrega todavía, se muestra pero no cuenta.
-                    </p>
-                  ) : null}
+                  {ranking.length > 0 ? <RankBars rows={ranking} max={100} /> : <p className="py-8 text-center text-xs text-slate-500">Sin datos para este alcance.</p>}
+                  <p className="mb-0 mt-[14px] border-t border-[#EAF1ED] pt-2 text-[11px] text-slate-500">Tareas completadas ÷ tareas que aplican a cada asistente.</p>
                 </div>
               </Card>
             </div>
@@ -668,25 +482,31 @@ const SupervisorDashboardView = () => {
                   </div>
                   <p className="mb-2 mt-0 text-[11px] text-slate-500">Entregas de tus asistentes esperando tu visto bueno.</p>
                   {(review?.items.length ?? 0) === 0 ? (
-                    <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "No hay entregas por revisar."}</p>
+                    <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? 'Cargando…' : 'No hay entregas por revisar.'}</p>
                   ) : (
                     <div className="flex flex-col">
                       {review?.items.map((q) => {
                         const slug = MODULE_PATH[q.module_key];
                         const to = slug ? `/supervisors/activities/${slug}/${q.company_id}?period_ym=${encodeURIComponent(periodYm)}` : undefined;
-                        const tl = q.timeliness === 'on_time' ? { t: 'A tiempo', c: '#0A5A3A' } : q.timeliness === 'late' ? { t: 'Fuera de fecha', c: '#1D4ED8' } : { t: 'Sin regla', c: '#64748B' };
+                        const tl = q.timeliness === 'on_time' ? { t: 'A tiempo', c: '#0A5A3A' } : q.timeliness === 'late' ? { t: 'Fuera de plazo', c: '#C2410C' } : { t: 'Sin regla', c: '#64748B' };
                         return (
                           <div key={q.declaration_id} className="flex items-center gap-2 border-t border-[#EAF1ED] py-2">
                             <div className="min-w-0 flex-1">
-                              <div className="truncate text-xs font-bold" title={q.company}>{q.company}</div>
+                              <div className="truncate text-xs font-bold" title={q.company}>
+                                {q.company}
+                              </div>
                               <div className="mt-px text-[10.5px] text-slate-500">
                                 {q.module_label} · {q.assistant || '—'} ·{' '}
                                 <span className={q.age_days > 3 ? 'font-bold text-amber-700' : ''}>{q.age_days === 0 ? 'hoy' : `hace ${q.age_days} d`}</span> ·{' '}
-                                <span className="font-bold" style={{ color: tl.c }}>{tl.t}</span>
+                                <span className="font-bold" style={{ color: tl.c }}>
+                                  {tl.t}
+                                </span>
                               </div>
                             </div>
                             {to ? (
-                              <Link to={to} className="rounded-[7px] border border-slate-300 bg-white px-[9px] py-[5px] text-[11px] font-bold text-slate-700 hover:bg-slate-50">Ver</Link>
+                              <Link to={to} className="rounded-[7px] border border-slate-300 bg-white px-[9px] py-[5px] text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                                Ver
+                              </Link>
                             ) : null}
                             {canApprove ? (
                               <button
@@ -709,10 +529,12 @@ const SupervisorDashboardView = () => {
               <Card>
                 <div className="mb-[10px] flex items-center justify-between">
                   <h2 className="m-0 text-sm font-extrabold">Alertas del periodo</h2>
-                  <Link to="/supervisors/reports" className="rounded-[7px] bg-[#E3F5EA] px-2 py-[3px] text-[10.5px] font-bold text-[#0A5A3A]">Ver reportes →</Link>
+                  <Link to="/supervisors/reports" className="rounded-[7px] bg-[#E3F5EA] px-2 py-[3px] text-[10.5px] font-bold text-[#0A5A3A]">
+                    Ver reportes →
+                  </Link>
                 </div>
                 {alerts.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-slate-500">Sin alertas para este periodo.</p>
+                  <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? 'Cargando…' : 'Sin alertas para este periodo.'}</p>
                 ) : (
                   <div className="flex flex-col gap-[7px]">
                     {alerts.slice(0, 5).map((a) => {
@@ -728,9 +550,13 @@ const SupervisorDashboardView = () => {
                         </>
                       );
                       return a.to ? (
-                        <Link key={a.key} to={a.to} className="flex items-start gap-[9px] rounded-[10px] px-[10px] py-2 hover:opacity-90" style={{ background: a.soft }}>{inner}</Link>
+                        <Link key={a.key} to={a.to} className="flex items-start gap-[9px] rounded-[10px] px-[10px] py-2 hover:opacity-90" style={{ background: a.soft }}>
+                          {inner}
+                        </Link>
                       ) : (
-                        <div key={a.key} className="flex items-start gap-[9px] rounded-[10px] px-[10px] py-2" style={{ background: a.soft }}>{inner}</div>
+                        <div key={a.key} className="flex items-start gap-[9px] rounded-[10px] px-[10px] py-2" style={{ background: a.soft }}>
+                          {inner}
+                        </div>
                       );
                     })}
                   </div>
@@ -747,14 +573,20 @@ const SupervisorDashboardView = () => {
                       <span className="text-[10.5px] font-bold text-amber-700">{review?.over_3_days ?? 0} con +3 días</span>
                     </div>
                     {bySup.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "Sin supervisores en este alcance."}</p>
+                      <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? 'Cargando…' : 'Sin supervisores en este alcance.'}</p>
                     ) : (
                       <div className="flex flex-col gap-[10px]">
                         {bySup.map((s, i) => (
                           <div key={s.user_id} className="flex items-center gap-[9px]">
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: SUP_COLORS[i % SUP_COLORS.length] }}>{initials(s.name)}</div>
-                            <div className="w-[76px] shrink-0 truncate text-xs font-bold" title={s.name}>{s.name}</div>
-                            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded bg-[#EEF3F0]"><div className="h-full rounded bg-indigo-500" style={{ width: `${(s.review / maxReview) * 100}%` }} /></div>
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: SUP_COLORS[i % SUP_COLORS.length] }}>
+                              {initials(s.name)}
+                            </div>
+                            <div className="w-[76px] shrink-0 truncate text-xs font-bold" title={s.name}>
+                              {s.name}
+                            </div>
+                            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded bg-[#EEF3F0]">
+                              <div className="h-full rounded bg-indigo-500" style={{ width: `${(s.review / maxReview) * 100}%` }} />
+                            </div>
                             <div className="w-[22px] shrink-0 text-right text-[12.5px] font-extrabold tabular-nums">{s.review}</div>
                           </div>
                         ))}
@@ -765,32 +597,39 @@ const SupervisorDashboardView = () => {
                   <Card>
                     <div className="mb-[10px] flex items-center justify-between">
                       <h2 className="m-0 text-sm font-extrabold">Asistentes con más pendientes</h2>
-                      <span className="text-[10.5px] text-slate-500">pend. + vencidos</span>
+                      <span className="text-[10.5px] text-slate-500">tareas sin completar</span>
                     </div>
-                    {topPending.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-slate-500">{overviewLoading ? "Cargando…" : "Sin asistentes en este alcance."}</p>
+                    {topOpen.length === 0 ? (
+                      <p className="py-3 text-center text-xs text-slate-500">Sin asistentes en este alcance.</p>
                     ) : (
                       <div className="flex flex-col gap-[10px]">
-                        {topPending.map((a) => {
-                          const tot = a.open + a.done || 1;
-                          return (
-                            <div key={a.user_id}>
-                              <div className="mb-[3px] flex justify-between text-xs">
-                                <span><strong>{a.name}</strong> <span className="text-slate-500">· sup. {a.supervisor_name || '—'}</span></span>
-                                <span className="tabular-nums"><strong className="text-amber-700">{a.open}</strong> <span className="text-slate-500">/ {a.open + a.done}</span></span>
-                              </div>
-                              <div className="flex h-[7px] overflow-hidden rounded bg-[#EEF3F0]">
-                                <div style={{ width: `${(a.open / tot) * 100}%`, background: DASH_COLORS.pend }} />
-                                <div style={{ width: `${(a.done / tot) * 100}%`, background: DASH_COLORS.ok }} />
-                              </div>
+                        {topOpen.map((a) => (
+                          <div key={a.user_id}>
+                            <div className="mb-[3px] flex justify-between text-xs">
+                              <span>
+                                <strong>{a.name}</strong> <span className="text-slate-500">· sup. {a.supervisor_name || '—'}</span>
+                              </span>
+                              <span className="tabular-nums">
+                                <strong className="text-amber-700">{a.open}</strong> <span className="text-slate-500">/ {a.total}</span>
+                              </span>
                             </div>
-                          );
-                        })}
+                            <div className="flex h-[7px] overflow-hidden rounded bg-[#EEF3F0]">
+                              <div style={{ width: `${(a.open / a.total) * 100}%`, background: DASH_COLORS.pend }} />
+                              <div style={{ width: `${(a.completed / a.total) * 100}%`, background: DASH_COLORS.ok }} />
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                     <div className="mt-[10px] flex gap-3 text-[10.5px] text-slate-500">
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: DASH_COLORS.pend }} />Sin completar</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: DASH_COLORS.ok }} />Completado</span>
+                      <span className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-sm" style={{ background: DASH_COLORS.pend }} />
+                        Sin completar
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-sm" style={{ background: DASH_COLORS.ok }} />
+                        Completado
+                      </span>
                     </div>
                   </Card>
                 </>
@@ -811,7 +650,7 @@ const SupervisorDashboardView = () => {
                         const soon = u.days_left <= 3;
                         const tone = overdue || u.days_left === 0 ? { c: '#B91C1C', s: '#FEE2E2' } : soon ? { c: '#B45309', s: '#FEF3C7' } : { c: '#1D4ED8', s: '#DBEAFE' };
                         const when = u.days_left === 0 ? 'Hoy' : u.days_left === 1 ? 'Mañana' : overdue ? `−${Math.abs(u.days_left)}` : String(u.days_left);
-                        const unit = u.days_left <= 1 && u.days_left >= 0 ? '' : overdue ? 'días' : 'días';
+                        const unit = u.days_left <= 1 && u.days_left >= 0 ? '' : 'días';
                         return (
                           <div key={`${u.module_key}-${u.due_date}-${u.detail}`} className="flex items-center gap-[10px] rounded-[10px] border border-[#EAF1ED] px-[10px] py-[7px]">
                             <div className="w-[54px] shrink-0 rounded-lg px-[2px] py-[5px] text-center" style={{ background: tone.s, color: tone.c }}>
@@ -820,7 +659,10 @@ const SupervisorDashboardView = () => {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-bold">{u.label}</div>
-                              <div className="text-[10.5px] text-slate-500">{u.detail ? `${u.detail} · ` : ''}{u.due_date}</div>
+                              <div className="text-[10.5px] text-slate-500">
+                                {u.detail ? `${u.detail} · ` : ''}
+                                {u.due_date}
+                              </div>
                             </div>
                             <div className="text-base font-extrabold tabular-nums">{u.pending}</div>
                           </div>
@@ -835,8 +677,17 @@ const SupervisorDashboardView = () => {
         </>
       ) : null}
 
-      {/* Indicadores del libro mensual de supervisión (KPI por dígito de RUC y buzones por asistente) */}
-      <SupervisorIndicatorsPanel params={params} reloadKey={reloadKey} />
+      <ModulePendingModal
+        module={moduleModal?.module ?? null}
+        items={[]}
+        periodYm={periodYm}
+        detailPath={detailPath}
+        onClose={closeModuleModal}
+        fetchDetail={fetchDetail}
+        initialFilter={moduleModal?.filter}
+        listOnly
+      />
+      {listModal ? <CompanyListModal title={listModal.title} subtitle={listModal.subtitle} items={listModal.items} empty={listModal.empty} onClose={() => setListModal(null)} /> : null}
     </div>
   );
 };

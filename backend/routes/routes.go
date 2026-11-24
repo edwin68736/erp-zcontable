@@ -255,6 +255,8 @@ func Setup(app *fiber.App) {
 	sup.Get("/dashboard/compliance-trend", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.ComplianceTrendAPI)
 	sup.Get("/dashboard/overview", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardOverviewAPI)
 	sup.Get("/dashboard/indicators", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardIndicatorsAPI)
+	sup.Get("/dashboard/progress", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardProgressAPI)
+	sup.Get("/dashboard/module-detail", middleware.RequirePermission(rbac.SupervisorsDashboardView), supervisorCtrl.DashboardModuleDetailAPI)
 	sup.Get("/assistant/overview", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.AssistantOverviewAPI)
 	sup.Get("/assistant/module-detail", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.AssistantModuleDetailAPI)
 	sup.Get("/periods", middleware.RequirePermission(rbac.SupervisorsPeriodsView), supervisorCtrl.ListPeriodsAPI)

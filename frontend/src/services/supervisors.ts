@@ -527,16 +527,19 @@ export const supervisorsService = {
     return res.data.data;
   },
 
-  /** Indicadores de supervisión (KPI por dígito de RUC y buzones por asistente), con el mismo alcance y filtros del dashboard. */
-  async dashboardIndicators(params: {
-    period_ym?: string;
-    general_status?: string;
-    risk_level?: string;
-    company_id?: number;
-    responsible_user_id?: number;
-    supervisor_user_id?: number;
-  }): Promise<SupervisorIndicators> {
-    const res = await client.get<{ data: SupervisorIndicators }>('/supervisors/dashboard/indicators', { params });
+  /**
+   * El avance del dashboard del supervisor: las mismas tareas y reglas que el panel del asistente (avance, tablas por dígito de RUC,
+   * carga de planillas, buzones por asistente, suspendidas, tendencia), sobre su cartera; el administrador ve el estudio o mira como
+   * un supervisor (`supervisor_user_id`).
+   */
+  async dashboardProgress(params: { period_ym?: string; company_id?: number; supervisor_user_id?: number }): Promise<DashboardProgress> {
+    const res = await client.get<{ data: DashboardProgress }>('/supervisors/dashboard/progress', { params });
+    return res.data.data;
+  },
+
+  /** Una fila por empresa de una actividad en el periodo, con el alcance del dashboard del supervisor (para listar las empresas de un número). */
+  async dashboardModuleDetail(params: { period_ym: string; module_key: string; company_id?: number; supervisor_user_id?: number }): Promise<AssistantModuleDetail> {
+    const res = await client.get<{ data: AssistantModuleDetail }>('/supervisors/dashboard/module-detail', { params });
     return res.data.data;
   },
 };
@@ -839,33 +842,18 @@ export interface AssistantOverview {
   studio?: AssistantStudioInfo;
 }
 
-/** Una fila por dígito de RUC (o el total) de un indicador. `on_time` = a tiempo, o revisado en el KPI de balances. */
-export interface IndicatorDigit {
-  dig: string;
-  total: number;
-  on_time: number;
-  late: number;
-  missing: number;
-  pending: number;
-  /** Lo ya medible: a tiempo + fuera de plazo + vencidas (sin lo que aún no vence). */
-  due?: number;
-  observed?: number;
-  in_review?: number;
-  rate_pct: number;
+/** Las capturas de buzón de una empresa que están pendientes o se subieron fuera de plazo. */
+export interface IndicatorMailboxCompany {
+  company_id: number;
+  company: string;
+  ruc: string;
+  sunat_pending: number;
+  sunat_late: number;
+  sunafil_pending: number;
+  sunafil_late: number;
 }
 
-export interface IndicatorKpi {
-  /** Nadie del estudio lo entrega todavía: se muestra «aún no se usa» en vez de 0 %. */
-  unused?: boolean;
-  key: 'planillas' | 'archivadores' | 'declaraciones' | 'balances';
-  label: string;
-  meta_pct: number;
-  total: IndicatorDigit;
-  by_digit: IndicatorDigit[];
-  /** Empresas contadas en `total` que no tienen dígito de RUC y por eso no están en `by_digit`. */
-  no_digit?: number;
-}
-
+/** Capturas de buzón de un asistente: a tiempo, pendientes (incluye lo vencido sin subir) y fuera de plazo. */
 export interface IndicatorMailboxRow {
   assistant: string;
   sunat_ok: number;
@@ -874,13 +862,37 @@ export interface IndicatorMailboxRow {
   sunafil_ok: number;
   sunafil_pending: number;
   sunafil_late: number;
+  /** Empresas con alguna captura pendiente o fuera de plazo (para listarlas al pulsar un segmento). */
+  companies?: IndicatorMailboxCompany[];
 }
 
-export interface SupervisorIndicators {
+/** El avance de las empresas de un asistente en todas las actividades. */
+export interface DashboardAssistantProgress extends AssistantProgress {
+  user_id: number;
+  name: string;
+  supervisor_name?: string;
+  companies: number;
+}
+
+/** Una empresa suspendida en el periodo (no aplica en ninguna actividad). */
+export interface DashboardSuspendedCompany {
+  company_id: number;
+  company: string;
+  ruc: string;
+  assistant?: string;
+}
+
+/** Todo lo que pinta el dashboard del supervisor: el avance con las reglas del panel del asistente. */
+export interface DashboardProgress {
   period_ym: string;
+  /** Empresas activas del alcance (incluye las suspendidas). */
   companies: number;
   supervisors: AssistantSupervisorRef[];
-  kpis: IndicatorKpi[];
+  progress: AssistantProgress;
+  trend: AssistantTrendPoint[];
+  modules: AssistantModuleProgress[];
+  by_assistant: DashboardAssistantProgress[];
+  suspended: DashboardSuspendedCompany[];
   mailboxes: IndicatorMailboxRow[];
 }
 
