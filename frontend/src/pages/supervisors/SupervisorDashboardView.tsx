@@ -7,7 +7,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import CompanyListModal, { type CompanyListItem } from '../../components/supervisors/dashboard/CompanyListModal';
 import { Card, DASH_COLORS, HeroGauge, KpiTile, RankBars, type RankDatum } from '../../components/supervisors/dashboard/DashboardParts';
 import { AvanceColumns, KpiCard, MailboxBars, Section, SummaryBox } from '../../components/supervisors/dashboard/ProgressSections';
-import { groupTrend, mailboxCompanies, moduleKpi, type MailboxKind, type ModuleKpi, type TrendMode } from '../../components/supervisors/dashboard/progressUi';
+import { groupTrend, mailboxCompanies, moduleKpi, reviewKpi, type MailboxKind, type ModuleKpi, type TrendMode } from '../../components/supervisors/dashboard/progressUi';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
 import { P } from '../../rbac/codes';
@@ -180,7 +180,7 @@ const SupervisorDashboardView = () => {
   const k2 = useMemo(() => moduleKpi(mPlanillas), [mPlanillas]);
   const k3 = useMemo(() => moduleKpi(mArchivadores), [mArchivadores]);
   const k4 = useMemo(() => moduleKpi(mDeclaracion), [mDeclaracion]);
-  const k5 = useMemo(() => moduleKpi(mBalances, { unusedWhenEmpty: true }), [mBalances]);
+  const k5 = useMemo(() => reviewKpi(mBalances), [mBalances]);
   const trendBars = useMemo(() => groupTrend(progress?.trend ?? [], trendMode), [progress, trendMode]);
 
   const closeModuleModal = useCallback(() => setModuleModal(null), []);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssistantDigitProgress, AssistantModuleProgress, AssistantTrendPoint, IndicatorMailboxRow } from '../../../services/supervisors';
-import { groupTrend, mailboxCompanies, mailboxSegments, moduleKpi } from './progressUi';
+import { groupTrend, mailboxCompanies, mailboxSegments, moduleKpi, reviewKpi } from './progressUi';
 
 const dp = (digit: number, over: Partial<AssistantDigitProgress> = {}): AssistantDigitProgress => ({
   digit, total: 0, completed: 0, on_time: 0, late: 0, in_review: 0, pending: 0, overdue: 0, observed: 0, not_applicable: 0, pct: 0, ...over,
@@ -16,13 +16,22 @@ describe('tarjetas KPI desde el consolidado por dígito', () => {
     expect(k.pct).toBe(83.3); // 10 de 12
   });
 
-  it('sin nada medible no hay porcentaje, y un módulo que nadie usa se marca «aún no se usa»', () => {
-    const k = moduleKpi(mod([dp(1, { total: 4, pending: 4 })], { pending: 4 }), { unusedWhenEmpty: true });
-    expect(k.pct).toBeNull();
-    expect(k.unused).toBe(true);
-    expect(moduleKpi(undefined, { unusedWhenEmpty: true })).toMatchObject({ pct: null, unused: true, total: 0 });
-    // Sin la opción, un módulo sin entregas no es «sin uso» (solo balances e informe de detracciones lo pueden ser).
-    expect(moduleKpi(mod([dp(1, { total: 4, pending: 4 })])).unused).toBe(false);
+  it('sin nada medible no hay porcentaje (no figura con 0 %)', () => {
+    expect(moduleKpi(mod([dp(1, { total: 4, pending: 4 })], { pending: 4 })).pct).toBeNull();
+    expect(moduleKpi(undefined)).toMatchObject({ pct: null, unused: false, total: 0 });
+  });
+});
+
+describe('KPI 5: balances revisados ÷ los que aplican', () => {
+  it('lo sin revisar baja el % aunque su plazo no haya vencido, y lo revisado cuenta aunque haya sido tarde', () => {
+    // 1 revisado a tiempo, 1 revisado tarde, 2 sin revisar (en plazo): 2 de 4 = 50 % (con la fórmula de plazo daría 100 %).
+    const m = mod([dp(1, { total: 4, on_time: 1, late: 1, pending: 2 })], { total: 4, completed: 2, on_time: 1, late: 1, pending: 2 });
+    expect(reviewKpi(m)).toMatchObject({ pct: 50, onTime: 2, due: 4, pending: 2, upcoming: 0, total: 4, unused: false });
+  });
+
+  it('sin ninguno revisado ni en revisión es «aún no se usa», y sin balances no hay porcentaje', () => {
+    expect(reviewKpi(mod([], { total: 5, pending: 5 })).unused).toBe(true);
+    expect(reviewKpi(undefined)).toMatchObject({ pct: null, total: 0, unused: true });
   });
 });
 

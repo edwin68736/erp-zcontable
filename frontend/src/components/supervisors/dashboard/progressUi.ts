@@ -13,16 +13,26 @@ export interface ModuleKpi {
   /** De lo pendiente, lo que aún está en plazo (no baja el %). */
   upcoming: number;
   total: number;
-  /** Nadie lo entrega todavía (sin tareas, o ninguna entregada ni en revisión): se muestra «aún no se usa» en vez de 0 %. */
+  /** Nadie lo entrega todavía (solo el KPI 5): se muestra «aún no se usa» en vez de 0 %. */
   unused: boolean;
 }
 
 /** Totales de un módulo (los de la fila «Total» de su consolidado por dígito). */
-export function moduleKpi(m: AssistantModuleProgress | undefined, opts: { unusedWhenEmpty?: boolean } = {}): ModuleKpi {
+export function moduleKpi(m: AssistantModuleProgress | undefined): ModuleKpi {
   const rows: DigitRow[] = m?.by_digit && m.by_digit.length > 0 ? digitRows(m.by_digit) : [];
   const t = digitTotals(rows);
+  return { pct: t.pct, due: t.due, onTime: t.dentro, pending: t.pendientes, upcoming: t.pendientes - t.conPlazoPasado, total: t.total, unused: false };
+}
+
+/**
+ * KPI 5 (revisión de balances, meta 100 %): revisados ÷ los que aplican. No usa el plazo como los otros KPI: un balance revisado cuenta
+ * aunque se haya entregado tarde, y uno sin revisar baja el porcentaje aunque aún no venza.
+ */
+export function reviewKpi(m: AssistantModuleProgress | undefined): ModuleKpi {
+  const total = m?.total ?? 0;
+  const done = m?.completed ?? 0;
   const empty = !m || m.completed + m.in_review + m.observed === 0;
-  return { pct: t.pct, due: t.due, onTime: t.dentro, pending: t.pendientes, upcoming: t.pendientes - t.conPlazoPasado, total: t.total, unused: Boolean(opts.unusedWhenEmpty) && empty };
+  return { pct: total > 0 ? Math.round((done / total) * 1000) / 10 : null, due: total, onTime: done, pending: total - done, upcoming: 0, total, unused: empty };
 }
 
 export type TrendMode = 'mensual' | 'trimestral' | 'semestral';
