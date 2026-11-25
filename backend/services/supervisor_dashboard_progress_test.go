@@ -74,6 +74,24 @@ func TestDashboardProgress_AvanceComoElAsistenteConSuspendidasYPorAsistente(t *t
 		t.Fatalf("suspendidas: %+v", got.Suspended)
 	}
 
+	// «No corresponde» en PDT 621: lista aparte para el resumen del KPI 4 (la suspendida no se repite ahí).
+	if len(got.NotApplicablePdt621) != 0 {
+		t.Fatalf("sin marcas la lista va vacía: %+v", got.NotApplicablePdt621)
+	}
+	if err := db.AutoMigrate(&models.SupervisorNotApplicableReview{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := svc.SetNotApplicable(models.SupervisorDeclPDT621, b.ID, "2026-07", true, sup.ID); err != nil {
+		t.Fatalf("marcar: %v", err)
+	}
+	marked, err := svc.DashboardProgress(SupervisorDashboardParams{PeriodYM: "2026-07", AllowedCompanyIDs: []uint{a.ID, b.ID, c.ID}})
+	if err != nil {
+		t.Fatalf("DashboardProgress marcado: %v", err)
+	}
+	if len(marked.NotApplicablePdt621) != 1 || marked.NotApplicablePdt621[0].CompanyID != b.ID || marked.NotApplicablePdt621[0].Assistant != "Ana" {
+		t.Fatalf("no corresponde PDT 621: %+v", marked.NotApplicablePdt621)
+	}
+
 	// Por asistente: Ana (2 empresas) y Luis (1 suspendida: nada aplica). La suma de tareas por asistente es la del total.
 	by := map[string]DashboardAssistantProgress{}
 	var sum int64

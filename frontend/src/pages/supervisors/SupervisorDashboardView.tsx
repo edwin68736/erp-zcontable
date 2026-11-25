@@ -229,6 +229,16 @@ const SupervisorDashboardView = () => {
     });
   };
 
+  const openNotApplicable621 = () => {
+    const list = progress?.not_applicable_pdt621 ?? [];
+    setListModal({
+      title: 'PDT 621 · No corresponde',
+      subtitle: `${list.length} ${list.length === 1 ? 'empresa' : 'empresas'} · periodo ${periodYm}. No entran en el KPI 4.`,
+      items: list.map((s) => ({ key: s.company_id, company: s.company, ruc: s.ruc, assistant: s.assistant })),
+      empty: 'No hay empresas marcadas en este periodo.',
+    });
+  };
+
   const handleApprove = async (item: DashboardReviewItem) => {
     if (!canApprove || approvingId) return;
     if (!(await confirmDialog({ message: `¿Aprobar la entrega de ${item.company} (${item.module_label})?`, confirmLabel: 'Aprobar' }))) return;
@@ -430,8 +440,10 @@ const SupervisorDashboardView = () => {
                     <SummaryBox label="Fuera de plazo" value={mDeclaracion?.late ?? 0} color="#C2410C" onClick={() => openModule(mDeclaracion, { digit: null, bucket: 'fuera' })} />
                     <SummaryBox label="Pendientes" value={k4.pending} color="#475569" onClick={() => openModule(mDeclaracion, { digit: null, bucket: 'pendiente' })} />
                     <SummaryBox label="Suspendidas" value={progress.suspended.length} color="#7C3AED" onClick={openSuspended} />
+                    <div className="col-span-2 grid">
+                      <SummaryBox label="No corresponde (PDT 621)" value={progress.not_applicable_pdt621?.length ?? 0} color="#334155" onClick={openNotApplicable621} />
+                    </div>
                   </div>
-                  <p className="m-0 text-[10.5px] text-slate-500">Declaración del PDT 621. Pulse una cifra para ver las empresas.</p>
                 </div>
               </div>
 

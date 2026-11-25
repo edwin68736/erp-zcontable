@@ -877,7 +877,7 @@ export interface DashboardAssistantProgress extends AssistantProgress {
   companies: number;
 }
 
-/** Una empresa suspendida en el periodo (no aplica en ninguna actividad). */
+/** Una empresa de las listas del periodo (suspendida, o marcada «No corresponde»). */
 export interface DashboardSuspendedCompany {
   company_id: number;
   company: string;
@@ -896,6 +896,8 @@ export interface DashboardProgress {
   modules: AssistantModuleProgress[];
   by_assistant: DashboardAssistantProgress[];
   suspended: DashboardSuspendedCompany[];
+  /** Marcadas «No corresponde» en PDT 621: no entran en el KPI 4. */
+  not_applicable_pdt621?: DashboardSuspendedCompany[];
   mailboxes: IndicatorMailboxRow[];
 }
 

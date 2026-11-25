@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"miappfiber/database"
+	"miappfiber/models"
 )
 
 // Avance del dashboard del supervisor: LO MISMO que el panel del asistente (mismas tareas, mismas reglas, mismos totales por
@@ -24,7 +25,7 @@ type DashboardAssistantProgress struct {
 	AssistantProgress
 }
 
-// DashboardSuspendedCompany una empresa suspendida en el periodo: no aplica en ninguna actividad.
+// DashboardSuspendedCompany una empresa de las listas del periodo (suspendida, o marcada «No corresponde»).
 type DashboardSuspendedCompany struct {
 	CompanyID uint   `json:"company_id"`
 	Company   string `json:"company"`
@@ -45,7 +46,9 @@ type DashboardProgress struct {
 	Modules     []AssistantModuleProgress    `json:"modules"`
 	ByAssistant []DashboardAssistantProgress `json:"by_assistant"`
 	Suspended   []DashboardSuspendedCompany  `json:"suspended"`
-	Mailboxes   []IndicatorMailboxRow        `json:"mailboxes"`
+	// NotApplicablePdt621 empresas marcadas «No corresponde» en PDT 621 (no entran en el KPI 4).
+	NotApplicablePdt621 []DashboardSuspendedCompany `json:"not_applicable_pdt621"`
+	Mailboxes           []IndicatorMailboxRow       `json:"mailboxes"`
 }
 
 // DashboardProgress arma el avance con el alcance y los filtros de p (p.AllowedCompanyIDs ya trae la cartera del supervisor, o
@@ -62,7 +65,7 @@ func (s *SupervisorService) DashboardProgress(p SupervisorDashboardParams) (*Das
 	out := &DashboardProgress{
 		PeriodYM: p.PeriodYM, Companies: int64(len(companies)), Supervisors: s.assistantSupervisors(companies),
 		Trend: []AssistantTrendPoint{}, Modules: []AssistantModuleProgress{}, ByAssistant: []DashboardAssistantProgress{},
-		Suspended: []DashboardSuspendedCompany{}, Mailboxes: []IndicatorMailboxRow{},
+		Suspended: []DashboardSuspendedCompany{}, NotApplicablePdt621: []DashboardSuspendedCompany{}, Mailboxes: []IndicatorMailboxRow{},
 	}
 	if len(companies) == 0 {
 		return out, nil
@@ -136,34 +139,43 @@ func (s *SupervisorService) DashboardProgress(p SupervisorDashboardParams) (*Das
 		return a.Name < b.Name
 	})
 
-	// Empresas suspendidas del periodo.
-	if len(suspended) > 0 {
-		isSusp := map[uint]bool{}
-		for _, id := range suspended {
-			isSusp[id] = true
-		}
-		var asstIDs []uint
-		for _, c := range companies {
-			if isSusp[c.ID] && c.AssistantUserID != nil && *c.AssistantUserID != 0 {
-				asstIDs = append(asstIDs, *c.AssistantUserID)
-			}
-		}
-		asstNames := s.userNames(asstIDs)
-		for _, c := range companies {
-			if !isSusp[c.ID] {
-				continue
-			}
-			row := DashboardSuspendedCompany{CompanyID: c.ID, Company: strings.TrimSpace(c.BusinessName), RUC: c.RUC}
-			if c.AssistantUserID != nil {
-				row.Assistant = strings.TrimSpace(asstNames[*c.AssistantUserID])
-			}
-			out.Suspended = append(out.Suspended, row)
-		}
-		sort.Slice(out.Suspended, func(i, j int) bool {
-			return strings.ToLower(out.Suspended[i].Company) < strings.ToLower(out.Suspended[j].Company)
-		})
+	// Empresas suspendidas del periodo y las marcadas «No corresponde» en PDT 621 (resumen del KPI 4). Una suspendida no se
+	// repite en la segunda lista: tiene su propio cuadro.
+	isSusp := idSet(suspended)
+	out.Suspended = s.dashboardCompanyList(companies, isSusp)
+	noCorresponde := notApplicableCompanies(p.PeriodYM, models.SupervisorDeclPDT621, ids)
+	for id := range isSusp {
+		delete(noCorresponde, id)
 	}
+	out.NotApplicablePdt621 = s.dashboardCompanyList(companies, noCorresponde)
 	return out, nil
+}
+
+// dashboardCompanyList las empresas de `only` con su asistente, ordenadas por razón social.
+func (s *SupervisorService) dashboardCompanyList(companies []models.Company, only map[uint]bool) []DashboardSuspendedCompany {
+	out := []DashboardSuspendedCompany{}
+	if len(only) == 0 {
+		return out
+	}
+	var asstIDs []uint
+	for _, c := range companies {
+		if only[c.ID] && c.AssistantUserID != nil && *c.AssistantUserID != 0 {
+			asstIDs = append(asstIDs, *c.AssistantUserID)
+		}
+	}
+	names := s.userNames(asstIDs)
+	for _, c := range companies {
+		if !only[c.ID] {
+			continue
+		}
+		row := DashboardSuspendedCompany{CompanyID: c.ID, Company: strings.TrimSpace(c.BusinessName), RUC: c.RUC}
+		if c.AssistantUserID != nil {
+			row.Assistant = strings.TrimSpace(names[*c.AssistantUserID])
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Company) < strings.ToLower(out[j].Company) })
+	return out
 }
 
 // suspendedCompanyIDs las empresas con la marca «suspendida» en el control del periodo (la marca es global para las actividades).
