@@ -82,7 +82,8 @@ func (s *SupervisorService) DashboardProgress(p SupervisorDashboardParams) (*Das
 		ids = append(ids, c.ID)
 	}
 	tasks := []func() error{
-		func() (err error) { build, err = s.assistantBuild(p.PeriodYM, companies, true, "", false); return },
+		// Con la lista de trabajo activada: es lo que además calcula la carga de planillas por asistente del modal PDT 601.
+		func() (err error) { build, err = s.assistantBuild(p.PeriodYM, companies, true, "", true); return },
 		func() error { trend = s.assistantProgressTrend(p, true, "", 6); return nil },
 		func() error { mailboxes = s.indicatorMailboxes(p.PeriodYM, companies); return nil },
 		func() error { suspended = s.suspendedCompanyIDs(p.PeriodYM, ids); return nil },

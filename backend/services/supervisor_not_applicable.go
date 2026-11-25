@@ -164,8 +164,10 @@ func notApplicableBlockReason(activity string, controlID uint, decl *models.Supe
 		if status != models.SupervisorDeclPendiente {
 			return "ya tiene la planilla entregada"
 		}
-		var p models.SupervisorPdt601Planilla
-		if err := database.DB.Where("monthly_control_id = ?", controlID).First(&p).Error; err == nil {
+		// Find y no First: lo normal es que todavía no haya planilla y no debe quedar como «record not found» en el registro.
+		var found []models.SupervisorPdt601Planilla
+		if err := database.DB.Where("monthly_control_id = ?", controlID).Limit(1).Find(&found).Error; err == nil && len(found) > 0 {
+			p := found[0]
 			money := p.Essalud + p.Onp + p.Afp + p.Sis + p.Rta4ta + p.Rta5ta + p.Sctr + p.Rh
 			if p.FechaEntrega != nil || p.FechaDeclaracionPdt != nil || p.TrabajadoresONP+p.TrabajadoresAFP > 0 || money > 0 {
 				return "ya tiene datos de planilla registrados"

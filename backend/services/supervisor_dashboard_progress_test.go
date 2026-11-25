@@ -64,6 +64,10 @@ func TestDashboardProgress_AvanceComoElAsistenteConSuspendidasYPorAsistente(t *t
 	if decl.Total != 2 || decl.Completed != 1 || decl.NotApplicable != 1 {
 		t.Errorf("declaración: total=%d completadas=%d no aplican=%d, quería 2/1/1", decl.Total, decl.Completed, decl.NotApplicable)
 	}
+	// El modal PDT 601 necesita la carga de planillas por asistente.
+	if plan.Planilla == nil || len(plan.Planilla.ByAssistant) == 0 {
+		t.Errorf("PDT 601 debe traer la carga de planillas: %+v", plan.Planilla)
+	}
 	// El avance general es el de las tareas (suma de módulos) y su último punto de tendencia es el mismo.
 	if got.Progress.Total == 0 || got.Trend[5].Pct != got.Progress.Pct || got.Trend[5].Total != got.Progress.Total {
 		t.Errorf("progreso %+v vs tendencia %+v", got.Progress, got.Trend[5])
