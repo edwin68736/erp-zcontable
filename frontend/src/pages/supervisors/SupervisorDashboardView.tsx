@@ -402,7 +402,7 @@ const SupervisorDashboardView = () => {
               pct={pr.pct}
               title={studioView ? 'Avance' : 'Avance de mi cartera'}
               line1={`${pr.completed.toLocaleString('es-PE')} de ${pr.total.toLocaleString('es-PE')} tareas completadas`}
-              line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas o sin planilla)`}
+              line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas, sin planilla o no corresponde)`}
             />
           </div>
 

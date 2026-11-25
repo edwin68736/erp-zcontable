@@ -566,7 +566,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                               aparte junto a la razón social (mismo criterio que Detracciones y
                               Preliminar de Ventas). */}
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${
                               row.suspendida
                                 ? 'bg-purple-100 text-purple-900'
                                 : row.no_corresponde
@@ -703,7 +703,7 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           </td>
                           <td className={TD}>
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${
                                 row.suspendida
                                   ? 'bg-purple-100 text-purple-900'
                                   : row.no_corresponde

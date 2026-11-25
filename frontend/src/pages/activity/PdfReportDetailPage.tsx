@@ -126,7 +126,7 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
     const dueDate = resolvePdt601DueDate(detail.calendar_due_date);
-    return { dueDate, ...computePdt601DueMeta(declaration.status, dueDate, false, suspendida) };
+    return { dueDate, ...computePdt601DueMeta(declaration.status, dueDate, false, suspendida || declaration.status === 'no_corresponde') };
   }, [detail, declaration, suspendida]);
 
   const refreshDeclaration = (decl: SupervisorDeclaration) => {

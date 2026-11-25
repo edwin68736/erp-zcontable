@@ -85,7 +85,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
 
   const canUpdate = useMemo(() => auth.hasPermission(P.supervisorsDeclarationsUpdate), []);
   // El archivo PDT 621 lo carga el supervisor: el asistente solo lo ve/descarga.
-  const canUpload = useMemo(
+  const canUploadByRole = useMemo(
     () => workspace !== 'assistant' && auth.hasPermission(P.supervisorsAttachmentsUpload),
     [workspace],
   );
@@ -127,6 +127,7 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // «No corresponde» (la empresa no hace PDT 621 este periodo) bloquea igual que la suspensión.
   const noCorresponde = declaration?.status === 'no_corresponde';
   const formLocked = declarationLocked || controlSuspendida || noCorresponde;
+  const canUpload = canUploadByRole && !noCorresponde;
   // El asistente carga el PDF — "Fecha de declaración e importes PDT 621" y la observación de
   // revisión las completa el supervisor después, mismo criterio que "Seguimiento" en
   // Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant). La 1ra/2da entrega ya no la marca el
@@ -163,9 +164,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   const dueResolved = useMemo(() => {
     if (!detail || !declaration) return { dueDate: undefined, isOverdue: false, daysRemaining: null as number | null };
     const dueDate = resolvePdt621DueDate(detail.calendar_due_date, detail.control_due_date);
-    const meta = computePdt621DueMeta(declaration.status, dueDate, controlSuspendida);
+    const meta = computePdt621DueMeta(declaration.status, dueDate, controlSuspendida || noCorresponde);
     return { dueDate, ...meta };
-  }, [detail, declaration, controlSuspendida]);
+  }, [detail, declaration, controlSuspendida, noCorresponde]);
 
   const loadAttachments = useCallback(async (declarationId: number) => {
     const rows = await supervisorsService.listAttachments(0, declarationId);
@@ -461,6 +462,8 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
                 Esta empresa está marcada "Suspendida" en este periodo — no aplica observar ni
                 aprobar.
               </p>
+            ) : noCorresponde ? (
+              <p className="text-sm text-slate-500">Marcada «No corresponde» en este periodo — no aplica recepcionar, observar ni aprobar.</p>
             ) : declarationLocked ? (
               // Terminal: ya no aplica observar/aprobar — la única salida es Reabrir, si se tiene
               // el permiso dedicado (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §7).

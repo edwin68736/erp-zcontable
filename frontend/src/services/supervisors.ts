@@ -693,7 +693,7 @@ export interface AssistantSupervisorRef {
   companies: number;
 }
 /**
- * Conteo de tareas de un conjunto (un módulo o todo el panel). `total` = tareas que aplican (las suspendidas y «sin planilla»
+ * Conteo de tareas de un conjunto (un módulo o todo el panel). `total` = tareas que aplican (las suspendidas, «sin planilla» y «no corresponde»
  * no entran). `pct` = completadas ÷ total. Completada = entregada, a tiempo o fuera de fecha.
  */
 export interface AssistantProgress {

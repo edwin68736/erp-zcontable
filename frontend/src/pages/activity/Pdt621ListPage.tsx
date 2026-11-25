@@ -436,7 +436,7 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                                 estado real de la declaración, pero se muestra acá en vez del
                                 estado de revisión. */}
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
+                              className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
                             >
                               {displayStatus.label}
                             </span>

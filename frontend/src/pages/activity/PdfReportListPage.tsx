@@ -283,7 +283,7 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                       <td className={TD}>
                         <div className="flex flex-col items-start gap-1">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${display.className}`}
+                            className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${display.className}`}
                           >
                             {display.label}
                           </span>
@@ -300,40 +300,42 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                         </div>
                       </td>
                       <td className={TD}>
-                        {/* Igual que PDT 601: el asistente ya no edita una entrega aprobada — el check
-                            verde NO es un link, solo la señal de "nada más que hacer". */}
-                        {workspace === 'assistant' && terminal ? (
-                          <span
-                            title="Entregado — ya no se puede editar"
-                            aria-label="Entregado — ya no se puede editar"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white shadow-sm cursor-default"
-                          >
-                            <i className="fas fa-check text-xs" aria-hidden />
-                          </span>
-                        ) : (
-                          <RowActionLink
-                            to={detailLink(row.company_id)}
-                            icon={workspace === 'supervisor' ? 'fa-eye' : 'fa-pen'}
-                            label={workspace === 'supervisor' ? 'Ver / revisar' : 'Cargar'}
-                          />
-                        )}
-                        <SuspendCompanyAction
-                          companyId={row.company_id}
-                          companyName={row.business_name}
-                          periodYm={periodYm}
-                          suspendida={!!row.suspendida}
-                          onChanged={() => void load()}
-                        />
-                        {!row.suspendida && ['pendiente', 'no_corresponde'].includes(row.status) ? (
-                          <NotApplicableAction
-                            activity={naActivity}
+                        <div className="flex items-center gap-1.5">
+                          {/* Igual que PDT 601: el asistente ya no edita una entrega aprobada — el check
+                              verde NO es un link, solo la señal de "nada más que hacer". */}
+                          {workspace === 'assistant' && terminal ? (
+                            <span
+                              title="Entregado — ya no se puede editar"
+                              aria-label="Entregado — ya no se puede editar"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white shadow-sm cursor-default"
+                            >
+                              <i className="fas fa-check text-xs" aria-hidden />
+                            </span>
+                          ) : (
+                            <RowActionLink
+                              to={detailLink(row.company_id)}
+                              icon={workspace === 'supervisor' ? 'fa-eye' : 'fa-pen'}
+                              label={workspace === 'supervisor' ? 'Ver / revisar' : 'Cargar'}
+                            />
+                          )}
+                          <SuspendCompanyAction
                             companyId={row.company_id}
                             companyName={row.business_name}
                             periodYm={periodYm}
-                            marked={row.status === 'no_corresponde'}
+                            suspendida={!!row.suspendida}
                             onChanged={() => void load()}
                           />
-                        ) : null}
+                          {!row.suspendida && ['pendiente', 'no_corresponde'].includes(row.status) ? (
+                            <NotApplicableAction
+                              activity={naActivity}
+                              companyId={row.company_id}
+                              companyName={row.business_name}
+                              periodYm={periodYm}
+                              marked={row.status === 'no_corresponde'}
+                              onChanged={() => void load()}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                       <td className={`${TD} whitespace-nowrap`}>{formatDateOnly(row.due_date)}</td>
                       <td className={`${TD} whitespace-nowrap`}>{row.suspendida ? '—' : formatDateOnly(row.fecha_entrega)}</td>

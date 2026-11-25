@@ -438,7 +438,7 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                               muestran acá en vez del estado de revisión para no decir "Pendiente"
                               en una empresa sin planilla o suspendida. */}
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
+                            className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
                           >
                             {displayStatus.label}
                           </span>
@@ -459,37 +459,39 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                         </div>
                       </td>
                       <td className={TD}>
-                        {/* El asistente ya no puede editar (ni entrar al detalle) una vez que el
-                            supervisor aprobó — a diferencia del resto de las tablas, acá el check
-                            verde NO es un link: es solo la señal de "ya no hay nada que hacer". */}
-                        {workspace === 'assistant' && PDT601_TERMINAL_STATUSES.has(row.status) ? (
-                          <span
-                            title={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
-                            aria-label={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white shadow-sm cursor-default"
-                          >
-                            <i className="fas fa-check text-xs" aria-hidden />
-                          </span>
-                        ) : (
-                          <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
-                        )}
-                        <SuspendCompanyAction
-                          companyId={row.company_id}
-                          companyName={row.business_name}
-                          periodYm={periodYm}
-                          suspendida={!!row.suspendida}
-                          onChanged={() => void load()}
-                        />
-                        {!row.suspendida && (pl?.sin_planilla ? row.status !== 'entregado' : ['pendiente', 'sin_registro'].includes(row.status)) ? (
-                          <NotApplicableAction
-                            activity="pdt_601"
+                        <div className="flex items-center gap-1.5">
+                          {/* El asistente ya no puede editar (ni entrar al detalle) una vez que el
+                              supervisor aprobó — a diferencia del resto de las tablas, acá el check
+                              verde NO es un link: es solo la señal de "ya no hay nada que hacer". */}
+                          {workspace === 'assistant' && PDT601_TERMINAL_STATUSES.has(row.status) ? (
+                            <span
+                              title={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
+                              aria-label={`${pdt601StatusLabel(row.status)} — ya no se puede editar`}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white shadow-sm cursor-default"
+                            >
+                              <i className="fas fa-check text-xs" aria-hidden />
+                            </span>
+                          ) : (
+                            <RowActionLink to={detailLink(row.company_id)} icon="fa-pen" label="Editar planilla" />
+                          )}
+                          <SuspendCompanyAction
                             companyId={row.company_id}
                             companyName={row.business_name}
                             periodYm={periodYm}
-                            marked={!!pl?.sin_planilla}
+                            suspendida={!!row.suspendida}
                             onChanged={() => void load()}
                           />
-                        ) : null}
+                          {!row.suspendida && (pl?.sin_planilla ? row.status !== 'entregado' : ['pendiente', 'sin_registro'].includes(row.status)) ? (
+                            <NotApplicableAction
+                              activity="pdt_601"
+                              companyId={row.company_id}
+                              companyName={row.business_name}
+                              periodYm={periodYm}
+                              marked={!!pl?.sin_planilla}
+                              onChanged={() => void load()}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                       {blocked ? (
                         // "Sin planilla"/"suspendida" ya se indican en la columna Estado — acá solo

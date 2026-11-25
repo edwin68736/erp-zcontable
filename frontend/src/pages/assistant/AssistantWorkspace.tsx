@@ -373,7 +373,7 @@ const AssistantWorkspace = () => {
               pct={pr.pct}
               title={`${mineOr('Mi avance', 'Avance')}${moduleName ? ` · ${moduleName}` : ''}`}
               line1={`${pr.completed.toLocaleString('es-PE')} de ${pr.total.toLocaleString('es-PE')} tareas completadas`}
-              line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas o sin planilla)`}
+              line2={`${pr.not_applicable.toLocaleString('es-PE')} no aplican (suspendidas, sin planilla o no corresponde)`}
             />
             <Card className="min-w-0" accent="#12A150">
               <div>
