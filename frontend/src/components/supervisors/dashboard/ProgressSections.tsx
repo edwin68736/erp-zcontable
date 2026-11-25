@@ -1,7 +1,5 @@
-import type { ReactNode } from 'react';
 import { fmtPct, pctTone } from '../../assistant/moduleDigits';
 import type { IndicatorMailboxRow } from '../../../services/supervisors';
-import { Card } from './DashboardParts';
 import { mailboxSegments, type MailboxKind, type MailboxState, type TrendBar } from './progressUi';
 
 /** Bloques del dashboard del supervisor (tarjetas KPI, buzones por asistente, avance por tramos). Los números salen de progressUi.ts. */
@@ -45,18 +43,6 @@ export function SummaryBox({ label, value, color, onClick }: { label: string; va
     </button>
   ) : (
     <div className={cls}>{inner}</div>
-  );
-}
-
-export function Section({ title, hint, children, className = '' }: { title: string; hint?: string; children: ReactNode; className?: string }) {
-  return (
-    <Card className={className}>
-      <div className="mb-[10px]">
-        <h3 className="m-0 text-[13px] font-extrabold text-slate-900">{title}</h3>
-        {hint ? <p className="m-0 mt-[2px] text-[10.5px] leading-snug text-slate-500">{hint}</p> : null}
-      </div>
-      {children}
-    </Card>
   );
 }
 

@@ -197,10 +197,10 @@ func (s *SupervisorService) assistantObservedMailboxes(companies []models.Compan
 			continue
 		}
 		for _, side := range []struct {
-			label, status, note, by string
+			label, status, note, by, mailbox string
 		}{
-			{"SUNAT", sl.SunatStatus, sl.SunatObservation, sl.SunatObservedByName},
-			{"SUNAFIL", sl.SunafilStatus, sl.SunafilObservation, sl.SunafilObservedByName},
+			{"SUNAT", sl.SunatStatus, sl.SunatObservation, sl.SunatObservedByName, models.SupervisorMailboxTypeSunat},
+			{"SUNAFIL", sl.SunafilStatus, sl.SunafilObservation, sl.SunafilObservedByName, models.SupervisorMailboxTypeSunafil},
 		} {
 			if side.status != models.SupervisorMailboxStatusObservado {
 				continue
@@ -210,7 +210,7 @@ func (s *SupervisorService) assistantObservedMailboxes(companies []models.Compan
 				ModuleKey: models.SupervisorDeclSunatInbox, ModuleLabel: "Buzón SOL", State: "observada",
 				Detail:    fmt.Sprintf("%s · carga %d · semana del %s", side.label, sl.SlotIndex, sl.WeekStart.Format("02/01")),
 				WeekStart: sl.WeekStart.Format("2006-01-02"),
-				Note:      strings.TrimSpace(side.note), NoteBy: side.by,
+				Note:      strings.TrimSpace(side.note), NoteBy: side.by, mailbox: side.mailbox,
 			})
 		}
 	}

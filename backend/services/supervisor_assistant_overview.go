@@ -42,6 +42,8 @@ type AssistantWorkItem struct {
 	Owner string `json:"owner,omitempty"`
 	// Hint aclaración corta bajo la tarea (por ejemplo «Falta enviarla al cliente»).
 	Hint string `json:"hint,omitempty"`
+	// mailbox solo en las capturas de buzón observadas: «sunat» o «sunafil» (uso interno, no viaja a la pantalla).
+	mailbox string
 }
 
 type AssistantCounts struct {

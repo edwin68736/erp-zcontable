@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
@@ -263,6 +263,7 @@ const ModulePendingModal = ({
   fetchDetail,
   initialFilter,
   moduleHref,
+  overview,
 }: {
   module: AssistantModuleProgress | null;
   /** Tareas abiertas de ese módulo (la lista de trabajo del panel, ya filtrada por módulo): se muestran mientras llega el detalle completo. */
@@ -280,6 +281,8 @@ const ModulePendingModal = ({
   initialFilter?: DigitFilter;
   /** A dónde lleva «Ir al módulo» (por defecto, el módulo del asistente). */
   moduleHref?: (slug: string) => string;
+  /** Un resumen propio que reemplaza al consolidado por dígito (el dashboard del supervisor pone los buzones por asistente). */
+  overview?: ReactNode;
 }) => {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<DigitFilter>(NO_FILTER);
@@ -383,7 +386,7 @@ const ModulePendingModal = ({
         <div className="min-h-0 flex-1 overflow-y-auto">
           {module.planilla && module.planilla.by_assistant.length > 0 ? <PlanillaLoadTable load={module.planilla} /> : null}
           {module.comprobantes && module.comprobantes.by_assistant.length > 0 ? <ComprobantesTable load={module.comprobantes} /> : null}
-          {module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} unit={module.key === 'sunat_inbox' ? 'cada captura semanal (SUNAT y SUNAFIL) cuenta por separado' : undefined} /> : null}
+          {overview !== undefined ? overview : module.by_digit && module.by_digit.length > 0 ? <DigitConsolidated byDigit={module.by_digit} filter={filter} onFilter={setFilter} ready={detail != null} unit={module.key === 'sunat_inbox' ? 'cada captura semanal (SUNAT y SUNAFIL) cuenta por separado' : undefined} /> : null}
 
           <div className="space-y-2 border-b border-slate-100 px-5 py-3">
             <input

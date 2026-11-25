@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import ModuleCards from '../../components/assistant/ModuleCards';
 import ModulePendingModal from '../../components/assistant/ModulePendingModal';
@@ -6,7 +6,7 @@ import { NO_FILTER, type DigitFilter } from '../../components/assistant/moduleDi
 import SearchableSelect from '../../components/SearchableSelect';
 import CompanyListModal, { type CompanyListItem } from '../../components/supervisors/dashboard/CompanyListModal';
 import { Card, DASH_COLORS, HeroGauge, KpiTile, RankBars, type RankDatum } from '../../components/supervisors/dashboard/DashboardParts';
-import { AvanceColumns, KpiCard, MailboxBars, Section, SummaryBox } from '../../components/supervisors/dashboard/ProgressSections';
+import { AvanceColumns, KpiCard, MailboxBars, SummaryBox } from '../../components/supervisors/dashboard/ProgressSections';
 import { groupTrend, mailboxCompanies, moduleKpi, reviewKpi, type MailboxKind, type ModuleKpi, type TrendMode } from '../../components/supervisors/dashboard/progressUi';
 import { PAGE_WORKSPACE_CLASS } from '../../constants/pageLayout';
 import { MODULE_SLUG } from '../../navigation/moduleSlugs';
@@ -183,7 +183,12 @@ const SupervisorDashboardView = () => {
   const k5 = useMemo(() => reviewKpi(mBalances), [mBalances]);
   const trendBars = useMemo(() => groupTrend(progress?.trend ?? [], trendMode), [progress, trendMode]);
 
-  const closeModuleModal = useCallback(() => setModuleModal(null), []);
+  // La lista de empresas de un tramo de buzones se abre ENCIMA del modal del módulo: Escape cierra primero la lista y no el módulo.
+  const listOpenRef = useRef(false);
+  listOpenRef.current = listModal != null;
+  const closeModuleModal = useCallback(() => {
+    if (!listOpenRef.current) setModuleModal(null);
+  }, []);
   const openModule = useCallback((module: AssistantModuleProgress | undefined, filter: DigitFilter) => {
     if (module) setModuleModal({ module, filter });
   }, []);
@@ -438,14 +443,6 @@ const SupervisorDashboardView = () => {
                 <ModuleCards modules={progress.modules} onOpen={(m) => openModule(m, NO_FILTER)} />
               </Card>
 
-              <Section title="Revisión de buzones" hint="Capturas SUNAT y SUNAFIL por asistente: a tiempo, fuera de plazo y pendientes (incluye lo vencido sin subir).">
-                {progress.mailboxes.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este periodo.</p>
-                ) : (
-                  <MailboxBars rows={progress.mailboxes} onPick={openMailbox} />
-                )}
-              </Section>
-
               {/* Avance de los últimos meses y asistentes */}
               <Card className="flex flex-wrap gap-x-[22px] gap-y-4">
                 <div className="min-w-0" style={{ flex: '1.1 1 320px' }}>
@@ -694,6 +691,19 @@ const SupervisorDashboardView = () => {
         fetchDetail={fetchDetail}
         initialFilter={moduleModal?.filter}
         moduleHref={(slug) => `/supervisors/activities/${slug}?period_ym=${encodeURIComponent(periodYm)}`}
+        overview={
+          moduleModal?.module.key === 'sunat_inbox' ? (
+            <div className="border-b border-slate-100 px-5 py-3">
+              <p className="m-0 mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Revisión de buzones por asistente</p>
+              <p className="m-0 mb-2 text-[11px] text-slate-400">Capturas SUNAT y SUNAFIL: a tiempo, fuera de plazo y pendientes (incluye lo vencido sin subir).</p>
+              {progress && progress.mailboxes.length > 0 ? (
+                <MailboxBars rows={progress.mailboxes} onPick={openMailbox} />
+              ) : (
+                <p className="py-6 text-center text-xs text-slate-500">Sin capturas de buzón configuradas en el calendario de este periodo.</p>
+              )}
+            </div>
+          ) : undefined
+        }
       />
       {listModal ? <CompanyListModal title={listModal.title} subtitle={listModal.subtitle} items={listModal.items} empty={listModal.empty} onClose={() => setListModal(null)} /> : null}
     </div>

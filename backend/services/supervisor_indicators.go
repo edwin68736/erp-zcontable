@@ -362,6 +362,42 @@ func (s *SupervisorService) indicatorMailboxes(periodYM string, companies []mode
 			}
 		}
 	})
+	// Capturas que el supervisor observó: se subieron, pero siguen abiertas. Igual que en el módulo Buzón SOL dejan de contar como
+	// entregadas y pasan a pendientes, para que este gráfico cuadre con la tarjeta del módulo.
+	for _, obs := range s.assistantObservedMailboxes(companies, periodYM) {
+		aid := assistantOf[obs.CompanyID]
+		row := byAssistant[aid]
+		if row == nil {
+			continue
+		}
+		if listed[aid] == nil {
+			listed[aid] = map[uint]*IndicatorMailboxCompany{}
+		}
+		e := listed[aid][obs.CompanyID]
+		if e == nil {
+			c := companyInfo[obs.CompanyID]
+			e = &IndicatorMailboxCompany{CompanyID: obs.CompanyID, Company: strings.TrimSpace(c.BusinessName), RUC: c.RUC}
+			listed[aid][obs.CompanyID] = e
+		}
+		ok, pending, late, ePending, eLate := &row.SunatOk, &row.SunatPending, &row.SunatLate, &e.SunatPending, &e.SunatLate
+		if obs.mailbox == models.SupervisorMailboxTypeSunafil {
+			ok, pending, late, ePending, eLate = &row.SunafilOk, &row.SunafilPending, &row.SunafilLate, &e.SunafilPending, &e.SunafilLate
+		}
+		switch {
+		case *ok > 0:
+			*ok--
+		case *late > 0:
+			*late--
+			if *eLate > 0 {
+				*eLate--
+			}
+		default:
+			continue
+		}
+		*pending++
+		*ePending++
+	}
+
 	out := make([]IndicatorMailboxRow, 0, len(byAssistant))
 	for aid, r := range byAssistant {
 		for _, e := range listed[aid] {
