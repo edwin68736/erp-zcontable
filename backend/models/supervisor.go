@@ -177,6 +177,20 @@ type SupervisorMonthlyControl struct {
 
 func (SupervisorMonthlyControl) TableName() string { return "supervisor_monthly_controls" }
 
+// SupervisorNotApplicableReview decisión ya tomada en un periodo sobre el arrastre de «No corresponde»: la empresa ya se
+// revisó (la mantiene o no), así que no se vuelve a preguntar. La marca en sí vive en el registro de cada actividad.
+type SupervisorNotApplicableReview struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	PeriodYM  string    `gorm:"size:7;not null;uniqueIndex:idx_sup_na_review,priority:1" json:"period_ym"`
+	Activity  string    `gorm:"size:30;not null;uniqueIndex:idx_sup_na_review,priority:2" json:"activity"`
+	CompanyID uint      `gorm:"not null;uniqueIndex:idx_sup_na_review,priority:3" json:"company_id"`
+	Kept      bool      `gorm:"not null;default:false" json:"kept"`
+	UserID    uint      `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (SupervisorNotApplicableReview) TableName() string { return "supervisor_not_applicable_reviews" }
+
 // SupervisorDeclaration declaración tributaria ligada a un control mensual.
 type SupervisorDeclaration struct {
 	ID                uint       `gorm:"primaryKey" json:"id"`

@@ -438,7 +438,9 @@ type PdtTypeSummary struct {
 	Completado  int64 `json:"completado"`
 	SinPlanilla int64 `json:"sin_planilla"`
 	Suspendida  int64 `json:"suspendida"`
-	Total       int64 `json:"total"`
+	// NoCorresponde marcadas «No corresponde» en la actividad (PDT 621); en PDT 601 es «sin planilla».
+	NoCorresponde int64 `json:"no_corresponde"`
+	Total         int64 `json:"total"`
 	// EntregadoATiempo/EntregadoFueraDeFecha (docs/diseno-estados-pdt601-pdt621-2026-09-16.md §12.1):
 	// apertura de "Completado" por puntualidad — solo aplica a pdt_601/pdt_621 (el único tipo que
 	// entra a esta consulta con el estado "entregado" nuevo). Suman exactamente Completado para estos
@@ -459,7 +461,8 @@ func pdtBucketConditions(periodYM string) map[string]string {
 	sq := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 	isSinPlanilla := fmt.Sprintf("(d.declaration_type = %s AND COALESCE(pl.sin_planilla, 0) = 1)", sq(models.SupervisorDeclPDT601))
 	isSuspendida := "COALESCE(c.suspendida, 0) = 1"
-	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + ")"
+	isNoCorresponde := "d.status = " + sq(models.SupervisorDetraccionNoCorresponde)
+	isExempt := "(" + isSinPlanilla + " OR " + isSuspendida + " OR " + isNoCorresponde + ")"
 	completadoStatuses := fmt.Sprintf("(%s, %s, %s, %s)",
 		sq(models.SupervisorDeclAprobado), sq(models.SupervisorDeclPresentado), sq(models.SupervisorDeclCerrado), sq(models.SupervisorDeclEntregado))
 	observadoStatus := sq(models.SupervisorDeclObservado)
@@ -503,6 +506,7 @@ func pdtBucketConditions(periodYM string) map[string]string {
 	return map[string]string{
 		"sin_planilla":             isSinPlanilla,
 		"suspendida":               isSuspendida,
+		"no_corresponde":           "NOT " + isSinPlanilla + " AND NOT " + isSuspendida + " AND " + isNoCorresponde,
 		"observado":                notExempt + " AND d.status = " + observadoStatus,
 		"completado":               notExempt + " AND d.status IN " + completadoStatuses,
 		"vencido":                  notExempt + " AND d.status NOT IN " + completadoStatuses + " AND " + isVencidoAbierto,
@@ -547,6 +551,7 @@ func pdtBucketsSelectSQL(periodYM string) string {
 	return fmt.Sprintf(`
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS sin_planilla,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS suspendida,
+		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS no_corresponde,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS observado,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS completado,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS vencido,
@@ -554,7 +559,7 @@ func pdtBucketsSelectSQL(periodYM string) string {
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_a_tiempo,
 		SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS ent_fuera_de_fecha,
 		COUNT(*) AS total`,
-		cond["sin_planilla"], cond["suspendida"], cond["observado"], cond["completado"],
+		cond["sin_planilla"], cond["suspendida"], cond["no_corresponde"], cond["observado"], cond["completado"],
 		cond["vencido"], cond["pendiente"], cond["entregado_a_tiempo"], cond["entregado_fuera_de_fecha"],
 	)
 }
@@ -576,6 +581,7 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 		Completado      int64
 		SinPlanilla     int64
 		Suspendida      int64
+		NoCorresponde   int64
 		Total           int64
 		EntATiempo      int64
 		EntFueraDeFecha int64
@@ -622,7 +628,7 @@ func (s *SupervisorService) PdtDashboardSummary(p SupervisorDashboardParams) (ma
 	for _, r := range rows {
 		out[r.DeclarationType] = PdtTypeSummary{
 			Pendiente: r.Pendiente, Observado: r.Observado, Vencido: r.Vencido,
-			Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, Total: r.Total,
+			Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, NoCorresponde: r.NoCorresponde, Total: r.Total,
 			EntregadoATiempo: r.EntATiempo, EntregadoFueraDeFecha: r.EntFueraDeFecha,
 		}
 	}
@@ -740,6 +746,7 @@ func (s *SupervisorService) PdtAssistantPerformance(p SupervisorDashboardParams)
 		Completado        int64
 		SinPlanilla       int64
 		Suspendida        int64
+		NoCorresponde     int64
 		Total             int64
 		EntATiempo        int64
 		EntFueraDeFecha   int64
@@ -791,7 +798,7 @@ func (s *SupervisorService) PdtAssistantPerformance(p SupervisorDashboardParams)
 			DeclarationType:   r.DeclarationType,
 			PdtTypeSummary: PdtTypeSummary{
 				Pendiente: r.Pendiente, Observado: r.Observado, Vencido: r.Vencido,
-				Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, Total: r.Total,
+				Completado: r.Completado, SinPlanilla: r.SinPlanilla, Suspendida: r.Suspendida, NoCorresponde: r.NoCorresponde, Total: r.Total,
 				EntregadoATiempo: r.EntATiempo, EntregadoFueraDeFecha: r.EntFueraDeFecha,
 			},
 		})
@@ -1283,6 +1290,9 @@ func (s *SupervisorService) UpdateDeclaration(id uint, in SupervisorDeclarationI
 	}
 	oldStatus := d.Status
 	if in.Status != "" && in.Status != oldStatus {
+		if in.Status == models.SupervisorDetraccionNoCorresponde || oldStatus == models.SupervisorDetraccionNoCorresponde {
+			return nil, errors.New("use la acción «No corresponde» para poner o quitar esta marca")
+		}
 		if isDetraccionesDeclarationType(d.DeclarationType) {
 			if err := s.validateDetraccionesStatusTransition(&d, oldStatus, in.Status, in.Notes); err != nil {
 				return nil, err

@@ -103,11 +103,12 @@ export async function exportPreliminarVentasReportExcel(options: {
     // Las 3 celdas de una entrega (estado, registrado, enviado) llevan el color de su estado: verde a tiempo,
     // celeste fuera de plazo, naranja pendiente/registrado y rosado suspendida — como PDT 601/621.
     const setSlot = (slot: PreliminarVentasSlotStatus) => {
-      const fill = slotFill(preliminarVentasExcelFillArgb(slot.status, slot.timeliness, !!row.suspendida));
-      const label = row.suspendida ? 'Suspendida' : preliminarVentasSlotBadge(slot.status, slot.timeliness).label;
+      const out = row.suspendida || row.no_corresponde;
+      const fill = out && !row.suspendida ? undefined : slotFill(preliminarVentasExcelFillArgb(slot.status, slot.timeliness, !!row.suspendida));
+      const label = row.suspendida ? 'Suspendida' : row.no_corresponde ? 'No corresponde' : preliminarVentasSlotBadge(slot.status, slot.timeliness).label;
       setText(label, 'center', fill);
-      setText(row.suspendida ? '' : formatDateTime(slot.registrado_at), 'center', fill);
-      setText(row.suspendida ? '' : formatDateTime(slot.sent_at), 'center', fill);
+      setText(out ? '' : formatDateTime(slot.registrado_at), 'center', fill);
+      setText(out ? '' : formatDateTime(slot.sent_at), 'center', fill);
     };
 
     setText(row.code || '—', 'center');

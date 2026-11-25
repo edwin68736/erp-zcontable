@@ -8,8 +8,8 @@ import {
 } from './activityModuleShared';
 
 // Enum reducido de 4 estados, mismo criterio que PDT601 (docs/diseno-estados-pdt601-pdt621-2026-09-
-// 16.md) — reemplaza al viejo de 7 valores. PDT621 no tiene equivalente de "Sin planilla": la única
-// excepción es Suspendida.
+// 16.md) — reemplaza al viejo de 7 valores. Las excepciones son Suspendida (todas las actividades) y
+// «No corresponde» (solo PDT 621).
 export const PDT621_STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
   { value: 'por_revisar', label: 'Por revisar' },
@@ -22,6 +22,7 @@ export const PDT621_STATUS_FILTER = [
   { value: 'entregado_a_tiempo', label: 'Entregado a tiempo' },
   { value: 'entregado_fuera_de_fecha', label: 'Entregado fuera de fecha' },
   { value: 'suspendida', label: 'Suspendida' },
+  { value: 'no_corresponde', label: 'No corresponde' },
 ];
 
 /** Único estado terminal — fuente única, no duplicar (antes existía también una copia local en
@@ -39,10 +40,12 @@ const PDT621_BADGE: Record<string, string> = {
   // como si lo fuera para que el badge/select del detalle lo reflejen de forma consistente (mismo
   // patrón que PDT 601).
   suspendida: 'bg-purple-100 text-purple-900',
+  no_corresponde: 'bg-slate-200 text-slate-700',
 };
 
 export function pdt621StatusLabel(status: string): string {
   if (status === 'suspendida') return 'Suspendida';
+  if (status === 'no_corresponde') return 'No corresponde';
   if (status === 'entregado_fuera_de_fecha') return 'Entregado fuera de fecha';
   return activityStatusLabel(status, PDT621_STATUSES);
 }

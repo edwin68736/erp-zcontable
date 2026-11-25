@@ -458,8 +458,9 @@ func (s *SupervisorService) EnsurePdt621(companyID uint, periodYM string) (*Pdt6
 	}
 
 	dig := s.companyDig(company.ID)
-	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, ctrl.Suspendida, recordDTO, decl.Status)
-	declarationTimeliness := pdt621DeclarationTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), recordDTO, ctrl.Suspendida)
+	exempt := ctrl.Suspendida || decl.Status == models.SupervisorDetraccionNoCorresponde
+	assistantTimeliness := pdt621AssistantTimelinessDTO(periodYM, dig, exempt, recordDTO, decl.Status)
+	declarationTimeliness := pdt621DeclarationTimeliness(periodYM, findPdt621CalendarActivity(periodYM, dig), recordDTO, exempt)
 	obs := s.pdt621ObservacionInfo([]uint{decl.ID})[decl.ID]
 	return &Pdt621Detail{
 		ObservacionMotivo:     obs.Motivo,
@@ -535,6 +536,9 @@ func (s *SupervisorService) SavePdt621Record(companyID uint, periodYM string, in
 	// queda de solo lectura.
 	if detail.ControlSuspendida {
 		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
+	}
+	if detail.Declaration.Status == models.SupervisorDetraccionNoCorresponde {
+		return nil, errNotApplicableLocked
 	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
@@ -682,6 +686,9 @@ func (s *SupervisorService) RecepcionarPdt621(companyID uint, periodYM string, u
 		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se recepciona")
 	}
 	declStatus := detail.Declaration.Status
+	if declStatus == models.SupervisorDetraccionNoCorresponde {
+		return nil, errNotApplicableLocked
+	}
 	if declStatus != models.SupervisorDeclPendiente && declStatus != models.SupervisorDeclObservado {
 		return nil, errors.New("el archivador ya fue recepcionado (solo se recepciona en estado Pendiente u Observado)")
 	}
@@ -1032,7 +1039,7 @@ func (s *SupervisorService) pdt621BuildRows(companies []models.Company, periodYM
 		// Empresa suspendida en el período: exime ambos cumplimientos (declaración SUNAT y entrega
 		// interna del asistente) — global por control desde §5.9.7, ya no depende de que exista
 		// Record.
-		exempt := row.Suspendida
+		exempt := row.Suspendida || row.Status == models.SupervisorDetraccionNoCorresponde
 		if exempt {
 			row.IsOverdue = false
 			row.DaysRemaining = nil

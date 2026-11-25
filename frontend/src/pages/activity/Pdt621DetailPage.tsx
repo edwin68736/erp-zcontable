@@ -124,7 +124,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
   // módulo — se lee de solo lectura desde el control (Estado cta. detracciones es el único que la
   // escribe). formLocked bloquea el formulario igual que declarationLocked.
   const controlSuspendida = !!detail?.control_suspendida;
-  const formLocked = declarationLocked || controlSuspendida;
+  // «No corresponde» (la empresa no hace PDT 621 este periodo) bloquea igual que la suspensión.
+  const noCorresponde = declaration?.status === 'no_corresponde';
+  const formLocked = declarationLocked || controlSuspendida || noCorresponde;
   // El asistente carga el PDF — "Fecha de declaración e importes PDT 621" y la observación de
   // revisión las completa el supervisor después, mismo criterio que "Seguimiento" en
   // Pdt601DetailPage.tsx (seguimientoReadOnlyForAssistant). La 1ra/2da entrega ya no la marca el
@@ -587,7 +589,9 @@ const Pdt621DetailPage = ({ workspace }: Pdt621DetailPageProps) => {
         {/* Una sola puerta para todo lo que no aplica con Suspendida (antes eran 4 condicionales
             sueltas: entregas, importes/comprobantes/SIRE, más el select de estado ya eliminado) —
             mismo criterio de "una sola puerta" que Pdt601DetailPage.tsx. */}
-        {controlSuspendida ? (
+        {noCorresponde && !controlSuspendida ? (
+          <Alert variant="info">Marcada «No corresponde» en este periodo: no se evalúa ni se registra nada. Quite la marca desde el listado si la empresa sí debe registrarlo.</Alert>
+        ) : controlSuspendida ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-purple-300 bg-purple-50 px-3 py-2.5 text-sm text-purple-900">
             <i className="fas fa-ban mt-0.5" aria-hidden />
             <span>

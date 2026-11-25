@@ -21,6 +21,8 @@ export interface PreliminarVentasListRow {
   ruc: string;
   assistant_username: string;
   suspendida: boolean;
+  /** La empresa no hace esta actividad en el periodo. */
+  no_corresponde?: boolean;
   slot1: PreliminarVentasSlotStatus;
   slot2: PreliminarVentasSlotStatus;
 }
@@ -123,6 +125,7 @@ export interface PreliminarVentasSlotDetail {
   assistant_username: string;
   control_id: number;
   control_suspendida: boolean;
+  no_corresponde?: boolean;
   /** Tasa IGV configurada de la empresa (companies.igv_rate) — para marcar "(empresa)" en el
    * selector de tasas del formulario. */
   company_igv_rate: number;

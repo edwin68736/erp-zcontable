@@ -66,14 +66,14 @@ func (cs *ComplianceSummary) finalize() {
 // complianceSummaryFromPdt traduce los buckets de PdtTypeSummary (pdtBucketsSelectSQL) a las 5
 // categorías de ComplianceSummary — mapeo exacto acordado en §5.9.3: entregado_a_tiempo→on_time,
 // entregado_fuera_de_fecha→late, vencido→missing, pendiente→pending, (sin_planilla +
-// control.Suspendida)→exempt.
+// control.Suspendida + no_corresponde)→exempt.
 func complianceSummaryFromPdt(t PdtTypeSummary) ComplianceSummary {
 	cs := ComplianceSummary{
 		OnTime:  t.EntregadoATiempo,
 		Late:    t.EntregadoFueraDeFecha,
 		Missing: t.Vencido,
 		Pending: t.Pendiente,
-		Exempt:  t.SinPlanilla + t.Suspendida,
+		Exempt:  t.SinPlanilla + t.Suspendida + t.NoCorresponde,
 	}
 	cs.Total = cs.OnTime + cs.Late + cs.Missing + cs.Pending + cs.Exempt
 	return cs

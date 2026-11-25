@@ -79,7 +79,8 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
   const suspendida = !!detail?.control_suspendida;
   const locked = !!declaration && PDF_REPORT_TERMINAL_STATUSES.has(declaration.status);
   const showRevisionSupervisor = workspace === 'supervisor' && (canApprove || canObserve);
-  const canSubmit = canUpload && !locked && !suspendida;
+  const noCorresponde = declaration?.status === 'no_corresponde';
+  const canSubmit = canUpload && !locked && !suspendida && !noCorresponde;
 
   const loadAttachment = useCallback(async (declarationId: number) => {
     const rows = await supervisorsService.listAttachments(0, declarationId);
@@ -382,6 +383,8 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
                   )
                 ) : null}
               </div>
+            ) : noCorresponde ? (
+              <p className="text-sm text-slate-500">Marcada «No corresponde» en este periodo — no aplica observar ni aprobar.</p>
             ) : declaration.status !== 'por_revisar' ? (
               <p className="flex items-start gap-2 text-sm text-slate-500">
                 <i className="fas fa-hourglass-half mt-0.5 text-slate-400" aria-hidden />
@@ -445,6 +448,8 @@ const PdfReportDetailPage = ({ workspace, slug }: PdfReportDetailPageProps) => {
               </span>
             </span>
           </div>
+        ) : noCorresponde ? (
+          <Alert variant="info">Marcada «No corresponde» en este periodo: no se evalúa ni se carga archivo. Quite la marca desde el listado si la empresa sí debe registrarlo.</Alert>
         ) : locked ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
             <i className="fas fa-lock mt-0.5" aria-hidden />

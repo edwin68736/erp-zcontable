@@ -343,7 +343,8 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
   // Antes de la fecha de la entrega (calendario, fecha del servidor) la pantalla no deja registrar ni
   // enviar — solo la pantalla: el backend no bloquea entregas anticipadas.
   const noDisponible = !!detail && detail.disponible === false;
-  const formLocked = !!detail?.control_suspendida || noDisponible;
+  const noCorresponde = !!detail?.no_corresponde;
+  const formLocked = !!detail?.control_suspendida || noDisponible || noCorresponde;
   const canMarkSent = detail?.status === 'registrado' || detail?.status === 'enviado';
 
   const handleSave = async () => {
@@ -507,6 +508,9 @@ const PreliminarVentasDetailPage = ({ workspace }: PreliminarVentasDetailPagePro
       </div>
 
       {error ? <Alert variant="error">{error}</Alert> : null}
+      {noCorresponde ? (
+        <Alert variant="info">Marcada «No corresponde» en este periodo (las dos entregas): no se evalúa ni se registra. Quite la marca desde el listado si la empresa sí debe registrarlo.</Alert>
+      ) : null}
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-slate-800">Empresa</h2>

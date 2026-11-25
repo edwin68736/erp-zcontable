@@ -699,7 +699,7 @@ func (s *FinanceCalendarService) companyCompliance(
 		if cand := pickDueDateCandidateByDigit(candidates, pdt601DigitFromString(companyDigForID(companyID))); cand != nil {
 			dueForCompany = cand.Due
 		}
-		if declarationComplete(kind, decl.Status) {
+		if declarationComplete(kind, decl.Status) || decl.Status == models.SupervisorDetraccionNoCorresponde {
 			return "completada", declarationStatusLabel(decl.Status)
 		}
 		return markOverdueFor(dueForCompany)(), declarationStatusLabel(decl.Status)
@@ -741,7 +741,7 @@ func declarationStatusLabel(st string) string {
 		models.SupervisorDeclPendiente: "Pendiente", models.SupervisorDeclEnElaboracion: "En elaboración",
 		models.SupervisorDeclEnRevision: "En revisión", models.SupervisorDeclObservado: "Observado",
 		models.SupervisorDeclAprobado: "Aprobado", models.SupervisorDeclPresentado: "Presentado",
-		models.SupervisorDeclCerrado: "Cerrado",
+		models.SupervisorDeclCerrado: "Cerrado", models.SupervisorDetraccionNoCorresponde: "No corresponde",
 	}
 	if v, ok := m[st]; ok {
 		return v

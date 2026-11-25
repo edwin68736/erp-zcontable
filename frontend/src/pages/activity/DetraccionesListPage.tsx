@@ -6,6 +6,8 @@ import DetraccionesRowActions from '../../components/activity/DetraccionesRowAct
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   formatStoredAt,
@@ -424,6 +426,16 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
                             onChanged={() => void load()}
                           />
                         ) : null}
+                        {periodEnabled && !row.suspendida && ['no_corresponde', 'sin_clave'].includes(row.status) ? (
+                          <NotApplicableAction
+                            activity="detracciones"
+                            companyId={row.company_id}
+                            companyName={row.business_name}
+                            periodYm={periodYm}
+                            marked
+                            onChanged={() => void load()}
+                          />
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -453,6 +465,8 @@ const DetraccionesListPage = ({ workspace }: DetraccionesListPageProps) => {
         onClose={() => setCarryOverOpen(false)}
         onConfirm={(ids) => void handleCarryOverConfirm(ids)}
       />
+
+      <NotApplicableCarryOver activity="detracciones" periodYm={periodYm} hold={carryOverOpen} onApplied={() => void load()} />
     </div>
   );
 };

@@ -43,6 +43,7 @@ export const PDF_REPORT_STATUS_FILTER = [
   { value: '', label: 'Todos' },
   ...PDT601_STATUSES,
   { value: 'suspendida', label: 'Suspendida' },
+  { value: 'no_corresponde', label: 'No corresponde' },
 ];
 
 export const PDF_REPORT_TERMINAL_STATUSES = PDT601_TERMINAL_STATUSES;

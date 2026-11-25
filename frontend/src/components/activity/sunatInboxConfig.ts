@@ -26,6 +26,7 @@ export const MAILBOX_LIST_STATUS_FILTER = [
   { value: 'cargado', label: 'Por verificar (supervisor)' },
   { value: 'verificado', label: 'Semana verificada' },
   { value: 'observado', label: 'Con observaciones' },
+  { value: 'no_corresponde', label: 'No corresponde' },
 ] as const;
 
 const MAILBOX_BADGE: Record<string, string> = {

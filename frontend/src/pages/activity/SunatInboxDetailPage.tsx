@@ -194,6 +194,10 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
       </div>
 
 
+      {detail.no_corresponde ? (
+        <Alert variant="info">Marcada «No corresponde» en este periodo: no se evalúa ni se suben capturas. Quite la marca desde el listado si la empresa sí debe registrarlo.</Alert>
+      ) : null}
+
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">
           <dt className="text-slate-500">Asistente</dt>
@@ -229,7 +233,7 @@ const SunatInboxDetailPage = ({ workspace }: SunatInboxDetailPageProps) => {
               </h3>
               <MailboxCaptureSlotCell
                 slot={slot}
-                canUpload={canUpload}
+                canUpload={canUpload && !detail.no_corresponde}
                 canVerify={canVerify}
                 layout="detail"
                 uploadKey={`detail-${companyId}-${weekStart}`}

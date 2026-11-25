@@ -20,7 +20,8 @@ import (
 //	Actividad = el módulo (PDT 621, Buzón SOL…). Tarea = cada entrega concreta de una actividad en el periodo: una por
 //	empresa y mes en la mayoría, dos en Preliminar de ventas, una por semana y por buzón (SUNAT/SUNAFIL) en el Buzón SOL.
 //	Completada = entregada, a tiempo o fuera de fecha. Observada, vencida y pendiente no cuentan como completadas.
-//	No aplica (no entra en el análisis): empresa suspendida, y «sin planilla» en PDT 601.
+//	No aplica (no entra en el análisis): empresa suspendida, y la marcada «No corresponde» en esa actividad («sin planilla»
+//	en PDT 601).
 //
 // El PDT 621 son dos tareas de dos responsables (ver supervisor_pdt621_tareas.go): el archivador (asistente: queda
 // completada cuando el supervisor lo recepciona) y la declaración (supervisor; solo entra en la vista del estudio).
@@ -454,7 +455,7 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 	for _, r := range pdt621 {
 		due := calendarDeadlineFor(periodYM, acts621, r.Dig, cache)
 		arch := acc.mod(models.SupervisorDeclPDT621, pdt621ArchivadorLabel, assistantOwnerAssistant)
-		if r.Suspendida {
+		if r.Suspendida || r.Status == models.SupervisorDetraccionNoCorresponde {
 			arch.NotApplicable++
 			acc.company(models.SupervisorDeclPDT621, r.CompanyID).NotApplicable++
 			if includeSupervisor {
@@ -535,7 +536,7 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 	}{{PdfReportInformeDetracciones, inf}, {PdfReportSiscontBalances, sis}} {
 		for _, r := range pair.rows {
 			m := acc.mod(pair.mod.DeclType, pair.mod.Label, assistantOwnerAssistant)
-			st, onTime, applies := assistantTaskState(r.Status, r.Timeliness, r.Suspendida)
+			st, onTime, applies := assistantTaskState(r.Status, r.Timeliness, r.Suspendida || r.Status == models.SupervisorDetraccionNoCorresponde)
 			if !applies {
 				m.NotApplicable++
 				acc.company(pair.mod.DeclType, r.CompanyID).NotApplicable++
@@ -551,7 +552,7 @@ func (s *SupervisorService) assistantBuildRows(periodYM string, companies []mode
 
 	for _, w := range prelim {
 		m := acc.mod(models.SupervisorDeclPreliminarVentas, "Preliminar de ventas", assistantOwnerAssistant)
-		if w.Suspendida {
+		if w.Suspendida || w.NoCorresponde {
 			m.NotApplicable++
 			acc.company(models.SupervisorDeclPreliminarVentas, w.Company.ID).NotApplicable++
 			continue

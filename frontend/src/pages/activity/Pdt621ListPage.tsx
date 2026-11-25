@@ -6,6 +6,8 @@ import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import Pdt621RecepcionarButton from '../../components/activity/Pdt621RecepcionarButton';
 import Pdt621ObservacionButton from '../../components/activity/Pdt621ObservacionButton';
 import { canRecepcionarPdt621, pdt621EntregaPorRecepcionar } from '../../components/activity/pdt621Config';
@@ -460,13 +462,23 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
                               suspendida={!!row.suspendida}
                               onChanged={() => void load()}
                             />
+                            {!suspendida && ['pendiente', 'sin_registro', 'no_corresponde'].includes(row.status) ? (
+                              <NotApplicableAction
+                                activity="pdt_621"
+                                companyId={row.company_id}
+                                companyName={row.business_name}
+                                periodYm={periodYm}
+                                marked={row.status === 'no_corresponde'}
+                                onChanged={() => void load()}
+                              />
+                            ) : null}
                           </div>
                           {/* Plazo INTERNO del estudio (calendario de actividades) para la 1ra
                               entrega del asistente — no valida nada contra SUNAT, ver
                               pdt621Config.ts / supervisor_pdt621_service.go (AssistantTimeliness).
                               Suspendida sale "Exento" acá (ver exempt en pdt621BuildRows). "Entregado"
                               ya incluye la puntualidad en el badge de arriba: no hace falta repetirlo. */}
-                          {row.status !== 'entregado' ? (
+                          {row.status !== 'entregado' && row.status !== 'no_corresponde' ? (
                             <span
                               title="Cumplimiento del plazo interno de entrega del asistente (calendario de actividades)"
                               className={`inline-block px-2 py-0.5 rounded-full text-2xs font-medium ${timelinessBadgeClass(row.assistant_timeliness)}`}
@@ -525,6 +537,8 @@ const Pdt621ListPage = ({ workspace }: Pdt621ListPageProps) => {
           setPage(1);
         }}
       />
+
+      <NotApplicableCarryOver activity="pdt_621" periodYm={periodYm} onApplied={() => void load()} />
     </div>
   );
 };

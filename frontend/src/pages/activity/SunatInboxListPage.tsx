@@ -9,6 +9,8 @@ import {
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import {
   mailboxStatusBadgeClass,
   mailboxStatusLabel,
@@ -126,10 +128,11 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
     };
     if (scope === 'month') {
       for (const row of monthRows) {
+        if (row.no_corresponde) continue;
         for (const slots of Object.values(row.weeks)) addSlots(slots);
       }
     } else {
-      for (const row of rows) addSlots(row.slots);
+      for (const row of rows) if (!row.no_corresponde) addSlots(row.slots);
     }
     return acc;
   }, [rows, monthRows, scope]);
@@ -564,10 +567,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                               Preliminar de Ventas). */}
                           <span
                             className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                              row.suspendida ? 'bg-purple-100 text-purple-900' : mailboxStatusBadgeClass(row.summary_status)
+                              row.suspendida
+                                ? 'bg-purple-100 text-purple-900'
+                                : row.no_corresponde
+                                  ? 'bg-slate-200 text-slate-700'
+                                  : mailboxStatusBadgeClass(row.summary_status)
                             }`}
                           >
-                            {row.suspendida ? 'Suspendida' : mailboxStatusLabel(row.summary_status)}
+                            {row.suspendida ? 'Suspendida' : row.no_corresponde ? 'No corresponde' : mailboxStatusLabel(row.summary_status)}
                           </span>
                         </td>
                         <td className={TD}>
@@ -580,9 +587,23 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                               suspendida={!!row.suspendida}
                               onChanged={() => void load()}
                             />
+                            {!row.suspendida ? (
+                              <NotApplicableAction
+                                activity="sunat_inbox"
+                                companyId={row.company_id}
+                                companyName={row.business_name}
+                                periodYm={periodYm}
+                                marked={!!row.no_corresponde}
+                                onChanged={() => void load()}
+                              />
+                            ) : null}
                           </div>
                         </td>
-                        {slotIndices.map((idx) => {
+                        {row.no_corresponde ? (
+                          <td colSpan={capturesPerWeek} className="px-3 py-3 text-sm text-slate-400 border-t border-slate-100">
+                            No corresponde en este periodo
+                          </td>
+                        ) : slotIndices.map((idx) => {
                           const slot = row.slots.find((s) => s.slot_index === idx) ?? EMPTY_SLOT_FALLBACK(idx);
                           return (
                             <td key={idx} className="px-2 py-2 text-sm text-slate-700 border-t border-slate-100 align-top min-w-[36.5rem] w-[36.5rem]">
@@ -683,10 +704,14 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                           <td className={TD}>
                             <span
                               className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                                row.suspendida ? 'bg-purple-100 text-purple-900' : mailboxStatusBadgeClass(monthSummary)
+                                row.suspendida
+                                  ? 'bg-purple-100 text-purple-900'
+                                  : row.no_corresponde
+                                    ? 'bg-slate-200 text-slate-700'
+                                    : mailboxStatusBadgeClass(monthSummary)
                               }`}
                             >
-                              {row.suspendida ? 'Suspendida' : mailboxStatusLabel(monthSummary)}
+                              {row.suspendida ? 'Suspendida' : row.no_corresponde ? 'No corresponde' : mailboxStatusLabel(monthSummary)}
                             </span>
                           </td>
                           <td className={TD}>
@@ -699,9 +724,23 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
                                 suspendida={!!row.suspendida}
                                 onChanged={() => void load()}
                               />
+                              {!row.suspendida ? (
+                                <NotApplicableAction
+                                  activity="sunat_inbox"
+                                  companyId={row.company_id}
+                                  companyName={row.business_name}
+                                  periodYm={periodYm}
+                                  marked={!!row.no_corresponde}
+                                  onChanged={() => void load()}
+                                />
+                              ) : null}
                             </div>
                           </td>
-                          {weekOptions.flatMap((w) => {
+                          {row.no_corresponde ? (
+                            <td colSpan={weekOptions.length * capturesPerWeek} className="px-3 py-3 text-sm text-slate-400 border-t border-slate-100">
+                              No corresponde en este periodo
+                            </td>
+                          ) : weekOptions.flatMap((w) => {
                             const weekSlots = row.weeks[w.week_start] ?? [];
                             return slotIndices.map((idx) => {
                               const slot = weekSlots.find((s) => s.slot_index === idx) ?? EMPTY_SLOT_FALLBACK(idx);
@@ -750,6 +789,8 @@ const SunatInboxListPage = ({ workspace }: SunatInboxListPageProps) => {
           setPage(1);
         }}
       />
+
+      <NotApplicableCarryOver activity="sunat_inbox" periodYm={periodYm} onApplied={() => void load()} />
     </div>
   );
 };

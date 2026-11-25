@@ -129,9 +129,10 @@ func sunatInboxEachVerdict(periodYM string, companyIDs []uint, realSlots []sunat
 		ruleByID[*rs.ruleID] = rule
 	}
 
+	noCorresponde := notApplicableCompanies(periodYM, models.SupervisorDeclSunatInbox, companyIDs)
 	for _, cid := range companyIDs {
 		ctrl, hasCtrl := ctrlByCompany[cid]
-		exempt := hasCtrl && ctrl.Suspendida
+		exempt := (hasCtrl && ctrl.Suspendida) || noCorresponde[cid]
 		for _, rs := range realSlots {
 			var dbSlot *models.SupervisorMailboxCaptureSlot
 			if hasCtrl {

@@ -954,6 +954,9 @@ func (ctrl *SupervisorController) UploadAttachmentAPI(c fiber.Ctx) error {
 	if did > 0 && !services.Authz().HasPermission(uid, rbac.SupervisorsDeclarationsApprove) && ctrl.svc.IsPdt621Declaration(uint(did)) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "el archivo PDT 621 lo carga solo el supervisor"})
 	}
+	if did > 0 && ctrl.svc.DeclarationIsNotApplicable(uint(did)) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "esta empresa está marcada como «No corresponde» en este periodo; quite la marca para registrar"})
+	}
 	if fh.Size > 10*1024*1024 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "archivo máximo 10 MB"})
 	}
@@ -1465,6 +1468,95 @@ func (ctrl *SupervisorController) DetraccionesApplySuspensionCarryOverAPI(c fibe
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"data": fiber.Map{"resolved": true}})
+}
+
+// NotApplicableSetAPI PUT /api/supervisors/activity-modules/not-applicable
+// Marca o quita «No corresponde» de una actividad para una empresa en un periodo.
+func (ctrl *SupervisorController) NotApplicableSetAPI(c fiber.Ctx) error {
+	var body struct {
+		Activity      string `json:"activity"`
+		CompanyID     uint   `json:"company_id"`
+		PeriodYM      string `json:"period_ym"`
+		NotApplicable bool   `json:"not_applicable"`
+	}
+	if err := c.Bind().Body(&body); err != nil || body.CompanyID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	if !hasStudioScope(c) {
+		ok, aerr := ctrl.svc.CanAccessCompany(uid, body.CompanyID, false)
+		if aerr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error de acceso"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Sin acceso a esta empresa"})
+		}
+	}
+	periodYM := strings.TrimSpace(body.PeriodYM)
+	if !services.NotApplicablePeriodEnabled(body.Activity, periodYM) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(periodYM).Error()})
+	}
+	if err := ctrl.svc.SetNotApplicable(body.Activity, body.CompanyID, periodYM, body.NotApplicable, uid); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": fiber.Map{"company_id": body.CompanyID, "period_ym": periodYM, "not_applicable": body.NotApplicable}})
+}
+
+// NotApplicableCarryOverAPI GET /api/supervisors/activity-modules/not-applicable/carry-over?activity=&period_ym=
+func (ctrl *SupervisorController) NotApplicableCarryOverAPI(c fiber.Ctx) error {
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	periodYM := strings.TrimSpace(c.Query("period_ym", ""))
+	activity := strings.TrimSpace(c.Query("activity", ""))
+	if !services.NotApplicablePeriodEnabled(activity, periodYM) {
+		return c.JSON(fiber.Map{"data": services.NotApplicableCarryOver{Companies: []services.SuspensionCarryOverRow{}}})
+	}
+	out, err := ctrl.svc.GetNotApplicableCarryOver(activity, periodYM, allowed)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": out})
+}
+
+// NotApplicableApplyCarryOverAPI POST /api/supervisors/activity-modules/not-applicable/carry-over
+func (ctrl *SupervisorController) NotApplicableApplyCarryOverAPI(c fiber.Ctx) error {
+	var body struct {
+		Activity         string `json:"activity"`
+		PeriodYM         string `json:"period_ym"`
+		KeepCompanyIDs   []uint `json:"keep_company_ids"`
+		ReviewCompanyIDs []uint `json:"review_company_ids"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	uid, err := getUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autenticado"})
+	}
+	allowed, err := ctrl.allowedCompanyIDs(c)
+	if err != nil {
+		if e, ok := err.(*fiber.Error); ok {
+			return c.Status(e.Code).JSON(fiber.Map{"error": e.Message})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	periodYM := strings.TrimSpace(body.PeriodYM)
+	if !services.NotApplicablePeriodEnabled(body.Activity, periodYM) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": services.ActivityPeriodNotEnabledError(periodYM).Error()})
+	}
+	out, err := ctrl.svc.ApplyNotApplicableCarryOver(body.Activity, periodYM, body.KeepCompanyIDs, body.ReviewCompanyIDs, allowed, uid)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": out})
 }
 
 // DetraccionesValidateAPI POST /api/supervisors/activity-modules/detracciones/declarations/:declarationId/validate

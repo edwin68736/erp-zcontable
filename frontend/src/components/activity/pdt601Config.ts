@@ -63,11 +63,14 @@ const PDT601_BADGE: Record<string, string> = {
   // Suspendida es más restrictivo que sin_planilla (bloquea TODO registro) — color propio (morado)
   // para que no se confunda con ningún otro estado de la tabla.
   suspendida: 'bg-purple-100 text-purple-900',
+  // «No corresponde» (informes en PDF, que comparten estas etiquetas).
+  no_corresponde: 'bg-slate-200 text-slate-700',
 };
 
 export function pdt601StatusLabel(status: string): string {
   if (status === 'sin_planilla') return 'Sin planilla';
   if (status === 'suspendida') return 'Suspendida';
+  if (status === 'no_corresponde') return 'No corresponde';
   if (status === 'entregado_fuera_de_fecha') return 'Entregado fuera de fecha';
   return activityStatusLabel(status, PDT601_STATUSES);
 }

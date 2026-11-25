@@ -365,7 +365,8 @@ const SupervisorLiquidacionCreatePage = () => {
       const current = await pdt601Service.getDetail(targetCompanyId, periodYm);
       // Suspendida (§5.9.7) ahora bloquea CUALQUIER guardado en el backend (SavePdt601Planilla
       // rechaza de plano) — evita el intento inútil, no hay nada que "preservar" acá.
-      if (current.control_suspendida) return;
+      // Marcada «sin planilla»: la marca solo se quita a propósito, no por esta sincronización.
+      if (current.control_suspendida || current.planilla?.sin_planilla) return;
       const base = current.planilla;
       await pdt601Service.savePlanilla(targetCompanyId, periodYm, {
         regimen_laboral: base?.regimen_laboral ?? '',
@@ -428,7 +429,8 @@ const SupervisorLiquidacionCreatePage = () => {
       const current = await pdt621Service.getDetail(targetCompanyId, periodYm);
       // Suspendida (§5.9.7) ahora bloquea CUALQUIER guardado en el backend (SavePdt621Record
       // rechaza de plano) — evita el intento inútil, mismo criterio que syncPdt601Planilla.
-      if (current.control_suspendida) return;
+      // «No corresponde» también bloquea el guardado en el servidor.
+      if (current.control_suspendida || current.declaration.status === 'no_corresponde') return;
       const base = current.record;
       await pdt621Service.saveRecord(targetCompanyId, periodYm, {
         observacion: base?.observacion ?? '',

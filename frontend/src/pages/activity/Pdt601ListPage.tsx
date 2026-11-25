@@ -6,6 +6,8 @@ import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import {
   pdt601StatusLabel,
   pdt601DisplayStatus,
@@ -478,6 +480,16 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
                           suspendida={!!row.suspendida}
                           onChanged={() => void load()}
                         />
+                        {!row.suspendida && (pl?.sin_planilla ? row.status !== 'entregado' : ['pendiente', 'sin_registro'].includes(row.status)) ? (
+                          <NotApplicableAction
+                            activity="pdt_601"
+                            companyId={row.company_id}
+                            companyName={row.business_name}
+                            periodYm={periodYm}
+                            marked={!!pl?.sin_planilla}
+                            onChanged={() => void load()}
+                          />
+                        ) : null}
                       </td>
                       {blocked ? (
                         // "Sin planilla"/"suspendida" ya se indican en la columna Estado — acá solo
@@ -531,6 +543,8 @@ const Pdt601ListPage = ({ workspace }: Pdt601ListPageProps) => {
           setPage(1);
         }}
       />
+
+      <NotApplicableCarryOver activity="pdt_601" periodYm={periodYm} onApplied={() => void load()} />
     </div>
   );
 };

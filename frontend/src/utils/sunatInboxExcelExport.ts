@@ -264,10 +264,10 @@ export async function exportSunatInboxReportExcel(options: {
         const startCol = fixedCols + i * 2 + 1;
         const sunatCell = dataRow.getCell(startCol);
         const sunafilCell = dataRow.getCell(startCol + 1);
-        sunatCell.value = STATUS_LABEL[sunatStatus];
-        sunafilCell.value = STATUS_LABEL[sunafilStatus];
-        styleCell(sunatCell, STATUS_FILL[sunatStatus]);
-        styleCell(sunafilCell, STATUS_FILL[sunafilStatus]);
+        sunatCell.value = row.no_corresponde ? 'NO CORRESPONDE' : STATUS_LABEL[sunatStatus];
+        sunafilCell.value = row.no_corresponde ? 'NO CORRESPONDE' : STATUS_LABEL[sunafilStatus];
+        styleCell(sunatCell, row.no_corresponde ? undefined : STATUS_FILL[sunatStatus]);
+        styleCell(sunafilCell, row.no_corresponde ? undefined : STATUS_FILL[sunafilStatus]);
         sunatCell.font = { bold: true, size: 9 };
         sunafilCell.font = { bold: true, size: 9 };
       }

@@ -470,10 +470,11 @@ func (s *SupervisorService) dashboardUpcoming(periodYM string, companies []model
 		for _, d := range decls {
 			statusBy[d.CompanyID] = d.Status
 		}
+		noCorresponde := notApplicableCompanies(periodYM, m.Key, ids)
 
 		pending := map[uint]int64{}
 		for _, c := range companies {
-			if suspended[c.ID] || completed[statusBy[c.ID]] {
+			if suspended[c.ID] || noCorresponde[c.ID] || completed[statusBy[c.ID]] {
 				continue
 			}
 			act := PickCalendarActivityByDigit(acts, pdt601DigitFromString(digByCompany[c.ID]))

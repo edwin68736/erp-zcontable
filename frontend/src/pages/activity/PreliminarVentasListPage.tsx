@@ -5,6 +5,8 @@ import ActivityPeriodFilter from '../../components/activity/ActivityPeriodFilter
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import SuspensionCarryOverModal from '../../components/activity/SuspensionCarryOverModal';
 import {
   PRELIMINAR_VENTAS_LATE_CELL_CLASS,
@@ -301,7 +303,7 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                 <th className={`${TH} bg-slate-50`} style={frozenIdHeadCellStyle('assistant')}>Asistente</th>
                 <th className={TH}>{formatDueDate(slot1DueDate)}</th>
                 <th className={TH}>{formatDueDate(slot2DueDate)}</th>
-                <th className={TH}>Suspender</th>
+                <th className={TH}>Suspender / No corresponde</th>
               </tr>
             </thead>
             <tbody>
@@ -347,20 +349,32 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
                     >
                       <span className="block truncate">{row.assistant_username || '—'}</span>
                     </td>
-                    <td className={`${TD} ${slotCellClass(row.slot1, row.suspendida)}`}>
-                      <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} suspendida={row.suspendida} />
+                    <td className={`${TD} ${slotCellClass(row.slot1, row.suspendida || !!row.no_corresponde)}`}>
+                      <SlotBadge to={slotLink(row.company_id, 1)} slot={row.slot1} suspendida={row.suspendida} noCorresponde={!!row.no_corresponde} />
                     </td>
-                    <td className={`${TD} ${slotCellClass(row.slot2, row.suspendida)}`}>
-                      <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} suspendida={row.suspendida} />
+                    <td className={`${TD} ${slotCellClass(row.slot2, row.suspendida || !!row.no_corresponde)}`}>
+                      <SlotBadge to={slotLink(row.company_id, 2)} slot={row.slot2} suspendida={row.suspendida} noCorresponde={!!row.no_corresponde} />
                     </td>
                     <td className={TD}>
-                      <SuspendCompanyAction
-                        companyId={row.company_id}
-                        companyName={row.business_name}
-                        periodYm={periodYm}
-                        suspendida={!!row.suspendida}
-                        onChanged={() => void load()}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <SuspendCompanyAction
+                          companyId={row.company_id}
+                          companyName={row.business_name}
+                          periodYm={periodYm}
+                          suspendida={!!row.suspendida}
+                          onChanged={() => void load()}
+                        />
+                        {!row.suspendida && (row.no_corresponde || (row.slot1.status === 'pendiente' && row.slot2.status === 'pendiente')) ? (
+                          <NotApplicableAction
+                            activity="preliminar_ventas"
+                            companyId={row.company_id}
+                            companyName={row.business_name}
+                            periodYm={periodYm}
+                            marked={!!row.no_corresponde}
+                            onChanged={() => void load()}
+                          />
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -389,6 +403,8 @@ const PreliminarVentasListPage = ({ workspace }: PreliminarVentasListPageProps) 
         onClose={() => setCarryOverOpen(false)}
         onConfirm={(ids) => void handleCarryOverConfirm(ids)}
       />
+
+      <NotApplicableCarryOver activity="preliminar_ventas" periodYm={periodYm} hold={carryOverOpen} onApplied={() => void load()} />
     </div>
   );
 };
@@ -401,16 +417,16 @@ function slotCellClass(slot: PreliminarVentasSlotStatus, suspendida: boolean): s
   return !suspendida && preliminarVentasEntregadaFueraDePlazo(slot.status, slot.timeliness) ? PRELIMINAR_VENTAS_LATE_CELL_CLASS : '';
 }
 
-function SlotBadge({ to, slot, suspendida }: { to: string; slot: PreliminarVentasSlotStatus; suspendida: boolean }) {
+function SlotBadge({ to, slot, suspendida, noCorresponde }: { to: string; slot: PreliminarVentasSlotStatus; suspendida: boolean; noCorresponde: boolean }) {
   const badge = preliminarVentasSlotBadge(slot.status, slot.timeliness);
-  const label = suspendida ? 'Suspendida' : badge.label;
-  const badgeClass = suspendida ? 'bg-purple-100 text-purple-900' : badge.className;
+  const label = suspendida ? 'Suspendida' : noCorresponde ? 'No corresponde' : badge.label;
+  const badgeClass = suspendida ? 'bg-purple-100 text-purple-900' : noCorresponde ? 'bg-slate-200 text-slate-700' : badge.className;
   return (
     <div className="flex items-center gap-2">
       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${badgeClass}`}>{label}</span>
       {/* El lápiz aparece recién desde la fecha de la entrega en el calendario (fecha del servidor).
           Solo es la pantalla: el backend no bloquea entregas anticipadas. */}
-      {slot.disponible !== false ? (
+      {noCorresponde ? null : slot.disponible !== false ? (
         <RowActionLink to={to} icon="fa-pen" label="Editar registro" />
       ) : (
         <span

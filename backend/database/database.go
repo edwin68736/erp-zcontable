@@ -70,6 +70,7 @@ func AutoMigrate() error {
 		&models.TaxSettlement{},
 		&models.TaxSettlementLine{},
 		&models.SupervisorPeriod{},
+		&models.SupervisorNotApplicableReview{},
 		&models.SupervisorMonthlyControl{},
 		&models.SupervisorDeclaration{},
 		&models.SupervisorTaxLiquidation{},

@@ -61,6 +61,7 @@ type PreliminarVentasListRow struct {
 	RUC               string                     `json:"ruc"`
 	AssistantUsername string                     `json:"assistant_username"`
 	Suspendida        bool                       `json:"suspendida"`
+	NoCorresponde     bool                       `json:"no_corresponde"`
 	Slot1             PreliminarVentasSlotStatus `json:"slot1"`
 	Slot2             PreliminarVentasSlotStatus `json:"slot2"`
 }
@@ -172,6 +173,8 @@ type PreliminarVentasSlotDetail struct {
 	// ControlSuspendida: overlay global de SupervisorMonthlyControl.Suspendida (§5.9.7), de solo
 	// lectura acá — se marca/desmarca únicamente desde Estado cta. detracciones.
 	ControlSuspendida bool `json:"control_suspendida"`
+	// NoCorresponde la empresa no hace Preliminar de ventas en el periodo (vale para las dos entregas).
+	NoCorresponde bool `json:"no_corresponde"`
 	// CompanyIgvRate: tasa configurada de la empresa (companies.igv_rate) — el frontend la usa para
 	// marcar cuál checkbox de tasa es "(empresa)" en el selector 18%/10.5%/ambos.
 	CompanyIgvRate float64    `json:"company_igv_rate"`
@@ -692,9 +695,10 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 	summary.RentaRegimenOrigen = rentaOrigen
 
 	slotDue := preliminarVentasSlotDueDate(periodYM, slotIndex)
+	noCorresponde := decl.Status == models.SupervisorDetraccionNoCorresponde
 	slotTimeliness := ""
 	if acts := preliminarVentasSlotActivities(periodYM); slotDue != nil && slotIndex >= 1 && slotIndex <= len(acts) {
-		slotTimeliness = preliminarSlotTimeliness(*slotDue, acts[slotIndex-1].ActivityRuleID, status, preliminarRegistradoAt(&record), ctrl.Suspendida, time.Now()).Timeliness
+		slotTimeliness = preliminarSlotTimeliness(*slotDue, acts[slotIndex-1].ActivityRuleID, status, preliminarRegistradoAt(&record), ctrl.Suspendida || noCorresponde, time.Now()).Timeliness
 	}
 
 	return &PreliminarVentasSlotDetail{
@@ -710,6 +714,7 @@ func (s *SupervisorService) EnsurePreliminarVentasSlot(companyID uint, periodYM 
 		AssistantUsername: assistantUsername(company.Assistant),
 		ControlID:         ctrl.ID,
 		ControlSuspendida: ctrl.Suspendida,
+		NoCorresponde:     noCorresponde,
 		CompanyIgvRate:    parseIgvRatePct(company.IgvRate),
 		Status:            status,
 		SentAt:            record.SentAt,
@@ -734,6 +739,9 @@ func (s *SupervisorService) SavePreliminarVentasSlotRecord(companyID uint, perio
 	// también queda de solo lectura, mismo criterio que PDT 601/621.
 	if detail.ControlSuspendida {
 		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
+	}
+	if detail.NoCorresponde {
+		return nil, errNotApplicableLocked
 	}
 	var ctrl models.SupervisorMonthlyControl
 	if err := database.DB.Where("company_id = ? AND period_ym = ?", companyID, periodYM).First(&ctrl).Error; err != nil {
@@ -813,6 +821,9 @@ func (s *SupervisorService) MarkPreliminarVentasSlotSent(companyID uint, periodY
 	if detail.ControlSuspendida {
 		return nil, errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede editar")
 	}
+	if detail.NoCorresponde {
+		return nil, errNotApplicableLocked
+	}
 	if detail.Status == models.PreliminarVentasPendiente {
 		return nil, errors.New("primero registre los datos de esta entrega antes de marcarla como enviada")
 	}
@@ -852,6 +863,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		Joins("LEFT JOIN supervisor_preliminar_ventas_records s1 ON s1.monthly_control_id = c.id AND s1.slot_index = 1 AND s1.deleted_at IS NULL").
 		Joins("LEFT JOIN supervisor_preliminar_ventas_records s2 ON s2.monthly_control_id = c.id AND s2.slot_index = 2 AND s2.deleted_at IS NULL").
 		Joins("LEFT JOIN users au ON au.id = comp.assistant_user_id").
+		Joins("LEFT JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ? AND d.deleted_at IS NULL", models.SupervisorDeclPreliminarVentas).
 		Where(companyStudioVisibleSQL("comp"))
 	q = applyCompanyOwnerFilters(q, "comp", p.AssistantUserID, p.SupervisorUserID)
 
@@ -865,13 +877,18 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		q = q.Where("comp.ruc LIKE ? OR comp.business_name LIKE ?", like, like)
 	}
 	if status := strings.TrimSpace(p.Status); status != "" {
-		if status == PreliminarVentasSinRegistro {
-			q = q.Where("s1.id IS NULL AND s2.id IS NULL")
+		if status == models.SupervisorDetraccionNoCorresponde {
+			q = q.Where("d.status = ?", status)
 		} else {
-			q = q.Where(
-				"COALESCE(s1.status, ?) = ? OR COALESCE(s2.status, ?) = ?",
-				models.PreliminarVentasPendiente, status, models.PreliminarVentasPendiente, status,
-			)
+			q = q.Where("COALESCE(d.status, '') <> ?", models.SupervisorDetraccionNoCorresponde)
+			if status == PreliminarVentasSinRegistro {
+				q = q.Where("s1.id IS NULL AND s2.id IS NULL")
+			} else {
+				q = q.Where(
+					"COALESCE(s1.status, ?) = ? OR COALESCE(s2.status, ?) = ?",
+					models.PreliminarVentasPendiente, status, models.PreliminarVentasPendiente, status,
+				)
+			}
 		}
 	}
 
@@ -887,6 +904,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		RUC               string
 		AssistantUsername string
 		Suspendida        bool
+		DeclStatus        *string
 		Slot1Status       *string
 		Slot2Status       *string
 		Slot1SentAt       *time.Time
@@ -898,7 +916,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 	q = q.Select(
 		"comp.id AS company_id, comp.internal_code AS code, comp.business_name, comp.ruc, " +
 			"au.username AS assistant_username, " +
-			"COALESCE(c.suspendida, false) AS suspendida, " +
+			"COALESCE(c.suspendida, false) AS suspendida, d.status AS decl_status, " +
 			"s1.status AS slot1_status, s2.status AS slot2_status, s1.sent_at AS slot1_sent_at, s2.sent_at AS slot2_sent_at, " +
 			"s1.created_at AS slot1_created_at, s2.created_at AS slot2_created_at",
 	).
@@ -931,6 +949,7 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 		if r.Slot2Status != nil {
 			s2 = *r.Slot2Status
 		}
+		noCorresponde := r.DeclStatus != nil && *r.DeclStatus == models.SupervisorDetraccionNoCorresponde
 		rows = append(rows, PreliminarVentasListRow{
 			CompanyID:         r.CompanyID,
 			Code:              strings.TrimSpace(r.Code),
@@ -939,8 +958,9 @@ func (s *SupervisorService) ListPreliminarVentas(p PreliminarVentasListParams) (
 			RUC:               strings.TrimSpace(r.RUC),
 			AssistantUsername: strings.TrimSpace(r.AssistantUsername),
 			Suspendida:        r.Suspendida,
-			Slot1:             slotState(0, s1, due1, r.Slot1SentAt, r.Slot1CreatedAt, r.Suspendida),
-			Slot2:             slotState(1, s2, due2, r.Slot2SentAt, r.Slot2CreatedAt, r.Suspendida),
+			NoCorresponde:     noCorresponde,
+			Slot1:             slotState(0, s1, due1, r.Slot1SentAt, r.Slot1CreatedAt, r.Suspendida || noCorresponde),
+			Slot2:             slotState(1, s2, due2, r.Slot2SentAt, r.Slot2CreatedAt, r.Suspendida || noCorresponde),
 		})
 	}
 	return rows, total, nil

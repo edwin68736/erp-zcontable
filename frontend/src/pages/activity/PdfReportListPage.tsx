@@ -6,6 +6,8 @@ import CompanyDigitoFilter from '../../components/finance/CompanyDigitoFilter';
 import { RowActionLink } from '../../components/activity/RowActionLink';
 import ActivityOwnerFilters from '../../components/activity/ActivityOwnerFilters';
 import SuspendCompanyAction from '../../components/activity/SuspendCompanyAction';
+import NotApplicableAction from '../../components/activity/NotApplicableAction';
+import NotApplicableCarryOver from '../../components/activity/NotApplicableCarryOver';
 import {
   PDF_REPORT_MODULES,
   PDF_REPORT_STATUS_FILTER,
@@ -266,6 +268,7 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                     timeliness: row.timeliness,
                   });
                   const terminal = PDF_REPORT_TERMINAL_STATUSES.has(row.status);
+                  const naActivity = slug === 'siscont-balances' ? 'siscont_balances' : 'informe_detracciones';
                   return (
                     <tr key={row.company_id} className={pdt601RowBgClass(false, row.timeliness, row.suspendida)}>
                       <td className={`${TD} font-mono`}>{row.code || '—'}</td>
@@ -286,7 +289,7 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                           </span>
                           {/* "Entregado" ya incluye la puntualidad en el badge de arriba; suspendida
                               no tiene plazo que cumplir. */}
-                          {!row.suspendida && row.status !== 'entregado' ? (
+                          {!row.suspendida && row.status !== 'entregado' && row.status !== 'no_corresponde' ? (
                             <span
                               title="Cumplimiento del plazo según el calendario de actividades"
                               className={`inline-block px-2 py-0.5 rounded-full text-2xs font-medium ${timelinessBadgeClass(row.timeliness)}`}
@@ -321,6 +324,16 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
                           suspendida={!!row.suspendida}
                           onChanged={() => void load()}
                         />
+                        {!row.suspendida && ['pendiente', 'no_corresponde'].includes(row.status) ? (
+                          <NotApplicableAction
+                            activity={naActivity}
+                            companyId={row.company_id}
+                            companyName={row.business_name}
+                            periodYm={periodYm}
+                            marked={row.status === 'no_corresponde'}
+                            onChanged={() => void load()}
+                          />
+                        ) : null}
                       </td>
                       <td className={`${TD} whitespace-nowrap`}>{formatDateOnly(row.due_date)}</td>
                       <td className={`${TD} whitespace-nowrap`}>{row.suspendida ? '—' : formatDateOnly(row.fecha_entrega)}</td>
@@ -348,6 +361,13 @@ const PdfReportListPage = ({ workspace, slug }: PdfReportListPageProps) => {
           setPerPage(next);
           setPage(1);
         }}
+      />
+
+      <NotApplicableCarryOver
+        key={slug}
+        activity={slug === 'siscont-balances' ? 'siscont_balances' : 'informe_detracciones'}
+        periodYm={periodYm}
+        onApplied={() => void load()}
       />
     </div>
   );

@@ -15,7 +15,10 @@ export const PRELIMINAR_VENTAS_STATUSES = [
   { value: 'enviado', label: 'Enviado' },
 ] as const;
 
-export const PRELIMINAR_VENTAS_STATUS_FILTER = buildStatusFilter(PRELIMINAR_VENTAS_STATUSES);
+export const PRELIMINAR_VENTAS_STATUS_FILTER = [
+  ...buildStatusFilter(PRELIMINAR_VENTAS_STATUSES),
+  { value: 'no_corresponde', label: 'No corresponde' },
+];
 
 const PRELIMINAR_VENTAS_BADGE: Record<string, string> = {
   sin_registro: 'bg-slate-100 text-slate-700',

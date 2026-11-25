@@ -86,6 +86,8 @@ type SunatInboxListRow struct {
 	// empresa suspendida se veía igual que cualquier otra en el listado (o directamente desaparecía
 	// de un filtro por estado), sin que el usuario supiera que sigue existiendo.
 	Suspendida bool `json:"suspendida"`
+	// NoCorresponde la empresa no hace esta actividad en el periodo: no se evalúa ni se puede cargar.
+	NoCorresponde bool `json:"no_corresponde"`
 }
 
 // SunatInboxListMeta metadatos del listado (config y semanas).
@@ -111,6 +113,7 @@ type SunatInboxDetail struct {
 	DeclarationID     uint                    `json:"declaration_id"`
 	Slots             []SunatInboxCaptureSlot `json:"slots"`
 	SummaryStatus     string                  `json:"summary_status"`
+	NoCorresponde     bool                    `json:"no_corresponde"`
 }
 
 type sunatInboxListResult struct {
@@ -622,6 +625,7 @@ func (s *SupervisorService) EnsureSunatInbox(companyID uint, periodYM, weekStart
 		DeclarationID:     decl.ID,
 		Slots:             dtoSlots,
 		SummaryStatus:     summarizeCaptureSlots(dtoSlots),
+		NoCorresponde:     decl.Status == models.SupervisorDetraccionNoCorresponde,
 	}, nil
 }
 
@@ -746,6 +750,7 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 	}
 
 	statusFilter := strings.TrimSpace(p.Status)
+	noCorresponde := notApplicableCompanies(p.PeriodYM, models.SupervisorDeclSunatInbox, ids)
 	timelinessCtx := mailboxTimelinessCtxFor(p.PeriodYM, weekStart, slotsPerWeek)
 	filteredRows := make([]SunatInboxListRow, 0, len(allCompanies))
 	for _, co := range allCompanies {
@@ -758,7 +763,11 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			dtoSlots = buildVirtualSlots(slotsByControl[cr.ControlID], slotsPerWeek, timelinessCtx)
 		}
 		summary := summarizeCaptureSlots(dtoSlots)
-		if !companyMatchesMailboxFilter(dtoSlots, statusFilter) {
+		if statusFilter == models.SupervisorDetraccionNoCorresponde {
+			if !noCorresponde[co.ID] {
+				continue
+			}
+		} else if statusFilter != "" && (noCorresponde[co.ID] || !companyMatchesMailboxFilter(dtoSlots, statusFilter)) {
 			continue
 		}
 		filteredRows = append(filteredRows, SunatInboxListRow{
@@ -774,6 +783,7 @@ func (s *SupervisorService) ListSunatInbox(p SunatInboxListParams) (*sunatInboxL
 			SummaryStatus:      summary,
 			Slots:              dtoSlots,
 			Suspendida:         suspendidaByCompany[co.ID],
+			NoCorresponde:      noCorresponde[co.ID],
 		})
 	}
 
@@ -812,7 +822,8 @@ type SunatInboxExportRow struct {
 	SupervisorUsername string                             `json:"supervisor_username"`
 	Weeks              map[string][]SunatInboxCaptureSlot `json:"weeks"`
 	// Suspendida: ver comentario en SunatInboxListRow.Suspendida.
-	Suspendida bool `json:"suspendida"`
+	Suspendida    bool `json:"suspendida"`
+	NoCorresponde bool `json:"no_corresponde"`
 }
 
 // SunatInboxExportResult resultado completo (sin paginar) para el reporte Excel.
@@ -955,6 +966,7 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 	// recalculaba -con su propia consulta a BD- una vez por semana).
 	calendarActs := sunatInboxCalendarActivitiesForPeriod(p.PeriodYM)
 	statusFilter := strings.TrimSpace(p.Status)
+	noCorresponde := notApplicableCompanies(p.PeriodYM, models.SupervisorDeclSunatInbox, ids)
 
 	rows := make([]SunatInboxExportRow, 0, len(allCompanies))
 	for _, co := range allCompanies {
@@ -980,6 +992,13 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 				matches = true
 			}
 		}
+		if statusFilter != "" {
+			if statusFilter == models.SupervisorDetraccionNoCorresponde {
+				matches = noCorresponde[co.ID]
+			} else if noCorresponde[co.ID] {
+				matches = false
+			}
+		}
 		if !matches {
 			continue
 		}
@@ -993,6 +1012,7 @@ func (s *SupervisorService) buildSunatInboxExportRows(p SunatInboxListParams, we
 			SupervisorUsername: userUsername(co.Supervisor),
 			Weeks:              weeksOut,
 			Suspendida:         suspendidaByCompany[co.ID],
+			NoCorresponde:      noCorresponde[co.ID],
 		})
 	}
 
@@ -1130,6 +1150,9 @@ func (s *SupervisorService) UploadMailboxCapture(
 	}
 	if slotIndex > detail.CapturesPerWeek {
 		return nil, errors.New("slot_index fuera de rango configurado")
+	}
+	if detail.NoCorresponde {
+		return nil, errNotApplicableLocked
 	}
 
 	weekStartParsed, err := parseWeekStart(detail.WeekStart)

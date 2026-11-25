@@ -16,11 +16,12 @@ import (
 
 // preliminarSlotWork una entrega (empresa × entrega del mes) evaluada contra su fecha del calendario.
 type preliminarSlotWork struct {
-	Company    models.Company
-	SlotIndex  int
-	Status     string // pendiente | registrado | enviado
-	Suspendida bool
-	Timeliness UploadTimelinessDTO
+	Company       models.Company
+	SlotIndex     int
+	Status        string // pendiente | registrado | enviado
+	Suspendida    bool
+	NoCorresponde bool
+	Timeliness    UploadTimelinessDTO
 }
 
 // preliminarVentasSlotActivities las actividades de calendario de las 2 entregas del período, en orden
@@ -96,6 +97,7 @@ func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company,
 		recByKey[recKey{r.MonthlyControlID, r.SlotIndex}] = r
 	}
 
+	noCorresponde := notApplicableCompanies(periodYM, models.SupervisorDeclPreliminarVentas, ids)
 	out := make([]preliminarSlotWork, 0, len(companies)*len(acts))
 	for _, co := range companies {
 		ctrl := ctrlByCompany[co.ID]
@@ -105,14 +107,14 @@ func (s *SupervisorService) preliminarVentasSlotWork(companies []models.Company,
 			if err != nil {
 				continue
 			}
-			w := preliminarSlotWork{Company: co, SlotIndex: slot, Status: models.PreliminarVentasPendiente, Suspendida: ctrl.Suspendida}
+			w := preliminarSlotWork{Company: co, SlotIndex: slot, Status: models.PreliminarVentasPendiente, Suspendida: ctrl.Suspendida, NoCorresponde: noCorresponde[co.ID]}
 			var registradoAt *time.Time
 			if r, ok := recByKey[recKey{ctrl.ID, slot}]; ok {
 				w.Status = r.Status
 				at := r.CreatedAt
 				registradoAt = &at
 			}
-			w.Timeliness = preliminarSlotTimeliness(due, act.ActivityRuleID, w.Status, registradoAt, ctrl.Suspendida, time.Now())
+			w.Timeliness = preliminarSlotTimeliness(due, act.ActivityRuleID, w.Status, registradoAt, ctrl.Suspendida || w.NoCorresponde, time.Now())
 			out = append(out, w)
 		}
 	}
@@ -144,7 +146,7 @@ func preliminarDateTimeliness(due time.Time, sentAt *time.Time, now time.Time) U
 func moduleRowPreliminarVentas(slots []preliminarSlotWork) DashboardModuleRow {
 	out := DashboardModuleRow{Key: models.SupervisorDeclPreliminarVentas, Label: "Preliminar de ventas"}
 	for _, w := range slots {
-		if w.Suspendida {
+		if w.Suspendida || w.NoCorresponde {
 			continue
 		}
 		out.Total++

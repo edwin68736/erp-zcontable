@@ -201,7 +201,7 @@ func (s *SupervisorService) EnsurePdfReport(mod PdfReportModule, companyID uint,
 
 	dig := s.companyDig(company.ID)
 	act := PickCalendarActivityByDigitFor(periodYM, mod.CalendarType, dig)
-	timeliness := pdfReportTimeliness(periodYM, act, decl.DeliveredAt, ctrl.Suspendida)
+	timeliness := pdfReportTimeliness(periodYM, act, decl.DeliveredAt, ctrl.Suspendida || decl.Status == models.SupervisorDetraccionNoCorresponde)
 
 	return &PdfReportDetail{
 		PeriodYM:          periodYM,
@@ -235,6 +235,9 @@ func PickCalendarActivityByDigitFor(periodYM, calendarType, dig string) *models.
 func CheckPdfReportSubmittable(detail *PdfReportDetail) error {
 	if detail.ControlSuspendida {
 		return errors.New("esta empresa está suspendida en este período (marcado desde Estado cta. detracciones); no se puede cargar")
+	}
+	if detail.Declaration.Status == models.SupervisorDetraccionNoCorresponde {
+		return errNotApplicableLocked
 	}
 	if detail.Declaration.Status == models.SupervisorDeclEntregado {
 		return errors.New("esta entrega ya fue aprobada; no se puede reemplazar (use Reabrir si corresponde)")
@@ -329,9 +332,9 @@ func pdfReportFilteredCompaniesQuery(mod PdfReportModule, p PdfReportListParams)
 			SELECT 1 FROM supervisor_monthly_controls c
 			INNER JOIN supervisor_declarations d ON d.monthly_control_id = c.id AND d.declaration_type = ?
 			WHERE c.company_id = companies.id AND c.period_ym = ? AND c.deleted_at IS NULL AND d.deleted_at IS NULL
-			AND d.status IN (?, ?, ?)
+			AND d.status IN (?, ?, ?, ?)
 		)`, mod.DeclType, p.PeriodYM,
-			models.SupervisorDeclPorRevisar, models.SupervisorDeclObservado, models.SupervisorDeclEntregado)
+			models.SupervisorDeclPorRevisar, models.SupervisorDeclObservado, models.SupervisorDeclEntregado, models.SupervisorDetraccionNoCorresponde)
 	default:
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM supervisor_monthly_controls c
@@ -453,7 +456,7 @@ func (s *SupervisorService) pdfReportBuildRows(mod PdfReportModule, companies []
 			}
 		}
 		act := PickCalendarActivityByDigit(acts, pdt601DigitFromString(credDig[co.ID]))
-		tl := pdfReportTimeliness(periodYM, act, deliveredAt, row.Suspendida)
+		tl := pdfReportTimeliness(periodYM, act, deliveredAt, row.Suspendida || row.Status == models.SupervisorDetraccionNoCorresponde)
 		row.Timeliness = tl.Timeliness
 		row.DueDate = pdfReportDateString(tl.DueAt)
 		rows = append(rows, row)

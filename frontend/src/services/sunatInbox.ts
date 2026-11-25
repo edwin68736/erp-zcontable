@@ -57,9 +57,12 @@ export interface SunatInboxListRow {
   // suspendida: global por periodo (docs/diseno-limpieza-control-detail-2026-09-16.md §5.9.7/§5.9.8)
   // — Buzón SOL solo la lee, se marca desde Estado cta. detracciones.
   suspendida: boolean;
+  /** La empresa no hace esta actividad en el periodo. */
+  no_corresponde?: boolean;
 }
 
 export interface SunatInboxDetail {
+  no_corresponde?: boolean;
   period_ym: string;
   week_start: string;
   captures_per_week: number;
@@ -99,6 +102,8 @@ export interface SunatInboxExportRow {
   weeks: Record<string, SunatInboxCaptureSlot[]>;
   // suspendida: ver comentario en SunatInboxListRow.suspendida.
   suspendida: boolean;
+  /** La empresa no hace esta actividad en el periodo. */
+  no_corresponde?: boolean;
 }
 
 export interface SunatInboxExportResponse {

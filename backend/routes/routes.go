@@ -317,6 +317,9 @@ func Setup(app *fiber.App) {
 	sup.Get("/activity-modules/detracciones/companies/:companyId", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesDetailAPI)
 	// Modal de arrastre de suspensión entre períodos (§5.9.9) — sin restricción de permiso más allá
 	// de poder ver/interactuar con Detracciones (confirmado con el usuario, §5.9.9.3).
+	sup.Put("/activity-modules/not-applicable", middleware.RequirePermission(rbac.SupervisorsDetraccionesMarkStatus), supervisorCtrl.NotApplicableSetAPI)
+	sup.Get("/activity-modules/not-applicable/carry-over", middleware.RequirePermission(rbac.SupervisorsDetraccionesMarkStatus), supervisorCtrl.NotApplicableCarryOverAPI)
+	sup.Post("/activity-modules/not-applicable/carry-over", middleware.RequirePermission(rbac.SupervisorsDetraccionesMarkStatus), supervisorCtrl.NotApplicableApplyCarryOverAPI)
 	sup.Get("/activity-modules/detracciones/suspension-carry-over", middleware.RequirePermission(rbac.SupervisorsControlsView), supervisorCtrl.DetraccionesSuspensionCarryOverStatusAPI)
 	sup.Post("/activity-modules/detracciones/suspension-carry-over/apply", middleware.RequirePermission(rbac.SupervisorsAttachmentsUpload), supervisorCtrl.DetraccionesApplySuspensionCarryOverAPI)
 	// Único endpoint de todo el sistema que marca/desmarca "suspendida" (§5.9.7) — mismo permiso que
